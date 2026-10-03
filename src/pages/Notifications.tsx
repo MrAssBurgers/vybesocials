@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { 
   Heart, MessageCircle, UserPlus, UserCheck, Check, X, 
@@ -231,7 +231,15 @@ export default function NotificationsPage() {
   const respondToRequest = useRespondToFriendRequest();
   const createConversation = useCreateConversation();
   const { prefetchConversation } = useChatPrefetch();
-  const [activeTab, setActiveTab] = useState('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const activeTab = requestedTab === 'requests' || requestedTab === 'priority' ? requestedTab : 'all';
+  const setActiveTab = (tab: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (tab === 'all') next.delete('tab');
+    else next.set('tab', tab);
+    setSearchParams(next);
+  };
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Notification → chat prefetch already runs app-wide via GlobalMessageNotifications.

@@ -3,6 +3,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { useEffect, useCallback } from 'react';
+import { readDevicePreference, writeDevicePreference } from '@/lib/devicePreferences';
 
 // Default navigation tabs
 export const DEFAULT_NAV_TABS = ['home', 'explore', 'upload', 'messages', 'profile'] as const;
@@ -83,100 +84,76 @@ export const DEFAULT_UI_SETTINGS: UISettings = {
   configVersion: 1,
 };
 
-// Local storage key for caching
+// Device cache is scoped to the signed-in account. Legacy unowned cache is never reused.
 const UI_SETTINGS_CACHE_KEY = 'vybe-ui-settings-cache';
 
-// Get cached settings from localStorage
-function getCachedSettings(): UISettings | null {
+export function getCachedSettings(userId?: string): UISettings | null {
+  if (!userId) return null;
   try {
-    const cached = localStorage.getItem(UI_SETTINGS_CACHE_KEY);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-  } catch {
-    // Ignore errors
-  }
+    const cached = readDevicePreference(`${UI_SETTINGS_CACHE_KEY}:${encodeURIComponent(userId)}`);
+    if (cached) return validateSettings(JSON.parse(cached));
+  } catch { /* Ignore malformed or unavailable cache. */ }
   return null;
 }
 
-// Save settings to localStorage cache
-function cacheSettings(settings: UISettings) {
-  try {
-    localStorage.setItem(UI_SETTINGS_CACHE_KEY, JSON.stringify(settings));
-  } catch {
-    // Ignore errors
-  }
+export function cacheSettings(userId: string, settings: UISettings) {
+  writeDevicePreference(`${UI_SETTINGS_CACHE_KEY}:${encodeURIComponent(userId)}`, JSON.stringify(validateSettings(settings)));
 }
 
-// Clear settings cache
-function clearSettingsCache() {
-  try {
-    localStorage.removeItem(UI_SETTINGS_CACHE_KEY);
-  } catch {
-    // Ignore errors
-  }
+export function clearSettingsCache(userId: string) {
+  writeDevicePreference(`${UI_SETTINGS_CACHE_KEY}:${encodeURIComponent(userId)}`, null);
 }
 
-// Validate and repair settings
-function validateSettings(settings: Partial<UISettings>): UISettings {
-  const validated = { ...DEFAULT_UI_SETTINGS };
-  
-  // Validate nav tabs - ensure home is always present
-  if (settings.navTabs && Array.isArray(settings.navTabs)) {
-    const tabs = settings.navTabs.filter(t => DEFAULT_NAV_TABS.includes(t as NavTab));
+function record(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown> : {};
+}
+
+// Remote and offline settings are untrusted; every returned layout is complete and independent.
+export function validateSettings(value: unknown): UISettings {
+  const settings = record(value);
+  const layouts = record(settings.layouts);
+  const validated: UISettings = {
+    ...DEFAULT_UI_SETTINGS,
+    navTabs: [...DEFAULT_NAV_TABS],
+    navOrder: [...DEFAULT_UI_SETTINGS.navOrder],
+    layouts: {
+      home: validateLayoutModules(layouts.home, DEFAULT_LAYOUTS.home),
+      messages: validateLayoutModules(layouts.messages, DEFAULT_LAYOUTS.messages),
+      profile: validateLayoutModules(layouts.profile, DEFAULT_LAYOUTS.profile),
+      explore: validateLayoutModules(layouts.explore, DEFAULT_LAYOUTS.explore),
+    },
+  };
+
+  if (Array.isArray(settings.navTabs)) {
+    const tabs = [...new Set(settings.navTabs.filter((tab): tab is NavTab => DEFAULT_NAV_TABS.includes(tab as NavTab)))];
     if (!tabs.includes('home')) tabs.unshift('home');
-    if (tabs.length >= 3) {
-      validated.navTabs = tabs as NavTab[];
-    }
+    if (tabs.length >= 3) validated.navTabs = tabs;
   }
-  
-  // Validate nav order
-  if (settings.navOrder && Array.isArray(settings.navOrder)) {
-    validated.navOrder = settings.navOrder.slice(0, validated.navTabs.length);
-  }
-  
-  // Validate layouts
-  if (settings.layouts && typeof settings.layouts === 'object') {
-    validated.layouts = {
-      home: validateLayoutModules(settings.layouts.home, DEFAULT_LAYOUTS.home),
-      messages: validateLayoutModules(settings.layouts.messages, DEFAULT_LAYOUTS.messages),
-      profile: validateLayoutModules(settings.layouts.profile, DEFAULT_LAYOUTS.profile),
-      explore: validateLayoutModules(settings.layouts.explore, DEFAULT_LAYOUTS.explore),
-    };
-  }
-  
-  // Validate other settings
-  if (settings.fontScale && ['small', 'medium', 'large', 'xlarge'].includes(settings.fontScale)) {
-    validated.fontScale = settings.fontScale;
-  }
-  if (settings.contrastLevel && ['low', 'medium', 'high'].includes(settings.contrastLevel)) {
-    validated.contrastLevel = settings.contrastLevel;
-  }
-  if (settings.buttonStyle && ['glass', 'solid', 'outline'].includes(settings.buttonStyle)) {
-    validated.buttonStyle = settings.buttonStyle;
-  }
-  if (settings.motionIntensity && ['low', 'medium', 'high'].includes(settings.motionIntensity)) {
-    validated.motionIntensity = settings.motionIntensity;
-  }
-  
+  const indexes = validated.navTabs.map((_, index) => index);
+  const storedOrder = Array.isArray(settings.navOrder)
+    ? [...new Set(settings.navOrder.filter((index): index is number => Number.isInteger(index) && indexes.includes(index as number)))] : [];
+  validated.navOrder = [...storedOrder, ...indexes.filter(index => !storedOrder.includes(index))];
+
+  if (['small', 'medium', 'large', 'xlarge'].includes(settings.fontScale as string)) validated.fontScale = settings.fontScale as UISettings['fontScale'];
+  if (['low', 'medium', 'high'].includes(settings.contrastLevel as string)) validated.contrastLevel = settings.contrastLevel as UISettings['contrastLevel'];
+  if (['glass', 'solid', 'outline'].includes(settings.buttonStyle as string)) validated.buttonStyle = settings.buttonStyle as UISettings['buttonStyle'];
+  if (['low', 'medium', 'high'].includes(settings.motionIntensity as string)) validated.motionIntensity = settings.motionIntensity as UISettings['motionIntensity'];
+  if (typeof settings.safeMode === 'boolean') validated.safeMode = settings.safeMode;
+  if (Number.isSafeInteger(settings.configVersion) && (settings.configVersion as number) > 0) validated.configVersion = settings.configVersion as number;
   return validated;
 }
 
-function validateLayoutModules(modules: LayoutModule[] | undefined, defaults: LayoutModule[]): LayoutModule[] {
-  if (!modules || !Array.isArray(modules)) return defaults;
-  
-  // Ensure all default modules exist
-  const moduleIds = new Set(modules.map(m => m.id));
-  const validated = [...modules];
-  
-  for (const def of defaults) {
-    if (!moduleIds.has(def.id)) {
-      validated.push({ ...def, order: validated.length });
-    }
-  }
-  
-  // Sort by order
-  return validated.sort((a, b) => a.order - b.order);
+function validateLayoutModules(value: unknown, defaults: LayoutModule[]): LayoutModule[] {
+  const candidates = Array.isArray(value) ? value.map(record) : [];
+  return defaults.map((fallback) => {
+    const saved = candidates.find(candidate => candidate.id === fallback.id);
+    return {
+      ...fallback,
+      visible: typeof saved?.visible === 'boolean' ? saved.visible : fallback.visible,
+      order: Number.isSafeInteger(saved?.order) && (saved?.order as number) >= 0 ? saved!.order as number : fallback.order,
+    };
+  }).sort((a, b) => a.order - b.order).map((module, order) => ({ ...module, order }));
 }
 
 // Fetch user UI settings
@@ -188,7 +165,7 @@ export function useUISettings() {
     queryKey: ['ui-settings', userId],
     queryFn: async (): Promise<UISettings> => {
       // Try cache first for instant load
-      const cached = getCachedSettings();
+      const cached = getCachedSettings(userId);
       
       if (!userId) {
         return cached || DEFAULT_UI_SETTINGS;
@@ -224,12 +201,13 @@ export function useUISettings() {
       });
 
       // Cache for offline/instant access
-      cacheSettings(settings);
+      cacheSettings(userId, settings);
 
       return settings;
     },
     staleTime: 60000,
-    initialData: getCachedSettings() || undefined,
+    initialData: () => getCachedSettings(userId) || undefined,
+    initialDataUpdatedAt: 0,
   });
 }
 
@@ -244,7 +222,7 @@ export function useSaveUISettings() {
       if (!userId) throw new Error('Not authenticated');
 
       // Get current settings and merge
-      const current = getCachedSettings() || DEFAULT_UI_SETTINGS;
+      const current = queryClient.getQueryData<UISettings>(['ui-settings', userId]) || getCachedSettings(userId) || DEFAULT_UI_SETTINGS;
       const merged = validateSettings({ ...current, ...settings });
 
       const { error } = await db
@@ -265,12 +243,13 @@ export function useSaveUISettings() {
       if (error) throw error;
 
       // Update cache
-      cacheSettings(merged);
+      cacheSettings(userId, merged);
 
       return merged;
     },
-    onSuccess: (data) => {
-      queryClient.setQueryData(['ui-settings', user?.id], data);
+    onMutate: () => ({ userId: user?.id }),
+    onSuccess: (data, _variables, context) => {
+      queryClient.setQueryData(['ui-settings', context?.userId], data);
     },
     onError: (error: any) => {
       console.error('Failed to save UI settings:', error);
@@ -297,12 +276,14 @@ export function useResetUISettings() {
       if (error) throw error;
 
       // Clear cache
-      clearSettingsCache();
+      clearSettingsCache(userId);
 
       return DEFAULT_UI_SETTINGS;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ui-settings'] });
+    onMutate: () => ({ userId: user?.id }),
+    onSuccess: (_data, _variables, context) => {
+      queryClient.setQueryData(['ui-settings', context?.userId], validateSettings(null));
+      queryClient.invalidateQueries({ queryKey: ['ui-settings', context?.userId] });
       toast.success('Settings reset to default');
     },
     onError: (error: any) => {

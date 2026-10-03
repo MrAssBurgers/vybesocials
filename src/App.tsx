@@ -16,11 +16,10 @@ import { startReconnectManager } from "@/lib/reconnectManager";
 import { startOutbox } from "@/lib/dmOutbox";
 import { loadDmInboxRolloutConfig } from "@/lib/dmInboxFeatureFlags";
 import { BrowserRouter, useLocation } from "react-router-dom";
-import { MotionConfig } from "framer-motion";
 import { BUTTER_TRANSITION } from "@/lib/smoothMotion";
 import { PlatformProvider } from "@/providers/PlatformProvider";
 import { AuthProvider, useAuth } from "@/lib/auth";
-import { ThemeProvider } from "@/lib/theme";
+import { ThemeProvider, ThemeMotionConfig } from "@/lib/theme";
 import { CustomThemeProvider } from "@/providers/ThemeProvider";
 import { ThemeTransitionProvider } from "@/providers/ThemeTransitionProvider";
 import { DebugPanelProvider } from "@/contexts/DebugPanelContext";
@@ -842,9 +841,9 @@ const App = memo(() => {
               <AccessibilityProvider>
                 {/* Tween defaults — buttery expo-out; springs opt-in per component. */}
                 <PlatformProvider>
-                  <MotionConfig reducedMotion="user" transition={BUTTER_TRANSITION}>
+                  <ThemeMotionConfig transition={BUTTER_TRANSITION}>
                     <AppWithPreloader />
-                  </MotionConfig>
+                  </ThemeMotionConfig>
                 </PlatformProvider>
               </AccessibilityProvider>
             </GlassIntensityProvider>

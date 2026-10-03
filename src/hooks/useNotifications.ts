@@ -16,6 +16,7 @@ import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { isNativePlatform } from '@/lib/capacitor';
 import { toIsoDateString } from '@/lib/parseApiDate';
 import { premiumSounds } from '@/lib/premiumSounds';
+import { isRetiredUpgradeNotice } from '@/lib/migrationNotice';
 
 // Check notification permission — never auto-request on web to avoid browser bell prompts
 async function requestNotificationPermission(): Promise<boolean> {
@@ -128,6 +129,7 @@ export function useNotifications() {
       const WEEK_MS = 7 * DAY_MS;
       const now = Date.now();
       const filtered = sorted.filter((n: any) => {
+        if (isRetiredUpgradeNotice(n)) return false;
         // Missed calls live in the DM thread as call_event rows — not the bell menu
         if (n.type === 'missed_call') return false;
         // DMs belong in Messages — never park message rows in the bell feed
@@ -182,6 +184,7 @@ export function useNotifications() {
       return mapped;
     },
     enabled: !!profileId,
+    select: (notifications) => notifications.filter(n => !isRetiredUpgradeNotice(n)),
     staleTime: 60000, // Cache for 1 minute
     gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
     refetchOnWindowFocus: false,
@@ -200,6 +203,7 @@ export function useNotifications() {
         table: 'notifications',
         filter: `user_id=eq.${profileId}`,
         callback: async (payload) => {
+          if (isRetiredUpgradeNotice(payload.new)) return;
           const row = payload.new as { actor_id?: string; created_at?: string; read?: boolean };
           if (row.actor_id === profileId) return;
 
@@ -317,17 +321,18 @@ export function useUnreadCount() {
   const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['unread-notifications', profileId],
+    queryKey: ['unread-notifications', profileId, 'retired-upgrade-filtered'],
     queryFn: async () => {
       if (!profileId) return 0;
 
-      const { count } = await db
+      const { data, error } = await db
         .from('notifications')
-        .select('id', { count: 'exact', head: true })
+        .select('id,type,title')
         .eq('user_id', profileId)
         .eq('read', false);
 
-      return count || 0;
+      if (error) throw error;
+      return (data || []).filter(n => !isRetiredUpgradeNotice(n)).length;
     },
     enabled: !!profileId,
     staleTime: 60000, // Cache for 1 minute

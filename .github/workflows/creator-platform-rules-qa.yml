@@ -1,0 +1,105 @@
+name: Creator Platform Rules QA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'firestore.rules'
+      - 'storage.rules'
+      - 'firebase.qa.json'
+      - 'scripts/test-creator-platform-rules.mjs'
+      - 'scripts/test-game-capture-post-rules.mjs'
+      - 'functions/src/gameIntegration*.ts'
+      - 'functions/src/captureEvents.ts'
+      - 'src/lib/gameCapture*.ts'
+      - 'src/lib/gameIntegration*.ts'
+      - 'src/hooks/usePosts.ts'
+      - 'src/pages/GameCapture*'
+      - 'src/pages/MiniApps*'
+      - 'src/features/mini-apps/**'
+      - 'sdk/game/**'
+      - '.github/workflows/creator-platform-rules-qa.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'firestore.rules'
+      - 'storage.rules'
+      - 'firebase.qa.json'
+      - 'scripts/test-creator-platform-rules.mjs'
+      - 'scripts/test-game-capture-post-rules.mjs'
+      - 'functions/src/gameIntegration*.ts'
+      - 'functions/src/captureEvents.ts'
+      - 'src/lib/gameCapture*.ts'
+      - 'src/lib/gameIntegration*.ts'
+      - 'src/hooks/usePosts.ts'
+      - 'src/pages/GameCapture*'
+      - 'src/pages/MiniApps*'
+      - 'src/features/mini-apps/**'
+      - 'sdk/game/**'
+      - '.github/workflows/creator-platform-rules-qa.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: creator-platform-rules-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  creator-rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      GCLOUD_PROJECT: demo-vybe-creators
+      FIREBASE_TEST_TOOLS_ROOT: ${{ runner.temp }}/vybe-creator-rules-tools
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # Keep the emulator and its SDK outside the application dependency tree.
+      # The scripts resolve this SDK through FIREBASE_TEST_TOOLS_ROOT.
+      - name: Install isolated Firebase QA tools
+        run: >-
+          npm install --prefix "$FIREBASE_TEST_TOOLS_ROOT"
+          --no-audit --no-fund --save-exact
+          firebase-tools@15.28.2 @firebase/rules-unit-testing@5.0.2 firebase@12.19.0
+
+      - name: Check test entry points
+        run: |
+          node --check scripts/test-creator-platform-rules.mjs
+          node --check scripts/test-game-capture-post-rules.mjs
+
+      # Explicit demo project + QA-only config prevents the repository's
+      # production default in .firebaserc from being selected.
+      - name: Run creator and game-capture rules against local emulators
+        run: >-
+          node "$FIREBASE_TEST_TOOLS_ROOT/node_modules/firebase-tools/lib/bin/firebase.js"
+          emulators:exec --non-interactive
+          --project "$GCLOUD_PROJECT" --config firebase.qa.json --only firestore,storage
+          "node scripts/test-creator-platform-rules.mjs &&
+          node scripts/test-game-capture-post-rules.mjs"
+
+      - name: Upload emulator diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: creator-platform-rules-diagnostics
+          path: |
+            firebase-debug.log
+            firestore-debug.log
+            storage-debug.log
+          retention-days: 7
+          if-no-files-found: ignore

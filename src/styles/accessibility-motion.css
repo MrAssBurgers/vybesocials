@@ -1,0 +1,29 @@
+/* Accessibility preferences take priority over immersive visual effects.
+   Extra root specificity keeps decorative !important rules from restoring motion. */
+html.reduce-motion.reduce-motion.reduce-motion.reduce-motion.reduce-motion *,
+html.reduce-motion.reduce-motion.reduce-motion.reduce-motion.reduce-motion *::before,
+html.reduce-motion.reduce-motion.reduce-motion.reduce-motion.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0ms !important;
+  scroll-behavior: auto !important;
+}
+
+html.reduce-motion.reduce-motion.reduce-motion.reduce-motion.reduce-motion .vybe-liquid-touch-layer {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:root:root:root:root:root *,
+  html:root:root:root:root:root *::before,
+  html:root:root:root:root:root *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}

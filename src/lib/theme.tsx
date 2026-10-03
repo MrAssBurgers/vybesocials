@@ -1,12 +1,19 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, ComponentProps } from 'react';
+import { MotionConfig } from 'framer-motion';
 import { getHapticsEnabled, setHapticsEnabled as setHapticsStorage } from '@/lib/haptics';
 import { getSoundsEnabled, setSoundsEnabled as setSoundsStorage } from '@/lib/sounds';
-
+import { subscribeDevicePreference, useDevicePreference } from '@/lib/devicePreferences';
 import { reinforceSplashTheme } from '@/lib/theme/themePrepaint';
+import { defaultGlassIntensity, GLASS_INTENSITIES } from '@/lib/visualPreferences';
+import '@/styles/accessibility-motion.css';
 
-type Theme = 'dark' | 'light' | 'system';
-type MotionIntensity = 'calm' | 'normal';
-type GlassIntensity = 'calm' | 'normal' | 'max';
+const THEMES = ['dark', 'light', 'system'] as const;
+const MOTION_INTENSITIES = ['calm', 'normal'] as const;
+// Preserve saved boolean preferences from earlier versions.
+const MOTION_PREFERENCES = ['system', 'true', 'false'] as const;
+type Theme = typeof THEMES[number];
+type MotionIntensity = typeof MOTION_INTENSITIES[number];
+type GlassIntensity = typeof GLASS_INTENSITIES[number];
 
 interface ThemeContextType {
   theme: Theme;
@@ -14,6 +21,8 @@ interface ThemeContextType {
   setTheme: (theme: Theme) => void;
   reducedMotion: boolean;
   setReducedMotion: (reduced: boolean) => void;
+  followsSystemMotion: boolean;
+  followSystemMotion: () => void;
   motionIntensity: MotionIntensity;
   setMotionIntensity: (intensity: MotionIntensity) => void;
   hapticsEnabled: boolean;
@@ -26,173 +35,85 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-function getSystemTheme(): 'dark' | 'light' {
-  if (typeof window === 'undefined') return 'dark';
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
-
-function getSystemReducedMotion(): boolean {
-  if (typeof window === 'undefined') return false;
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function useMediaPreference(query: string, fallback: boolean): boolean {
+  const [matches, setMatches] = useState(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia(query).matches : fallback);
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const media = window.matchMedia(query);
+    const update = () => setMatches(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, [query]);
+  return matches;
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    if (typeof window === 'undefined') return 'dark';
-    return (localStorage.getItem('xd-theme') as Theme) || 'dark';
-  });
-
-  const [reducedMotion, setReducedMotionState] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    const stored = localStorage.getItem('xd-reduced-motion');
-    return stored ? stored === 'true' : getSystemReducedMotion();
-  });
-
-  const [motionIntensity, setMotionIntensityState] = useState<MotionIntensity>(() => {
-    if (typeof window === 'undefined') return 'normal';
-    return (localStorage.getItem('vybe-motion-intensity') as MotionIntensity) || 'normal';
-  });
-
-  const [hapticsEnabled, setHapticsEnabledState] = useState<boolean>(() => {
-    return getHapticsEnabled();
-  });
-
-  const [soundsEnabled, setSoundsEnabledState] = useState<boolean>(() => {
-    return getSoundsEnabled();
-  });
-
-  const [glassIntensity, setGlassIntensityState] = useState<GlassIntensity>(() => {
-    if (typeof window === 'undefined') return 'normal';
-    return (localStorage.getItem('vybe-glass-intensity') as GlassIntensity) || 'normal';
-  });
-
-  const [resolvedTheme, setResolvedTheme] = useState<'dark' | 'light'>(() => {
-    if (theme === 'system') return getSystemTheme();
-    return theme;
-  });
+  const [theme, setTheme] = useDevicePreference('xd-theme', 'dark', THEMES);
+  const [motionPreference, setMotionPreference] = useDevicePreference('xd-reduced-motion', 'system', MOTION_PREFERENCES);
+  const [motionIntensity, setMotionIntensity] = useDevicePreference('vybe-motion-intensity', 'normal', MOTION_INTENSITIES);
+  const [glassIntensity, setGlassIntensity] = useDevicePreference('vybe-glass-intensity', defaultGlassIntensity(), GLASS_INTENSITIES);
+  const [hapticsEnabled, setHapticsEnabledState] = useState(getHapticsEnabled);
+  const [soundsEnabled, setSoundsEnabledState] = useState(getSoundsEnabled);
+  const systemDark = useMediaPreference('(prefers-color-scheme: dark)', true);
+  const systemReducedMotion = useMediaPreference('(prefers-reduced-motion: reduce)', false);
+  const followsSystemMotion = motionPreference === 'system';
+  // An operating-system accessibility request always takes precedence.
+  const reducedMotion = systemReducedMotion || motionPreference === 'true';
+  const resolvedTheme = theme === 'system' ? (systemDark ? 'dark' : 'light') : theme;
 
   useEffect(() => {
-    const root = window.document.documentElement;
-
-    const resolved = theme === 'system' ? getSystemTheme() : theme;
-    setResolvedTheme(resolved);
-
-    // Only mutate the class list when the mode actually changes.
-    // Blindly calling remove()+add() on every render fires the MutationObserver
-    // in useApplyUserTheme, which re-applies tokens and causes visible color
-    // flicker / "colors keep changing" on navigation.
-    const currentMode = root.classList.contains('light') ? 'light' : 'dark';
-    if (currentMode !== resolved) {
+    const root = document.documentElement;
+    if (!root.classList.contains(resolvedTheme)) {
       root.classList.remove('light', 'dark');
-      root.classList.add(resolved);
-      if (document.body.classList.contains('splash-visible')) {
-        reinforceSplashTheme();
-      }
+      root.classList.add(resolvedTheme);
+      if (document.body.classList.contains('splash-visible')) reinforceSplashTheme();
     }
-    localStorage.setItem('xd-theme', theme);
-  }, [theme]);
+  }, [resolvedTheme]);
 
   useEffect(() => {
-    const root = window.document.documentElement;
-    
-    if (reducedMotion) {
-      root.classList.add('reduce-motion');
-    } else {
-      root.classList.remove('reduce-motion');
-    }
-    localStorage.setItem('xd-reduced-motion', String(reducedMotion));
+    document.documentElement.classList.toggle('reduce-motion', reducedMotion);
   }, [reducedMotion]);
 
   useEffect(() => {
-    const root = window.document.documentElement;
-    
-    if (motionIntensity === 'calm') {
-      root.classList.add('calm-motion');
-    } else {
-      root.classList.remove('calm-motion');
-    }
-    localStorage.setItem('vybe-motion-intensity', motionIntensity);
+    document.documentElement.classList.toggle('calm-motion', motionIntensity === 'calm');
   }, [motionIntensity]);
 
-  useEffect(() => {
-    const root = window.document.documentElement;
-    root.setAttribute('data-glass-intensity', glassIntensity);
-    localStorage.setItem('vybe-glass-intensity', glassIntensity);
-  }, [glassIntensity]);
-
-  useEffect(() => {
-    if (theme !== 'system') return;
-
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => {
-      const resolved = getSystemTheme();
-      setResolvedTheme(resolved);
-      const root = document.documentElement;
-      const currentMode = root.classList.contains('light') ? 'light' : 'dark';
-      if (currentMode !== resolved) {
-        root.classList.remove('light', 'dark');
-        root.classList.add(resolved);
-        if (document.body.classList.contains('splash-visible')) {
-          reinforceSplashTheme();
-        }
-      }
-    };
-
-    mediaQuery.addEventListener('change', handler);
-    return () => mediaQuery.removeEventListener('change', handler);
-  }, [theme]);
-
-  const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme);
-  };
-
-  const setReducedMotion = (reduced: boolean) => {
-    setReducedMotionState(reduced);
-  };
-
-  const setMotionIntensity = (intensity: MotionIntensity) => {
-    setMotionIntensityState(intensity);
-  };
+  useEffect(() => subscribeDevicePreference('vybe-haptics-enabled', () => setHapticsEnabledState(getHapticsEnabled())), []);
+  useEffect(() => subscribeDevicePreference('vybe-sound-settings', () => setSoundsEnabledState(getSoundsEnabled())), []);
 
   const setHapticsEnabled = (enabled: boolean) => {
     setHapticsEnabledState(enabled);
     setHapticsStorage(enabled);
   };
-
   const setSoundsEnabled = (enabled: boolean) => {
     setSoundsEnabledState(enabled);
     setSoundsStorage(enabled);
   };
 
-  const setGlassIntensity = (intensity: GlassIntensity) => {
-    setGlassIntensityState(intensity);
-  };
-
   return (
-    <ThemeContext.Provider value={{ 
-      theme, 
-      resolvedTheme, 
-      setTheme, 
-      reducedMotion, 
-      setReducedMotion,
-      motionIntensity,
-      setMotionIntensity,
-      hapticsEnabled,
-      setHapticsEnabled,
-      soundsEnabled,
-      setSoundsEnabled,
-      glassIntensity,
-      setGlassIntensity,
+    <ThemeContext.Provider value={{
+      theme, resolvedTheme, setTheme, reducedMotion,
+      setReducedMotion: (reduced) => setMotionPreference(reduced ? 'true' : 'system'),
+      followsSystemMotion, followSystemMotion: () => setMotionPreference('system'),
+      motionIntensity, setMotionIntensity, hapticsEnabled, setHapticsEnabled,
+      soundsEnabled, setSoundsEnabled, glassIntensity, setGlassIntensity,
     }}>
       {children}
     </ThemeContext.Provider>
   );
 }
 
+/** The in-app accessibility setting also governs Framer Motion transforms. */
+export function ThemeMotionConfig(props: ComponentProps<typeof MotionConfig>) {
+  const { reducedMotion } = useTheme();
+  return <MotionConfig {...props} reducedMotion={reducedMotion ? 'always' : 'never'} />;
+}
+
 export function useTheme() {
   const context = useContext(ThemeContext);
-  if (context === undefined) {
-    throw new Error('useTheme must be used within a ThemeProvider');
-  }
+  if (context === undefined) throw new Error('useTheme must be used within a ThemeProvider');
   return context;
 }

@@ -7,6 +7,7 @@ describe('login credential copy', () => {
   });
 
   it('uses migration guidance only with an explicit migration signal', () => {
-    expect(getLoginCredentialErrorMessage(true)).toMatch(/upgraded/i);
+    expect(getLoginCredentialErrorMessage(true)).toMatch(/Forgot password/);
+    expect(getLoginCredentialErrorMessage(true)).not.toMatch(/upgraded/i);
   });
 });

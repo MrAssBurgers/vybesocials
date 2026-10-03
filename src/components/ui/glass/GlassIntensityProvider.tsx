@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
-import { isNativeAppShell } from '@/lib/despiaBridge';
+import { useDevicePreference } from '@/lib/devicePreferences';
+import { CONTRAST_MODES, defaultGlassIntensity, GLASS_INTENSITIES } from '@/lib/visualPreferences';
 
 export type GlassIntensity = 'calm' | 'normal' | 'max';
 export type ContrastMode = 'normal' | 'high';
@@ -48,30 +49,18 @@ const isIOSDevice = () => {
 export function GlassIntensityProvider({ children }: { children: ReactNode }) {
   const [isIOS] = useState(() => isIOSDevice());
   
-  const [intensity, setIntensityState] = useState<GlassIntensity>(() => {
-    if (typeof window === 'undefined') return 'normal';
-    const stored = localStorage.getItem('vybe-glass-intensity') as GlassIntensity;
-    // Default to 'calm' on iOS and native store shell for better performance
-    return stored || (isIOSDevice() || isNativeAppShell() ? 'calm' : 'normal');
-  });
+  const [intensity, setIntensity] = useDevicePreference('vybe-glass-intensity', defaultGlassIntensity(), GLASS_INTENSITIES);
   
-  const [contrast, setContrastState] = useState<ContrastMode>(() => {
-    if (typeof window === 'undefined') return 'normal';
-    const stored = localStorage.getItem('vybe-contrast-mode') as ContrastMode;
-    // Default to high contrast on mobile for better readability
-    return stored || (isMobileDevice() ? 'high' : 'normal');
-  });
+  const [contrast, setContrast] = useDevicePreference('vybe-contrast-mode', isMobileDevice() ? 'high' : 'normal', CONTRAST_MODES);
   
   const [isScrolling, setIsScrolling] = useState(false);
 
   // Apply intensity and contrast to document
   useEffect(() => {
-    localStorage.setItem('vybe-glass-intensity', intensity);
     document.documentElement.setAttribute('data-glass-intensity', intensity);
   }, [intensity]);
 
   useEffect(() => {
-    localStorage.setItem('vybe-contrast-mode', contrast);
     document.documentElement.setAttribute('data-contrast', contrast);
   }, [contrast]);
 
@@ -88,14 +77,6 @@ export function GlassIntensityProvider({ children }: { children: ReactNode }) {
     });
     observer.observe(html, { attributes: true, attributeFilter: ['class'] });
     return () => observer.disconnect();
-  }, []);
-
-  const setIntensity = useCallback((newIntensity: GlassIntensity) => {
-    setIntensityState(newIntensity);
-  }, []);
-
-  const setContrast = useCallback((newContrast: ContrastMode) => {
-    setContrastState(newContrast);
   }, []);
 
   // Use reduced config on iOS

@@ -27,6 +27,7 @@ export function FeedbackSection() {
             </p>
           </div>
           <Switch 
+            aria-label="Haptic feedback"
             checked={hapticsEnabled} 
             onCheckedChange={(checked) => {
               setHapticsEnabled(checked);

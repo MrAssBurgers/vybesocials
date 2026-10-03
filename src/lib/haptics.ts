@@ -1,13 +1,14 @@
 // Haptic Feedback System
 // Provides haptic feedback for the Despia native shell, with a web vibration fallback.
 import despia from 'despia-native';
+import { readDevicePreference, writeDevicePreference } from './devicePreferences';
 
 type HapticStyle = 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error';
 
 // Check if haptics are enabled (stored in localStorage)
 function isHapticsEnabled(): boolean {
   if (typeof window === 'undefined') return false;
-  const stored = localStorage.getItem('vybe-haptics-enabled');
+  const stored = readDevicePreference('vybe-haptics-enabled');
   return stored === null ? true : stored === 'true';
 }
 
@@ -96,7 +97,7 @@ export const haptics = {
 // Settings management
 export function setHapticsEnabled(enabled: boolean): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem('vybe-haptics-enabled', String(enabled));
+  writeDevicePreference('vybe-haptics-enabled', String(enabled));
 }
 
 export function getHapticsEnabled(): boolean {

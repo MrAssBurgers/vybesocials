@@ -755,9 +755,26 @@ service cloud.firestore {
 
     // ---------- posts / comments / reactions ----------
     match /posts/{postId} {
+      function reservedGamePost() { return postId.matches('game_.*'); }
+      function validGameCaptureCreate() {
+        let captureId = request.resource.data.get('game_capture_id', '');
+        let capture = get(/databases/$(database)/documents/game_captures/$(captureId)).data;
+        return captureId is string && captureId.matches('^[a-f0-9]{48}$')
+          && postId == 'game_' + captureId && request.resource.data.get('id', '') == postId
+          && capture.owner_uid == uid() && capture.status == 'ready'
+          && capture.expires_at_ms > request.time.toMillis();
+      }
+      function preservesGameCaptureIdentity() {
+        return request.resource.data.author_id == resource.data.author_id
+          && request.resource.data.get('game_capture_id', '') == resource.data.get('game_capture_id', '')
+          && request.resource.data.get('id', '') == resource.data.get('id', '');
+      }
       allow read: if signedIn();
-      allow create: if willOwnProfile('author_id');
-      allow update, delete: if isOwnerProfile('author_id') || isStaffModerator();
+      allow create: if willOwnProfile('author_id')
+        && (reservedGamePost() ? validGameCaptureCreate() : !request.resource.data.keys().hasAny(['game_capture_id']));
+      allow update: if (isOwnerProfile('author_id') || isStaffModerator())
+        && (reservedGamePost() ? preservesGameCaptureIdentity() : !request.resource.data.diff(resource.data).affectedKeys().hasAny(['game_capture_id']));
+      allow delete: if isOwnerProfile('author_id') || isStaffModerator();
     }
     match /comments/{commentId} {
       allow read: if signedIn();
@@ -1360,7 +1377,7 @@ service cloud.firestore {
       );
     }
     match /saved_themes/{id} {
-      allow read: if signedIn() && willOwnProfile('user_id');
+      allow read: if signedIn() && isOwnerProfile('user_id');
       allow create: if signedIn() && willOwnProfile('user_id');
       allow delete: if signedIn() && isOwnerProfile('user_id');
       allow update: if false;
@@ -1417,6 +1434,46 @@ service cloud.firestore {
       allow create: if signedIn() && willOwnUserField('user_id');
       allow delete: if signedIn() && ownsUserField('user_id');
       allow update: if false;
+    }
+
+    // Mini-app source never runs in the VYBE origin. Private drafts and published
+    // snapshots are separate so saving an edit cannot silently change a live app.
+    function validMiniApp(data, published) {
+      return data.keys().hasAll(['schema_version', 'owner_id', 'title', 'description',
+          'category', 'html', 'css', 'javascript', 'created_at', 'updated_at'])
+        && data.keys().hasOnly(published
+          ? ['schema_version', 'owner_id', 'title', 'description', 'category', 'html', 'css', 'javascript', 'created_at', 'updated_at', 'status']
+          : ['schema_version', 'owner_id', 'title', 'description', 'category', 'html', 'css', 'javascript', 'created_at', 'updated_at'])
+        && data.schema_version == 1
+        && data.owner_id == uid()
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 60
+        && data.description is string && data.description.size() <= 240
+        && data.category in ['game', 'tool', 'art']
+        && data.html is string && data.css is string && data.javascript is string
+        && data.html.size() + data.css.size() + data.javascript.size() <= 100000
+        && data.created_at is timestamp && data.updated_at == request.time
+        && (!published || data.status == 'published');
+    }
+    match /mini_app_drafts/{id} {
+      allow read, delete: if signedIn() && resource.data.owner_id == uid();
+      allow create: if signedIn() && validMiniApp(request.resource.data, false)
+        && request.resource.data.created_at == request.time;
+      allow update: if signedIn() && resource.data.owner_id == uid()
+        && validMiniApp(request.resource.data, false)
+        && request.resource.data.created_at == resource.data.created_at;
+    }
+    match /mini_apps/{id} {
+      allow get: if signedIn() && (!exists(/databases/$(database)/documents/mini_apps/$(id))
+        || resource.data.status == 'published' || resource.data.owner_id == uid());
+      allow list: if signedIn()
+        && (resource.data.status == 'published' || resource.data.owner_id == uid());
+      allow create: if signedIn() && validMiniApp(request.resource.data, true)
+        && get(/databases/$(database)/documents/mini_app_drafts/$(id)).data.owner_id == uid()
+        && request.resource.data.created_at == request.time;
+      allow update: if signedIn() && resource.data.owner_id == uid()
+        && validMiniApp(request.resource.data, true)
+        && request.resource.data.created_at == resource.data.created_at;
+      allow delete: if signedIn() && (resource.data.owner_id == uid() || isStaffModerator());
     }
 
     // ---------- catch-all: deny by default ----------

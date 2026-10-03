@@ -17,6 +17,7 @@ import {
 import { VYBE_SOUNDS } from '@/lib/vybeSoundAssets';
 import { CustomRingtoneUploader } from './CustomRingtoneUploader';
 import { useSyncCustomSounds } from '@/hooks/useCustomSounds';
+import { subscribeDevicePreference } from '@/lib/devicePreferences';
 
 export function NotificationSoundSection() {
   const [settings, setSettings] = useState<SoundSettings>(getSoundSettings);
@@ -28,9 +29,10 @@ export function NotificationSoundSection() {
   // Keep in sync with localStorage
   useEffect(() => {
     setSettings(getSoundSettings());
+    return subscribeDevicePreference('vybe-sound-settings', () => setSettings(getSoundSettings()));
   }, []);
   
-  const handleToggle = (key: keyof SoundSettings) => (checked: boolean) => {
+  const handleToggle = (key: Exclude<keyof SoundSettings, 'volume'>) => (checked: boolean) => {
     haptics.tap();
     const newSettings = { ...settings, [key]: checked };
     setSettings(newSettings);
@@ -93,6 +95,7 @@ export function NotificationSoundSection() {
             </p>
           </div>
           <Switch 
+            aria-label="Sound effects"
             checked={settings.master} 
             onCheckedChange={handleToggle('master')}
           />
@@ -122,11 +125,13 @@ export function NotificationSoundSection() {
                   variant="ghost"
                   className="h-8 w-8"
                   onClick={() => handlePreview('messages')}
+                  aria-label="Preview message sound"
                   disabled={!settings.messages}
                 >
                   <Play className="h-3.5 w-3.5" />
                 </Button>
                 <Switch 
+                  aria-label="Message sounds"
                   checked={settings.messages} 
                   onCheckedChange={handleToggle('messages')}
                 />
@@ -150,11 +155,13 @@ export function NotificationSoundSection() {
                   variant="ghost"
                   className="h-8 w-8"
                   onClick={() => handlePreview('calls')}
+                  aria-label="Preview call ringtone"
                   disabled={!settings.calls}
                 >
                   <Play className="h-3.5 w-3.5" />
                 </Button>
                 <Switch 
+                  aria-label="Call sounds"
                   checked={settings.calls} 
                   onCheckedChange={handleToggle('calls')}
                 />
@@ -169,7 +176,7 @@ export function NotificationSoundSection() {
                 </div>
                 <div>
                   <p className="font-medium text-sm">Interface</p>
-                  <p className="text-xs text-muted-foreground">Share & post actions</p>
+                  <p className="text-xs text-muted-foreground">Optional taps, sharing & celebrations</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -178,11 +185,13 @@ export function NotificationSoundSection() {
                   variant="ghost"
                   className="h-8 w-8"
                   onClick={() => handlePreview('ui')}
+                  aria-label="Preview interface sound"
                   disabled={!settings.ui}
                 >
                   <Play className="h-3.5 w-3.5" />
                 </Button>
                 <Switch 
+                  aria-label="Interface sounds"
                   checked={settings.ui} 
                   onCheckedChange={handleToggle('ui')}
                 />
@@ -201,7 +210,8 @@ export function NotificationSoundSection() {
               </div>
               <Slider
                 value={[settings.volume]}
-                min={20}
+                aria-label="Sound effects volume"
+                min={0}
                 max={100}
                 step={1}
                 onValueChange={handleVolumeChange}
@@ -291,7 +301,7 @@ export function NotificationSoundSection() {
       >
         <p className="text-sm text-muted-foreground">
           <strong className="text-foreground">Tip:</strong> Sounds are designed to be subtle and non-intrusive. 
-          They automatically respect your system's mute/silent mode and won't play during calls or video playback.
+          Interface sounds are off until you enable them. Native silent mode is respected when your device makes it available; use the master switch for guaranteed quiet.
         </p>
       </motion.div>
     </div>

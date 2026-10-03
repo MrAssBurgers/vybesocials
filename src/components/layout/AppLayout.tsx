@@ -18,7 +18,6 @@ import { bindAppScrollHideContainer } from '@/lib/scrollHideSync';
 import { navVisibility } from '@/lib/navVisibility';
 import { setThemePreviewLock } from '@/hooks/useCustomTheme';
 import { SelfNowPlayingPill } from '@/components/music/SelfNowPlayingPill';
-import { MigrationAccountNotice } from '@/components/system/MigrationAccountNotice';
 import { useBottomNavMount } from '@/hooks/useBottomNavMount';
 import { installKeyboardFocusScroll } from '@/lib/keyboardFocusScroll';
 import { useNativeDocumentScrollLock } from '@/hooks/useNativeDocumentScrollLock';
@@ -56,8 +55,6 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   const { swipeBackHandlers, swipeProgress } = useSwipeBack(swipeBackAllowed);
   const bottomNavMounted = useBottomNavMount();
   const reserveBottomNavSpace = !hideNav && !noPadding && bottomNavMounted;
-  const showMigrationNotice = Boolean(user && !noPadding);
-  const migrationAccountCreatedAt = profile?.created_at ?? null;
   const [navEffectiveVisible, setNavEffectiveVisible] = useState(true);
 
   useEffect(() => bindAppScrollHideContainer(), []);
@@ -121,12 +118,6 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
                   fullWidth ? '' : 'max-w-full',
                 )}
               >
-                {showMigrationNotice && (
-                  <MigrationAccountNotice
-                    variant="app"
-                    accountCreatedAt={migrationAccountCreatedAt}
-                  />
-                )}
                 {children}
               </div>
             </main>
@@ -186,12 +177,6 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
               transition: swipeProgress === 0 ? 'transform 0.2s ease-out' : undefined,
             }}
           >
-            {showMigrationNotice && (
-              <MigrationAccountNotice
-                variant="app"
-                accountCreatedAt={migrationAccountCreatedAt}
-              />
-            )}
             {children}
           </main>
 

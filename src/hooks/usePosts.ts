@@ -21,6 +21,9 @@ import {
 
 export { isValidMediaUrl };
 
+// Mutation-only metadata; never part of a persisted post or its public JSON.
+const REUSED_GAME_POST = Symbol('reusedGamePost');
+
 interface Post {
   id: string;
   type: string;
@@ -428,11 +431,25 @@ export function useCreatePost() {
       thumbnailFile?: File;
       thumbnailDataUrl?: string;
       age_rating?: 'safe' | '13+' | '18+';
+      /** Private, owner-checked game capture; publishes once across tabs/retries. */
+      gameCaptureId?: string;
     }) => {
       if (!profile?.id || !profile?.user_id) {
         console.error('[usePosts] Cannot create post: profile missing or incomplete', { id: profile?.id, user_id: profile?.user_id });
         toast.error('Please sign in again to create a post.');
         throw new Error('Not authenticated');
+      }
+
+      if (data.gameCaptureId) {
+        const [{ getGameCapture }, { findGameCapturePost }] = await Promise.all([
+          import('@/lib/gameCaptureService'), import('@/lib/gameCapturePost'),
+        ]);
+        // Validate the capture against its server-owned session before resolving
+        // a deterministic post. A supplied capture ID never grants ownership.
+        const capture = await getGameCapture(data.gameCaptureId);
+        const existing = await findGameCapturePost(data.gameCaptureId, profile.id);
+        if (existing) return { ...existing, [REUSED_GAME_POST]: true };
+        if (capture.status !== 'ready') throw new Error('This game capture is not ready to publish.');
       }
 
       // Client-side rate limit: 5 posts per minute
@@ -466,6 +483,7 @@ export function useCreatePost() {
       let publicUrl: string | null = null;
       let mediaUrls: string[] | null = null;
       let thumbnailUrl: string | null = null;
+      let gamePostWriteStarted = false;
 
       try {
         // Handle multi-file upload (carousel) with compression
@@ -518,7 +536,7 @@ export function useCreatePost() {
             }
           }
 
-          const fileName = `${authUserId}/${Date.now()}.${fileExt}`;
+          const fileName = `${authUserId}/${Date.now()}-${crypto.randomUUID()}.${fileExt}`;
           const { error: uploadError } = await withTimeout(
             db.storage.from('media').upload(fileName, uploadBlob),
             120000,
@@ -537,7 +555,7 @@ export function useCreatePost() {
                 'Video thumbnail timed out'
               );
               const thumbExt = getCompressedExtension();
-              const thumbFileName = `${authUserId}/thumb_${Date.now()}.${thumbExt}`;
+              const thumbFileName = `${authUserId}/thumb_${Date.now()}-${crypto.randomUUID()}.${thumbExt}`;
               const { error: thumbErr } = await db.storage.from('media').upload(thumbFileName, thumbBlob, { contentType: `image/${thumbExt}` });
               if (!thumbErr) {
                 uploadedPaths.push(thumbFileName);
@@ -552,7 +570,7 @@ export function useCreatePost() {
 
         if (data.thumbnailFile) {
           const thumbExt = data.thumbnailFile.name.split('.').pop();
-          const thumbFileName = `${authUserId}/thumb_${Date.now()}.${thumbExt}`;
+          const thumbFileName = `${authUserId}/thumb_${Date.now()}-${crypto.randomUUID()}.${thumbExt}`;
           const { error: thumbError } = await db.storage.from('media').upload(thumbFileName, data.thumbnailFile);
           if (!thumbError) {
             uploadedPaths.push(thumbFileName);
@@ -563,7 +581,7 @@ export function useCreatePost() {
           try {
             const response = await fetch(data.thumbnailDataUrl);
             const blob = await response.blob();
-            const thumbFileName = `${authUserId}/thumb_${Date.now()}.jpg`;
+            const thumbFileName = `${authUserId}/thumb_${Date.now()}-${crypto.randomUUID()}.jpg`;
             const { error: thumbError } = await db.storage.from('media').upload(thumbFileName, blob, { contentType: 'image/jpeg' });
             if (!thumbError) {
               uploadedPaths.push(thumbFileName);
@@ -587,28 +605,43 @@ export function useCreatePost() {
 
         const postType = data.type === 'text' ? 'post' : data.type;
 
-        const { data: post, error } = await withTimeout(
-          db
-            .from('posts')
-            .insert({
-              author_id: profile.id,
-              type: postType,
-              media_url: publicUrl,
-              media_urls: mediaUrls,
-              thumbnail_url: thumbnailUrl,
-              caption: filteredCaption,
-              tags: data.tags,
-              age_rating: resolvedAgeRating,
-              vybe_check_id: vybe.checkId ?? null,
-              vybe_check_status: 'approved',
-            } as any)
-            .select()
-            .single(),
-          60000,
-          'Saving post timed out. Please try again.',
-        );
-
-        if (error) throw error;
+        const postPayload = {
+          author_id: profile.id,
+          type: postType,
+          media_url: publicUrl,
+          media_urls: mediaUrls,
+          thumbnail_url: thumbnailUrl,
+          caption: filteredCaption,
+          tags: data.tags,
+          age_rating: resolvedAgeRating,
+          vybe_check_id: vybe.checkId ?? null,
+          vybe_check_status: 'approved',
+        };
+        let post: any;
+        if (data.gameCaptureId) {
+          const { saveGameCapturePost } = await import('@/lib/gameCapturePost');
+          // Do not race a timeout against a transaction: it could commit after
+          // cleanup removed its media. Firestore owns this operation's retries.
+          gamePostWriteStarted = true;
+          const saved = await saveGameCapturePost(data.gameCaptureId, profile.id, postPayload);
+          post = saved.post;
+          if (!saved.created) {
+            if (uploadedPaths.length) await db.storage.from('media').remove(uploadedPaths).catch(() => {});
+            return { ...post, [REUSED_GAME_POST]: true };
+          }
+        } else {
+          const result = await withTimeout(
+            db
+              .from('posts')
+              .insert(postPayload as any)
+              .select()
+              .single(),
+            60000,
+            'Saving post timed out. Please try again.',
+          );
+          if (result.error) throw result.error;
+          post = result.data;
+        }
 
         if (filteredCaption.trim()) {
           moderateContent(filteredCaption, 'post', post.id).then(result => {
@@ -634,7 +667,7 @@ export function useCreatePost() {
 
         return post;
       } catch (err) {
-        if (uploadedPaths.length) {
+        if (uploadedPaths.length && !gamePostWriteStarted) {
           await db.storage.from('media').remove(uploadedPaths).catch(() => {});
         }
         throw err;
@@ -656,7 +689,9 @@ export function useCreatePost() {
           );
         },
       });
-      recordChallengeActivity(profile?.id, challengeTypeForPost(variables.type));
+      if (!_post?.[REUSED_GAME_POST]) {
+        recordChallengeActivity(profile?.id, challengeTypeForPost(variables.type));
+      }
     },
     onError: (error) => {
       console.error('[usePosts] Create post error:', error.message, error);

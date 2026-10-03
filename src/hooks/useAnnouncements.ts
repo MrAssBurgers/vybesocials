@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { isRetiredUpgradeNotice } from '@/lib/migrationNotice';
 
 export interface Announcement {
   id: string;
@@ -43,9 +44,10 @@ export function useAnnouncements() {
       
       const dismissedIds = new Set(dismissed?.map(d => d.announcement_id) || []);
       
-      return (announcements || []).filter(a => !dismissedIds.has(a.id)) as Announcement[];
+      return (announcements || []).filter(a => !dismissedIds.has(a.id) && !isRetiredUpgradeNotice(a)) as Announcement[];
     },
     enabled: !!profileId,
+    select: (announcements) => announcements.filter(a => !isRetiredUpgradeNotice(a)),
     networkMode: 'always',
   });
 }
@@ -159,8 +161,9 @@ export function useRecentAnnouncements(limit = 5) {
         .limit(limit);
       
       if (error) throw error;
-      return (data || []) as Announcement[];
+      return (data || []).filter(a => !isRetiredUpgradeNotice(a)) as Announcement[];
     },
+    select: (announcements) => announcements.filter(a => !isRetiredUpgradeNotice(a)),
   });
 }
 

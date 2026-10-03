@@ -2,6 +2,41 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-03) — Creator platform, live audit, and interaction fixes
+
+### What changed
+- Removed the retired “VYBE was upgraded” banner on both app/auth surfaces and suppressed the historical announcement, bell row, realtime toast, and unread count. Password-reset guidance remains in relevant login errors. Historical database records were not deleted.
+- Added Hub Mini Apps and `/mini-apps`: three editable HTML/CSS/JavaScript templates, explicit Run/Stop/Restart, private drafts, account-scoped device recovery, confirmed public snapshots, links, unpublish, and reporting. Account switching tears down the editor/runner. Public IDs remain bound to the original private draft.
+- Added first-party Game Capture SDK source and Unity example, server-owned private capture sessions, bounded uploads/quotas/expiry/cleanup, `/game-capture/:captureId` review and explicit moderated publish. Retried/concurrent publishing reuses one post without duplicate challenge credit; publish/discard races reconcile transactionally. `/developers` contains integration guidance.
+- Added Focus/Balanced/Expressive appearance presets and spring feedback preview; unified reduced-motion, glass, device preferences, safe storage, cross-tab updates, account-isolated UI settings, sound categories/volume, optional interface sounds, and ringtone cancellation. Platform resize no longer clears reduced motion.
+- Fixed malformed URL title decoding; development reload overlay no longer traps canceled reloads. Vite ignores local QA profiles so a locked browser cookie file cannot crash the preview.
+- Desktop upload previews survive metadata loading, clean up object URLs, prevent duplicate enqueue, and honor Close. Removed unsupported private/follower audience choices and disabled the non-exporting Trim control so the UI accurately describes what is published.
+- Notification request links select the correct tab and preserve browser navigation. Queued push actions wait for authentication readiness.
+- Public Connect storefront now shows an unavailable state instead of invoking an owner-only catalog and platform checkout under a seller URL. Owner dashboard and payment backend are unchanged.
+- Updated compatible dependency patches and Vite to 6.4.3. Root audit dropped from 36 to 20 findings (11 high, 9 moderate; no critical). Functions audit dropped from 15 to 9 (no high/critical). Remaining Firebase/gRPC, braces, and UUID transitive constraints require reviewed compatibility work, not a forced upgrade.
+- Added 67 cross-service emulator checks and a pinned, isolated GitHub Actions workflow. The debug scan now works with Windows npm and examines callable/RPC references more completely.
+
+### Tests and live walkthrough
+- Full Vitest: **132 files / 673 tests passed**. App typecheck and Functions build passed. Lint: 0 errors, 5 pre-existing unused-disable warnings. Production build, CSS/boot validation, and entry budget passed (about 1,077 KB raw / 314 KB gzip; limits 1,125 / 335 KB).
+- Firestore/Storage emulators: **45 creator-platform + 22 game-post checks passed**. Includes private draft/capture ownership, published snapshot separation, namespace protection, immutable uploads, MIME/size/expiry, concurrent posts, and migrated profile identities. Demo project only; shutdown emits a harmless Storage runtime EOF exception after successful exit.
+- Existing DM-send and camera-send enforcement static checks passed. These are not production message-send tests.
+- In-app browser: sign-in, Home/Explore, inbox and Unread filter, notifications, Marketplace, Events, Communities, public-only desktop composer, appearance/feedback settings, developer portal, invalid capture recovery, mini-app editor at 320px (no horizontal overflow), explicit launch, keyboard tap game, and Stop.
+- Browser sandbox probes blocked parent DOM, cookies, localStorage, fetch, and initial-frame WebRTC constructors; source declarations no longer conflict with bootstrap variables. **Nested srcdoc can still create WebRTC**, so no complete network-isolation claim is made. No external WebRTC connection was attempted. Existing self-navigation CSP behavior was checked separately.
+- No production posts/messages/payments, live capture imports, Unity compile, native-device camera/haptics, or WKWebView/Android sandbox certification were performed. The live preview uses production Firebase rules, so new cloud draft saving/publishing remains unavailable until rules are deployed.
+
+### Release blockers and known limits
+- This is a tested foundation, not a completed audit of every feature. New game functions/rules are source only. Follow `docs/GAME_SDK.md` for exact selective deploy, cross-service rules permissions, Storage CORS, approved game registration, and test-account validation. Never deploy all functions: existing `auth2faRequest` restriction still applies.
+- Trusted first-party games only in this SDK version. Public partners still need consent-based, revocable, capture-only tokens; never give untrusted games a Firebase user session. The planned device-link + scoped API design is the next platform pass.
+- Mini-app execution isolates VYBE account data but is not a CPU/memory or complete network boundary. Nested WebRTC is a confirmed escape from the initial-frame network guard. UI/docs disclose this. Before broad rollout: constrained runtime/stronger isolation, moderation, quotas, discovery pagination (currently 60), and native WebView testing. See `docs/MINI_APPS.md`.
+- Public seller storefront needs a dedicated seller-scoped product/read contract with expanded prices and connected-account checkout; current backend ignores the route account ID. Do not re-enable Buy using the owner-only function.
+- The wider callable scan found **23 unique missing RPC fallback exports across 29 call sites and 5 unfinished stubs**. Direct callable references resolve locally. Missing fallbacks include user XP/rewards, boost/ad metrics, contact discovery, notes, roulette, spaces listener counts, theme sharing/backgrounds, and landing creators. These require behavior-by-behavior migration; do not add insecure generic client-driven reward writes. Production read-only probes verified both hosting domains (HTTP 200), sharePreview health, and livekitToken/aiCatchUp unauthenticated gates (401). No authenticated production mutations were performed.
+- `vybehub.app` and store web bundles update only after Lovable Publish of the pushed main commit. The local preview is http://127.0.0.1:8081; no production deployment occurred in this pass.
+
+### Next 3 tasks
+1. Implement and adversarially test partner device-link consent, scoped capture transport, connection revocation, and engine examples without sharing Firebase credentials.
+2. Resolve missing legacy RPC paths and seller storefront contracts; add enforceable post audiences and real video trim/export before restoring those controls.
+3. Harden mini-app runtime/abuse controls, stage selective creator-platform backend deployment, then verify full publish/retry/discard flows and native devices before Lovable Publish.
+
 ## ACTIVE (2026-10-03) — Spotify track, playlists, reactions, session, claims
 
 ### What changed

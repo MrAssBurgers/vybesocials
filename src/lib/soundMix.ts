@@ -1,5 +1,6 @@
 import type { VybeSoundKey } from './vybeSoundAssets';
 import { VYBE_SOUNDS } from './vybeSoundAssets';
+import { readDevicePreference } from './devicePreferences';
 
 export type SoundMixCategory = 'messages' | 'calls' | 'ui';
 
@@ -30,11 +31,11 @@ const URL_TO_KEY: Record<string, VybeSoundKey> = Object.fromEntries(
 export function getUserVolumeMultiplier(): number {
   if (typeof window === 'undefined') return 0.72;
   try {
-    const raw = localStorage.getItem('vybe-sound-settings');
+    const raw = readDevicePreference('vybe-sound-settings');
     if (!raw) return 0.72;
     const parsed = JSON.parse(raw) as { volume?: number };
-    if (typeof parsed.volume !== 'number') return 0.72;
-    return Math.max(0.15, Math.min(1, parsed.volume / 100));
+    if (typeof parsed?.volume !== 'number' || !Number.isFinite(parsed.volume)) return 0.72;
+    return Math.max(0, Math.min(1, parsed.volume / 100));
   } catch {
     return 0.72;
   }

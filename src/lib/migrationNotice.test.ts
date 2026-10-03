@@ -1,38 +1,18 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import {
-  dismissMigrationNotice,
-  isLegacyMigrationAccount,
-  MIGRATION_NOTICE_CUTOFF_ISO,
-  MIGRATION_NOTICE_STORAGE_KEY,
-  shouldShowMigrationNotice,
-} from './migrationNotice';
+import { describe, expect, it } from 'vitest';
+import { isRetiredUpgradeNotice } from './migrationNotice';
 
-describe('migrationNotice', () => {
-  beforeEach(() => {
-    localStorage.removeItem(MIGRATION_NOTICE_STORAGE_KEY);
+describe('retired migration announcement', () => {
+  it('hides the seeded announcement even if its title was changed', () => {
+    expect(isRetiredUpgradeNotice({ id: 'firebase-migration-2026-06', title: 'Migration' })).toBe(true);
+    expect(isRetiredUpgradeNotice({ type: 'announcement', announcement_id: 'firebase-migration-2026-06' })).toBe(true);
   });
-
-  afterEach(() => {
-    localStorage.removeItem(MIGRATION_NOTICE_STORAGE_KEY);
+  it('recognizes historical notifications without a linked announcement ID', () => {
+    expect(isRetiredUpgradeNotice({ type: 'announcement', title: 'VYBE was upgraded' })).toBe(true);
+    expect(isRetiredUpgradeNotice({ type: 'announcement', title: ' VYBE  has been upgraded! ' })).toBe(true);
   });
-
-  it('treats pre-cutoff accounts as legacy', () => {
-    expect(isLegacyMigrationAccount('2026-01-01T00:00:00.000Z')).toBe(true);
-    expect(isLegacyMigrationAccount(MIGRATION_NOTICE_CUTOFF_ISO)).toBe(false);
-    expect(isLegacyMigrationAccount('2026-07-28T00:00:00.000Z')).toBe(false);
-    expect(isLegacyMigrationAccount(null)).toBe(false);
-  });
-
-  it('hides in-app notice for brand-new accounts', () => {
-    expect(shouldShowMigrationNotice('2026-07-28T12:00:00.000Z')).toBe(false);
-  });
-
-  it('still allows auth-surface notice without a profile date', () => {
-    expect(shouldShowMigrationNotice(null, { authSurface: true })).toBe(true);
-  });
-
-  it('respects dismiss for auth surface', () => {
-    dismissMigrationNotice();
-    expect(shouldShowMigrationNotice(null, { authSurface: true })).toBe(false);
+  it('keeps unrelated announcements and personal notification content', () => {
+    expect(isRetiredUpgradeNotice({ type: 'announcement', title: 'New games in VYBE' })).toBe(false);
+    expect(isRetiredUpgradeNotice({ type: 'comment', title: 'VYBE was upgraded' })).toBe(false);
+    expect(isRetiredUpgradeNotice({ title: null })).toBe(false);
   });
 });

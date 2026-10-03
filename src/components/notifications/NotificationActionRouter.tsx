@@ -111,16 +111,13 @@ export function NotificationActionRouter() {
   }, [authReady, handlePayload]);
 
   useEffect(() => {
+    // Installing a flusher drains the queue immediately. Keep it unregistered
+    // until auth is ready, including when a native push arrives after mount.
+    if (!authReady) return;
     return registerPendingNotificationFlusher((payload) => {
       void handlePayload(payload);
     });
-  }, [handlePayload]);
-
-  // Flush queue when auth becomes ready
-  useEffect(() => {
-    if (!authReady) return;
-    // flusher already registered — re-trigger via ingest noop path not needed
-  }, [authReady]);
+  }, [authReady, handlePayload]);
 
   // Cold-start / in-app URL deep links
   useEffect(() => {

@@ -74,6 +74,9 @@ const FriendProfile = lazy(() => import("@/pages/FriendProfile"));
 
 // Secondary pages - lazy load but prefetch
 const Upload = lazy(() => import("@/pages/Upload"));
+const MiniApps = lazy(() => import("@/pages/MiniApps"));
+const GameCapture = lazy(() => import("@/pages/GameCapture"));
+const Developers = lazy(() => import("@/pages/Developers"));
 const PostDetail = lazy(() => import("@/pages/PostDetail"));
 const NewMessage = lazy(() => import("@/pages/NewMessage"));
 const AIChat = lazy(() => import("@/pages/AIChat"));
@@ -235,6 +238,7 @@ export function AnimatedRoutes() {
             <Route path="/delete-account" element={<DeleteAccount />} />
             <Route path="/account-deletion" element={<DeleteAccount />} />
             <Route path="/features" element={<Features />} />
+            <Route path="/developers" element={<RouteBoundary name="developers"><Developers /></RouteBoundary>} />
             <Route path="/safety" element={<Safety />} />
             <Route path="/faq" element={<FAQ />} />
             <Route path="/blog" element={<Blog />} />
@@ -256,6 +260,9 @@ export function AnimatedRoutes() {
             
             {/* CRITICAL ROUTES - Eagerly loaded, instant navigation */}
             <Route path="/home" element={<ProtectedRoute><RouteBoundary name="home"><Home /></RouteBoundary></ProtectedRoute>} />
+            <Route path="/mini-apps" element={<ProtectedRoute><RouteBoundary name="mini-apps"><MiniApps /></RouteBoundary></ProtectedRoute>} />
+            <Route path="/mini-apps/:appId" element={<ProtectedRoute><RouteBoundary name="mini-apps"><MiniApps /></RouteBoundary></ProtectedRoute>} />
+            <Route path="/game-capture/:captureId" element={<ProtectedRoute><RouteBoundary name="game-capture"><GameCapture /></RouteBoundary></ProtectedRoute>} />
             <Route path="/brief" element={<ProtectedRoute><BriefPage /></ProtectedRoute>} />
             <Route path="/brief/*" element={<Navigate to="/brief" replace />} />
             <Route path="/welcome" element={<ProtectedRoute><AppWelcome /></ProtectedRoute>} />

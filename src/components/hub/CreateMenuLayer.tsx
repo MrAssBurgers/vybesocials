@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Image, Zap, ShoppingBag, Calendar, Users, Shield, X, ChevronLeft, BarChart3, Wrench, Clock, MapPin } from "lucide-react";
+import { Camera, Image, Zap, ShoppingBag, Calendar, Users, Shield, X, ChevronLeft, BarChart3, Wrench, Clock, MapPin, Code2, Gamepad2 } from "lucide-react";
 import { VybeMiniIcon } from "@/components/ui/VybeMiniIcon";
 
 import { triggerHaptic } from "@/lib/haptics";
@@ -111,6 +111,8 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
 
   const hubItems = useMemo(() => {
     const items = [
+      { path: '/mini-apps', icon: Code2, label: 'Mini Apps', description: 'Build, play & share your own apps', gradient: 'from-primary via-accent to-primary' },
+      { path: '/developers', icon: Gamepad2, label: 'Game Developers', description: 'Bring your games into VYBE', gradient: 'from-accent via-primary to-accent' },
       { path: '/market', icon: ShoppingBag, label: 'Marketplace', description: 'Buy & sell with friends', gradient: 'from-primary via-accent to-primary' },
       { path: '/events', icon: Calendar, label: 'Community Events', description: "Discover what's happening", gradient: 'from-accent via-primary to-accent' },
       { path: '/community', icon: Users, label: 'Communities', description: 'Group chats & channels', gradient: 'from-primary via-accent to-primary' },
@@ -187,7 +189,7 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
                   <motion.div
                     layout
                     transition={{ type: "spring", stiffness: 350, damping: 32 }}
-                    className="relative flex flex-col gap-3 p-6 rounded-3xl min-w-[320px] overflow-hidden bg-card/95 backdrop-blur-sm border border-border/50"
+                    className="relative flex max-h-[calc(100dvh-3rem)] w-[min(420px,calc(100vw-2rem))] min-w-0 flex-col gap-3 overflow-y-auto overscroll-contain rounded-3xl border border-border/50 bg-card/95 p-6 backdrop-blur-sm"
                   >
                     {/* Glow effects */}
                     <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-accent/10 pointer-events-none" />

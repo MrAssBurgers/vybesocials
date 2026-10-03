@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useMemo, useEffect, DragEvent } from 're
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, Send, Tag, Hash, X, Globe, Users, Lock, ChevronDown,
+  ArrowLeft, Send, Tag, Hash, X, Globe, ChevronDown,
   Sparkles, Image as ImageIcon, Plus, Upload as UploadIcon, Camera as CameraIcon,
   Wand2, Video, Film, Type, Layers, Crop, RotateCw, Sliders, Scissors
 } from 'lucide-react';
@@ -21,15 +21,8 @@ import { useCameraOverlay } from '@/contexts/cameraOverlaySafe';
 import { ImageCropEditor } from './editors/ImageCropEditor';
 import { ImageRotateEditor } from './editors/ImageRotateEditor';
 import { ImageFilterEditor } from './editors/ImageFilterEditor';
-import { VideoTrimEditor } from './editors/VideoTrimEditor';
 import { PersonTagPicker } from '@/features/profile/components/PersonTagPicker';
 import { canPublishCreatePost, resolvePublishContentType } from '@/lib/createPublishReady';
-
-const visibilityOptions = [
-  { id: 'public' as const, label: 'Everyone', icon: Globe, description: 'Visible to all' },
-  { id: 'followers' as const, label: 'Followers', icon: Users, description: 'Only followers' },
-  { id: 'private' as const, label: 'Only me', icon: Lock, description: 'Private post' },
-];
 
 interface DesktopCreateStudioProps {
   onClose: () => void;
@@ -47,16 +40,30 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [isDragging, setIsDragging] = useState(false);
-  const [visibility, setVisibility] = useState<'public' | 'followers' | 'private'>('public');
   const [showAIVideoGen, setShowAIVideoGen] = useState(false);
   const [activePreview, setActivePreview] = useState(0);
   const [videoTitle, setVideoTitle] = useState('');
   const [videoDescription, setVideoDescription] = useState('');
-  const [activeEditor, setActiveEditor] = useState<'crop' | 'rotate' | 'filters' | 'trim' | null>(null);
+  const [activeEditor, setActiveEditor] = useState<'crop' | 'rotate' | 'filters' | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [taggedUserIds, setTaggedUserIds] = useState<string[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const captionRef = useRef<HTMLTextAreaElement>(null);
+  const previewUrls = useRef(new Set<string>());
+  const metadataCleanup = useRef<(() => void) | null>(null);
+  const submitting = useRef(false);
+
+  const releasePreview = (url: string) => {
+    URL.revokeObjectURL(url);
+    previewUrls.current.delete(url);
+  };
+
+  useEffect(() => () => {
+    metadataCleanup.current?.();
+    previewUrls.current.forEach(url => URL.revokeObjectURL(url));
+    previewUrls.current.clear();
+  }, []);
 
   useEffect(() => {
     const el = captionRef.current;
@@ -70,7 +77,14 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
     }).slice(0, 10);
     if (validFiles.length === 0) return;
 
-    const urls = validFiles.map(f => URL.createObjectURL(f));
+    metadataCleanup.current?.();
+    previewUrls.current.forEach(url => URL.revokeObjectURL(url));
+    previewUrls.current.clear();
+    const urls = validFiles.map(f => {
+      const url = URL.createObjectURL(f);
+      previewUrls.current.add(url);
+      return url;
+    });
     setFiles(validFiles);
     setPreviews(urls);
     setActivePreview(0);
@@ -78,12 +92,24 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
     // Auto-detect content type
     if (validFiles[0].type.startsWith('video/')) {
       const v = document.createElement('video');
+      // Metadata probing owns a separate URL; revoking it must not break the
+      // visible player or a later editor using the original preview URL.
+      const metadataUrl = URL.createObjectURL(validFiles[0]);
+      const cleanup = () => {
+        v.onloadedmetadata = null;
+        v.onerror = null;
+        v.removeAttribute('src');
+        URL.revokeObjectURL(metadataUrl);
+        if (metadataCleanup.current === cleanup) metadataCleanup.current = null;
+      };
+      metadataCleanup.current = cleanup;
       v.preload = 'metadata';
       v.onloadedmetadata = () => {
         setContentType(v.duration > 60 ? 'video' : 'short');
-        URL.revokeObjectURL(v.src);
+        cleanup();
       };
-      v.src = urls[0];
+      v.onerror = cleanup;
+      v.src = metadataUrl;
     } else {
       setContentType('post');
     }
@@ -102,7 +128,8 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
   }, [handleFileSelect]);
 
   const removeFile = (i: number) => {
-    URL.revokeObjectURL(previews[i]);
+    metadataCleanup.current?.();
+    releasePreview(previews[i]);
     const nf = files.filter((_, idx) => idx !== i);
     const np = previews.filter((_, idx) => idx !== i);
     setFiles(nf); setPreviews(np);
@@ -110,7 +137,8 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
   };
 
   const clearAll = () => {
-    previews.forEach(p => URL.revokeObjectURL(p));
+    metadataCleanup.current?.();
+    previews.forEach(releasePreview);
     setFiles([]); setPreviews([]); setActivePreview(0);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -139,7 +167,7 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
   });
 
   const handleSubmit = async () => {
-    if (!canSubmit || !user) return;
+    if (!canSubmit || !user || submitting.current) return;
     if (publishType === 'video' && !videoTitle.trim()) { toast.error('Add a video title'); return; }
 
     const fc = publishType === 'video'
@@ -151,6 +179,8 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
       return;
     }
 
+    submitting.current = true;
+    setIsSubmitting(true);
     enqueuePostUpload(
       {
         profile: { id: profile.id, user_id: profile.user_id },
@@ -186,17 +216,12 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
   // Editor callbacks
   const handleEditorApply = useCallback((newFile: File) => {
     const newUrl = URL.createObjectURL(newFile);
+    previewUrls.current.add(newUrl);
     setFiles(prev => { const nf = [...prev]; nf[activePreview] = newFile; return nf; });
-    setPreviews(prev => { URL.revokeObjectURL(prev[activePreview]); const np = [...prev]; np[activePreview] = newUrl; return np; });
+    setPreviews(prev => { releasePreview(prev[activePreview]); const np = [...prev]; np[activePreview] = newUrl; return np; });
     setActiveEditor(null);
     toast.success('Edit applied');
   }, [activePreview]);
-
-  const handleTrimApply = useCallback((file: File, start: number, end: number) => {
-    // Store trim data — actual trimming can happen at upload time
-    toast.success(`Trim set: ${start.toFixed(1)}s – ${end.toFixed(1)}s`);
-    setActiveEditor(null);
-  }, []);
 
   const isCurrentFileVideo = files[activePreview]?.type?.startsWith('video/');
   const hasMedia = files.length > 0;
@@ -213,10 +238,6 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
   if (activeEditor === 'filters' && previews[activePreview]) {
     return <ImageFilterEditor imageUrl={previews[activePreview]} isVideo={isCurrentFileVideo} onApply={handleEditorApply} onCancel={() => setActiveEditor(null)} />;
   }
-  if (activeEditor === 'trim' && previews[activePreview] && files[activePreview]) {
-    return <VideoTrimEditor videoUrl={previews[activePreview]} videoFile={files[activePreview]} onApply={handleTrimApply} onCancel={() => setActiveEditor(null)} />;
-  }
-
   return (
     <div className="h-full flex flex-col" style={{ backgroundColor: 'hsl(var(--background))' }}>
       {/* Frosted Glass Header */}
@@ -224,7 +245,7 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
         <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-primary to-transparent opacity-60" />
         <div className="px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button aria-label="Close Create Studio" onClick={() => navigate(-1)} className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted/50 transition-colors">
+            <button aria-label="Close Create Studio" onClick={onClose} className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted/50 transition-colors">
               <ArrowLeft className="w-5 h-5 text-foreground" />
             </button>
             <div className="flex items-center gap-1.5">
@@ -234,10 +255,10 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
               <h1 className="text-base font-bold text-foreground tracking-tight">Create Studio</h1>
             </div>
           </div>
-          <motion.button onClick={handleSubmit} disabled={!canSubmit} whileTap={canSubmit ? { scale: 0.95 } : {}}
+          <motion.button onClick={handleSubmit} disabled={!canSubmit || isSubmitting} whileTap={canSubmit ? { scale: 0.95 } : {}}
             className={cn("h-9 px-6 rounded-full text-sm font-bold transition-all duration-300",
               canSubmit ? "bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-lg shadow-primary/30" : "bg-muted text-muted-foreground cursor-not-allowed")}>
-            <span className="flex items-center gap-1.5"><Send className="w-3.5 h-3.5" /> Post</span>
+            <span className="flex items-center gap-1.5"><Send className="w-3.5 h-3.5" /> {isSubmitting ? 'Publishing…' : 'Post'}</span>
           </motion.button>
         </div>
       </div>
@@ -273,7 +294,7 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
                       onDrop={(e) => {
                         (e as any).preventDefault?.();
                         const from = parseInt((e as any).dataTransfer?.getData('text/plain') || '0');
-                        if (from === i || isNaN(from)) return;
+                        if (from === i || !Number.isInteger(from) || from < 0 || from >= files.length) return;
                         const nf = [...files]; const np = [...previews];
                         const [mf] = nf.splice(from, 1); const [mp] = np.splice(from, 1);
                         nf.splice(i, 0, mf); np.splice(i, 0, mp);
@@ -405,15 +426,12 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
                       className="flex items-center gap-2 p-3 rounded-xl border border-border text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-primary transition-all">
                       <Sliders className="w-4 h-4" /> Filters
                     </button>
-                    <button onClick={() => isCurrentFileVideo && setActiveEditor('trim')}
-                      disabled={!isCurrentFileVideo}
-                      className={cn("flex items-center gap-2 p-3 rounded-xl border text-xs font-medium transition-all",
-                        !isCurrentFileVideo ? "border-border/50 text-muted-foreground/40 cursor-not-allowed" : "border-border text-muted-foreground hover:border-primary/40 hover:text-primary")}>
-                      <Scissors className="w-4 h-4" /> Trim
+                    <button disabled title="Trim your video before uploading; this studio does not export trimmed video yet."
+                      className="flex cursor-not-allowed items-center gap-2 rounded-xl border border-border/50 p-3 text-xs font-medium text-muted-foreground/60">
+                      <Scissors className="w-4 h-4" /> Trim unavailable
                     </button>
                   </div>
-                  {isCurrentFileVideo && <p className="text-[10px] text-muted-foreground/60 text-center">Crop & Rotate are for images only. Use Trim for video.</p>}
-                  {!isCurrentFileVideo && <p className="text-[10px] text-muted-foreground/60 text-center">Trim is for videos only.</p>}
+                  {isCurrentFileVideo && <p className="text-xs text-muted-foreground text-center">Crop & Rotate are for images only. Trim videos before uploading.</p>}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -462,15 +480,8 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
               {/* Visibility */}
               <div>
                 <p className="text-xs font-semibold text-muted-foreground mb-1.5">Audience</p>
-                <div className="flex gap-2">
-                  {visibilityOptions.map(opt => (
-                    <button key={opt.id} onClick={() => setVisibility(opt.id)}
-                      className={cn("flex-1 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium transition-all",
-                        visibility === opt.id ? "border-primary/50 bg-primary/10 text-primary" : "border-border/20 text-muted-foreground hover:border-primary/30")}>
-                      <opt.icon className="w-3.5 h-3.5" /> {opt.label}
-                    </button>
-                  ))}
-                </div>
+                <p className="flex items-center gap-2 rounded-xl border border-border/30 px-3 py-2 text-sm"><Globe className="h-4 w-4 text-primary" />Public · Everyone on VYBE</p>
+                <p className="mt-1 text-xs text-muted-foreground">Posts from this studio are public. Followers-only and private posts are not available here.</p>
               </div>
 
               {/* Person tags + hashtags */}

@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
 import { SettingsSectionCard, SettingsPanel, SettingsToggleRow } from './SettingsUI';
+import { ExperiencePreview } from './ExperiencePreview';
 
 export function AppearanceSection() {
   const { t } = useTranslation();
@@ -15,6 +16,8 @@ export function AppearanceSection() {
     setTheme,
     reducedMotion,
     setReducedMotion,
+    followsSystemMotion,
+    followSystemMotion,
     motionIntensity,
     setMotionIntensity,
   } = useTheme();
@@ -37,6 +40,7 @@ export function AppearanceSection() {
               key={option.id}
               type="button"
               data-active={theme === option.id}
+              aria-pressed={theme === option.id}
               onClick={() => {
                 haptics.tap();
                 setTheme(option.id as 'dark' | 'light' | 'system');
@@ -72,6 +76,37 @@ export function AppearanceSection() {
       >
         <div className="space-y-6">
           <div className="space-y-3">
+            <Label className="text-sm font-medium">Experience presets</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {[
+                { id: 'focus', label: 'Focus', desc: 'Still, clear and focused', motion: 'calm', glass: 'calm', reduced: true },
+                { id: 'balanced', label: 'Balanced', desc: 'Soft motion and subtle glass', motion: 'calm', glass: 'normal', reduced: false },
+                { id: 'expressive', label: 'Expressive', desc: 'Full motion and rich glass', motion: 'normal', glass: 'max', reduced: false },
+              ].map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  aria-pressed={motionIntensity === preset.motion && intensity === preset.glass && reducedMotion === preset.reduced}
+                  data-active={motionIntensity === preset.motion && intensity === preset.glass && reducedMotion === preset.reduced}
+                  className="settings-segment-btn p-3 rounded-xl text-left"
+                  onClick={() => {
+                    setReducedMotion(preset.reduced);
+                    setMotionIntensity(preset.motion as 'calm' | 'normal');
+                    setIntensity(preset.glass as 'calm' | 'normal' | 'max');
+                    if (preset.id === 'focus') setContrast('high');
+                    haptics.tap();
+                    toast.success(`${preset.label} visuals applied`);
+                  }}
+                >
+                  <p className="font-medium text-sm">{preset.label}</p>
+                  <p className="text-xs text-muted-foreground">{preset.desc}</p>
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">Your device's reduced motion setting always takes priority. Sound effects have their own controls in Feedback & Sounds.</p>
+            <ExperiencePreview />
+          </div>
+          <div className="space-y-3">
             <Label className="text-sm flex items-center gap-2 font-medium">
               <Zap className="w-4 h-4 text-muted-foreground" />
               Motion Intensity
@@ -85,6 +120,7 @@ export function AppearanceSection() {
                   key={option.id}
                   type="button"
                   data-active={motionIntensity === option.id}
+                  aria-pressed={motionIntensity === option.id}
                   onClick={() => {
                     haptics.tap();
                     setMotionIntensity(option.id as 'calm' | 'normal');
@@ -113,6 +149,7 @@ export function AppearanceSection() {
                   key={option.id}
                   type="button"
                   data-active={intensity === option.id}
+                  aria-pressed={intensity === option.id}
                   onClick={() => {
                     haptics.tap();
                     setIntensity(option.id as 'calm' | 'normal' | 'max');
@@ -140,6 +177,7 @@ export function AppearanceSection() {
                   key={option.id}
                   type="button"
                   data-active={contrast === option.id}
+                  aria-pressed={contrast === option.id}
                   onClick={() => {
                     haptics.tap();
                     setContrast(option.id as 'normal' | 'high');
@@ -157,13 +195,18 @@ export function AppearanceSection() {
           <SettingsPanel className="mt-2">
             <SettingsToggleRow
               title={t('settings.reducedMotion')}
-              description="Minimize all animations"
+              description={followsSystemMotion ? 'Following your device accessibility setting' : 'Minimize animation and turn off touch bursts'}
               checked={reducedMotion}
               onCheckedChange={(checked) => {
                 haptics.tap();
                 setReducedMotion(checked);
               }}
             />
+            {!followsSystemMotion && (
+              <button type="button" onClick={followSystemMotion} className="text-sm text-primary underline underline-offset-4 p-2">
+                Follow device setting
+              </button>
+            )}
           </SettingsPanel>
         </div>
       </SettingsSectionCard>

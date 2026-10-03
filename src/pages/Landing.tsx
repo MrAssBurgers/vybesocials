@@ -21,7 +21,6 @@ import { VYBELogo } from '@/components/ui/VYBELogo';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { isInviteEntryMode } from '@/lib/referral';
 import { ForgotPasswordDialog } from '@/components/auth/ForgotPasswordDialog';
-import { MigrationAccountNotice } from '@/components/system/MigrationAccountNotice';
 import { LoginGateModal } from '@/components/auth/LoginGateModal';
 import {
   clearPendingLoginApproval,
@@ -1195,12 +1194,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                 </div>
               ) : (
               <>
-              {isLogin && (
-                <MigrationAccountNotice
-                  variant="auth"
-                  onForgotPassword={() => setShowForgotPassword(true)}
-                />
-              )}
               <form onSubmit={handleSubmit} className="space-y-2">
                 {!isLogin && (
                   <div className="space-y-1 animate-in fade-in duration-200">

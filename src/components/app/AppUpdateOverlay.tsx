@@ -88,6 +88,13 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
   };
 
   useEffect(() => {
+    // Vite owns development refreshes. A dirty editor can cancel an HMR reload;
+    // showing the production update wall then traps the still-running preview.
+    if (import.meta.env.DEV) {
+      clearAppUpdateFlag();
+      unlockUpdateShell();
+      return;
+    }
     // If we just finished a controlled reload onto the current entry, stay usable.
     if (sessionStorage.getItem(RELOAD_ONCE_KEY) === '1' && !isAppUpdateInProgress()) {
       sessionStorage.removeItem(RELOAD_ONCE_KEY);
@@ -132,10 +139,6 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
     window.addEventListener('vybe-app-update', handleVybeUpdate);
     navigator.serviceWorker?.addEventListener('controllerchange', handleSWUpdate);
     navigator.serviceWorker?.addEventListener('message', handleTombstone);
-
-    if (import.meta.hot) {
-      import.meta.hot.on('vite:beforeFullReload', begin);
-    }
 
     return () => {
       cancelled = true;

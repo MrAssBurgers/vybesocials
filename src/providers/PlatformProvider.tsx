@@ -25,7 +25,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
 
   // Apply platform-specific classes to document
   useEffect(() => {
-    const { platform, device, performanceTier, prefersReducedMotion, hasNotch } = platformInfo;
+    const { platform, device, performanceTier, hasNotch } = platformInfo;
     const html = document.documentElement;
     const body = document.body;
 
@@ -43,12 +43,8 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     html.classList.remove('perf-low', 'perf-medium', 'perf-high');
     html.classList.add(`perf-${performanceTier}`);
 
-    // Reduced motion
-    if (prefersReducedMotion) {
-      html.classList.add('reduce-motion');
-    } else {
-      html.classList.remove('reduce-motion');
-    }
+    // ThemeProvider owns reduced motion (device accessibility + the in-app preference).
+    // A resize / network change must not erase that preference.
 
     // Notch support — avoid body padding-top; fixed header owns top safe area
     if (hasNotch) {
@@ -67,7 +63,6 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
         `device-${device}`,
         `perf-${performanceTier}`,
         'device-fold',
-        'reduce-motion',
         'has-notch'
       );
     };

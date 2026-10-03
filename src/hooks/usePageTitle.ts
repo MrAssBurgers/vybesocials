@@ -12,6 +12,9 @@ const PAGE_TITLES: Record<string, string> = {
   '/settings': 'Settings · VYBE',
   '/profile': 'Profile · VYBE',
   '/upload': 'Create Post · VYBE',
+  '/mini-apps': 'Mini App Studio · VYBE',
+  '/developers': 'Build with VYBE',
+  '/game-capture': 'Review Game Capture · VYBE',
   '/market': 'Marketplace · VYBE',
   '/events': 'Events · VYBE',
   '/community': 'Communities · VYBE',
@@ -40,6 +43,11 @@ const PAGE_TITLES: Record<string, string> = {
   '/ads': 'Advertiser Dashboard · VYBE',
   '/roadmap': 'Feature Voting · VYBE',
 };
+
+/** Shared links may contain malformed percent escapes; page titles must not crash routing. */
+export function decodePageTitleSegment(segment: string): string {
+  try { return decodeURIComponent(segment).trim(); } catch { return segment.trim(); }
+}
 
 /**
  * Sets document.title based on current route.
@@ -79,7 +87,7 @@ export function usePageTitle(customTitle?: string) {
     }
     if (path.startsWith('/messages/')) {
       const rest = path.split('/messages/')[1] || '';
-      const handle = decodeURIComponent(rest.split('/')[0] || '').trim();
+      const handle = decodePageTitleSegment(rest.split('/')[0] || '');
       document.title = handle
         ? `Chat with ${handle.startsWith('@') ? handle : '@' + handle} · VYBE`
         : 'Chat · VYBE';
@@ -87,7 +95,7 @@ export function usePageTitle(customTitle?: string) {
     }
     if (path.startsWith('/watch/')) {
       const rest = path.split('/watch/')[1] || '';
-      const slug = decodeURIComponent(rest.split('/')[0] || '').trim();
+      const slug = decodePageTitleSegment(rest.split('/')[0] || '');
       document.title = slug ? `Watch ${slug} · VYBE` : 'Watch · VYBE';
       return;
     }
