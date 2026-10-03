@@ -20,13 +20,13 @@ describe('Android splash fail-open', () => {
     });
     vi.stubGlobal('window', window);
     const { splashAbsoluteMaxMs } = await import('./nativePerfMode');
-    expect(splashAbsoluteMaxMs()).toBe(1200);
+    expect(splashAbsoluteMaxMs()).toBe(800);
   });
 
   it('keeps the Android cover deadline after React stops the progress ticker', () => {
     const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
     expect(html).toContain('vybe-android-boot');
-    expect(html).toContain('var failOpenMs = isAndroid ? 2200');
+    expect(html).toContain('var failOpenMs = isAndroid ? 900');
     expect(html).toContain('if (!isAndroid)');
     expect(html).toContain('__VYBE_SPLASH_FORCE_HIDDEN__');
     expect(html).toContain('vybe-splash-failopen');

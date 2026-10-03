@@ -612,11 +612,11 @@
         }
       }
       html.vybe-android-boot #vybe-static-boot {
-        animation: vybe-splash-failopen 1ms linear 2.2s forwards;
+        animation: vybe-splash-failopen 1ms linear 0.9s forwards;
       }
       html.vybe-android-boot body.splash-visible #app-shell,
       html.vybe-android-boot body.splash-visible [data-app-shell] {
-        animation: vybe-shell-reveal 1ms linear 2.3s forwards;
+        animation: vybe-shell-reveal 1ms linear 1s forwards;
       }
       #vybe-static-boot .vybe-wordmark-img {
         display: block;
@@ -868,9 +868,9 @@
         var isNativeShell = isDespia || isAndroid;
         var isNativeHandoff =
           document.documentElement.getAttribute('data-vybe-splash') === 'native-handoff';
-        // [Android-only] 2.2s ceiling. React used to cancel this by stopping the ticker
+        // [Android-only] 0.9s ceiling. React used to cancel this by stopping the ticker
         // as soon as the bundle evaluated, which left Fold 8 on a full bar.
-        var failOpenMs = isAndroid ? 2200 : (isNativeShell ? 3800 : 12000);
+        var failOpenMs = isAndroid ? 900 : (isNativeShell ? 3800 : 12000);
         if (isAndroid) document.documentElement.classList.add('vybe-android-boot');
         function applyDom(value, label) {
           // Native handoff: brand UI is CSS-hidden — skip DOM progress thrash.

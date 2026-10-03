@@ -67,7 +67,7 @@ export function splashAbsoluteMaxMs(): number {
   if (isIOSAppShell()) return 1400;
   // [Android-only] Play Store / Fold WebView often has no "; wv", so the shell
   // check misses and the cover waits on feed warm. Cap it anyway.
-  if (isAndroidAppShell() || isAndroidUA()) return 1200;
+  if (isAndroidAppShell() || isAndroidUA()) return 800;
   return 2500;
 }
 

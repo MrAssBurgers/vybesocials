@@ -130,6 +130,7 @@ export function migrateLegacyAuthStorage(): boolean {
 /** True when Firebase Auth or a legacy Supabase session exists in localStorage. */
 export function hasStoredAuthSession(): boolean {
   try {
+    if (localStorage.getItem('vybe.auth.user')) return true;
     if (Object.keys(localStorage).some((k) => k.startsWith('firebase:authUser:'))) {
       return true;
     }
