@@ -12,6 +12,7 @@ import { Progress } from '@/components/ui/progress';
 import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { useStripeReady } from '@/hooks/useStripeConfig';
+import { openStripeConnectFlow } from '@/lib/openStripeConnectFlow';
 import { useQueryClient } from '@tanstack/react-query';
 
 interface StripeStatus {
@@ -152,7 +153,10 @@ export function PaymentsSetup({
       const payload = data as any;
 
       if (payload?.url) {
-        window.location.href = payload.url;
+        const opened = await openStripeConnectFlow(payload.url);
+        if (!opened) {
+          toast.error('Could not open Stripe setup. Try again in a moment.');
+        }
         return;
       }
 
@@ -208,7 +212,10 @@ export function PaymentsSetup({
       const payload = data as any;
 
       if (payload?.url) {
-        window.open(payload.url, '_blank');
+        const opened = await openStripeConnectFlow(payload.url);
+        if (!opened) {
+          toast.error('Could not open Stripe dashboard.');
+        }
         return;
       }
 

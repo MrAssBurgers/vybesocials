@@ -50,17 +50,51 @@ export const connectV2CreateAccount = onCall({ secrets: STRIPE_SECRETS }, async 
     }, { merge: true });
     return { ok: true, account_id: account.id };
 });
+function stripeConnectSiteBase() {
+    return process.env.PUBLIC_SITE_URL || 'https://vybehub.app';
+}
+function stripeConnectReturnUrl() {
+    return `${stripeConnectSiteBase()}/stripe-connect/return`;
+}
+function stripeConnectRefreshUrl() {
+    return `${stripeConnectSiteBase()}/stripe-connect/refresh`;
+}
+async function buildCreatorConnectStatus(stripe, accountId) {
+    if (!accountId) {
+        return {
+            ok: true,
+            connected: false,
+            onboarding_complete: false,
+            charges_enabled: false,
+            payouts_enabled: false,
+            details_submitted: false,
+            status: 'none',
+        };
+    }
+    const acct = await stripe.accounts.retrieve(accountId);
+    const onboarding_complete = Boolean(acct.details_submitted && acct.charges_enabled && acct.payouts_enabled);
+    return {
+        ok: true,
+        connected: true,
+        onboarding_complete,
+        charges_enabled: acct.charges_enabled,
+        payouts_enabled: acct.payouts_enabled,
+        details_submitted: acct.details_submitted,
+        status: acct.details_submitted ? 'active' : 'pending',
+        requirements: acct.requirements,
+        account_id: accountId,
+    };
+}
 export const connectV2AccountLink = onCall({ secrets: STRIPE_SECRETS }, async (request) => {
     const uid = requireAuth(request);
     const stripe = await getStripe();
     const accountId = await getCreatorAccountId(uid);
     if (!accountId)
         throw new HttpsError('failed-precondition', 'No Stripe account — call createAccount first');
-    const base = process.env.PUBLIC_SITE_URL || 'https://vybehub.app';
     const link = await stripe.accountLinks.create({
         account: accountId,
-        refresh_url: `${base}/creator/onboarding?refresh=1`,
-        return_url: `${base}/creator/onboarding?done=1`,
+        refresh_url: stripeConnectRefreshUrl(),
+        return_url: stripeConnectReturnUrl(),
         type: 'account_onboarding',
     });
     return { ok: true, url: link.url };
@@ -69,16 +103,35 @@ export const connectV2AccountStatus = onCall({ secrets: STRIPE_SECRETS }, async 
     const uid = requireAuth(request);
     const stripe = await getStripe();
     const accountId = await getCreatorAccountId(uid);
-    if (!accountId)
-        return { ok: true, status: 'none' };
-    const acct = await stripe.accounts.retrieve(accountId);
-    return {
-        ok: true,
-        status: acct.details_submitted ? 'active' : 'pending',
-        charges_enabled: acct.charges_enabled,
-        payouts_enabled: acct.payouts_enabled,
-        requirements: acct.requirements,
-    };
+    return buildCreatorConnectStatus(stripe, accountId);
+});
+export const startStripeConnectOnboarding = onCall({ secrets: STRIPE_SECRETS }, async (request) => {
+    const uid = requireAuth(request);
+    const stripe = await getStripe();
+    const { email, country } = (request.data || {});
+    let accountId = await getCreatorAccountId(uid);
+    if (!accountId) {
+        const account = await stripe.accounts.create({
+            type: 'express',
+            country: country || 'US',
+            email,
+            capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+            metadata: { uid },
+        });
+        accountId = account.id;
+        await db.collection('creator_profiles').doc(uid).set({
+            user_id: uid,
+            stripe_account_id: accountId,
+            updated_at: new Date().toISOString(),
+        }, { merge: true });
+    }
+    const link = await stripe.accountLinks.create({
+        account: accountId,
+        refresh_url: stripeConnectRefreshUrl(),
+        return_url: stripeConnectReturnUrl(),
+        type: 'account_onboarding',
+    });
+    return { ok: true, url: link.url, account_id: accountId };
 });
 export const connectV2BillingPortal = onCall({ secrets: STRIPE_SECRETS }, async (request) => {
     const uid = requireAuth(request);
@@ -196,8 +249,8 @@ export const connectV2ListProducts = onCall({ secrets: STRIPE_SECRETS }, async (
 // ===== Legacy create/check (kept for backwards compat) =====
 export const checkCreatorConnect = connectV2AccountStatus;
 export const checkStripeConnect = connectV2AccountStatus;
-export const createCreatorConnect = connectV2CreateAccount;
-export const createStripeConnect = connectV2CreateAccount;
+export const createCreatorConnect = startStripeConnectOnboarding;
+export const createStripeConnect = startStripeConnectOnboarding;
 export const createCheckoutSession = connectV2Checkout;
 export const createBusinessCheckout = connectV2Checkout;
 export const createPremiumCheckout = connectV2Subscription;

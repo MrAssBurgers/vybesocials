@@ -3,15 +3,15 @@
  * ────────────────
  * The main dashboard for a Stripe Connect V2 connected account owner.
  *
- * Hosted Stripe pages always open through the shared platform payment helper,
- * keeping them out of the embedded app WebView.
+ * Hosted Stripe pages always open through openStripeConnectFlow so
+ * onboarding stays in the system browser (never the app WebView).
  */
 
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
-import { openStripeHostedUrl } from "@/lib/platformPayments";
+import { openStripeConnectFlow } from "@/lib/openStripeConnectFlow";
 import { toast } from "sonner";
 
 interface AccountStatus {
@@ -89,12 +89,6 @@ export default function ConnectDashboard() {
     }
   };
 
-  const openHostedStripeResult = (url: unknown, fallbackMessage: string) => {
-    if (typeof url !== "string" || !openStripeHostedUrl(url)) {
-      throw new Error(fallbackMessage);
-    }
-  };
-
   const handleOnboard = async () => {
     if (!accountId || loading) return;
     setLoading(true);
@@ -104,7 +98,8 @@ export default function ConnectDashboard() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      openHostedStripeResult(data?.url, "Could not open secure Stripe onboarding");
+      const opened = await openStripeConnectFlow(data.url);
+      if (!opened) throw new Error("Could not open Stripe onboarding");
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Failed to create onboarding link");
     } finally {
@@ -153,7 +148,10 @@ export default function ConnectDashboard() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      openHostedStripeResult(data?.url, "Could not open secure Stripe checkout");
+      if (data?.url) {
+        const opened = await openStripeConnectFlow(data.url);
+        if (!opened) throw new Error("Could not open Stripe checkout");
+      }
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Failed to start subscription");
     } finally {
@@ -170,7 +168,10 @@ export default function ConnectDashboard() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      openHostedStripeResult(data?.url, "Could not open the secure billing portal");
+      if (data?.url) {
+        const opened = await openStripeConnectFlow(data.url);
+        if (!opened) throw new Error("Could not open the secure billing portal");
+      }
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Failed to open billing portal");
     } finally {

@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 // Checkbox removed — using custom inline toggle for iOS compatibility
 import { toast } from 'sonner';
 import { getFriendlyAuthError, getUserFriendlyError, sanitizeAuthToastMessage } from '@/lib/errorUtils';
-import { Eye, EyeOff, Mail } from 'lucide-react';
+import { Eye, EyeOff, Mail, Loader2 } from 'lucide-react';
 import { isNativeAppShell, getRuntimeOs, isDespiaRuntime } from '@/lib/despiaBridge';
 import { db } from '@/lib/firebase';
 import { lovable } from '@/integrations/lovable/index';
@@ -59,6 +59,13 @@ import {
   tryCompleteDespiaOAuthFromCurrentUrl,
 } from '@/lib/despiaOAuth';
 import { claimProfileAfterOAuth } from '@/lib/oauthAccountLink';
+import {
+  beginOAuthAttempt,
+  clearOAuthAttempt,
+  isOAuthUserCancellation,
+  settleOAuthAttemptWithSession,
+  shouldSuppressOAuthError,
+} from '@/lib/oauthAttemptGuard';
 import { preloadAppleSignIn } from '@/lib/appleSignIn';
 import { authLog } from '@/lib/authLog';
 import { oauthTimelineLog, safeCallbackPath } from '@/lib/oauthDebugTimeline';
@@ -364,6 +371,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   };
   /** Full-screen signing overlay while system sheet / Apple sheet is open. */
   const [oauthOverlay, setOauthOverlay] = useState<'google' | 'apple' | null>(null);
+  const [oauthProviderLoading, setOauthProviderLoading] = useState<'google' | 'apple' | null>(null);
+  const appleCompactSheet = isDespiaRuntime() && getRuntimeOs() === 'ios';
 
   const hasStoredSession = hasStoredAuthSession();
 
@@ -374,8 +383,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   useEffect(() => {
     clearStaleOAuthRedirectPending();
     clearStaleDespiaOAuthPending();
-    // [iOS-only] Never preload Apple JS in Despia — oauth:// only; JS usePopup yields opaque "unknown".
-    if (!isDespiaRuntime()) {
+    // Preload Apple JS on web and Despia iOS (native sheet path).
+    if (!isDespiaRuntime() || getRuntimeOs() === 'ios') {
       preloadAppleSignIn();
     }
     // Resume chip only — do NOT set isOAuthReturn (that full-screens "Completing…" forever).
@@ -399,11 +408,14 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       if (finishing) return;
       if (detail?.data?.session?.user) {
         finishing = true;
+        settleOAuthAttemptWithSession();
         clearDespiaOAuthPending();
         clearOAuthRedirectPending();
         clearOAuthBusy();
+        clearOAuthAttempt();
         const gate = await applyOAuthSession(detail.data.session);
         setOauthOverlay(null);
+        setOauthProviderLoading(null);
         setLoading(false);
         setIsOAuthReturn(false);
         if (openGateFromSessionResult(gate, detail.data.session.user.email)) {
@@ -446,6 +458,21 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         return;
       }
 
+      if (
+        detail?.error &&
+        shouldSuppressOAuthError(detail.error)
+      ) {
+        clearDespiaOAuthPending();
+        clearOAuthRedirectPending();
+        clearOAuthBusy();
+        clearOAuthAttempt();
+        setOauthOverlay(null);
+        setOauthProviderLoading(null);
+        setLoading(false);
+        setIsOAuthReturn(false);
+        return;
+      }
+
       // Always clear the chip — empty complete / cancel must not leave endless loading.
       // Exception: "already used" race — sibling App Link/poll completion may still succeed.
       if (
@@ -458,11 +485,16 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       clearDespiaOAuthPending();
       clearOAuthRedirectPending();
       clearOAuthBusy();
+      clearOAuthAttempt();
       setOauthOverlay(null);
+      setOauthProviderLoading(null);
       setLoading(false);
       setIsOAuthReturn(false);
 
       if (detail?.error?.message) {
+        if (isOAuthUserCancellation(detail.error)) {
+          return;
+        }
         const msg = sanitizeAuthToastMessage(getFriendlyAuthError(detail.error));
         if (msg !== '__SUPPRESS__') {
           sessionStorage.setItem('vybe-oauth-error', msg);
@@ -618,7 +650,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     );
     // #endregion
     setLoading(true);
-    setOauthOverlay(provider);
+    setOauthProviderLoading(provider);
+    const attemptId = beginOAuthAttempt(provider);
+    if (!(provider === 'apple' && appleCompactSheet)) {
+      setOauthOverlay(provider);
+    }
     try {
       sessionStorage.removeItem('vybe-oauth-error');
 
@@ -635,12 +671,15 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       if (oauthResult.error) throw oauthResult.error;
 
       if (oauthResult.data.session?.user) {
+        settleOAuthAttemptWithSession(attemptId);
         const gate = await applyOAuthSession(oauthResult.data.session);
         clearOAuthRedirectPending();
         clearDespiaOAuthPending();
         clearOAuthBusy();
+        clearOAuthAttempt(attemptId);
         if (openGateFromSessionResult(gate, oauthResult.data.session.user.email)) {
           setOauthOverlay(null);
+          setOauthProviderLoading(null);
           return;
         }
         await claimProfileAfterOAuth();
@@ -655,12 +694,51 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           { replace: true },
         );
         setOauthOverlay(null);
+        setOauthProviderLoading(null);
         return;
       }
     } catch (error: unknown) {
+      const { firebaseAuth } = await import('@/lib/firebase');
+      const sessionCheck = await firebaseAuth.getSession();
+      if (sessionCheck.data.session?.user) {
+        settleOAuthAttemptWithSession(attemptId);
+        const gate = await applyOAuthSession(sessionCheck.data.session);
+        clearOAuthRedirectPending();
+        clearDespiaOAuthPending();
+        clearOAuthBusy();
+        clearOAuthAttempt(attemptId);
+        if (!openGateFromSessionResult(gate, sessionCheck.data.session.user.email)) {
+          await claimProfileAfterOAuth();
+          toast.success('Welcome back! ✨');
+          const cached = getCachedCurrentProfile();
+          navigate(
+            resolvePostLoginDestination(
+              cached
+                ? { onboarding_completed: cached.onboarding_completed, username: cached.username }
+                : profile,
+            ),
+            { replace: true },
+          );
+        }
+        setOauthOverlay(null);
+        setOauthProviderLoading(null);
+        return;
+      }
+
+      if (shouldSuppressOAuthError(error, attemptId) || isOAuthUserCancellation(error)) {
+        clearOAuthRedirectPending();
+        clearDespiaOAuthPending();
+        clearOAuthBusy();
+        clearOAuthAttempt(attemptId);
+        setOauthOverlay(null);
+        setOauthProviderLoading(null);
+        return;
+      }
+
       clearOAuthRedirectPending();
       clearDespiaOAuthPending();
       clearOAuthBusy();
+      clearOAuthAttempt(attemptId);
       const raw = error as { code?: string; name?: string; message?: string };
       const rawCode = String(raw?.code || raw?.name || '');
       const rawMessage = String(raw?.message || '');
@@ -679,14 +757,16 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       const msg = sanitizeAuthToastMessage(getFriendlyAuthError(error));
       if (msg !== '__SUPPRESS__') toast.error(msg);
       setOauthOverlay(null);
+      setOauthProviderLoading(null);
     } finally {
       if (!isOAuthRedirectInFlight() && !isDespiaOAuthInFlight()) {
         setLoading(false);
         setOauthOverlay(null);
+        setOauthProviderLoading(null);
         clearOAuthBusy();
       }
     }
-  }, [navigate, profile, applyOAuthSession, loading, openLoginApprovalGate]);
+  }, [navigate, profile, applyOAuthSession, loading, openLoginApprovalGate, appleCompactSheet]);
 
   // Firebase OAuth redirect — navigate as soon as session exists.
   useEffect(() => {
@@ -1337,7 +1417,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   variant="outline"
                   className="w-full h-8 bg-secondary/20 border-white/10 hover:bg-secondary/35 text-[11px] font-normal px-2"
                   onClick={() => void runOAuthSignIn('google')}
-                  disabled={oauthOverlay === 'google' || (loading && !oauthOverlay)}
+                  disabled={oauthProviderLoading === 'google' || oauthOverlay === 'google' || (loading && !oauthProviderLoading && !oauthOverlay)}
                 >
                   <svg className="w-3.5 h-3.5 mr-1 shrink-0" viewBox="0 0 24 24" aria-hidden>
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -1353,11 +1433,15 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   variant="outline"
                   className="w-full h-8 bg-secondary/20 border-white/10 hover:bg-secondary/35 text-[11px] font-normal px-2"
                   onClick={() => void runOAuthSignIn('apple')}
-                  disabled={oauthOverlay === 'apple' || (loading && !oauthOverlay)}
+                  disabled={oauthProviderLoading === 'apple' || oauthOverlay === 'apple' || (loading && !oauthProviderLoading && !oauthOverlay)}
                 >
+                  {oauthProviderLoading === 'apple' ? (
+                    <Loader2 className="w-3.5 h-3.5 mr-1 shrink-0 animate-spin" aria-hidden />
+                  ) : (
                   <svg className="w-3.5 h-3.5 mr-1 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                     <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
                   </svg>
+                  )}
                   Apple
                 </Button>
               </div>
@@ -1432,7 +1516,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
       {/* Apple: opaque cover so any in-WebView flash stays behind Face ID only.
           Google: light dim while the system account sheet is open. */}
-      {(oauthOverlay || (isOAuthReturn && loading)) && (
+      {(oauthOverlay || (isOAuthReturn && loading)) && !(oauthOverlay === 'apple' && appleCompactSheet) && (
         <div
           className={
             oauthOverlay === 'apple'
