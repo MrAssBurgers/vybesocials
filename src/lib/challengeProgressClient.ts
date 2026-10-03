@@ -34,7 +34,7 @@ export function syncChallengeProgressAfterActivity(userId: string | undefined): 
   void import('@/hooks/useChallengeSync').then(({ syncChallengeProgress }) =>
     syncChallengeProgress({ userId })
       .then((result) => {
-        if (result && !result.skipped_cooldown && !result.skipped_client_cooldown) {
+        if (result?.newly_completed?.length) {
           syncInvalidator?.();
         }
       })
@@ -42,23 +42,32 @@ export function syncChallengeProgressAfterActivity(userId: string | undefined): 
   );
 }
 
+let incrementInflight: Promise<unknown> | null = null;
+let lastIncrementAt = 0;
+const INCREMENT_GAP_MS = 20_000;
+
 /**
- * Record challenge activity: server increment + auto sync (cooldown-aware).
- * Call after posts, comments, reactions, follows, DMs, login, etc.
+ * Record challenge activity. The server recounts progress itself, so a second
+ * full sync right after increment only adds another cold function call.
  */
 export function recordChallengeActivity(
-  profileId: string | undefined,
+  _profileId: string | undefined,
   requirementType: string,
   increment = 1,
 ): void {
   if (!requirementType) return;
-  void db.rpc('increment_challenge_progress', {
+  const now = Date.now();
+  if (incrementInflight || now - lastIncrementAt < INCREMENT_GAP_MS) return;
+  lastIncrementAt = now;
+  incrementInflight = db.rpc('increment_challenge_progress', {
     p_requirement_type: requirementType,
     p_increment: increment,
   }).then(({ error }) => {
     if (error && import.meta.env.DEV) {
       console.warn('[challenges] increment failed:', requirementType, error.message || error);
     }
-    syncChallengeProgressAfterActivity(profileId);
+    if (!error) syncInvalidator?.();
+  }).finally(() => {
+    incrementInflight = null;
   });
 }

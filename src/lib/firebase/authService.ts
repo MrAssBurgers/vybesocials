@@ -25,7 +25,15 @@ import {
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { getFirebaseApp } from './app';
-import { isFirebaseConfigured } from './config';
+import { getFirebaseConfig, isFirebaseConfigured } from './config';
+import {
+  clearMirroredAuth,
+  ensureAuthStorageReady,
+  isAuthStorageReady,
+  mirrorAuthUserJson,
+  prefersLocalAuthPersistence,
+  seedFirebaseAuthFromBackup,
+} from '@/lib/authSessionMirror';
 import type { VybeSession, VybeUser, VybeAuthError } from './types';
 import { setDocument } from './firestoreDb';
 
@@ -49,19 +57,39 @@ export const SIGN_IN_TIMEOUT_MS = 12000;
  *
  * Persist only; pass browserPopupRedirectResolver at popup/redirect call sites.
  */
+function currentApiKey(): string {
+  try {
+    return isFirebaseConfigured() ? getFirebaseConfig().apiKey : '';
+  } catch {
+    return '';
+  }
+}
+
+async function settleAuthStorage(): Promise<void> {
+  const apiKey = currentApiKey();
+  if (!apiKey) return;
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  await ensureAuthStorageReady(apiKey, ua);
+}
+
 function resolveAuth(): Auth | null {
   if (!isFirebaseConfigured()) return null;
+  if (!isAuthStorageReady()) return null;
   if (authInstance) return authInstance;
   const app = getFirebaseApp();
+  const apiKey = currentApiKey();
+  if (typeof localStorage !== 'undefined' && apiKey) {
+    seedFirebaseAuthFromBackup(localStorage, apiKey);
+  }
   try {
-    // Despia/WKWebView: IndexedDB is often wiped when the WebView process dies.
-    // Prefer localStorage persistence first so "close app → reopen" keeps the session.
-    const nativeShell =
+    // Phones, including Fold WebViews with no "; wv": IndexedDB is often wiped
+    // when the process dies and can hang open. Keep the session in localStorage.
+    const mobile =
       typeof navigator !== 'undefined' &&
-      /despia|vybeapp|; wv\)|\bwv\b/i.test(navigator.userAgent || '');
+      prefersLocalAuthPersistence(navigator.userAgent || '');
     authInstance = initializeAuth(app, {
-      persistence: nativeShell
-        ? [browserLocalPersistence, indexedDBLocalPersistence, browserSessionPersistence]
+      persistence: mobile
+        ? [browserLocalPersistence, browserSessionPersistence]
         : [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence],
     });
   } catch {
@@ -69,6 +97,17 @@ function resolveAuth(): Auth | null {
     authInstance = getAuth(app);
   }
   return authInstance;
+}
+
+function rememberAuthUser(user: FirebaseUser | null) {
+  if (!user || typeof localStorage === 'undefined') return;
+  const apiKey = currentApiKey();
+  if (!apiKey) return;
+  try {
+    mirrorAuthUserJson(localStorage, apiKey, JSON.stringify(user.toJSON()));
+  } catch {
+    /* private mode */
+  }
 }
 
 /** Prefer this over getAuth() so Auth never re-inits with the eager iframe resolver. */
@@ -216,6 +255,7 @@ export const firebaseAuth = {
   },
 
   async getSession(): Promise<{ data: { session: VybeSession | null }; error: VybeAuthError | null }> {
+    await settleAuthStorage();
     const auth = resolveAuth();
     if (!auth) return { data: { session: null }, error: NOT_CONFIGURED };
     const user = auth.currentUser;
@@ -252,13 +292,18 @@ export const firebaseAuth = {
   },
 
   onAuthStateChange(callback: AuthStateCallback) {
-    const auth = resolveAuth();
-    if (!auth) {
-      callback('INITIAL_SESSION', null);
-      return { data: { subscription: { unsubscribe: () => {} } } };
-    }
-    let initialFired = false;
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    let unsubscribe = () => {};
+    let cancelled = false;
+    const attach = () => {
+      if (cancelled) return;
+      const auth = resolveAuth();
+      if (!auth) {
+        callback('INITIAL_SESSION', null);
+        return;
+      }
+      let initialFired = false;
+      unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      rememberAuthUser(firebaseUser);
       const emit = (event: string, session: VybeSession | null) => {
         try {
           callback(event, session);
@@ -289,11 +334,17 @@ export const firebaseAuth = {
         if (!enriched.access_token) return;
         emit('TOKEN_REFRESHED', enriched);
       });
-    });
-
+      });
+    };
+    void settleAuthStorage().then(attach);
     return {
       data: {
-        subscription: { unsubscribe },
+        subscription: {
+          unsubscribe: () => {
+            cancelled = true;
+            unsubscribe();
+          },
+        },
       },
     };
   },
@@ -303,6 +354,7 @@ export const firebaseAuth = {
     password: string;
     options?: { emailRedirectTo?: string; data?: Record<string, unknown> };
   }) {
+    await settleAuthStorage();
     const auth = resolveAuth();
     if (!auth) return { data: { user: null, session: null }, error: NOT_CONFIGURED };
     let cred: Awaited<ReturnType<typeof createUserWithEmailAndPassword>>;
@@ -369,6 +421,7 @@ export const firebaseAuth = {
   },
 
   async signInWithPassword(payload: { email: string; password: string }) {
+    await settleAuthStorage();
     const auth = resolveAuth();
     if (!auth) return { data: { user: null, session: null }, error: NOT_CONFIGURED };
 
@@ -441,9 +494,7 @@ export const firebaseAuth = {
       await firebaseSignOut(auth);
       if (typeof localStorage !== 'undefined') {
         try {
-          for (const key of Object.keys(localStorage)) {
-            if (key.startsWith('firebase:authUser:')) localStorage.removeItem(key);
-          }
+          clearMirroredAuth(localStorage);
         } catch {
           /* ignore */
         }

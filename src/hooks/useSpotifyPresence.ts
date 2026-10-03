@@ -2,29 +2,36 @@ import { useEffect, useRef } from 'react';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { setLocalPresence } from '@/hooks/useLiveMusicPresence';
+import {
+  SPOTIFY_REFRESH_EVENT,
+  readSpotifyRefreshDetail,
+  spotifyPollIntervalMs,
+  subscribeSpotifyPollInterval,
+  type SpotifyRefreshDetail,
+} from '@/lib/spotifyPlayback';
+
+const TRACK_CHANGE_RETRY_MS = [450, 900, 1600];
 
 /**
  * While the signed-in user has a Spotify connection, polls
- * `spotify-now-playing`. The edge function refreshes tokens, fetches the
- * current track, and upserts `live_music_presence`. Other users receive
- * updates via realtime subscription.
- *
- * Polling is adaptive: in addition to the 12s base interval, we schedule
- * an extra tick ~1.5s after the current track is expected to end, so a
- * song change shows up within ~2s for the user playing it.
+ * `spotify-now-playing` and pushes the track into the local presence
+ * registry immediately. Skips and playlist starts request an extra pull
+ * so the title changes with the song instead of waiting on the next interval.
  */
 export function useSpotifyPresence() {
   const { user } = useAuth();
-  const baseTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const endOfTrackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inflight = useRef(false);
+  const cancelledRef = useRef(false);
+  const connectedRef = useRef<boolean | null>(null);
+  const endOfTrackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const lastGoodRef = useRef<{ trackId: string | null; at: number } | null>(null);
 
   useEffect(() => {
     if (!user?.id) return;
     const userId = user.id;
-
-    let cancelled = false;
-    let connected: boolean | null = null;
+    cancelledRef.current = false;
+    connectedRef.current = null;
 
     const clearEndOfTrack = () => {
       if (endOfTrackTimer.current) {
@@ -33,13 +40,83 @@ export function useSpotifyPresence() {
       }
     };
 
+    const clearRetries = () => {
+      retryTimers.current.forEach((timer) => clearTimeout(timer));
+      retryTimers.current = [];
+    };
+
     const scheduleEndOfTrack = (duration: number | null, progress: number | null) => {
       clearEndOfTrack();
       if (!duration || progress == null) return;
       const remaining = Math.max(0, duration - progress);
-      // 1.5s after song ends, clamped 3s–30s
-      const delay = Math.min(30_000, Math.max(3_000, remaining + 1_500));
-      endOfTrackTimer.current = setTimeout(() => { tick(); }, delay);
+      const delay = Math.min(30_000, Math.max(3_000, remaining + 800));
+      endOfTrackTimer.current = setTimeout(() => { void tick(); }, delay);
+    };
+
+    const applyPayload = (raw: Record<string, unknown> | null | undefined): string | null => {
+      if (!raw || raw.connected === false) return null;
+      const { connected: _connected, ok: _ok, now_playing: _nested, ...presence } = raw;
+      const title = typeof presence.title === 'string' ? presence.title : null;
+      const trackId = typeof presence.track_id === 'string' ? presence.track_id : null;
+      const isPlaying = presence.is_playing === true;
+      // Spotify often returns an empty player for a moment after next/previous.
+      // Keep the song already on screen instead of blanking it.
+      if (!title && !isPlaying && lastGoodRef.current && Date.now() - lastGoodRef.current.at < 5000) {
+        return lastGoodRef.current.trackId;
+      }
+      if (!presence.provider) presence.provider = 'spotify';
+      setLocalPresence(userId, presence as any, { pinMs: title ? 12_000 : 0 });
+      if (title) lastGoodRef.current = { trackId, at: Date.now() };
+      scheduleEndOfTrack(
+        typeof presence.duration_ms === 'number' ? presence.duration_ms : null,
+        typeof presence.progress_ms === 'number' ? presence.progress_ms : null,
+      );
+      return trackId;
+    };
+
+    const tick = async (detail?: SpotifyRefreshDetail, attempt = 0): Promise<void> => {
+      if (cancelledRef.current) return;
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible' && !detail) return;
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+      if (connectedRef.current === false) return;
+      if (inflight.current && !detail) return;
+      inflight.current = true;
+      let trackId: string | null = null;
+      try {
+        const { data, error } = await db.functions.invoke('spotify-now-playing');
+        if (error) {
+          const msg = String(error?.message || '');
+          if (/503|Service Unavailable|quota|rate.?limit/i.test(msg)) {
+            console.info('[SpotifyPresence] upstream unavailable (soft):', msg.slice(0, 120));
+          } else {
+            console.warn('[SpotifyPresence] invoke error', error);
+          }
+          if (msg.includes('Unauthorized') || msg.includes('token_invalid')) {
+            connectedRef.current = false;
+          }
+        } else if (data) {
+          const incoming = data as Record<string, unknown>;
+          const incomingId = typeof incoming.track_id === 'string' ? incoming.track_id : null;
+          const staleSkip = !!detail?.expectTrackChange
+            && !!detail.previousTrackId
+            && incomingId === detail.previousTrackId;
+          // A poll that still has the song we just skipped must not cover the new one.
+          if (!staleSkip) trackId = applyPayload(incoming);
+          else trackId = incomingId;
+        }
+      } catch (e) {
+        console.warn('[SpotifyPresence] threw', e);
+      } finally {
+        inflight.current = false;
+      }
+
+      const previous = detail?.previousTrackId;
+      const stillSame = detail?.expectTrackChange && previous && trackId === previous;
+      if (stillSame && attempt < TRACK_CHANGE_RETRY_MS.length && !cancelledRef.current) {
+        const wait = TRACK_CHANGE_RETRY_MS[attempt];
+        const timer = setTimeout(() => { void tick(detail, attempt + 1); }, wait);
+        retryTimers.current.push(timer);
+      }
     };
 
     const checkConnection = async () => {
@@ -48,61 +125,43 @@ export function useSpotifyPresence() {
         .select('user_id')
         .eq('user_id', userId)
         .maybeSingle();
-      connected = !!data;
+      connectedRef.current = !!data;
     };
 
-    const tick = async () => {
-      if (cancelled || inflight.current) return;
-      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
-      if (connected === false) return;
-      inflight.current = true;
-      try {
-        const { data, error } = await db.functions.invoke('spotify-now-playing');
-        if (error) {
-          const msg = String(error?.message || '');
-          // Upstream Spotify / CF blips — don't alarm on 503.
-          if (/503|Service Unavailable|quota|rate.?limit/i.test(msg)) {
-            console.info('[SpotifyPresence] upstream unavailable (soft):', msg.slice(0, 120));
-          } else {
-            console.warn('[SpotifyPresence] invoke error', error);
-          }
-          if (msg.includes('Unauthorized') || msg.includes('token_invalid')) {
-            connected = false;
-          }
-        } else if (data) {
-          // Optimistically push into the shared registry so the user sees
-          // their own track change instantly, without waiting for realtime.
-          if (data.connected !== false) {
-            const { connected: _c, ...presence } = data as any;
-            setLocalPresence(userId, presence);
-            scheduleEndOfTrack(presence?.duration_ms ?? null, presence?.progress_ms ?? null);
-          }
-        }
-      } catch (e) {
-        console.warn('[SpotifyPresence] threw', e);
-      } finally {
-        inflight.current = false;
-      }
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const armInterval = () => {
+      if (interval) clearInterval(interval);
+      interval = setInterval(() => { void tick(); }, spotifyPollIntervalMs());
     };
 
-    (async () => {
+    const onRefresh = (event: Event) => {
+      const detail = readSpotifyRefreshDetail(event);
+      if (detail.nowPlaying) applyPayload(detail.nowPlaying);
+      void tick(detail.expectTrackChange ? detail : undefined);
+    };
+
+    void (async () => {
       await checkConnection();
-      if (connected) tick();
-      baseTimer.current = setInterval(tick, 12_000);
+      if (connectedRef.current) void tick();
+      armInterval();
     })();
 
-    const onVis = () => { if (document.visibilityState === 'visible') tick(); };
-    const onOnline = () => tick();
+    const releasePoll = subscribeSpotifyPollInterval(armInterval);
+    const onVis = () => { if (document.visibilityState === 'visible') void tick(); };
+    const onOnline = () => { void tick(); };
     document.addEventListener('visibilitychange', onVis);
     window.addEventListener('online', onOnline);
+    window.addEventListener(SPOTIFY_REFRESH_EVENT, onRefresh);
 
     return () => {
-      cancelled = true;
+      cancelledRef.current = true;
+      releasePoll();
       document.removeEventListener('visibilitychange', onVis);
       window.removeEventListener('online', onOnline);
-      if (baseTimer.current) clearInterval(baseTimer.current);
+      window.removeEventListener(SPOTIFY_REFRESH_EVENT, onRefresh);
+      if (interval) clearInterval(interval);
       clearEndOfTrack();
+      clearRetries();
     };
   }, [user?.id]);
 }

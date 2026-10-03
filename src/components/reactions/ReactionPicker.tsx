@@ -221,8 +221,9 @@ export const ReactionPicker = memo(function ReactionPicker({
 
     if (isDragging.current && showPicker) {
       isDragging.current = false;
-      if (hoveredIndex !== null) {
-        const reaction = REACTIONS[hoveredIndex];
+      const idx = hoveredIndex ?? getReactionIndexAtPoint(e.clientX, e.clientY);
+      if (idx !== null) {
+        const reaction = REACTIONS[idx];
         triggerHaptic('medium');
         sounds[reaction.sound]();
         recordEmoji(reaction.emoji);
@@ -246,7 +247,7 @@ export const ReactionPicker = memo(function ReactionPicker({
 
     pointerStart.current = null;
     isDragging.current = false;
-  }, [cancelLongPress, currentReaction, onReact, showPicker, hoveredIndex]);
+  }, [cancelLongPress, currentReaction, onReact, showPicker, hoveredIndex, getReactionIndexAtPoint]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     e.stopPropagation();
@@ -272,7 +273,7 @@ export const ReactionPicker = memo(function ReactionPicker({
   }, [cancelLongPress, showPicker, hoveredIndex, cacheBubbleRects, getReactionIndexAtPoint]);
 
   const handleSelectReaction = useCallback((type: ReactionType) => {
-    if (isDragging.current) return;
+    isDragging.current = false;
     triggerHaptic('medium');
     const reaction = getReaction(type);
     sounds[reaction.sound]();

@@ -187,6 +187,8 @@ function EmbeddedLeaderboard() {
 export default function ChallengesHubPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { profile, user } = useAuth();
+  const authUserId = profile?.user_id || user?.id;
   const { daily, weekly, achievements, all, isLoading } = useChallengesWithProgress();
   const { data: unclaimedRewards } = useUnclaimedRewards();
   const { data: tiers } = useVybePassTiers();
@@ -253,23 +255,36 @@ export default function ChallengesHubPage() {
   const { showLevelUp } = useRewardNotifications();
 
   const handleClaimReward = async (rewardId: string) => {
+    if (claimingId) return;
+    const unclaimedKey = ['unclaimed-rewards', authUserId] as const;
+    const previousUnclaimed = queryClient.getQueryData(unclaimedKey);
+    const reward = (Array.isArray(previousUnclaimed) ? previousUnclaimed : [])
+      .find((row: { id?: string; xp_amount?: number }) => row?.id === rewardId);
     setClaimingId(rewardId);
+    queryClient.setQueryData(unclaimedKey, (current: unknown) => (
+      Array.isArray(current) ? current.filter((row: { id?: string }) => row?.id !== rewardId) : current
+    ));
+    toast.success(reward?.xp_amount ? `+${reward.xp_amount} XP claimed!` : 'Reward claimed');
     try {
       const result = await claimReward.mutateAsync(rewardId);
-      await queryClient.invalidateQueries({ queryKey: ['claimed-rewards'] });
-      await queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards'] });
-      await queryClient.invalidateQueries({ queryKey: ['challenge-progress'] });
+      void queryClient.invalidateQueries({ queryKey: ['claimed-rewards'] });
+      void queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards'] });
+      void queryClient.invalidateQueries({ queryKey: ['challenge-progress'] });
       if (result.level_result?.level_up) {
         showLevelUp({
           oldLevel: result.level_result.old_level,
           newLevel: result.level_result.new_level,
           rewards: result.level_result.new_rewards || [],
         });
-      } else {
-        toast.success(`+${result.xp_gained} XP claimed!`);
       }
     } catch (error) {
+      queryClient.setQueryData(unclaimedKey, previousUnclaimed);
       toast.error('Failed to claim reward');
+      void import('@/lib/bugReportClient').then(({ reportAppCrash }) => reportAppCrash({
+        error,
+        source: 'challenge_claim',
+        reason: 'Could not claim a challenge reward',
+      }));
     } finally {
       setClaimingId(null);
     }
@@ -413,14 +428,6 @@ export default function ChallengesHubPage() {
                           ) : (
                             <motion.span
                               className="flex items-center gap-1.5"
-                              animate={{ 
-                                textShadow: [
-                                  '0 0 4px hsl(var(--primary-foreground) / 0.3)',
-                                  '0 0 12px hsl(var(--primary-foreground) / 0.6)',
-                                  '0 0 4px hsl(var(--primary-foreground) / 0.3)',
-                                ]
-                              }}
-                              transition={{ duration: 2, repeat: Infinity }}
                             >
                               <Gift className="h-4 w-4" />
                               Claim
@@ -554,7 +561,7 @@ export default function ChallengesHubPage() {
                     key={challenge.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.05 }}
+                    transition={{ duration: 0.2 }}
                   >
                     <div 
                       className="cursor-pointer"

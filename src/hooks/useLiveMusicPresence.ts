@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
+import { shouldKeepLocalPresence } from '@/lib/spotifyPlayback';
 
 export type LivePresenceProvider = 'spotify' | 'apple_music' | 'youtube' | 'steam' | 'twitch';
 
@@ -35,20 +36,16 @@ interface Entry {
   latest: LiveMusicPresence | null;
   refCount: number;
   pollTimer?: ReturnType<typeof setInterval> | null;
+  /** Ignore a slower Firestore row until this time when its track differs. */
+  pinUntil?: number;
 }
 
 const registry = new Map<string, Entry>();
 
-async function fetchPresence(authUserId: string) {
-  const { data } = await db
-    .from('live_music_presence')
-    .select('*')
-    .eq('user_id', authUserId)
-    .maybeSingle();
+function publishPresence(authUserId: string, next: LiveMusicPresence | null) {
   const e = registry.get(authUserId);
   if (!e) return;
-  const next = (data as any) ?? null;
-  // Only push if changed (avoid spurious renders)
+  if (shouldKeepLocalPresence(e.latest, next, e.pinUntil || 0, Date.now())) return;
   const prev = e.latest;
   const sameTrack = prev?.track_id === next?.track_id;
   const samePlay = prev?.is_playing === next?.is_playing;
@@ -56,6 +53,15 @@ async function fetchPresence(authUserId: string) {
   if (prev && next && sameTrack && samePlay && sameProg) return;
   e.latest = next;
   e.listeners.forEach((l) => l(next));
+}
+
+async function fetchPresence(authUserId: string) {
+  const { data } = await db
+    .from('live_music_presence')
+    .select('*')
+    .eq('user_id', authUserId)
+    .maybeSingle();
+  publishPresence(authUserId, (data as LiveMusicPresence | null) ?? null);
 }
 
 function subscribe(authUserId: string, listener: Listener): () => void {
@@ -68,11 +74,8 @@ function subscribe(authUserId: string, listener: Listener): () => void {
         table: 'live_music_presence',
         filter: `user_id=eq.${authUserId}`,
         callback: (payload) => {
-          const e = registry.get(authUserId);
-          if (!e) return;
-          const next = payload.eventType === 'DELETE' ? null : ((payload.new as any) ?? null);
-          e.latest = next;
-          e.listeners.forEach((l) => l(next));
+          const next = payload.eventType === 'DELETE' ? null : ((payload.new as LiveMusicPresence | null) ?? null);
+          publishPresence(authUserId, next);
         },
       },
     ]);
@@ -122,11 +125,16 @@ function subscribe(authUserId: string, listener: Listener): () => void {
  * `useSpotifyPresence` so the signed-in user sees their own track changes
  * the instant polling returns, without waiting for the Realtime round-trip.
  */
-export function setLocalPresence(authUserId: string, payload: Partial<LiveMusicPresence> | null) {
+export function setLocalPresence(
+  authUserId: string,
+  payload: Partial<LiveMusicPresence> | null,
+  opts?: { pinMs?: number },
+) {
   const entry = registry.get(authUserId);
   const next = payload
     ? ({ ...(entry?.latest ?? {}), ...payload, user_id: authUserId, updated_at: new Date().toISOString() } as LiveMusicPresence)
     : null;
+  const pinUntil = opts?.pinMs && opts.pinMs > 0 ? Date.now() + opts.pinMs : entry?.pinUntil;
   if (!entry) {
     // No subscribers yet — stash so the next subscribe() hand-off sees it
     registry.set(authUserId, {
@@ -134,9 +142,11 @@ export function setLocalPresence(authUserId: string, payload: Partial<LiveMusicP
       listeners: new Set(),
       latest: next,
       refCount: 0,
+      pinUntil,
     });
     return;
   }
+  if (pinUntil) entry.pinUntil = pinUntil;
   entry.latest = next;
   entry.listeners.forEach((l) => l(next));
 }

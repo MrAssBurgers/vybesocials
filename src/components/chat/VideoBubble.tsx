@@ -1,7 +1,9 @@
 import { useState, useRef, useCallback, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, Volume2, VolumeX, Loader2, AlertCircle, RotateCcw, Film } from 'lucide-react';
+import { Play, Pause, Loader2, AlertCircle, RotateCcw, Film } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PausedMuteButton } from '@/components/video/PausedMuteButton';
+import { playWithAudio } from '@/lib/videoPlayback';
 import { formatDuration } from '@/hooks/useVideoProcessor';
 import { useInView } from 'react-intersection-observer';
 
@@ -32,7 +34,8 @@ export const VideoBubble = memo(function VideoBubble({
 }: VideoBubbleProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
+  const [pausedByTap, setPausedByTap] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState(false);
@@ -112,9 +115,15 @@ export const VideoBubble = memo(function VideoBubble({
     if (isPlaying) {
       videoRef.current.pause();
       setIsPlaying(false);
+      setPausedByTap(true);
     } else {
-      videoRef.current.play().catch(console.error);
-      setIsPlaying(true);
+      const video = videoRef.current;
+      void playWithAudio(video, isMuted, () => setIsMuted(false)).then((result) => {
+        if (result === 'blocked') return;
+        setIsMuted(result !== 'sound');
+        setIsPlaying(true);
+        setPausedByTap(false);
+      });
       
       // Hide controls after 2s of playing
       if (controlsTimeoutRef.current) {
@@ -124,15 +133,14 @@ export const VideoBubble = memo(function VideoBubble({
         setShowControls(false);
       }, 2000);
     }
-  }, [isPlaying, status]);
+  }, [isPlaying, isMuted, status]);
 
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     onFullscreen?.();
   }, [onFullscreen]);
 
-  const toggleMute = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
+  const toggleMute = useCallback(() => {
     if (videoRef.current) {
       videoRef.current.muted = !isMuted;
       setIsMuted(!isMuted);
@@ -309,24 +317,9 @@ export const VideoBubble = memo(function VideoBubble({
           </div>
         )}
 
-        {/* Mute toggle (visible when playing) */}
-        <AnimatePresence>
-          {isPlaying && showControls && (
-            <motion.button
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={toggleMute}
-              className="absolute bottom-2 left-2 p-1.5 rounded-full bg-black/60"
-            >
-              {isMuted ? (
-                <VolumeX className="h-3.5 w-3.5 text-white" />
-              ) : (
-                <Volume2 className="h-3.5 w-3.5 text-white" />
-              )}
-            </motion.button>
-          )}
-        </AnimatePresence>
+        {pausedByTap && !isPlaying && status === 'sent' && !error && (
+          <PausedMuteButton muted={isMuted} onToggle={toggleMute} />
+        )}
       </div>
 
       {/* Caption */}

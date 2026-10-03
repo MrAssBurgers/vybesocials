@@ -10,6 +10,7 @@ import {
 } from '@/lib/postReactions';
 import { recordChallengeActivity } from '@/lib/challengeProgressClient';
 import { toast } from 'sonner';
+import { reportAppCrash } from '@/lib/bugReportClient';
 
 interface PostReactionSource {
   id: string;
@@ -84,6 +85,11 @@ export function usePostReaction(post: PostReactionSource) {
         } else {
           console.error('[usePostReaction] failed:', error);
         }
+        void reportAppCrash({
+          error,
+          source: 'post_reaction',
+          reason: 'Could not save or change a reaction',
+        });
         setCurrentReaction(prevReaction);
         setIsLiked(prevIsLiked);
         setLikeCount(prevLikeCount);

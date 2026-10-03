@@ -1,9 +1,11 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, Play, Pause, SkipBack, SkipForward, ExternalLink, ListMusic, ArrowLeft, Loader2, Music2, Shuffle } from 'lucide-react';
 import { useSpotifyControl } from '@/hooks/useSpotifyControl';
 import { useSpotifyPlaylists } from '@/hooks/useSpotifyPlaylists';
 import type { LiveMusicPresence } from '@/hooks/useLiveMusicPresence';
+import { retainSpotifyFastPoll } from '@/lib/spotifyPlayback';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -16,14 +18,18 @@ interface Props {
  * via the spotify-control edge function. Includes a playlists panel.
  */
 export function SpotifyMiniPlayer({ presence, onClose }: Props) {
+  const navigate = useNavigate();
   const { control, loading } = useSpotifyControl();
   const [view, setView] = useState<'player' | 'playlists'>('player');
   const [optimisticPlaying, setOptimisticPlaying] = useState<boolean | null>(null);
   const [shuffleOn, setShuffleOn] = useState(false);
-  const { playlists, loading: loadingPlaylists, error: playlistsError, status: playlistsStatus, refresh: refreshPlaylists } = useSpotifyPlaylists(view === 'playlists');
+  const { playlists, loading: loadingPlaylists, error: playlistsError, status: playlistsStatus, refresh: refreshPlaylists } = useSpotifyPlaylists(true);
+
+  useEffect(() => retainSpotifyFastPoll(), []);
 
   const reconnectSpotify = () => {
-    window.open('/settings?connect=spotify', '_blank', 'noopener,noreferrer');
+    onClose();
+    navigate('/settings?connect=spotify');
   };
 
   const isPlaying = optimisticPlaying ?? !!presence?.is_playing;
@@ -36,8 +42,12 @@ export function SpotifyMiniPlayer({ presence, onClose }: Props) {
     setTimeout(() => setOptimisticPlaying(null), 1500);
   };
 
-  const handleNext = async () => { await control({ action: 'next' }); };
-  const handlePrev = async () => { await control({ action: 'previous' }); };
+  const handleNext = () => {
+    void control({ action: 'next' }, { previousTrackId: presence?.track_id ?? null });
+  };
+  const handlePrev = () => {
+    void control({ action: 'previous' }, { previousTrackId: presence?.track_id ?? null });
+  };
 
   const handleShuffle = async () => {
     const next = !shuffleOn;
@@ -59,7 +69,10 @@ export function SpotifyMiniPlayer({ presence, onClose }: Props) {
     setStartingId(id);
     // Optimistically jump back to the player so the tap feels instant
     setView('player');
-    const ok = await control({ action: 'start_playlist', playlist_id: id });
+    const ok = await control(
+      { action: 'start_playlist', playlist_id: id },
+      { previousTrackId: presence?.track_id ?? null },
+    );
     if (!ok) setView('playlists');
     setStartingId(null);
   };
@@ -139,8 +152,7 @@ export function SpotifyMiniPlayer({ presence, onClose }: Props) {
               </button>
               <button
                 onClick={handlePrev}
-                disabled={loading}
-                className="w-10 h-10 rounded-full inline-flex items-center justify-center text-foreground/90 hover:bg-foreground/10 active:scale-90 transition disabled:opacity-50"
+                className="w-10 h-10 rounded-full inline-flex items-center justify-center text-foreground/90 hover:bg-foreground/10 active:scale-90 transition"
                 aria-label="Previous"
               >
                 <SkipBack className="w-5 h-5 fill-current" />
@@ -161,8 +173,7 @@ export function SpotifyMiniPlayer({ presence, onClose }: Props) {
               </button>
               <button
                 onClick={handleNext}
-                disabled={loading}
-                className="w-10 h-10 rounded-full inline-flex items-center justify-center text-foreground/90 hover:bg-foreground/10 active:scale-90 transition disabled:opacity-50"
+                className="w-10 h-10 rounded-full inline-flex items-center justify-center text-foreground/90 hover:bg-foreground/10 active:scale-90 transition"
                 aria-label="Next"
               >
                 <SkipForward className="w-5 h-5 fill-current" />

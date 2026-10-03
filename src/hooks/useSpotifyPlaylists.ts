@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
+import { normalizeSpotifyPlaylists } from '@/lib/spotifyPlayback';
 
 export interface SpotifyPlaylist {
   id: string;
@@ -42,7 +43,7 @@ export function useSpotifyPlaylists(enabled: boolean) {
       const d = (data as any) || {};
 
       // Only treat invoke error as fatal if the payload didn't carry a status flag we can interpret
-      if (invokeError && !d?.needs_connect && !d?.needs_reconnect && !d?.error && !Array.isArray(d?.playlists)) {
+      if (invokeError && !d?.needs_connect && !d?.needs_reconnect && !d?.error && !Array.isArray(d?.playlists) && !Array.isArray(d?.items)) {
         throw invokeError;
       }
 
@@ -60,14 +61,14 @@ export function useSpotifyPlaylists(enabled: boolean) {
         setPlaylists([]);
         return;
       }
-      if (d?.error && !d?.playlists?.length) {
+      if (d?.error && !d?.playlists?.length && !Array.isArray(d?.items)) {
         setStatus('error');
         setError(d.error);
         setPlaylists([]);
         return;
       }
 
-      const list: SpotifyPlaylist[] = d?.playlists || [];
+      const list = normalizeSpotifyPlaylists(d);
       setStatus('ok');
       setPlaylists(list);
       writeCache(list);
@@ -81,8 +82,10 @@ export function useSpotifyPlaylists(enabled: boolean) {
 
   useEffect(() => {
     if (!enabled) return;
-    if (playlists === null) refresh();
-  }, [enabled, playlists, refresh]);
+    // Cache paints immediately. Always refresh so a stale empty parse
+    // (raw Spotify `items` before the client mapped them) doesn't stick.
+    void refresh();
+  }, [enabled, refresh]);
 
   return { playlists, loading, error, status, refresh };
 }

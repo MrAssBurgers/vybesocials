@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { ProfileLink } from '@/components/profile/ProfileLink';
-import { Heart, MessageCircle, Send, Bookmark, Volume2, VolumeX, MoreVertical, Eye } from 'lucide-react';
+import { Heart, MessageCircle, Send, Bookmark, Play, Eye } from 'lucide-react';
 import { ReactionPicker } from '@/components/reactions/ReactionPicker';
 import { ReactionType } from '@/lib/reactions';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -30,6 +30,8 @@ import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { usePostReaction } from '@/hooks/usePostReaction';
 import { avatarInitial } from '@/lib/parseApiDate';
+import { playWithAudio } from '@/lib/videoPlayback';
+import { PausedMuteButton } from '@/components/video/PausedMuteButton';
 
 interface MobileShortCardProps {
   post: {
@@ -62,7 +64,7 @@ interface MobileShortCardProps {
 export const MobileShortCard = memo(function MobileShortCard({ 
   post, 
   isActive, 
-  globalMuted = true, 
+  globalMuted = false, 
   onToggleMute,
   immersiveFlow = false,
 }: MobileShortCardProps) {
@@ -70,6 +72,7 @@ export const MobileShortCard = memo(function MobileShortCard({
   const queryClient = useQueryClient();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [pausedByTap, setPausedByTap] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [isMuted, setIsMuted] = useState(globalMuted);
@@ -99,6 +102,7 @@ export const MobileShortCard = memo(function MobileShortCard({
   const holdTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const wasHoldingRef = useRef(false); // Track if we just released from a hold
   const holdStartedRef = useRef(false); // Track if hold gesture started
+  const userPausedRef = useRef(false);
 
   // Sync view count from props (no realtime subscription needed)
   useEffect(() => {
@@ -126,8 +130,7 @@ export const MobileShortCard = memo(function MobileShortCard({
     if (isHolding) {
       video.pause();
       setIsPlaying(false);
-    } else if (isActive && signedMediaUrl) {
-      // Resume playback without changing mute state
+    } else if (isActive && signedMediaUrl && !userPausedRef.current) {
       video.play().then(() => {
         setIsPlaying(true);
       }).catch(() => {});
@@ -151,39 +154,33 @@ export const MobileShortCard = memo(function MobileShortCard({
     if (isHolding) return;
 
     if (isActive) {
+      if (userPausedRef.current) {
+        video.muted = globalMuted;
+        setIsMuted(globalMuted);
+        return;
+      }
       // Delay play slightly to allow DOM updates
       playAttemptRef.current = setTimeout(() => {
+        if (userPausedRef.current) return;
         video.playsInline = true;
-        
-        // Only force mute on FIRST ever autoplay for this clip
-        if (!hasInitializedRef.current) {
-          video.muted = globalMuted;
-          setIsMuted(globalMuted);
-          hasInitializedRef.current = true;
-        }
-        // Otherwise don't touch video.muted - preserve current state
-        
-        const playPromise = video.play();
-        if (playPromise !== undefined) {
-          playPromise
-            .then(() => {
-              setIsPlaying(true);
-              // Count initial view
-              if (!hasCountedInitialView.current && profile) {
-                hasCountedInitialView.current = true;
-                incrementViewCount();
-              }
-            })
-            .catch((error) => {
-              console.log('Video play failed:', error);
-            });
-        }
+        hasInitializedRef.current = true;
+        void playWithAudio(video, globalMuted, () => setIsMuted(false)).then((result) => {
+          if (result === 'blocked' || userPausedRef.current) return;
+          setIsMuted(result !== 'sound');
+          setIsPlaying(true);
+          if (!hasCountedInitialView.current && profile) {
+            hasCountedInitialView.current = true;
+            incrementViewCount();
+          }
+        });
       }, 100);
     } else {
       video.pause();
       video.currentTime = 0;
       hasCountedInitialView.current = false;
       hasInitializedRef.current = false;
+      userPausedRef.current = false;
+      setPausedByTap(false);
       setIsPlaying(false);
     }
 
@@ -262,15 +259,11 @@ export const MobileShortCard = memo(function MobileShortCard({
       return;
     }
     
-    // CRITICAL: Only allow interactions when video is actively playing
-    if (!isPlaying) return;
-    
     const now = Date.now();
     const timeSinceLastTap = now - lastTapTime.current;
     lastTapTime.current = now;
 
     if (timeSinceLastTap < 300) {
-      // Double tap detected — cancel pending single tap mute and trigger like
       if (singleTapTimer.current) {
         clearTimeout(singleTapTimer.current);
         singleTapTimer.current = null;
@@ -280,20 +273,29 @@ export const MobileShortCard = memo(function MobileShortCard({
         setShowHeart(true);
         setTimeout(() => setShowHeart(false), 800);
       }
-    } else {
-      // Delay single tap to check if a double tap follows
-      singleTapTimer.current = setTimeout(() => {
-        if (onToggleMute) {
-          onToggleMute();
-        } else if (videoRef.current) {
-          const newMuted = !isMuted;
-          videoRef.current.muted = newMuted;
-          setIsMuted(newMuted);
-        }
-        singleTapTimer.current = null;
-      }, 300);
+      return;
     }
-  }, [isMuted, onToggleMute, isHolding, isPlaying, currentReaction, handleReaction]);
+
+    singleTapTimer.current = setTimeout(() => {
+      singleTapTimer.current = null;
+      const video = videoRef.current;
+      if (!video) return;
+      if (video.paused) {
+        userPausedRef.current = false;
+        setPausedByTap(false);
+        void playWithAudio(video, video.muted, () => setIsMuted(false)).then((result) => {
+          if (result === 'blocked') return;
+          setIsMuted(result !== 'sound');
+          setIsPlaying(true);
+        });
+      } else {
+        userPausedRef.current = true;
+        video.pause();
+        setIsPlaying(false);
+        setPausedByTap(true);
+      }
+    }, 300);
+  }, [isHolding, currentReaction, handleReaction]);
 
   const handleBookmark = async () => {
     if (!profile) return;
@@ -401,14 +403,10 @@ export const MobileShortCard = memo(function MobileShortCard({
           />
         ) : null}
 
-        {/* Instagram-style pulsing muted icon - only visible when muted AND playing */}
-        {isVideo && isMuted && isPlaying && !isHolding && !immersiveFlow && (
-          <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-50">
-            <div className={cn(
-              "w-20 h-20 rounded-full bg-black/50 flex items-center justify-center animate-pulse",
-              !nativePerf && "backdrop-blur-sm",
-            )}>
-              <VolumeX className="h-10 w-10 text-white/90" />
+        {isVideo && pausedByTap && !isPlaying && !isLoading && !hasError && !isHolding && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-black/45">
+              <Play className="h-8 w-8 text-white ml-0.5" fill="white" />
             </div>
           </div>
         )}
@@ -537,24 +535,20 @@ export const MobileShortCard = memo(function MobileShortCard({
             <Send className="h-7 w-7 sm:h-8 sm:w-8 text-white drop-shadow-lg" />
           </button>
         </HoldToShare>
-
-        {/* Mute toggle */}
-        {isVideo && (
-          <button 
-            type="button"
-            aria-label={isMuted ? 'Unmute clip' : 'Mute clip'}
-            aria-pressed={!isMuted}
-            onClick={() => onToggleMute ? onToggleMute() : setIsMuted(!isMuted)} 
-            className="flex flex-col items-center gap-0.5 sm:gap-1 active:scale-90 transition-transform"
-          >
-            {isMuted ? (
-              <VolumeX className="h-6 w-6 sm:h-7 sm:w-7 text-white drop-shadow-lg" />
-            ) : (
-              <Volume2 className="h-6 w-6 sm:h-7 sm:w-7 text-white drop-shadow-lg" />
-            )}
-          </button>
-        )}
       </div>
+
+      {isVideo && pausedByTap && !isPlaying && !isHolding && (
+        <PausedMuteButton
+          muted={isMuted}
+          onToggle={() => {
+            const next = !(videoRef.current?.muted ?? isMuted);
+            if (videoRef.current) videoRef.current.muted = next;
+            setIsMuted(next);
+            if (onToggleMute && next !== globalMuted) onToggleMute();
+          }}
+          className="right-3 top-[calc(var(--app-header-safe,env(safe-area-inset-top,0px))+4.5rem)] z-50"
+        />
+      )}
 
       {/* Bottom info - responsive padding and sizing, safe-area aware */}
       <div
@@ -589,11 +583,8 @@ export const MobileShortCard = memo(function MobileShortCard({
         </div>
 
         {isVideo && immersiveFlow && (
-          <button
-            type="button"
-            aria-label={isMuted ? 'Play VYBE sound' : 'Mute VYBE sound'}
-            onClick={() => onToggleMute ? onToggleMute() : setIsMuted((m) => !m)}
-            className="flex items-center gap-2 mb-2 max-w-[min(100%,240px)] active:opacity-80"
+          <div
+            className="flex items-center gap-2 mb-2 max-w-[min(100%,240px)] pointer-events-none"
           >
             <div
               className={cn(
@@ -607,7 +598,7 @@ export const MobileShortCard = memo(function MobileShortCard({
             <span className="text-xs text-white/90 truncate drop-shadow-md">
               VYBE sound · @{post.author.username}
             </span>
-          </button>
+          </div>
         )}
 
         {post.caption && (

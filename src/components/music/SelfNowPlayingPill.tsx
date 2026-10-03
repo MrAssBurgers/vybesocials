@@ -1,9 +1,10 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { useLiveMusicPresence } from '@/hooks/useLiveMusicPresence';
+import { useLiveMusicPresence, type LiveMusicPresence } from '@/hooks/useLiveMusicPresence';
+import { useSpotifyPlaylists } from '@/hooks/useSpotifyPlaylists';
 import { LiveSpotifyWaveform } from '@/components/music/LiveSpotifyWaveform';
 import { providerTheme } from '@/components/music/providerTheme';
 import { SpotifyMiniPlayer } from '@/components/music/SpotifyMiniPlayer';
@@ -25,12 +26,20 @@ export function SelfNowPlayingPill({ className, floating = false }: Props) {
   const presence = useLiveMusicPresence(user?.id);
   const [dismissedTrackId, setDismissedTrackId] = useState<string | null>(null);
   const [miniOpen, setMiniOpen] = useState(false);
+  const [sticky, setSticky] = useState<LiveMusicPresence | null>(null);
 
-  const visible = !!presence?.is_playing && !!presence?.title;
-  const trackId = presence?.track_id ?? presence?.title ?? null;
-  const showing = visible && trackId !== dismissedTrackId;
-  const theme = providerTheme(presence?.provider);
-  const isSpotify = presence?.provider === 'spotify';
+  useEffect(() => {
+    if (presence?.title) setSticky(presence);
+  }, [presence]);
+
+  const display = presence?.title ? presence : sticky;
+  const visible = !!display?.is_playing && !!display?.title;
+  const trackId = display?.track_id ?? display?.title ?? null;
+  // Keep the player up while a skip briefly reports nothing playing.
+  const showing = (miniOpen ? !!display?.title : visible) && trackId !== dismissedTrackId;
+  const theme = providerTheme(display?.provider);
+  const isSpotify = display?.provider === 'spotify';
+  useSpotifyPlaylists(showing && isSpotify);
 
   const handlePillTap = (e: React.MouseEvent) => {
     if (isSpotify) {
@@ -50,7 +59,7 @@ export function SelfNowPlayingPill({ className, floating = false }: Props) {
               if (isSpotify) {
                 e.preventDefault();
                 setMiniOpen(true);
-              } else if (presence?.track_url) {
+              } else if (display?.track_url) {
                 void import('@/lib/externalLinkGuard').then(({ promptExternalLink }) =>
                   promptExternalLink(presence.track_url!),
                 );
@@ -74,9 +83,9 @@ export function SelfNowPlayingPill({ className, floating = false }: Props) {
             aria-label={isSpotify ? 'Open Spotify mini player' : theme.label}
           >
             {/* Album art */}
-            {presence?.album_art_url ? (
+            {display?.album_art_url ? (
               <img
-                src={presence.album_art_url}
+                src={display.album_art_url}
                 alt=""
                 className="w-9 h-9 rounded-xl object-cover flex-shrink-0"
               />
@@ -92,17 +101,17 @@ export function SelfNowPlayingPill({ className, floating = false }: Props) {
             {/* Two-line track info */}
             <div className="flex flex-col min-w-0 flex-1 text-left">
               <div className="flex items-center gap-1.5">
-                <LiveSpotifyWaveform tempo={presence?.tempo} energy={presence?.energy} isPlaying={!!presence?.is_playing} height={8} bars={3} color={theme.color} />
+                <LiveSpotifyWaveform tempo={display?.tempo} energy={display?.energy} isPlaying={!!display?.is_playing} height={8} bars={3} color={theme.color} />
                 <span className="text-[9px] font-bold tracking-wider uppercase truncate" style={{ color: theme.color }}>
                   {theme.label}
                 </span>
               </div>
               <span className="text-[13px] leading-tight font-semibold text-foreground truncate">
-                {presence?.title}
+                {display?.title}
               </span>
-              {presence?.artist && (
+              {display?.artist && (
                 <span className="text-[10px] leading-tight text-muted-foreground truncate">
-                  {presence.artist}
+                  {display.artist}
                 </span>
               )}
             </div>
@@ -140,7 +149,7 @@ export function SelfNowPlayingPill({ className, floating = false }: Props) {
                 className="fixed inset-0 z-40 bg-black/40"
                 onClick={() => setMiniOpen(false)}
               />
-              <SpotifyMiniPlayer presence={presence} onClose={() => setMiniOpen(false)} />
+              <SpotifyMiniPlayer presence={display} onClose={() => setMiniOpen(false)} />
             </>
           )}
         </AnimatePresence>,

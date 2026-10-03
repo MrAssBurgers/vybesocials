@@ -8,7 +8,8 @@ import { MobileShortCard } from '@/components/posts/MobileShortCard';
 import { ShortCard } from '@/components/posts/ShortCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { FeedFailureNotice } from '@/components/posts/FeedFailureNotice';
-import { toFeedError, hasMoreFeedRows, flattenUniqueFeedPosts, shouldHandleFeedShortcut, readFeedPreference, writeFeedPreference } from '@/lib/feedReliability';
+import { toFeedError, hasMoreFeedRows, flattenUniqueFeedPosts, shouldHandleFeedShortcut } from '@/lib/feedReliability';
+import { readClipsMutedPreference, writeClipsMutedPreference } from '@/lib/videoPlayback';
 import { useInView } from 'react-intersection-observer';
 import { ArrowLeft, Film } from 'lucide-react';
 import { useVideoPreload } from '@/hooks/useVideoPreload';
@@ -186,10 +187,7 @@ export default function ClipsViewer() {
 
   // ─── State ───
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [globalMuted, setGlobalMuted] = useState(() => {
-    const stored = readFeedPreference('vybe-clips-muted');
-    return stored !== null ? stored === 'true' : true;
-  });
+  const [globalMuted, setGlobalMuted] = useState(() => readClipsMutedPreference());
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -264,7 +262,7 @@ export default function ClipsViewer() {
   const handleToggleMute = useCallback(() => {
     setGlobalMuted(prev => {
       const next = !prev;
-      writeFeedPreference('vybe-clips-muted', String(next));
+      writeClipsMutedPreference(next);
       return next;
     });
   }, []);

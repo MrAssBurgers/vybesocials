@@ -2,6 +2,73 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-03) — Spotify track, playlists, reactions, session, claims
+
+### What changed
+- Skipping a song refreshes now-playing immediately and retries while Spotify is still on the previous track. A slower Firestore row cannot put the old song back for about 12 seconds.
+- Playlists open inside the mini player. The list accepts both the mapped `{ playlists }` payload and the raw Spotify `{ items }` payload the live function returns today. The list is prefetched while the song pill is up.
+- Starting a playlist, seek, and shuffle are implemented in `functions/src/spotify.ts`. That code is not deployed. Until `spotifyControl` and `spotifyPlaylists` are deployed, the in-app list loads, and tapping a playlist can still fail with the current server.
+- Changing a post reaction no longer fails just because the follow-up server read is slow. A tap on a reaction bubble applies it. Message reactions clear both the profile id and the auth id before saving a new one.
+- Reaction, Spotify, and claim failures are written to the error monitor.
+- Phones, including the Fold WebView with no `; wv`, keep the Firebase session in localStorage and a `vybe.auth.user` backup. Sign-out clears that backup. iOS splash timing is unchanged. Android splash fail-open is 0.9s.
+- Challenge claims leave the list and toast immediately, then roll back if the server rejects them. Opening the app no longer waits on a challenge rotate plus a sync every minute.
+- Liquid buttons no longer force their label to `w-full`, which was clipping “Create Event”.
+
+### Tests run
+- `vitest run` — 112 files, 545 passed
+- `tsc --noEmit -p tsconfig.app.json` — pass
+- `tsc --noEmit -p functions/tsconfig.json` — pass
+- `npm run build` — pass
+
+### Blockers
+- vybehub.app updates after Lovable Publish, then a force-close. No new Play Store binary.
+- Playlist playback starts only after `spotifyControl` / `spotifyPlaylists` / `spotifyNowPlaying` are deployed. Do not deploy the rest of the functions; production `auth2faRequest` must stay as it is.
+- `message_reactions` update rule is in `firestore.rules` and is live only after a rules deploy.
+
+### Next
+1. Lovable Publish, force-close VYBE, skip a song and confirm the title changes, then open Playlists inside the player.
+2. Deploy only the Spotify callables when playlist taps should start playback.
+3. Force-restart the Play Store app and confirm the account is still signed in.
+
+## ACTIVE (2026-10-03) — Clip avatar bars and welcome chip
+
+### What changed
+- The clip author ring was an inline link about 44×94 px, so the gradient drew vertical color bars beside the photo. It is now a 48×48 circle.
+- The “Welcome back” chip no longer uses a translate that the animation overwrites, which had parked it on the right edge of the sign-in card. It stays hidden while the sign-in screen is up, then sits centered at the top.
+
+### Tests run
+- `vitest` `WelcomeBackSplash.test.tsx` — 3 passed
+- Fold cover clips: `.story-ring` measures 48×48
+
+### Next
+1. Lovable Publish `main`, then force-close VYBE.
+2. Open a clip and confirm the avatar ring is a circle.
+3. Sign in and confirm the welcome chip is not stuck on the sign-in card.
+
+## ACTIVE (2026-10-03) — Fold 8 video sound, pause, and scroll
+
+### What changed
+- Feed videos, clips, and chat videos start with sound. A tap pauses. A tap again resumes. A smaller mute/unmute button sits in the right-hand corner of the video only while it is paused.
+- Clips no longer treat a tap as mute, and the old silent default is not reused. Double-tap still likes.
+- If the browser blocks unmuted autoplay, the clip starts silent and the next tap turns sound on. That fallback is not saved as a mute choice.
+- Galaxy Z Fold 8 skips per-card backdrop blur, the animated post outline, and the liquid touch layer. Tall feed videos stay inside the short inner screen. Feed cards stay painted (offscreen skip was blanking posts).
+- The 2-step prompt no longer stacks on the crash-report prompt, and it stays closed when email 2FA is already on.
+- Android splash warm-up passes the progress callbacks those helpers require.
+
+### Tests run
+- `vitest` `videoPlayback.test.ts`, `deviceDetection.foldable.test.ts`, `androidSplash.test.ts`
+- `tsc --noEmit -p tsconfig.app.json`
+- eslint on the touched files
+- Headless Fold 8 (SM-F971N): cover 475×751 and inner 933×704, signed in, no horizontal overflow. Clips start unmuted. Tap pauses, corner mute is 28px at the right, toggle mutes, tap resumes, mute button hides. Home, explore, messages, and profile stay on screen.
+
+### Blockers
+vybehub.app and the Play Store bundle update when this commit is published from https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7. This environment cannot open a physical Fold 8.
+
+### Next
+1. Lovable Publish, then force-close VYBE and open it on the Fold 8.
+2. Play a feed video and a clip with sound, tap to pause, and use the corner mute button.
+3. Unfold once and confirm the feed still reflows.
+
 ## ACTIVE (2026-10-03) — Fold 8 Play Store splash
 
 ### What changed

@@ -947,15 +947,16 @@ export function useStreaks() {
 }
 
 export function useAddReaction() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ messageId, emoji }: { messageId: string; emoji: string }) => {
       if (!profile?.id) throw new Error('Not authenticated');
+      const ownerIds = [...new Set([profile.id, user?.id].filter(Boolean))] as string[];
 
       // Toggle: if user already reacted with same emoji, remove it.
-      // Otherwise upsert (one reaction per user per message).
+      // Otherwise replace (one reaction per user per message).
       const { data: existing } = await db
         .from('message_reactions')
         .select('emoji')
@@ -963,12 +964,10 @@ export function useAddReaction() {
         .eq('user_id', profile.id)
         .maybeSingle();
 
-      // Always clear any existing reaction from this user on this message first
-      await db
-        .from('message_reactions')
-        .delete()
-        .eq('message_id', messageId)
-        .eq('user_id', profile.id);
+      // Rules allow delete + create. Clear every id this account may have used.
+      await Promise.all(ownerIds.map((ownerId) =>
+        db.from('message_reactions').delete().eq('message_id', messageId).eq('user_id', ownerId),
+      ));
 
       if (existing?.emoji === emoji) {
         // Toggle off — already deleted above

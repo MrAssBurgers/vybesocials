@@ -163,11 +163,11 @@ export function useAppPreloader() {
           const cachedProfile = getCachedCurrentProfile();
           if (cachedProfile?.id) {
             queryClient.setQueryData(['profile', cachedProfile.id], cachedProfile);
-            void warmUserFeed(queryClient, cachedProfile.id, uid).catch(() => undefined);
+            void warmUserFeed(queryClient, cachedProfile.id, uid, () => undefined).catch(() => undefined);
             void prefetchDMConversations(queryClient, cachedProfile.id, uid).catch(() => undefined);
           }
         } else {
-          void warmGuestFeed(queryClient).catch(() => undefined);
+          void warmGuestFeed(queryClient, () => undefined).catch(() => undefined);
         }
         updateStatus('profile', 1);
         updateStatus('feed', 1);
