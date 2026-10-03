@@ -64,7 +64,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       isVybeLiquid && !asChild ? (
         <>
           <span className="vybe-liquid-button__flow" aria-hidden />
-          <span className="relative z-[2] inline-flex w-full items-center justify-center gap-2">
+          <span className="relative z-[2] inline-flex items-center justify-center gap-2">
             {children}
           </span>
         </>
