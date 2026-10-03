@@ -361,9 +361,21 @@ export function getUserFriendlyError(error: any): string {
     return message;
   }
   
+  if (
+    message.includes("Couldn't send your verification code") ||
+    message.includes('verification code')
+  ) {
+    return message;
+  }
+
   // Generic fallback — do NOT assume sign-in context; this mapper is used by
   // settings, profile edits, and other non-auth flows too.
+  // Plain Error.name is "Error" and is not a useful code.
+  const reportedCode = code === 'Error' || code === 'TypeError' ? '' : code;
   console.error('Unhandled error:', error);
-  if (code) return `Something went wrong. Error code: ${code}`;
+  if (reportedCode) return `Something went wrong. Error code: ${reportedCode}`;
+  if (message && message.length < 180 && !/firebase|firestore|permission-denied|index/i.test(message)) {
+    return message;
+  }
   return 'Something went wrong. Please try again.';
 }

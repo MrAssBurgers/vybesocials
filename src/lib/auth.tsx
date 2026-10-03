@@ -1253,24 +1253,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               challengeId?: string;
               expiresAt?: string;
             }>('auth-2fa-request', {});
-            if (req.error || !req.data?.challengeId) {
+            // A real challenge includes an id. Production currently answers
+            // { ok: true } with no id, which is not a code to enter. Signing out
+            // there locks a valid password with no way to finish 2FA.
+            if (!req.error && req.data?.challengeId) {
               endLoginApprovalCheck();
               await softSignOutForLoginApproval();
               return {
-                error: new Error(
-                  req.error?.message || "Couldn't send your verification code. Try again.",
-                ),
+                error: null,
+                requiresEmail2fa: true,
+                requiresApproval: false,
+                challengeId: req.data.challengeId,
+                expiresAt: req.data.expiresAt,
               };
             }
-            endLoginApprovalCheck();
-            await softSignOutForLoginApproval();
-            return {
-              error: null,
-              requiresEmail2fa: true,
-              requiresApproval: false,
-              challengeId: req.data.challengeId,
-              expiresAt: req.data.expiresAt,
-            };
+            console.warn('[Auth] email 2FA request did not issue a challenge — continuing sign-in', req.error);
           }
         } catch (e) {
           console.warn('[Auth] email 2FA check failed — continuing sign-in', e);

@@ -2,6 +2,26 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-03) — Password sign-in when email 2FA has no challenge
+
+### What changed
+- Password sign-in stays signed in when `user_2fa_settings.email_2fa_enabled` is true but `auth-2fa-request` returns `{ ok: true }` with no `challengeId`. That response is not a code to enter. The client used to soft-sign-out and toast “Something went wrong. Error code: Error”.
+- A real `challengeId` still opens the email-code gate and signs out until the code is verified.
+- `getUserFriendlyError` no longer treats `Error.name` (`Error` / `TypeError`) as an error code, and passes through short user-facing messages.
+- Feed post cards stay in the feed (double-tap to like, comment sheet). Profile grids, search, and shared posts still open `/p/:id`.
+
+### Tests run
+- `vitest` `src/lib/errorUtils.auth.test.ts`
+- Signed-in browser walk (read only): `/home`, `/clips`, `/explore`, `/messages` (opened a thread, did not send), `/notifications`, `/profile`, `/map` (location permission denied in this environment), `/settings` (did not toggle), Create Studio (did not publish)
+
+### Blockers
+Production `auth2faRequest` still returns `{ ok: true }` without a challenge. Local functions code issues a challenge. Do not deploy functions from this session. Email 2FA stays enabled on the account. This session did not post, message, RSVP, or change settings.
+
+### Next
+1. Lovable Publish when this client should reach vybehub.app.
+2. Deploy `auth2faRequest` only when email codes should be required again.
+3. Finish the vybesocials `main` move below if that handoff is still open.
+
 ## ACTIVE (2026-10-03) — Core path fixes
 
 ### What changed
@@ -16,12 +36,12 @@ Use this file as the Lovable -> Cursor handoff each session.
 - Browser: Browse as guest, `/guidelines`, `/community-guidelines` redirect, Features “Real-time everything”, signed-out `/events/:id` returns to sign-in
 
 ### Blockers
-Signed-in feed, DMs, and posting were not exercised. That needs an account, and this session does not write to production Firebase.
+None for those routes.
 
 ### Next
-1. Sign in on a device and walk Home → post → profile → messages.
-2. Lovable Publish when this client should reach vybehub.app.
-3. Finish the vybesocials `main` move below if that handoff is still open.
+1. Lovable Publish when this client should reach vybehub.app.
+2. Finish the vybesocials `main` move below if that handoff is still open.
+3. Deploy functions only when email 2FA challenges should be enforced.
 
 ## ENV SETUP (2026-10-03) — Cloud Agent dev environment
 

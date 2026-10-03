@@ -95,4 +95,14 @@ describe('getUserFriendlyError username login', () => {
     );
     expect(getUserFriendlyError({ code: 'auth/invalid-credential' })).not.toMatch(/upgraded/i);
   });
+
+  it('does not label a plain Error as error code Error', async () => {
+    const { getUserFriendlyError } = await import('./errorUtils');
+    const err = new Error("Couldn't send your verification code. Try again.");
+    expect(getUserFriendlyError(err)).toBe("Couldn't send your verification code. Try again.");
+    expect(getUserFriendlyError(new Error('Could not save that change'))).toBe(
+      'Could not save that change',
+    );
+    expect(getUserFriendlyError(new Error('Could not save that change'))).not.toMatch(/Error code: Error/);
+  });
 });
