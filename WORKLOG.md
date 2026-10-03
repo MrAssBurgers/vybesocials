@@ -13,7 +13,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - `vitest` `androidSplash.test.ts` and `foldViewport.test.ts` — 6 passed
 
 ### Blockers
-The Play Store build loads https://vybehub.app (`cede1aa4` as of this session). This fix is on the branch until it is merged and published with Lovable. A Despia repack is not required if the store app loads the live site.
+Finished client work is fast-forwarded to `origin/main` so Lovable GitSync can test it. vybehub.app and the Play Store bundle still update when that commit is published from https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7.
 
 ### Next
 1. Lovable Publish, then force-close the Play Store app and open it on the Fold 8 cover.

@@ -54,14 +54,15 @@ When the user says **"do a debug"**, run the full scan (do not skip steps):
 8. Update `WORKLOG.md` with scan date, results, and next actions.
 
 ## Handoff Standard
-Before ending a task:
+Before ending a task that is ready for the user to test:
 - Update `WORKLOG.md`:
   - what changed
   - tests run
   - blockers
   - next 3 tasks
-- **Push client changes to `origin/main`** before telling the user to Lovable Publish; include commit SHA in handoff.
-- Firebase-only deploys (`vybe-daaab.web.app`) are staging — **vybehub.app requires Lovable Publish**.
+- **Commit and push the finished client to `origin/main`.** Lovable GitSync reads `main` for the project at https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7. Fast-forward only (`git push origin HEAD:main`) when `origin/main` is an ancestor of the finished commit. Do not force-push.
+- Include the `main` commit SHA in the handoff.
+- Firebase-only deploys (`vybe-daaab.web.app`) are staging. **vybehub.app** and the Play Store web bundle update after **Lovable → Share → Publish** of that `main` commit. The Lovable preview updates from the git sync.
 
 ## Deploy Safety
 - Follow `DEPLOY.md`.
