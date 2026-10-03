@@ -24,19 +24,31 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
   onComplete,
 }: WelcomeBackSplashProps) {
   const [visible, setVisible] = useState(true);
+  const [holdingForAuth, setHoldingForAuth] = useState(
+    () => typeof document !== 'undefined' && !!document.querySelector('[data-auth-shell]'),
+  );
   const displayName = username || 'you';
 
   useEffect(() => {
+    if (!holdingForAuth) return;
+    const id = window.setInterval(() => {
+      if (!document.querySelector('[data-auth-shell]')) setHoldingForAuth(false);
+    }, 120);
+    return () => window.clearInterval(id);
+  }, [holdingForAuth]);
+
+  useEffect(() => {
+    if (holdingForAuth) return;
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     const timer = window.setTimeout(() => setVisible(false), reducedMotion ? 900 : 1800);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [holdingForAuth]);
 
   if (typeof document === 'undefined') return null;
 
   return createPortal(
     <AnimatePresence onExitComplete={onComplete}>
-      {visible && (
+      {visible && !holdingForAuth && (
         <motion.aside
           role="status"
           aria-live="polite"
@@ -44,7 +56,7 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -12, scale: 0.98 }}
           transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-          className="fixed left-1/2 -translate-x-1/2 z-[10000] w-[min(92vw,360px)] pointer-events-auto"
+          className="fixed inset-x-0 z-[10000] mx-auto w-[min(92vw,360px)] pointer-events-auto"
           style={{ top: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
         >
           <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-card/95 backdrop-blur-xl shadow-2xl shadow-primary/15">

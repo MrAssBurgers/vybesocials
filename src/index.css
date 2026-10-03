@@ -5757,8 +5757,17 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
     }
   }
 
-  /* Story ring gradient */
+  /* Story ring gradient. inline-flex + line-height: 0 keeps the ring a circle.
+     An inline link was stretching to ~2x the avatar and the gradient showed
+     up as vertical color bars beside the photo. */
   .story-ring {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: max-content;
+    height: max-content;
+    line-height: 0;
+    vertical-align: top;
     background: linear-gradient(
       135deg,
       hsl(var(--neon-pink)),
@@ -5767,7 +5776,7 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
       hsl(var(--neon-yellow))
     );
     padding: 2px;
-    border-radius: 50%;
+    border-radius: 9999px;
   }
 
   /* Safe area utilities — defined once in .safe-area-top etc. above */
