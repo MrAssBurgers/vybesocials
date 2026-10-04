@@ -13,6 +13,7 @@ import { hasMoreFeedRows, toFeedError } from '@/lib/feedReliability';
 export interface Post {
   id: string;
   type: string;
+  age_rating?: 'safe' | '13+' | '18+' | 'unrated';
   media_url: string;
   thumbnail_url: string | null;
   caption: string;

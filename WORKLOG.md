@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Checked clip links and share-panel render stability
+
+### What changed
+- ClipsViewer now reads its selected post through the account-bound checked store and recommendations through useSocialFeed. Removed raw initial post/profile/count reads, ranked/trending RPCs and detached speculative media preloading. Denied selections cannot fall back to recommendations; selected IDs deduplicate and only short-video rows enter the vertical list.
+- Added account/lease-scoped viewer interactions, excluded legacy clip caches from disk write/restore, rebuilt loading/unavailable surfaces with soft gradients, and labeled the back button. Observer setup follows changed clip IDs, and active indexes clamp when the list shrinks. Long videos retain their dedicated Watch redirect, whose reader is still a follow-up.
+- Live testing found ShareSheet repeatedly set derived state from a newly allocated empty friends array, including while closed. It now updates only while open, bails out on unchanged friend fields and preserves sending/sent state across list refreshes; closing resets its list.
+
+### Verification
+- Full 318 files / 3,001 tests, app typecheck, scoped lint and production build passed. Tests cover denied/no-fallback/error/loading/duplicate/type routing, disk exclusion, fresh empty friends arrays and preserved deliberate continuation. The first full run exposed five old continuation fixtures wired to the retired reader; updated their data adapters and retained all behavior assertions. Logs work/clip-detail-*-final.log.
+- Local retained 8082: private direct clip URL renders unavailable. A synthetic public short using MDN's CC0 flower sample rendered clip controls and opened Share cleanly; no message was sent. Its external media is blocked by the intentionally local-only preview CSP, so actual playback is NOT verified. Did not weaken that policy.
+- Made only the synthetic clip owner-only while open; after 30 seconds the caption, video element and Share panel were gone without navigation. Screenshot outputs/vybe-clip-unavailable.png. Generated app version/offline churn restored. No production mutations or deployment.
+
+### Next 3 tasks and limits
+1. Migrate Watch's dedicated long-video reader and remaining profile/explore/comment paths. Validate real video playback through renewal on an allowed staging media origin and physical devices. Current work is not a global raw-Firestore privacy closure.
+2. Continue game/mod adapters and mini-app isolation/operation retention. Prior native automation restriction still applies; combined native upload remains unverified.
+3. Stage named readers and publish through Lovable after rollout checks. Broad goal remains active/incomplete.
+
+---
+
 ## ACTIVE (2026-10-04) - Audience-checked post detail and smooth renewal
 
 ### What changed

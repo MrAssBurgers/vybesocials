@@ -37,6 +37,14 @@ on both persistence and restoration. Text-only posts omit the media container;
 media changes remount their loading/error state. Failed authority reads offer
 retry; missing and inaccessible posts share an unavailable state.
 
+The `/clips/:postId` viewer also uses this checked initial-post store. Its
+recommendations use `useSocialFeed` with opaque continuation; the selected clip
+is deduplicated and denied selections never fall back to the recommendation
+feed. Old initial/recommendation disk roots are dropped. Raw RPC reads and
+speculative detached video preloading were removed from this surface. The
+existing long-video redirect still leads to `/watch/:id`, whose reader requires
+its own migration; this checkpoint does not certify that destination.
+
 Other legacy readers still require migration. Comments still use their existing
 backend read path after page admission; this is not transactional comment
 admission or a global rule migration. The store renews five seconds before expiry, retaining currently admitted media

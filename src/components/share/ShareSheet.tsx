@@ -78,23 +78,28 @@ export const ShareSheet = memo(function ShareSheet({
 
   // Initialize quick friends from friends list
   useEffect(() => {
-    if (friends) {
-      setQuickFriends(
-        friends.slice(0, 20).map(f => ({
+    if (isOpen && friends) {
+      setQuickFriends(previous => {
+        const next = friends.slice(0, 20).map(f => ({
           id: f.id,
           username: f.username,
           avatar_url: f.avatar_url,
           display_name: f.display_name,
-          sent: false,
-          sending: false,
-        }))
-      );
+          sent: previous.find(row => row.id === f.id)?.sent || false,
+          sending: previous.find(row => row.id === f.id)?.sending || false,
+        }));
+        return next.length === previous.length && next.every((friend, index) =>
+          friend.id === previous[index].id && friend.username === previous[index].username &&
+          friend.avatar_url === previous[index].avatar_url && friend.display_name === previous[index].display_name
+        ) ? previous : next;
+      });
     }
-  }, [friends]);
+  }, [friends, isOpen]);
 
   // Reset states when closing
   useEffect(() => {
     if (!isOpen) {
+      setQuickFriends([]);
       setSearchQuery('');
       setLinkCopied(false);
       setFlyingPlanes([]);

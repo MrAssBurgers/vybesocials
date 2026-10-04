@@ -10,7 +10,18 @@ const query = () => ({ data: { pages: state.pages }, hasNextPage: state.hasNext,
 vi.mock('@/hooks/useRankedFeed', () => ({ useRankedFeed: () => query() }));
 vi.mock('@/hooks/useInfinitePosts', () => ({ usePersonalizedFeed: () => query(), useInfiniteFollowingPosts: () => query() }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn(), useParams: () => ({ postId: 'selected' }), useLocation: () => ({}) }));
-vi.mock('@tanstack/react-query', () => ({ useInfiniteQuery: () => query(), useQuery: () => ({ data: { id: 'selected', type: 'short', media_url: '/selected.mp4', author: { id: 'selected-author' } }, isLoading: false }) }));
+vi.mock('@tanstack/react-query', () => ({ useInfiniteQuery: () => query(), useQuery: () => ({ data: undefined, isLoading: false }) }));
+vi.mock('@/hooks/useProfileAccount', () => ({ useProfileAccount: () => ({ ready: false, session: { uid: 'alice', epoch: 1 } }) }));
+vi.mock('@/hooks/useSocialFeed', () => ({ useSocialFeed: () => query() }));
+vi.mock('@/components/chat/SharedPostPreviews', () => ({
+  SharedPostPreviewProvider: ({ children }: PropsWithChildren) => <>{children}</>,
+  useActivePostPreview: () => ({ entry: { status: 'ready', expires: 30000, post: {
+    id: 'selected', type: 'short', mediaUrl: 'https://example.test/selected.mp4', thumbnailUrl: null,
+    caption: '', tags: [], createdAt: '2026-10-04T12:00:00.000Z', isPinned: false,
+    viewCount: 0, likeCount: 0, commentCount: 0,
+    author: { id: 'selected-author', username: 'selected', avatarUrl: null },
+  } }, retry: state.retry }),
+}));
 vi.mock('@/hooks/useFeedMuteFilter', () => ({ useFeedMuteFilter: (value: unknown) => value }));
 vi.mock('@/lib/firebase', () => ({ db: {} }));
 vi.mock('@/lib/postReactions', () => ({ getViewerPostReaction: vi.fn() }));

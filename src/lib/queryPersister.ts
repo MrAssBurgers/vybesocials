@@ -6,7 +6,7 @@ import { isStoriesQueryKey, sanitizeStoriesCacheData } from '@/lib/storiesCacheS
 
 // Moderator notes, reporter identities and inspected source must be fetched
 // under current server authority, never restored from a previous disk snapshot.
-const PRIVATE_REPORT_KEYS = new Set(['admin-reports', 'report-inspection', 'pending-moderation-count', 'post-deletion-log', 'feed-mutes', 'custom-sounds', 'mini-apps', 'social-feed', 'comments', 'post-detail-interaction', 'post', 'local-feed', 'personalized-feed-v2', 'personalized-feed', 'infinite-following-posts']);
+const PRIVATE_REPORT_KEYS = new Set(['admin-reports', 'report-inspection', 'pending-moderation-count', 'post-deletion-log', 'feed-mutes', 'custom-sounds', 'mini-apps', 'social-feed', 'comments', 'post-detail-interaction', 'clip-detail-interaction', 'clip-viewer-initial', 'clips-viewer-feed', 'post', 'local-feed', 'personalized-feed-v2', 'personalized-feed', 'infinite-following-posts']);
 // The disk cache is shared by all accounts on this browser. Private conversation
 // previews, message bodies and their related records need current membership;
 // neither a user-shaped query key nor a previous successful read proves it.

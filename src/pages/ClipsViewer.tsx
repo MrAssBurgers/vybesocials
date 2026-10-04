@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { getViewerPostReaction } from '@/lib/postReactions';
@@ -8,137 +8,73 @@ import { MobileShortCard } from '@/components/posts/MobileShortCard';
 import { ShortCard } from '@/components/posts/ShortCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { FeedFailureNotice } from '@/components/posts/FeedFailureNotice';
-import { toFeedError, hasMoreFeedRows, flattenUniqueFeedPosts, shouldHandleFeedShortcut } from '@/lib/feedReliability';
+import { flattenUniqueFeedPosts, shouldHandleFeedShortcut } from '@/lib/feedReliability';
 import { readClipsMutedPreference, writeClipsMutedPreference } from '@/lib/videoPlayback';
 import { useInView } from 'react-intersection-observer';
 import { ArrowLeft, Film } from 'lucide-react';
-import { useVideoPreload } from '@/hooks/useVideoPreload';
-import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
-import { ensureMediaUrlsReady } from '@/lib/signedUrlCache';
 import type { Post } from '@/hooks/useInfinitePosts';
-import { useFeedMuteFilter } from '@/hooks/useFeedMuteFilter';
+import { useSocialFeed } from '@/hooks/useSocialFeed';
+import { useProfileAccount } from '@/hooks/useProfileAccount';
+import { SharedPostPreviewProvider, useActivePostPreview } from '@/components/chat/SharedPostPreviews';
 import { FeedEmptyPage } from '@/components/feed/FeedEmptyPage';
 import { latestPageAddsVisiblePosts } from '@/lib/feedContinuation';
 
-const PAGE_SIZE = 15;
-
-function transformRankedPost(row: any): Post {
-  return {
-    id: row.id || row.post_id,
-    type: row.post_type || row.type,
-    media_url: row.media_url,
-    thumbnail_url: row.thumbnail_url,
-    caption: row.caption || '',
-    tags: Array.isArray(row.tags) ? row.tags.filter((tag: unknown): tag is string => typeof tag === 'string') : [],
-    created_at: row.created_at,
-    is_pinned: row.is_pinned,
-    view_count: row.view_count || 0,
-    author: {
-      id: row.author_id || row.author?.id,
-      username: row.author_username || row.author?.username,
-      avatar_url: row.author_avatar || row.author_avatar_url || row.author?.avatar_url,
-    },
-    like_count: Number(row.like_count) || 0,
-    comment_count: Number(row.comment_count) || 0,
-    is_liked: row.is_liked || false,
-    is_bookmarked: row.is_bookmarked || false,
-    reaction_type: row.reaction_type ?? null,
-  } as Post;
-}
-
-async function presignPosts(posts: Post[]) {
-  const urls: string[] = [];
-  for (const p of posts) {
-    if (p.media_url) urls.push(p.media_url);
-    if (p.thumbnail_url) urls.push(p.thumbnail_url);
-    if (p.author?.avatar_url) urls.push(p.author.avatar_url);
-  }
-  await ensureMediaUrlsReady(urls);
-}
-
 const CLIPS_PAGE_CLASS = 'vybe-clips-page';
 
-function isClipVideo(post: Post): boolean {
-  const type = String(post.type || '').toLowerCase();
-  if (type === 'image' || type === 'text' || type === 'carousel') return false;
-  return Boolean(post.media_url) && (type === 'short' || type === 'video' || type === 'clip' || !!post.media_url);
-}
+function isClipVideo(post: Post): boolean { return post.type === 'short' && !!post.media_url; }
 
 export default function ClipsViewer() {
+  const { postId = '' } = useParams<{ postId: string }>();
+  return <SharedPostPreviewProvider conversationId={`clip-detail:${postId}`}><ClipsViewerContent /></SharedPostPreviewProvider>;
+}
+
+function ClipsViewerContent() {
   const { postId } = useParams<{ postId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const { profile, user } = useAuth();
   const { isMobileOrTablet } = useIsMobileOrTablet();
-  const { isSlowConnection } = useNetworkStatus();
 
   const fromSource = (location.state as any)?.from || null;
-  const fromConversationId = (location.state as any)?.conversationId || null;
   const isFromMessages = fromSource === 'messages';
 
-  // ─── 1. Fetch the specific clicked post FIRST ───
-  const initialQuery = useQuery({
-    queryKey: ['clip-viewer-initial', postId, profile?.id],
-    queryFn: async (): Promise<Post | null> => {
-      if (!postId) return null;
-
-      const { data: post, error: postErr } = await db
-        .from('posts')
-        .select(`
-          id, type, media_url, thumbnail_url, caption, tags, created_at, is_pinned, view_count,
-          author:profiles!posts_author_id_fkey (id, username, avatar_url)
-        `)
-        .eq('id', postId)
-        .single();
-
-      if (postErr) throw toFeedError(postErr);
-      if (!post) return null;
-
-      const [likeRes, commentRes, viewerReaction, isBookmarkedRes] = await Promise.all([
-        db.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', postId),
-        db.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', postId),
-        profile
-          ? getViewerPostReaction(postId, profile.id, user?.id)
-          : Promise.resolve({ is_liked: false, reaction_type: null }),
-        profile ? db.from('bookmarks').select('id').eq('post_id', postId).eq('user_id', profile.id).maybeSingle() : Promise.resolve({ data: null }),
+  const account = useProfileAccount();
+  const { entry, retry } = useActivePostPreview(postId || '');
+  const checked = entry.post;
+  const loadingInitial = entry.status === 'loading' || entry.status === 'queued';
+  const initialQuery = { isError: entry.status === 'error', isFetching: loadingInitial, refetch: retry };
+  const { data: interaction } = useQuery({
+    queryKey: ['clip-detail-interaction', account.session.uid, account.session.epoch, profile?.id, postId, entry.expires],
+    enabled: !!checked && account.ready,
+    queryFn: async ({ signal }) => {
+      account.guard();
+      const [reaction, bookmark] = await Promise.all([
+        getViewerPostReaction(postId!, profile!.id, user?.id),
+        db.from('bookmarks').select('id').eq('post_id', postId!).eq('user_id', profile!.id).maybeSingle(),
       ]);
-
-      const author = post.author as any;
-      const result: Post = {
-        id: post.id,
-        type: post.type || 'short',
-        media_url: post.media_url || '',
-        thumbnail_url: post.thumbnail_url,
-        caption: post.caption || '',
-        tags: Array.isArray(post.tags) ? post.tags.filter((tag: unknown): tag is string => typeof tag === 'string') : [],
-        created_at: post.created_at,
-        is_pinned: post.is_pinned || false,
-        author: {
-          id: author?.id || '',
-          username: author?.username || '',
-          avatar_url: author?.avatar_url || null,
-        },
-        like_count: likeRes.count || 0,
-        comment_count: commentRes.count || 0,
-        is_liked: viewerReaction.is_liked,
-        is_bookmarked: !!isBookmarkedRes.data,
-        reaction_type: viewerReaction.reaction_type,
-      };
-
-      await presignPosts([result]);
-      return result;
+      account.guard();
+      if (signal.aborted) throw new Error('Clip session changed.');
+      if (bookmark.error) throw bookmark.error;
+      return { reaction, bookmarked: !!bookmark.data };
     },
-    enabled: !!postId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0, gcTime: 0, retry: false,
   });
-  const { data: initialPost, isLoading: loadingInitial } = initialQuery;
+  const initialPost: Post | null = checked ? {
+    id: checked.id, type: checked.type, caption: checked.caption, media_url: checked.mediaUrl || '',
+    thumbnail_url: checked.thumbnailUrl, age_rating: checked.ageRating,
+    tags: checked.tags, created_at: checked.createdAt, is_pinned: checked.isPinned,
+    view_count: checked.viewCount, like_count: checked.likeCount, comment_count: checked.commentCount,
+    is_liked: interaction?.reaction.is_liked || false, reaction_type: interaction?.reaction.reaction_type || null,
+    is_bookmarked: interaction?.bookmarked || false,
+    author: { id: checked.author.id, username: checked.author.username, avatar_url: checked.author.avatarUrl },
+  } : null;
 
-  // Long-form videos use the watch player, not the vertical clip viewer
+  // Preserve the dedicated long-video player and route ordinary posts to detail.
   useEffect(() => {
-    if (initialPost?.type === 'video' && postId) {
-      navigate(`/watch/${postId}`, { replace: true, state: location.state });
+    if (initialPost && initialPost.type !== 'short' && postId) {
+      navigate(initialPost.type === 'video' ? `/watch/${postId}` : `/p/${postId}`, { replace: true, state: location.state });
     }
   }, [initialPost?.type, postId, navigate, location.state]);
 
@@ -148,46 +84,15 @@ export default function ClipsViewer() {
     return () => root.classList.remove(CLIPS_PAGE_CLASS);
   }, []);
 
-  // ─── 2. Fetch infinite feed AFTER initial post ───
-  const rawFeedQuery = useInfiniteQuery({
-    queryKey: ['clips-viewer-feed', profile?.id, postId],
-    queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
-      if (profile?.id) {
-        const { data, error } = await db.rpc('get_ranked_feed_v2', {
-          p_user_id: profile.id,
-          p_content_type: 'short',
-          p_offset: (pageParam as number) * PAGE_SIZE,
-          p_limit: PAGE_SIZE,
-        });
-        if (error) throw error;
-        const posts = (data || []).map(transformRankedPost).filter((p) => p.id !== postId && isClipVideo(p));
-        presignPosts(posts).catch(() => {});
-        return { posts, nextPage: hasMoreFeedRows(data, PAGE_SIZE) ? pageParam + 1 : null };
-      }
-
-      const { data, error } = await db.rpc('get_trending_feed', {
-        p_content_type: 'short',
-        p_page: pageParam,
-        p_page_size: PAGE_SIZE,
-      });
-      if (error) throw error;
-      const posts = (data || []).map(transformRankedPost).filter((p) => p.id !== postId && isClipVideo(p));
-      presignPosts(posts).catch(() => {});
-      return { posts, nextPage: hasMoreFeedRows(data, PAGE_SIZE) ? pageParam + 1 : null };
-    },
-    getNextPageParam: (lastPage) => lastPage.nextPage,
-    initialPageParam: 0,
-    enabled: !!initialPost,
-    staleTime: 5 * 60 * 1000,
-  });
-  const feedQuery = useFeedMuteFilter(rawFeedQuery);
+  // Recommendations use the same viewer-checked feed as the main Clips page.
+  const feedQuery = useSocialFeed('short', !!initialPost && initialPost.type === 'short', 'personalized');
   const canAutoContinue = latestPageAddsVisiblePosts(feedQuery.data?.pages) && !feedQuery.isError;
 
   // ─── 3. Merge: [clicked_post, ...feed_posts] ───
   const allClips = useMemo(() => {
     const feed = flattenUniqueFeedPosts(feedQuery.data?.pages);
-    if (!initialPost) return feed;
-    return [initialPost, ...feed.filter(isClipVideo)];
+    if (!initialPost || !isClipVideo(initialPost)) return [];
+    return [initialPost, ...feed.filter(post => post.id !== initialPost.id && isClipVideo(post))];
   }, [initialPost, feedQuery.data]);
 
   // ─── State ───
@@ -197,14 +102,6 @@ export default function ClipsViewer() {
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
-  // Video preloading
-  const videoUrls = useMemo(() => allClips.map(s => s.media_url), [allClips]);
-  useVideoPreload(videoUrls, {
-    currentIndex,
-    preloadDepth: isSlowConnection ? 1 : 2,
-    enabled: !isSlowConnection,
-  });
-
   // ─── Infinite scroll trigger ───
   const { ref: loadMoreRef, inView } = useInView({ threshold: 0, rootMargin: '200px' });
   useEffect(() => {
@@ -212,6 +109,9 @@ export default function ClipsViewer() {
       feedQuery.fetchNextPage();
     }
   }, [canAutoContinue, inView, feedQuery.hasNextPage, feedQuery.isFetchingNextPage, feedQuery.fetchNextPage]);
+
+  const clipOrder = JSON.stringify(allClips.map(clip => clip.id));
+  useEffect(() => { setCurrentIndex(index => Math.min(index, Math.max(0, allClips.length - 1))); }, [allClips.length]);
 
   // ─── IntersectionObserver for active index ───
   useEffect(() => {
@@ -237,7 +137,7 @@ export default function ClipsViewer() {
     });
 
     return () => observerRef.current?.disconnect();
-  }, [allClips.length, currentIndex]);
+  }, [clipOrder, currentIndex]);
 
   // Keyboard nav (desktop)
   useEffect(() => {
@@ -283,8 +183,8 @@ export default function ClipsViewer() {
   // ─── Loading ───
   if (loadingInitial) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black">
-        <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+      <div className="fixed inset-0 z-50 flex flex-col gap-4 items-center justify-center bg-gradient-to-br from-primary/15 via-background to-accent/15">
+        <div aria-hidden className="w-12 h-12 border-4 border-primary/15 border-t-primary rounded-full motion-safe:animate-spin" /><p role="status" className="text-sm text-muted-foreground">Opening your clip…</p>
       </div>
     );
   }
@@ -298,11 +198,11 @@ export default function ClipsViewer() {
   // ─── Error / not found ───
   if (!initialPost && !loadingInitial) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black px-4">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-primary/15 via-background to-accent/15 px-4">
         <EmptyState
           emoji="🎬"
-          title="Clip not found"
-          description="This clip may have been removed"
+          title="This clip is unavailable"
+          description="It may have been removed or its audience changed."
           actionLabel="Browse Clips"
           onAction={() => navigate('/clips')}
         />
@@ -366,6 +266,7 @@ export default function ClipsViewer() {
 
       {/* Back button — safe area aware */}
       <button
+        aria-label="Back from clip"
         onClick={handleBack}
         className="fixed z-[60] w-11 h-11 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center border border-white/20 active:bg-black/70 transition-colors shadow-lg"
         style={{
