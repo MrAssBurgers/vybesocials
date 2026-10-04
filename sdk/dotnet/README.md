@@ -47,7 +47,7 @@ Progress callbacks (`preparing`, `uploading`, `verifying`, `ready`) and the rese
 - Errors use sanitized `VybeException.Code`, `Status`, `RetryAfterSeconds`; underlying server/transport messages are discarded. Caller cancellation uses standard `OperationCanceledException`, disposal uses `ObjectDisposedException`. If revoke fails, local credentials are still cleared, but server revocation is **unconfirmed**; use Vybe Settings to disconnect.
 - Production transport requires HTTPS, rejects redirects, disables cookies/default credentials, caps JSON at 256 KiB and times out each complete response after 30 seconds. Explicit HTTP loopback is for emulator tests only. Never disable TLS certificate validation.
 
-The pilot includes capture linking/upload/status/discard/revoke and an optional private capture gallery. It does not yet include a general social feed, messages, recording codecs, a game overlay or engine-specific lifecycle adapters. See [the universal integration guide](https://github.com/MrAssBurgers/vybesocials/blob/main/docs/UNIVERSAL_SDK.md) and [partner API protocol](https://github.com/MrAssBurgers/vybesocials/blob/main/docs/PARTNER_GAME_API.md) for registration, consent and rollout limits. Production backend/client deployment remains a separate release step.
+The pilot includes capture linking/upload/status/discard/revoke and an optional private capture gallery. It also supports optional public discovery browsing (below). Personal/private feeds, messages, recording codecs, a native game overlay and engine-specific lifecycle adapters remain incomplete. See [the universal integration guide](https://github.com/MrAssBurgers/vybesocials/blob/main/docs/UNIVERSAL_SDK.md) and [partner API protocol](https://github.com/MrAssBurgers/vybesocials/blob/main/docs/PARTNER_GAME_API.md) for registration, consent and rollout limits. Production backend/client deployment remains a separate release step.
 
 ## Native capture gallery (0.2 pilot)
 
@@ -83,3 +83,24 @@ After starting and seeding the isolated preview described in `docs/LOCAL_PREVIEW
 The fixture registers only the synthetic `local-dotnet-mod`, explicitly approves all three scopes as demo Alice through the real callable, and drives the compiled public client over HTTP. It checks upload, normalized metadata, same-key recovery, status, its own gallery, exact preview bytes/digest, HEAD revalidation, discard and preview clearing on revocation. It leaves one private synthetic ready capture for browser review and writes its loopback URL to ignored `work/dotnet-preview/result.json`. Each run consumes local quotas; it does not reset them. No social post is published and no production target is accepted.
 
 Transport behavior follows Microsoft's [SendAsync cancellation guidance](https://learn.microsoft.com/en-us/dotnet/api/system.net.http.httpclient.sendasync?view=net-8.0) and [redirect control](https://learn.microsoft.com/en-us/dotnet/api/system.net.http.httpclienthandler.allowautoredirect?view=net-8.0); the same cancellation deadline covers streaming the response body.
+
+## Public browsing (0.3 pilot)
+
+The previous constructors keep their original capture permissions. Use the explicit five-argument overload to request public browsing; the registry must also enable `public_feed_enabled`.
+
+```csharp
+using var vybe = new VybeClient(trustedPartnerEndpoint, registeredClientId,
+    allowInsecureLoopback: false, previewCaptures: false, browsePublicFeed: true);
+// StartLinkAsync and WaitForAuthorizationAsync: player reviews feed permission.
+var page = await vybe.BrowsePublicFeedAsync("post", cancellationToken: cancellationToken);
+RenderPlainTextPosts(page.Posts);
+if (page.NextCursor != null) {
+    var next = await vybe.BrowsePublicFeedAsync("post", page.NextCursor, cancellationToken);
+}
+```
+
+Omit content type for all supported types; supported values are post, short and video. Preserve the selected type while paging. PublicFeedPage contains the connection, effective expiry, cursor and immutable collections of typed posts/authors. Responses must match the active connection and filter; exact fields, safe rating, HTTPS media URLs, collection/string limits, unique posts and non-repeating cursors are checked. Feed responses are bounded at 8 MiB; other JSON remains limited to 256 KiB. Parsing accepts only the one-second token expiry rounding discrepancy and caps at the earlier local deadline.
+
+No media is downloaded by this method. Render captions/names as text; request media only on explicit selection with no partner bearer attached. Cancel reads when the view closes. Clear all host-retained posts and media on disconnect, expiry, account changes or unload; read-only records cannot erase copies retained by host code. Late results after local authorization changes are rejected. Remote revocation is enforced on subsequent API requests, not by recalling earlier content. On feed_changed, clear the cursor and refresh. Safe labels are metadata, not an independent safety guarantee.
+
+A guarded `--feed-emulator` mode in the compiled checks targets only demo-vybe-preview at loopback 5101/8280. It requires the synthetic local-feed-mod registry/profile fixture and explicit code approval; it performs a real feed read and revokes in finally. It is separate from the existing capture emulator walkthrough and never configures production.

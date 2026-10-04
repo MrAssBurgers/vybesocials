@@ -49,6 +49,7 @@ public sealed class VybeException : Exception
         ["invalid_token"] = "The connection expired or was revoked. Link Vybe again.",
         ["insufficient_scope"] = "This connection does not have the required permission.",
         ["not_found"] = "This capture is unavailable to this connection.",
+        ["feed_changed"] = "The feed changed. Clear this page and start browsing again.",
         ["conflict"] = "The capture changed or its key was reused for different content.",
         ["expired_capture"] = "This capture has expired.",
         ["payload_too_large"] = "Captures must be no larger than 48 MiB.",
@@ -63,3 +64,10 @@ public sealed class VybeException : Exception
         : base(Messages.TryGetValue(code, out var message) ? message : Messages["invalid_request"])
     { Code = Messages.ContainsKey(code) ? code : "invalid_request"; Status = status; RetryAfterSeconds = retryAfter; }
 }
+
+public sealed record PublicFeedAuthor(string Id, string Username, string? DisplayName, Uri? AvatarUrl);
+public sealed record PublicFeedPost(string Id, string Type, string Caption, DateTimeOffset CreatedAt,
+    Uri? MediaUrl, IReadOnlyList<Uri> MediaUrls, Uri? ThumbnailUrl, string AgeRating,
+    long LikeCount, long CommentCount, long ViewCount, IReadOnlyList<string> Tags, PublicFeedAuthor Author);
+public sealed record PublicFeedPage(string ConnectionId, DateTimeOffset ExpiresAt, string? ContentType,
+    string? NextCursor, IReadOnlyList<PublicFeedPost> Posts);

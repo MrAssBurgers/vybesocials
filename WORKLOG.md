@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - .NET public browsing parity
+
+### What changed
+- .NET 8 SDK 0.3.0-pilot adds a five-argument constructor with explicit browsePublicFeed opt-in; prior overloads preserve capture permissions. All four scopes are supported with exact grant matching.
+- BrowsePublicFeedAsync provides immutable typed public author/post/page collections, filter/cursor validation, exact JSON fields including duplicate rejection, HTTPS media URL checks, safe labels, bounds and connection/expiry checks. Feed JSON cap 8 MiB; other JSON unchanged at 256 KiB. No automatic media fetch or embedded account credentials.
+- Added safe feed_changed handling, token expiry rounding parity with JS and guarded real HTTP --feed-emulator walkthrough. Updated guides and packaged workspace outputs/Vybe.Integration.0.3.0-pilot.nupkg. Host must clear already-retained data on expiry/disconnect; this is not a native overlay or engine certification.
+
+### Verification
+- 46 compiled .NET checks passed (39 prior plus seven grouped feed checks): exact opt-in/grant, filtering, invalid/private/unsafe/duplicate/foreign receipt rejection, expiry rounding, error sanitation, 8 MiB cap, account-change rejection, cancellation of stalled body and cursor/duplicate-field checks. Local pack succeeded.
+- Real compiled .NET client linked through VYBE browser consent as synthetic Alice, read three public posts from retained demo HTTP backend and revoked in finally. Settings confirmed revoked with feed permission; screenshot workspace outputs/vybe-dotnet-feed-revoked.png. No production changes; no media fetch in this feed walkthrough.
+- App 309 files / 2,919 tests and build passed (1068.2 KiB raw / 321.9 KiB gzip). Previous 4c47f854 CI 37211190313 and 37211190305 both succeeded. Logs work/dotnet-feed-*.log.
+
+### Next 3 tasks and limits
+1. Build concrete engine/mod host adapters with explicit capture/media lifecycle and verify actual playback/overlay behavior; .NET 8 is not Unity/Mono compatible by default.
+2. Continue mini-app isolation/quotas/retention and remaining audience/media reader migrations.
+3. Validate physical devices and selective rollout; broad app goal active and incomplete.
+
+---
+
 ## ACTIVE (2026-10-04) - Preserve game links through authentication gates
 
 ### What changed

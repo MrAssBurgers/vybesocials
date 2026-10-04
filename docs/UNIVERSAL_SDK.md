@@ -143,7 +143,7 @@ if (page.nextCursor) {
 
 Pages contain public, safe-labelled metadata only, validated against the current connection, expiry and selected type. The SDK rejects unknown/private fields, unsafe URL schemes, duplicate post IDs, excessive collections and responses over 8 MiB; other JSON operations retain their 256 KiB limit. It never fetches feed media automatically. Captions are untrusted text, never HTML. Keep media credentials separate: never attach the partner bearer to a returned media URL.
 
-On `feed_changed`, clear the cursor and reload the first page. On disconnect, account changes, expiry or host unload, clear all rendered posts/media and abort pending actions. The universal wrapper aborts operations on disposal/relink; it cannot erase copies retained by host code. Already delivered content cannot be recalled. Safe labels are metadata, not independent safety verification. .NET parity remains pending. The browser host panel is available as described below.
+On `feed_changed`, clear the cursor and reload the first page. On disconnect, account changes, expiry or host unload, clear all rendered posts/media and abort pending actions. The universal wrapper aborts operations on disposal/relink; it cannot erase copies retained by host code. Already delivered content cannot be recalled. Safe labels are metadata, not independent safety verification. .NET 8 public browsing is available in the separate 0.3 pilot package; see sdk/dotnet/README.md. The browser host panel is available as described below.
 
 ## Public browsing panel
 

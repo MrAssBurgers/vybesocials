@@ -36,4 +36,21 @@ internal static class EmulatorCheck
         if (retainedPreview.ToArray().Any(value => value != 0)) throw new Exception("Preview retained after disconnect");
         Console.WriteLine(JsonSerializer.Serialize(new { eventType = "complete", captureId = ready.CaptureId, reviewUrl = "http://127.0.0.1:8082/game-capture/" + ready.CaptureId, checks = new[] { "explicit preview consent", "upload", "normalized metadata", "idempotent retry", "status", "own gallery", "preview bytes and hash", "HEAD access check", "discard", "revoke clears preview" } }));
     }
+    internal static async Task RunFeed()
+    {
+        foreach (var (name, expected) in new[] { ("GCLOUD_PROJECT", "demo-vybe-preview"), ("FIRESTORE_EMULATOR_HOST", "127.0.0.1:8280") })
+            if (Environment.GetEnvironmentVariable(name) != expected) throw new Exception("Refusing non-demo target");
+        using var client = new VybeClient("http://127.0.0.1:5101/demo-vybe-preview/us-central1/gamePartnerApi", "local-feed-mod", true, previewCaptures: false, browsePublicFeed: true);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(180));
+        var link = await client.StartLinkAsync(timeout.Token);
+        Console.WriteLine(JsonSerializer.Serialize(new { eventType = "feed-link", userCode = link.UserCode }));
+        try {
+            await client.WaitForAuthorizationAsync(timeout.Token);
+            var page = await client.BrowsePublicFeedAsync("post", cancellationToken: timeout.Token);
+            if (!page.Posts.Any(post => post.Id == "qa-partner-feed-public") || page.ContentType != "post") throw new Exception("Public feed missing synthetic moment");
+            Console.WriteLine(JsonSerializer.Serialize(new { eventType = "feed-read", count = page.Posts.Count }));
+        } finally { if (client.Authorization != null) await client.RevokeAsync(); }
+        if (client.Authorization != null) throw new Exception("Authorization retained");
+        Console.WriteLine("Compiled .NET public feed and revocation: PASS");
+    }
 }

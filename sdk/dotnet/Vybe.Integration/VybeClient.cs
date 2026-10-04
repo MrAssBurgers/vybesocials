@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 namespace Vybe.Integration;
 
 /// <summary>Scoped partner API client. No Firebase dependency, password handling or automatic publishing.</summary>
-public sealed class VybeClient : IDisposable
+public sealed partial class VybeClient : IDisposable
 {
     public const int ChunkBytes = 8 * 1024 * 1024;
     public const int MaxCaptureBytes = 48 * 1024 * 1024;
@@ -38,14 +38,17 @@ public sealed class VybeClient : IDisposable
         : this(apiBaseUrl, clientId, allowInsecureLoopback, previewCaptures: false) { }
 
     public VybeClient(string apiBaseUrl, string clientId, bool allowInsecureLoopback, bool previewCaptures)
+        : this(apiBaseUrl, clientId, allowInsecureLoopback, previewCaptures, browsePublicFeed: false) { }
+
+    public VybeClient(string apiBaseUrl, string clientId, bool allowInsecureLoopback, bool previewCaptures, bool browsePublicFeed)
         : this(apiBaseUrl, clientId, allowInsecureLoopback,
             new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false, UseDefaultCredentials = false },
-            () => DateTimeOffset.UtcNow, Task.Delay, previewCaptures)
+            () => DateTimeOffset.UtcNow, Task.Delay, previewCaptures, browsePublicFeed)
     { }
 
     // Test-only transport/time seam; public callers cannot accidentally supply an auto-redirecting handler.
     internal VybeClient(string apiBaseUrl, string clientId, bool allowInsecureLoopback,
-        HttpMessageHandler handler, Func<DateTimeOffset> now, Func<TimeSpan, CancellationToken, Task> delay, bool previewCaptures = false)
+        HttpMessageHandler handler, Func<DateTimeOffset> now, Func<TimeSpan, CancellationToken, Task> delay, bool previewCaptures = false, bool browsePublicFeed = false)
     {
         if (!Uri.TryCreate(apiBaseUrl, UriKind.Absolute, out var uri) || uri.UserInfo.Length != 0
             || uri.Query.Length != 0 || uri.Fragment.Length != 0
@@ -54,7 +57,7 @@ public sealed class VybeClient : IDisposable
             || !Match(clientId, "^[a-z0-9][a-z0-9_-]{2,63}$"))
         { handler.Dispose(); throw new VybeException("invalid_request"); }
         endpoint = uri.AbsoluteUri.TrimEnd('/'); this.clientId = clientId; this.now = now; this.delay = delay;
-        requestedScopes = previewCaptures ? [.. Scopes, "capture:preview"] : [.. Scopes];
+        requestedScopes = [.. Scopes, .. (previewCaptures ? new[] { "capture:preview" } : []), .. (browsePublicFeed ? new[] { "feed:read_public" } : [])];
         http = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
     }
 
@@ -71,7 +74,7 @@ public sealed class VybeClient : IDisposable
         long epoch;
         lock (gate) { EnsureAlive(); epoch = ++generation; ForgetSession(); pending = null; }
         var data = await RequestAsync("/v1/device/code", HttpMethod.Post, epoch, null,
-            requestedScopes.Length == 3 ? new { clientId, scopes = requestedScopes } : (object)new { clientId }, cancellationToken: cancellationToken).ConfigureAwait(false);
+            requestedScopes.Length > 2 ? new { clientId, scopes = requestedScopes } : (object)new { clientId }, cancellationToken: cancellationToken).ConfigureAwait(false);
         var code = Text(data, "deviceCode"); var userCode = Text(data, "userCode");
         var expires = Integer(data, "expiresIn"); var interval = Integer(data, "interval");
         Require(Match(code, "^vyd_[A-Za-z0-9_-]{43}$") && Match(userCode, "^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$")
@@ -110,7 +113,7 @@ public sealed class VybeClient : IDisposable
                 catch (VybeException error) when (error.Code is "slow_down" or "rate_limited" or "network_error" or "unavailable")
                 { interval = Math.Max(interval + (error.Code == "slow_down" ? 5 : 0), error.RetryAfterSeconds ?? 5); continue; }
                 var token = Text(data, "accessToken"); var connection = Text(data, "connectionId");
-                var expires = Integer(data, "expiresIn"); var expiry = Timestamp(data, "expiresAt"); var scopes = Strings(data, "scopes", 3, 32);
+                var expires = Integer(data, "expiresIn"); var expiry = Timestamp(data, "expiresAt"); var scopes = Strings(data, "scopes", 4, 32);
                 Require(Match(token, "^vyp_[A-Za-z0-9_-]{43}$") && Text(data, "tokenType") == "Bearer"
                     && Match(connection, "^[a-f0-9]{32}$") && expires is > 0 and <= 600 && expiry > now()
                     && scopes.Count == requestedScopes.Length && scopes.Order().SequenceEqual(requestedScopes.Order()));
@@ -318,7 +321,7 @@ public sealed class VybeClient : IDisposable
 
     private async Task<JsonElement> RequestAsync(string path, HttpMethod method, long epoch, Session? active,
         object? body = null, ReadOnlyMemory<byte>? chunk = null, string? checksum = null, bool retry = false,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, int jsonLimit = 256 * 1024)
     {
         var json = body == null ? null : JsonSerializer.Serialize(body);
         for (var attempt = 0; ; attempt++)
@@ -342,13 +345,13 @@ public sealed class VybeClient : IDisposable
                 JsonElement data;
                 try
                 {
-                    if (response.Content.Headers.ContentLength > 256 * 1024) throw new VybeException("invalid_response", status);
+                    if (response.Content.Headers.ContentLength > jsonLimit) throw new VybeException("invalid_response", status);
                     using var stream = await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false);
                     using var buffer = new MemoryStream(); var scratch = new byte[8192];
                     while (true)
                     {
                         var count = await stream.ReadAsync(scratch, timeout.Token).ConfigureAwait(false); if (count == 0) break;
-                        if (buffer.Length + count > 256 * 1024) throw new VybeException("invalid_response", status); buffer.Write(scratch, 0, count);
+                        if (buffer.Length + count > jsonLimit) throw new VybeException("invalid_response", status); buffer.Write(scratch, 0, count);
                     }
                     using var parsed = JsonDocument.Parse(buffer.ToArray(), new JsonDocumentOptions { MaxDepth = 32 });
                     Require(parsed.RootElement.ValueKind == JsonValueKind.Object); data = parsed.RootElement.Clone();

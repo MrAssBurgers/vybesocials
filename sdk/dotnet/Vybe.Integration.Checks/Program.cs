@@ -5,6 +5,7 @@ using System.Text.Json;
 using Vybe.Integration;
 
 if (args.SequenceEqual(new[] { "--emulator" })) { await EmulatorCheck.Run(); return; }
+if (args.SequenceEqual(new[] { "--feed-emulator" })) { await EmulatorCheck.RunFeed(); return; }
 if (args.Length != 0) throw new Exception("Unknown check mode");
 
 var count = 0;
@@ -381,6 +382,61 @@ await Test("gallery accepts 40 Unicode scalar tag letters and rejects 41", async
     await Error("invalid_response", () => f.Client.ListCapturesAsync());
     await Error("invalid_request", () => f.Client.StageCaptureAsync(new byte[12], "image/png", "long_tag_key", tags: new[] { tag + "𝔄" }));
 });
+await Test("public feed requires explicit scope and validates all four permissions", async () => {
+    using var old = new Fixture(); await old.Connect(); await Error("insufficient_scope", () => old.Client.BrowsePublicFeedAsync());
+    using var f = new Fixture(previewScopes: true, feedScopes: true); await f.Connect();
+    Assert(f.Client.Authorization!.Scopes.Count == 4);
+    f.Handler.Add(request => { Assert(request.RequestUri!.Query == "?contentType=post&cursor=" + Fixture.Id); Assert(request.Headers.Authorization!.Scheme == "Bearer"); return Fixture.Json(f.Feed()); });
+    var page = await f.Client.BrowsePublicFeedAsync("post", Fixture.Id); Assert(page.Posts.Count == 1 && page.Posts[0].Caption == "Public moment");
+    await Error("invalid_request", () => f.Client.BrowsePublicFeedAsync("private"));
+});
+await Test("public feed rejects unsafe, private, duplicate and foreign metadata", async () => {
+    foreach (var mode in new[] { "connection", "expiry", "private", "rating", "url", "duplicate", "filter" }) {
+        using var f = new Fixture(feedScopes: true); await f.Connect(); var page = f.Feed(); var post = Fixture.FeedPost();
+        if (mode == "connection") page["connectionId"] = new string('c', 32);
+        if (mode == "expiry") page["expiresAt"] = 1;
+        if (mode == "private") post["ownerUid"] = "private";
+        if (mode == "rating") post["ageRating"] = "18+";
+        if (mode == "url") post["mediaUrl"] = "http://example.test/unsafe";
+        if (mode == "filter") page["contentType"] = "video";
+        page["posts"] = mode == "duplicate" ? new[] { post, post } : new[] { post };
+        f.Handler.Add(_ => Fixture.Json(page)); await Error("invalid_response", () => f.Client.BrowsePublicFeedAsync("post"));
+    }
+});
+await Test("public feed caps rounding and preserves sanitized recovery", async () => {
+    using var f = new Fixture(feedScopes: true); await f.Connect(); var page = f.Feed(); page["expiresAt"] = f.Client.Authorization!.ExpiresAt.AddMilliseconds(999).ToUnixTimeMilliseconds();
+    f.Handler.Add(_ => Fixture.Json(page)); Assert((await f.Client.BrowsePublicFeedAsync("post")).ExpiresAt == f.Client.Authorization.ExpiresAt);
+    f.Handler.Add(_ => Fixture.Json(new { error = "feed_changed", message = "SECRET" }, 409)); await Error("feed_changed", () => f.Client.BrowsePublicFeedAsync());
+    f.Handler.Add(_ => Fixture.Json(new { error = "invalid_token" }, 401)); await Error("invalid_token", () => f.Client.BrowsePublicFeedAsync()); Assert(f.Client.Authorization == null);
+});
+await Test("public feed bounds responses and rejects late account results", async () => {
+    using var f = new Fixture(feedScopes: true); await f.Connect();
+    f.Handler.Add(_ => new(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[8 * 1024 * 1024 + 1]) });
+    await Error("invalid_response", () => f.Client.BrowsePublicFeedAsync());
+    var wait = new TaskCompletionSource<HttpResponseMessage>(); f.Handler.AddAsync((_, _) => wait.Task);
+    var pending = f.Client.BrowsePublicFeedAsync("post"); f.Client.ClearLocalAuthorization(); wait.SetResult(Fixture.Json(f.Feed()));
+    await Error("authorization_changed", () => pending);
+});
+await Test("public feed grant must exactly match requested consent", async () => {
+    using var f = new Fixture(previewScopes: true, feedScopes: true);
+    f.Handler.AddAsync(async (request, _) => { using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync()); Assert(body.RootElement.GetProperty("scopes").GetArrayLength() == 4); return Fixture.Json(f.Device()); });
+    await f.Client.StartLinkAsync(); var grant = f.Token(); grant["scopes"] = new[] { "capture:write", "capture:status", "capture:preview" };
+    f.Handler.Add(_ => Fixture.Json(grant)); await Error("invalid_response", () => f.Client.WaitForAuthorizationAsync());
+});
+await Test("public feed cancellation stops a stalled body without delivering rows", async () => {
+    using var f = new Fixture(feedScopes: true); await f.Connect(); using var cancel = new CancellationTokenSource();
+    var entered = new TaskCompletionSource();
+    f.Handler.Add(_ => new(HttpStatusCode.OK) { Content = new StreamContent(new WaitingStream(entered)) });
+    var pending = f.Client.BrowsePublicFeedAsync(cancellationToken: cancel.Token); await entered.Task; cancel.Cancel();
+    try { await pending; throw new Exception("Cancellation ignored"); } catch (OperationCanceledException) { }
+});
+await Test("public feed rejects repeated cursors and duplicate JSON fields", async () => {
+    using var f = new Fixture(feedScopes: true); await f.Connect(); var page = f.Feed(); page["nextCursor"] = Fixture.Id;
+    f.Handler.Add(_ => Fixture.Json(page)); await Error("invalid_response", () => f.Client.BrowsePublicFeedAsync("post", Fixture.Id));
+    var raw = JsonSerializer.Serialize(f.Feed()).Replace("{", "{\"connectionId\":\"duplicate\",", StringComparison.Ordinal);
+    f.Handler.Add(_ => new(HttpStatusCode.OK) { Content = new StringContent(raw, Encoding.UTF8, "application/json") });
+    await Error("invalid_response", () => f.Client.BrowsePublicFeedAsync("post"));
+});
 Console.WriteLine($"{count} compiled .NET checks passed.");
 
 sealed class Fixture : IDisposable
@@ -393,18 +449,25 @@ sealed class Fixture : IDisposable
     internal Func<TimeSpan, CancellationToken, Task>? DelayOverride;
     internal readonly FakeHandler Handler = new();
     internal readonly VybeClient Client;
-    private readonly bool previewScopes;
-    internal Fixture(bool previewScopes = false)
+    private readonly bool previewScopes, feedScopes;
+    internal Fixture(bool previewScopes = false, bool feedScopes = false)
     {
-        this.previewScopes = previewScopes;
+        this.previewScopes = previewScopes; this.feedScopes = feedScopes;
         Client = new("https://example.test/api", "qa-game", false, Handler, () => Now, async (duration, token) =>
         {
             token.ThrowIfCancellationRequested(); Delays.Add(duration.TotalSeconds); if (DelayOverride != null) await DelayOverride(duration, token); else Now += duration;
-        }, previewScopes);
+        }, previewScopes, feedScopes);
     }
     internal Dictionary<string, object?> Device() => new() { ["deviceCode"] = "vyd_" + new string('B', 43), ["userCode"] = "ABCD-2345", ["verificationUri"] = "https://vybehub.app/connect/game", ["verificationUriComplete"] = "https://example.test/SECRET", ["expiresIn"] = 600, ["interval"] = 5 };
-    internal Dictionary<string, object?> Token() => new() { ["accessToken"] = AccessToken, ["tokenType"] = "Bearer", ["connectionId"] = Connection, ["expiresIn"] = 595, ["expiresAt"] = Now.AddSeconds(595).ToUnixTimeMilliseconds(), ["scopes"] = previewScopes ? new[] { "capture:write", "capture:status", "capture:preview" } : new[] { "capture:write", "capture:status" } };
+    internal Dictionary<string, object?> Token() => new() { ["accessToken"] = AccessToken, ["tokenType"] = "Bearer", ["connectionId"] = Connection, ["expiresIn"] = 595, ["expiresAt"] = Now.AddSeconds(595).ToUnixTimeMilliseconds(), ["scopes"] = new[] { "capture:write", "capture:status" }.Concat(previewScopes ? new[] { "capture:preview" } : []).Concat(feedScopes ? new[] { "feed:read_public" } : []).ToArray() };
     internal Dictionary<string, object?> Receipt(string status, int size = 12, string mime = "image/png") => new() { ["captureId"] = Id, ["status"] = status, ["gameId"] = "qa-game", ["gameName"] = "QA Game", ["contentType"] = mime, ["byteSize"] = size, ["caption"] = "", ["tags"] = Array.Empty<string>(), ["expiresAt"] = Now.AddHours(24).ToUnixTimeMilliseconds(), ["postId"] = null, ["reviewUrl"] = "https://example.test/SECRET" };
+    internal static Dictionary<string, object?> FeedPost() => new() {
+        ["id"] = "post-1", ["type"] = "post", ["caption"] = "Public moment", ["createdAt"] = "2026-10-04T00:00:00.000Z",
+        ["mediaUrl"] = null, ["mediaUrls"] = Array.Empty<string>(), ["thumbnailUrl"] = null, ["ageRating"] = "safe",
+        ["likeCount"] = 1, ["commentCount"] = 0, ["viewCount"] = 2, ["tags"] = Array.Empty<string>(),
+        ["author"] = new { id = "author", username = "creator", displayName = (string?)null, avatarUrl = (string?)null }
+    };
+    internal Dictionary<string, object?> Feed() => new() { ["connectionId"] = Connection, ["expiresAt"] = Now.AddSeconds(500).ToUnixTimeMilliseconds(), ["contentType"] = "post", ["nextCursor"] = null, ["posts"] = new[] { FeedPost() } };
     internal async Task Start() { Handler.Add(_ => Json(Device())); await Client.StartLinkAsync(); }
     internal async Task Connect() { await Start(); Handler.Add(_ => Json(Token())); await Client.WaitForAuthorizationAsync(); }
     internal void Chunk() { Handler.AddAsync(async (request, _) => { var bytes = await request.Content!.ReadAsByteArrayAsync(); return Json(new { index = 0, byteSize = bytes.Length, sha256 = Hash(bytes) }); }); }
