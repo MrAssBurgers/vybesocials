@@ -2,6 +2,24 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Checked shared-post bubbles in direct messages
+
+### What changed
+- SharedPostBubble now renders only the audience-checked preview reader, with no raw-post reads, copied message media/caption fallback or automatic video metadata fetch. Chat idle media warming skips shared-post snapshots.
+- Visible messages share batches of at most 20 IDs, deduplicate references and space requests by 2.5 seconds. Stores bind to account/profile/epoch and conversation. Hidden/offscreen/expired previews clear, late responses are rejected, failures offer explicit retry and malformed IDs show unavailable.
+- Reconfirmed the user's black-loader request was addressed in the earlier soft-loading checkpoint: inline radial gradients, rounded brand, moving indicator, reduced-motion support and hidden estimated percentage. Existing proof outputs/vybe-soft-loading-screen.png.
+
+### Verification
+- Retained local 8082 Alice/Bob chat showed the public synthetic preview and withheld the owner-only preview despite both messages carrying copied media URLs. Changed only the public synthetic post to owner-only through the local emulator; its preview disappeared after the lease refresh. Both then showed unavailable, and no image/video DOM source used the copied example.invalid URL. Proof outputs/vybe-checked-shared-posts.png. No production mutations.
+- Typecheck, scoped lint, all 313 test files / 2,971 tests and production build passed. New checks cover batching, duplicate lifetimes, slow/failed/expired reads, hide/stop/offscreen late results, malformed IDs, explicit retry and no legacy fallback. Logs work/shared-preview-*-final.log. Generated version/offline churn restored before commit.
+
+### Next 3 tasks and limits
+1. Continue migrating detail/profile/explore and other message surfaces that retain raw or copied post data. Add provider-level account-switch lifecycle coverage beyond the current store/transport tests. These changes do not close all raw Firestore paths or recall delivered bytes; browser scheduling and account rate limits still apply.
+2. Continue game/mod integrations and mini-app runtime isolation/operation retention. Prior engine automation restriction remains; full native engine upload walkthrough is not verified.
+3. Stage the named readSocialPostPreviews function before the matching client, then native-device checks and Lovable publication. Broad goal active/incomplete; no production rollout in this checkpoint.
+
+---
+
 ## ACTIVE (2026-10-04) - Staged audience-checked shared-post previews
 
 ### What changed

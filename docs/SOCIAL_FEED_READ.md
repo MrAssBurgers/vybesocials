@@ -1,6 +1,6 @@
 # Viewer-aware feed read foundation
 
-## Known-ID preview reader (staged)
+## Known-ID preview reader and chat bubbles
 
 `readSocialPostPreviews` accepts `{ expectedOwnerUid, expectedProfileId, postIds }`
 with 1–20 distinct IDs and no extra fields. It resolves the viewer, requested
@@ -14,11 +14,19 @@ Integration tokens cannot call it.
 
 The client transport validates the exact receipt, requested identities, duplicate
 or unsolicited results, media URLs and current account before/after transport.
-It has no raw-document or copied-message fallback. **Message bubbles and detail
-pages are not yet migrated to this reader.** In particular, the existing
-`SharedPostBubble` still has legacy raw reads and media-prop fallbacks; this staged
-endpoint does not close that UI gap by itself. Next, batch visible shared IDs,
-bind results to account/visibility leases and remove those fallback paths.
+It has no raw-document or copied-message fallback. `SharedPostBubble` now uses
+this reader through a conversation-scoped visible-message store. Duplicate IDs
+coalesce, batches contain at most 20 IDs, and requests are spaced by at least
+2.5 seconds. Account/profile/epoch or conversation changes replace the store.
+Offscreen messages, hidden pages and expired 30-second leases lose their
+rendered content; late responses cannot restore a hidden or stopped session.
+Failed reads show an explicit retry state, never copied captions or media.
+Chat idle preloading also skips shared-post message snapshots. Video previews
+use checked thumbnails rather than fetching video metadata automatically.
+
+Detail pages and other legacy readers still require migration. Browser timer
+throttling can delay rechecks, and multiple tabs can hit the account rate limit;
+this is not instantaneous revocation or a global raw-read privacy closure.
 Deploy this named function before the compatible client; do not deploy all
 Functions or claim a production privacy migration from this source checkpoint.
 Already delivered media URLs/bytes cannot be recalled.

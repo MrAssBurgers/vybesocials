@@ -142,6 +142,7 @@ import { VideoSendPreview } from './VideoSendPreview';
 import { VideoBubble } from './VideoBubble';
 import { VideoMessageViewer } from './VideoMessageViewer';
 import { SharedPostBubble } from './SharedPostBubble';
+import { SharedPostPreviewProvider } from './SharedPostPreviews';
 import { SharedThemeMessageBubble } from '@/components/messages/bubbles/SharedThemeMessageBubble';
 import { formatMessageDate } from './chat-view/formatMessageDate';
 import { ChatComposer as MessageInputArea } from './chat-view/ChatComposer';
@@ -291,6 +292,7 @@ function ChatViewContent() {
   useEffect(() => {
     if (!messages || messages.length === 0) return;
     const mediaUrls = messages
+      .filter(m => m.message_type !== 'shared_post')
       .map(m => m.media_url)
       .filter((url): url is string => !!url && !url.startsWith('blob:') && !url.startsWith('data:'));
     if (mediaUrls.length === 0) return;
@@ -1670,6 +1672,7 @@ function ChatViewContent() {
   );
 
   return (
+    <SharedPostPreviewProvider conversationId={conversationId || ''}>
     <ChatThreadShell
       shellId={CHAT_SHIELD_ROOT_ID}
       className="dm-thread"
@@ -2302,6 +2305,7 @@ function ChatViewContent() {
         />
       )}
     </ChatThreadShell>
+    </SharedPostPreviewProvider>
   );
 }
 
@@ -2587,9 +2591,6 @@ const MessageBubble = memo(function MessageBubble({
         {isSharedPost && (
           <SharedPostBubble
             postId={message.content || ''}
-            mediaUrl={message.media_url}
-            mediaType={message.media_type}
-            isOwn={isOwn}
             onNavigate={onNavigateToPost}
           />
         )}
