@@ -67,7 +67,7 @@ The response is `{connectionId, expiresAt, contentType, nextCursor, posts}`. Exp
 
 Only explicitly public posts from explicitly public profiles and public profile sections, marked `safe`, qualify. Existing blocks and moderation restrictions still apply; being the author or a friend does not expand access. Safe labels are metadata, not independent content verification. This is a public discovery page, not personal, following, local, private, or messaging access. The server checks authorization within the content transaction. Already returned content and media URLs cannot be recalled; hosts must discard cached content on disconnect/expiry and never treat counters or URLs as access authority.
 
-This checkpoint provides the HTTP endpoint and VYBE consent/settings UI. The JavaScript partner/universal clients expose this through explicit browsePublicFeed configuration and a browsePublicFeed method. The .NET package and host browsing UI remain pending. Existing clients retain strict scope matching and capture defaults. No real partner is enabled and no production deployment is implied.
+This checkpoint provides the HTTP endpoint and VYBE consent/settings UI. The JavaScript partner/universal clients expose this through explicit browsePublicFeed configuration and a browsePublicFeed method. The JavaScript web-host panel is exported from @vybe/integration-sdk/feed; the .NET equivalent remains pending. Existing clients retain strict scope matching and capture defaults. No real partner is enabled and no production deployment is implied.
 
 ### Device link and consent
 

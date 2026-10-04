@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Public browsing host panel
+
+### What changed
+- SDK 0.3.0-pilot exports mountPublicFeed from /feed: rounded gradient panel, plain-text author/caption cards, type filter, next-page replacement, explicit media selection, multi-media navigation, close/cancel and reduced-motion styles. Keeps one page in memory. No requests on mount or automatic thumbnails/avatars.
+- Visible pages revalidate every 30 seconds; content changes close media and replace rows. Errors clear content. Local identity/expiry checks every second, hiding clears immediately, host example clears synchronously on disconnect/relink and disposes on unload. Remote revocation is detected on the next request; already returned bytes cannot be recalled. Media uses anonymous CORS and may fail for incompatible sources.
+- Integrated into actual file-picker host with default browsing off, trusted config opt-in, module allowlist, export and docs. No production config or partner change.
+
+### Verification
+- SDK build, app build and scoped lint passed. App 308 files / 2,914 tests passed. Entry unchanged 1068.1 KiB raw / 321.8 KiB gzip. Panel tests cover no-fetch mount, safe text, selected media, paging/filter reset, cancelled late results, identity/hidden cleanup, revalidation removal/failure, disposal and missing permission. Example controller tests remain green.
+- Actual 4176 host connected to retained local demo functions via synthetic Alice, all four permissions reviewed in VYBE; loaded three public posts, tested video empty state and return to all, then Disconnect acknowledged and cleared posts. Temporary demo config restored to unconfigured defaults before packaging. Browser 390px override had 375px content/scroll widths (scrollbar), no horizontal overflow; override reset.
+- Screenshots workspace outputs/vybe-game-public-feed.png and vybe-game-public-feed-mobile.png. No real media transfer occurred in browser QA (three text posts); image selection/cleanup are covered by DOM tests. Native video codecs/engine overlays still need real-device checks.
+
+### Next 3 tasks and limits
+1. Fix reproduced first-navigation connect/game redirect to Home; second navigation consistently succeeds. This is now repeatable, not just hot-reload noise.
+2. Add .NET public feed parity and actual engine/mod host adapters; validate external media playback and privacy boundaries on real devices.
+3. Continue mini-app isolation/quotas, audience/media migrations and selective rollout. Broad goal active and incomplete.
+
+---
+
 ## ACTIVE (2026-10-04) - JavaScript public browsing SDK
 
 ### What changed

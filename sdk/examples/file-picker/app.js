@@ -1,5 +1,6 @@
 import { VybeIntegration } from '/sdk/universal/index.js';
 import { mountCaptureGallery } from '/sdk/universal/gallery.js';
+import { mountPublicFeed } from '/sdk/universal/feed.js';
 import { config } from './config.js';
 
 const element = id => document.getElementById(id);
@@ -12,6 +13,7 @@ let linkAvailable = false;
 let closed = false;
 let client;
 let gallery;
+let feed;
 
 function resetDraft() { draft?.dispose(); draft = null; captureId = null; receipt = null; }
 function refresh() {
@@ -59,17 +61,18 @@ try {
       return { media: file, contentType: file.type, caption: element('caption').value, tags: [] };
     },
     onDispose(callback) {
-      const unload = () => { closed = true; current?.abort(); gallery?.dispose(); callback(); };
+      const unload = () => { closed = true; current?.abort(); gallery?.dispose(); feed?.dispose(); callback(); };
       window.addEventListener('pagehide', unload, { once: true });
       return () => window.removeEventListener('pagehide', unload);
     },
   } });
+  feed = mountPublicFeed(element('feed'), client);
   gallery = mountCaptureGallery(element('gallery'), client);
   element('configuration').textContent = `Registered integration: ${config.clientId}. Verify its publisher on the VYBE consent page.`;
 } catch (error) { element('configuration').textContent = error.message; }
 
 element('connect').onclick = () => run(async (signal, live) => {
-  resetDraft(); gallery?.clear(); linkAvailable = false; element('code').textContent = '';
+  resetDraft(); gallery?.clear(); feed?.clear(); linkAvailable = false; element('code').textContent = '';
   const link = await client.beginLink({ signal });
   if (!live()) return;
   linkAvailable = true; element('code').textContent = `Match this code in VYBE: ${link.userCode}`; status('Open the consent page, check the publisher and approve if you want to connect.'); refresh();
@@ -96,7 +99,7 @@ element('upload').onclick = () => run(upload);
 element('retry').onclick = () => run(upload);
 element('cancel').onclick = () => { current?.abort(); };
 element('discard').onclick = () => run(async (signal, live) => { await client.discardCapture(captureId, { signal }); if (live()) { resetDraft(); status('Private capture discarded.'); } });
-element('revoke').onclick = () => run(async (signal, live) => { gallery?.clear(); try { await client.revokeConnection({ signal }); if (live()) status('Connection revoked.'); } finally { resetDraft(); } });
+element('revoke').onclick = () => run(async (signal, live) => { gallery?.clear(); feed?.clear(); try { await client.revokeConnection({ signal }); if (live()) status('Connection revoked.'); } finally { resetDraft(); } });
 element('reset').onclick = () => { resetDraft(); status('Choose another capture. Any earlier uploaded capture remains private in VYBE until discarded or expired.'); refresh(); };
 element('file').onchange = refresh;
 // Back/forward-cache restoration must not revive a disposed host session.

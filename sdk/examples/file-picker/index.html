@@ -17,7 +17,7 @@
     button:hover:not(:disabled){background:#ffffff19}button:active:not(:disabled){transform:scale(.98)}
     input[type=text]{border:1px solid #ffffff24;border-radius:16px;background:#ffffff06;color:inherit}
     #connect,#upload{background:linear-gradient(110deg,#864272,#345b79);border-color:#ffffff24}
-    #gallery{margin-top:18px}@media(prefers-reduced-motion:reduce){button{transition:none;transform:none}}
+    #feed,#gallery{margin-top:18px}@media(prefers-reduced-motion:reduce){button{transition:none;transform:none}}
   </style>
 </head>
 <body>
@@ -36,6 +36,7 @@
     <p id="status" role="status" aria-live="polite">No media uploaded.</p>
   </section>
   <button id="open-vybe">Open VYBE</button>
+  <div id="feed"></div>
   <div id="gallery"></div>
   <p>Closing this page cancels local work. An accepted request may still finish. Disconnect explicitly revokes access; closing alone does not. No account credentials are stored in this example.</p>
   <script type="module" src="/app.js"></script>

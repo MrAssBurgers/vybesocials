@@ -143,4 +143,21 @@ if (page.nextCursor) {
 
 Pages contain public, safe-labelled metadata only, validated against the current connection, expiry and selected type. The SDK rejects unknown/private fields, unsafe URL schemes, duplicate post IDs, excessive collections and responses over 8 MiB; other JSON operations retain their 256 KiB limit. It never fetches feed media automatically. Captions are untrusted text, never HTML. Keep media credentials separate: never attach the partner bearer to a returned media URL.
 
-On `feed_changed`, clear the cursor and reload the first page. On disconnect, account changes, expiry or host unload, clear all rendered posts/media and abort pending actions. The universal wrapper aborts operations on disposal/relink; it cannot erase copies retained by host code. Already delivered content cannot be recalled. Safe labels are metadata, not independent safety verification. .NET parity and a ready-made host browsing panel remain pending; the file-picker example still focuses on capture upload/gallery.
+On `feed_changed`, clear the cursor and reload the first page. On disconnect, account changes, expiry or host unload, clear all rendered posts/media and abort pending actions. The universal wrapper aborts operations on disposal/relink; it cannot erase copies retained by host code. Already delivered content cannot be recalled. Safe labels are metadata, not independent safety verification. .NET parity remains pending. The browser host panel is available as described below.
+
+## Public browsing panel
+
+```ts
+import { mountPublicFeed } from '@vybe/integration-sdk/feed';
+const feed = mountPublicFeed(document.getElementById('feed')!, vybe);
+// Explicit host account changes / disconnect controls:
+feed.clear();
+// Host unload:
+feed.dispose();
+```
+
+Mount into a fresh trusted-host element; Shadow DOM isolates styling, not security. Mounting makes no request. The player selects Explore moments and a type filter; Next page replaces the current page to bound retained content. No avatars, thumbnails or media are fetched until media selection. External media uses anonymous CORS; sources without compatible CORS can fail to display. Never render this data as HTML or add the partner bearer to media requests.
+
+The open visible panel revalidates its current page every 30 seconds. Removed/changed posts replace the visible page and close media; failed checks clear the feed. Local account/expiry changes are checked once per second, and document hiding clears immediately. Remote revocation is therefore detected on the next request, not instantaneously; already delivered bytes cannot be recalled. Call clear synchronously when your own host disconnects or switches accounts. Dispose removes timers/listeners and content.
+
+The file-picker example mounts this panel alongside the capture gallery. Set `browsePublicFeed: true` in its trusted config only after registering the capability. Default configuration leaves it off; capture consent does not silently add browsing. This is a web-host component, not a certified native Unity/Unreal/mod-loader overlay.

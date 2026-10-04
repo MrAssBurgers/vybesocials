@@ -5,6 +5,7 @@ const HTML = readFileSync('sdk/examples/file-picker/index.html', 'utf8');
 const SOURCE = readFileSync('sdk/examples/file-picker/app.js', 'utf8')
   .replace("import { VybeIntegration } from '/sdk/universal/index.js';", '')
   .replace("import { mountCaptureGallery } from '/sdk/universal/gallery.js';", '')
+  .replace("import { mountPublicFeed } from '/sdk/universal/feed.js';", '')
   .replace("import { config } from './config.js';", '');
 const ID = 'a'.repeat(48);
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
@@ -33,7 +34,7 @@ class ExampleClient {
 function boot(config = { clientId: 'test-mod', apiBaseUrl: 'https://fixed.example/api' }) {
   // Execute the shipped example controller in an isolated test DOM. Only its SDK
   // transport is controlled; these checks do not claim live provider success.
-  new Function('VybeIntegration', 'config', 'mountCaptureGallery', SOURCE)(ExampleClient, config, () => ({ clear: vi.fn(), dispose: vi.fn() }));
+  new Function('VybeIntegration', 'config', 'mountCaptureGallery', 'mountPublicFeed', SOURCE)(ExampleClient, config, () => ({ clear: vi.fn(), dispose: vi.fn() }), () => ({ clear: vi.fn(), dispose: vi.fn() }));
 }
 async function connected() { el('connect').click(); await vi.waitFor(() => expect(el('code').textContent).toContain('ABCD-2345')); instance.waiting.resolve({}); await vi.waitFor(() => expect(el('status').textContent).toContain('Connected.')); }
 function chooseFile() {
