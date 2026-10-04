@@ -1,6 +1,6 @@
 {
   "name": "@vybe/integration-sdk",
-  "version": "0.3.0-pilot",
+  "version": "0.3.1-pilot",
   "private": true,
   "description": "VYBE consent, private capture and optional public browsing for apps, games, mods and tools",
   "type": "module",

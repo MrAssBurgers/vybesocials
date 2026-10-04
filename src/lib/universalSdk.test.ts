@@ -116,6 +116,57 @@ describe('unload, cancellation and stale host operations', () => {
   it('callback-triggered closure cannot send later chunks', async () => {
     const h = harness(); await link(h.client); const draft = await h.client.prepareCapture(media()); await expect(h.client.stageCapture(draft, { onCaptureReserved: () => h.client.dispose() })).rejects.toMatchObject({ code: 'disposed' }); expect(h.calls.some(call => call.path.includes('/chunks/'))).toBe(false);
   });
+  it('blocks duplicate uploads of one draft and permits retry after cancellation', async () => {
+    const pending = deferred<Response>(); let uploadSignal!: AbortSignal; let stalled = false;
+    const h = harness({ handle: call => { if (call.path.includes('/chunks/') && !stalled) { stalled = true; uploadSignal = call.init.signal!; return pending.promise; } } });
+    await link(h.client); const draft = await h.client.prepareCapture(media()); const abort = new AbortController();
+    const first = h.client.stageCapture(draft, { signal: abort.signal });
+    const rejected = expect(first).rejects.toMatchObject({ code: 'aborted' });
+    await vi.waitFor(() => expect(uploadSignal).toBeDefined());
+    expect(() => h.client.stageCapture(draft)).toThrow(expect.objectContaining({ code: 'upload_in_progress' }));
+    expect(h.calls.filter(call => call.path === '/v1/captures')).toHaveLength(1);
+    abort.abort(); await rejected;
+    expect(uploadSignal.aborted).toBe(true);
+    await expect(h.client.stageCapture(draft)).resolves.toMatchObject({ status: 'ready' });
+    const requests = h.calls.filter(call => call.path === '/v1/captures');
+    expect(JSON.parse(String(requests[0].init.body)).idempotencyKey).toBe(JSON.parse(String(requests[1].init.body)).idempotencyKey);
+    pending.resolve(json({ index: 0, byteSize: 12, sha256: createHash('sha256').update(new Uint8Array(12).fill(7)).digest('hex') }));
+  });
+  it('releasing a draft aborts its upload and ignores late progress without discarding server content', async () => {
+    const pending = deferred<Response>(); let uploadSignal!: AbortSignal;
+    const h = harness({ handle: call => { if (call.path.includes('/chunks/')) { uploadSignal = call.init.signal!; return pending.promise; } } });
+    await link(h.client); const draft = await h.client.prepareCapture(media()); const progress = vi.fn();
+    const result = h.client.stageCapture(draft, { onProgress: progress });
+    const rejected = expect(result).rejects.toMatchObject({ code: 'aborted' });
+    await vi.waitFor(() => expect(uploadSignal).toBeDefined());
+    draft.dispose(); draft.dispose(); await rejected;
+    const count = progress.mock.calls.length;
+    pending.resolve(json({ index: 0, byteSize: 12, sha256: createHash('sha256').update(new Uint8Array(12).fill(7)).digest('hex') }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(uploadSignal.aborted).toBe(true); expect(progress).toHaveBeenCalledTimes(count);
+    expect(() => h.client.stageCapture(draft)).toThrow(expect.objectContaining({ code: 'draft_unavailable' }));
+    expect(h.calls.some(call => call.path.endsWith('/finish') || call.init.method === 'DELETE' || call.path.endsWith('/revoke'))).toBe(false);
+    expect(h.client.authorization).not.toBeNull();
+  });
+  it('releasing a draft inside the reservation callback prevents upload chunks', async () => {
+    const h = harness(); await link(h.client); const draft = await h.client.prepareCapture(media());
+    await expect(h.client.stageCapture(draft, { onCaptureReserved: () => draft.dispose() })).rejects.toMatchObject({ code: 'aborted' });
+    expect(h.calls.some(call => call.path.includes('/chunks/'))).toBe(false);
+  });
+  it('releasing one draft does not cancel another draft upload', async () => {
+    const pending = deferred<Response>(); let firstSignal!: AbortSignal;
+    const h = harness({ handle: call => { if (call.path.includes('/chunks/') && !firstSignal) { firstSignal = call.init.signal!; return pending.promise; } } });
+    await link(h.client);
+    const firstDraft = await h.client.prepareCapture(media()); const secondDraft = await h.client.prepareCapture(media());
+    const first = h.client.stageCapture(firstDraft); const rejected = expect(first).rejects.toMatchObject({ code: 'aborted' });
+    await vi.waitFor(() => expect(firstSignal).toBeDefined());
+    const second = h.client.stageCapture(secondDraft);
+    firstDraft.dispose(); await rejected;
+    await expect(second).resolves.toMatchObject({ status: 'ready' });
+    expect(firstSignal.aborted).toBe(true);
+    expect(h.calls.filter(call => call.path.endsWith('/finish'))).toHaveLength(1);
+    pending.resolve(json({ index: 0, byteSize: 12, sha256: createHash('sha256').update(new Uint8Array(12).fill(7)).digest('hex') }));
+  });
   it('a new link cancels old polling without losing its new open link', async () => {
     const h = harness(); await h.client.beginLink(); const pending = h.client.waitForLink(); const rejected = expect(pending).rejects.toMatchObject({ code: 'aborted' }); await h.client.beginLink(); await rejected; await h.client.openLink(); expect(h.openExternal).toHaveBeenCalledOnce();
   });

@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - JavaScript game/mod SDK upload lifecycle, pilot 0.3.1
+
+### What changed
+- A prepared capture now permits only one active stageCapture attempt. Duplicate calls synchronously throw upload_in_progress before another reservation/upload copy; settling an attempt releases its guard, including cancellation/failure, so the same immutable draft/key remains retryable.
+- PreparedCapture.dispose now cancels its own active local upload and drops the retained draft reference. It suppresses later callbacks/chunks without cancelling another draft, revoking consent or deleting remote captures. Callers should use AbortController when they want to retain a retryable draft. Requests already accepted by the server are not undone; uncooperative transports may retain their own copies.
+- Bumped the private JavaScript package to 0.3.1-pilot and documented the behavior change: hosts must keep the draft alive until upload completion instead of disposing immediately after starting it. Native .NET/Godot adapters were not changed.
+
+### Verification and artifact
+- Full 319 files / 3,031 tests, app and SDK builds, typecheck and scoped lint passed. New cases cover duplicate admission, cancel-and-retry using the same key, draft release during a delayed chunk, late callback suppression, callback-triggered release before chunks and independent draft cancellation. Logs work/sdk-upload-lifecycle-*.log.
+- Created outputs/vybe-integration-sdk-0.3.1-pilot.tgz (14 package entries). Installed the actual archive offline with scripts disabled into ignored work/sdk-lifecycle-consumer; verified root/partner/feed/gallery imports and construction/disposal without network/window effects. No registry publication or production changes. The archive contains compiled ESM/declarations and README, not test credentials or example configuration.
+- No new native engine walkthrough; prior native automation restriction and engine certification limits remain. Generated app version/offline churn restored.
+
+### Next 3 tasks and limits
+1. Continue concrete game/mod adapters and native capture-upload verification on permitted environments. Keep per-host lifecycle cleanup explicit.
+2. Continue remaining social profile/explore/comment authority and mini-app runtime isolation; no hard iframe resource isolation yet.
+3. Stage named backend/client/rules changes and publish through Lovable. Broad goal remains active/incomplete.
+
+---
+
 ## ACTIVE (2026-10-04) - Validate direct mini-app links before rendering
 
 ### What changed
