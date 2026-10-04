@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Universal integration developer entry point
+
+### What changed
+- Updated /developers to include games, mods and creative tools, selectable JavaScript and .NET 8 partner examples, package-based JavaScript imports, universal host/example links, native .NET documentation and optional capture-gallery guidance.
+- Removed the misleading third-party SDK/Unity-example link in favor of the actual SDK root. Clearly state .NET 8/local distribution requirements and that Unity/Mono/mod-loader certification, general social feeds/messages and recording/engine overlays remain incomplete.
+- Language selection has an associated tab panel. Copy feedback belongs to the copied example so a late clipboard response cannot mark a different selected language copied. Mobile controls wrap without page overflow.
+
+### Verification
+- App 306 files / 2,898 tests passed; build and scoped lint passed. Entry app-7vZPPrVB.js: 1068.1 KiB raw / 321.8 KiB gzip. Tests cover C# selection/copy payload, correct guide links and pending-copy language switches.
+- Browser /developers: selected C#, verified rendered .NET example and guide paths, tested Copy success UI. At 390px viewport document width remained 390px, tabs and copy control fit and code scrolls inside its panel. Screenshot workspace outputs/vybe-developer-dotnet-mobile.png. Browser tool clipboard read returned empty, so actual OS clipboard contents were not independently verified; selected payload is covered by tests. Viewport reset afterward.
+- Prior native-pause checkpoint 77e68af7 CI 37207599893 and Rules QA 37207599904 both succeeded.
+
+### Next 3 tasks and limits
+1. Continue game/mod host adapters and broader explicitly scoped in-host social browsing; existing capture SDKs remain pilots.
+2. Continue mini-app runtime resource/network isolation, quotas/retention and remaining content audience/media reader migrations.
+3. Follow CI and complete physical-device checks and coordinated selective rollout. No production/Lovable or package-registry publication. Broad goal remains active and incomplete.
+
+---
+
 ## ACTIVE (2026-10-04) - Stop mini apps on native shell pause
 
 ### What changed
