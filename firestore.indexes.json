@@ -442,5 +442,7 @@
         { "fieldPath": "phone_e164_sha256", "order": "ASCENDING" }
       ] }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    { "collectionGroup": "_social_feed_cursors", "fieldPath": "expires_at", "ttl": true, "indexes": [] }
+  ]
 }

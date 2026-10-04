@@ -72,6 +72,7 @@ export * from './badgeAuthority.js';
 export * from './tokenMarketplace.js';
 export * from './reportModeration.js';
 export { publishStory, listVisibleStories, manageCloseFriends } from './storyPublish.js';
+export { readSocialFeed } from './socialFeed.js';
 
 
 /**

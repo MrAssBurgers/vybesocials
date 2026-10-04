@@ -2,6 +2,26 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Viewer-aware feed read foundation
+
+### What changed
+- Added the signed-in `readSocialFeed` callable and a shared transactional reader. Canonical viewer/author identities, current two-way blocks, accepted friendships, Close Friends authority and profile/post restrictions are checked before projecting content. Unknown audiences, malformed identities, removed/draft/unapproved rows and unsafe URL schemes fail closed. Only selected presentation fields are returned, with explicit age labels including `unrated`.
+- Added bounded 20-candidate pages, stable tie ordering and opaque account/profile-bound ten-minute cursors. Excluded rows do not disclose their IDs through pagination. Empty filtered pages can continue; boundary deletion and malformed historical sort values do not strand pagination. Replays recheck access. Added deny-all cursor rules and a TTL index policy; synchronous expiry does not rely on cleanup timing.
+- Private accounts currently admit only their owner through this new path. Existing follower-created rows cannot prove author approval, even with a forged `approved` status. A real approval flow must be implemented before migrating private-account browsing. This reader does not replace Home or grant integration tokens feed access yet; see `docs/SOCIAL_FEED_READ.md` for the remaining release gates.
+- Added the real emulator fixture to Creator Platform Rules QA, including source/index path triggers. No production deployment, auth change, or preview-account mutation occurred. The isolated test emulator was stopped after verification.
+
+### Verification
+- Isolated Firestore and actual callable handler tests passed **12 grouped checks**, covering guest/account/schema rejection, minimal projections, intersected profile/post settings, current Close Friends proof, two-way blocks including staff claims, owner/private-account behavior, self-created follower denial, ambiguous/deleted identities, malformed content, ordered pagination, boundary deletion, cursor replay after revocation, expiry/wrong-account denial, empty pages, and direct cursor read/write/list denial.
+- Full suite: **293 files / 2,801 tests passed**. Functions and app builds passed; app bundle remains **1069.2 KiB raw / 322.2 KiB gzip**. Full lint has **0 errors / 5 inherited warnings**. No UI behavior changed in this checkpoint.
+- Previous main `d2ee56aa` completed CI **37195394844 successfully**. This checkpoint's exact remote checks are verified after pushing. Demo 8082 and the mod capture host remain separate from production.
+
+### Next 3 tasks
+1. Implement canonical author-approved follower requests/revocation and wire them into private-account admission; audit legacy ranked/recommendation/share-preview readers before claiming global privacy.
+2. Complete age/content authority, controlled media delivery and reviewed partner feed consent; connect Home and the embedded SDK with strict account-bound parsing and pagination UI.
+3. Continue concrete game/mod adapters, mini-app and soft UI audits, then selective staging and physical-device checks. The original universal-app goal remains active and unfulfilled.
+
+---
+
 ## ACTIVE (2026-10-04) - Correct shipped image formats
 
 ### What changed

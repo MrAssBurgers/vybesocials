@@ -1802,6 +1802,7 @@ service cloud.firestore {
     match /game_partner_tokens/{id}      { allow read, write: if false; }
     match /game_partner_connections/{id} { allow read, write: if false; }
     match /game_partner_uploads/{id}     { allow read, write: if false; }
+    match /_social_feed_cursors/{id}     { allow read, write: if false; }
 
     // ---------- catch-all: deny by default ----------
     match /{document=**} {
