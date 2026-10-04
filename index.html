@@ -437,19 +437,23 @@
       }
       #vybe-static-boot .vybe-boot-ambient {
         position: absolute; inset: 0; overflow: hidden; pointer-events: none;
-        background: hsl(var(--boot-bg));
+        /* Keep a visible wash even when the saved theme uses neutral accents. */
+        background:
+          radial-gradient(ellipse at 8% 12%, hsl(285 70% 60% / .19), transparent 75%),
+          radial-gradient(ellipse at 94% 88%, hsl(185 75% 55% / .16), transparent 75%),
+          hsl(var(--boot-bg));
       }
       /* These fallbacks paint before the app CSS, cached theme or fonts arrive. */
       #vybe-static-boot .vybe-boot-mesh {
         position: absolute; inset: 0;
         background:
-          radial-gradient(ellipse 100% 80% at 12% 20%, hsl(var(--boot-primary) / .19), transparent 72%),
-          radial-gradient(ellipse 100% 75% at 95% 82%, hsl(var(--boot-accent) / .17), transparent 72%),
-          radial-gradient(ellipse 85% 80% at 52% 45%, hsl(var(--boot-purple) / .13), transparent 72%);
+          radial-gradient(ellipse 100% 80% at 12% 20%, hsl(var(--boot-primary) / .25), transparent 78%),
+          radial-gradient(ellipse 100% 75% at 95% 82%, hsl(var(--boot-accent) / .23), transparent 78%),
+          radial-gradient(ellipse 85% 80% at 52% 45%, hsl(var(--boot-purple) / .18), transparent 78%);
       }
       #vybe-static-boot .vybe-boot-blob {
         position: absolute; width: min(85vw, 620px); height: min(85vw, 620px);
-        border-radius: 50%; opacity: .55; pointer-events: none;
+        border-radius: 50%; opacity: .8; pointer-events: none;
         transform: translate3d(-50%, -50%, 0); filter: none;
       }
       #vybe-static-boot .vybe-boot-blob--a {
@@ -548,7 +552,7 @@
         transform: translateX(75%);
       }
       #vybe-static-boot .vybe-splash-meta { margin-top: 14px; text-align: center; font-size: 12px; }
-      #vybe-static-boot .vybe-splash-status { color: hsl(var(--boot-fg) / .6); }
+      #vybe-static-boot .vybe-splash-status { color: hsl(var(--boot-fg) / .78); }
       /* Warm-up progress is estimated, so don't present it as a measured percent. */
       #vybe-static-boot .vybe-splash-percent { display: none; }
       #vybe-static-boot .vybe-splash-build { display: none; }

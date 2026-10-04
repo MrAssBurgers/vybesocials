@@ -2,6 +2,22 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - More visible soft loading background
+
+### What changed
+- Responded to the black loading-screen screenshot. The existing replacement boot layout already hides estimated percentages and provides the VYBE mark, status and slow cloud motion; increased its ambient color strength and status contrast.
+- Added a soft purple/cyan base wash that stays visible when a saved theme has neutral accents. Preserved existing reduced-motion/performance gates and native handoff timing; no added boot delay.
+
+### Verification
+- Production build, boot entry/distribution checks and all 319 files / 3,031 tests passed. Logs work/boot-wash-build.log and work/boot-wash-tests.log.
+- Visually inspected a local fixture extracted from the actual inline boot CSS/markup, without boot timers removing it. Confirmed cloud animation active, percentage hidden and no horizontal overflow. Screenshot outputs/vybe-soft-loading.png. This is a held visual fixture, not a measurement of startup speed. No production deployment.
+
+### Next 3 tasks and limits
+1. Continue remaining comment/account authority review.
+2. Continue universal game/mod integrations and mini-app runtime isolation.
+3. Publish the completed main client through Lovable; named backend/rule rollout still separate. Broad goal remains active.
+
+---
 ## ACTIVE (2026-10-04) - JavaScript game/mod SDK upload lifecycle, pilot 0.3.1
 
 ### What changed
@@ -8821,3 +8837,4 @@ All eight migration phases complete. See `.lovable/plan.md` for per-phase detail
 1. Run the iOS manual checklist above on an iPhone build and collect screenshots/recording for each auth flow.
 2. If iOS deep-link takeover is still flaky on QR camera scans, verify associated domains/Universal Link entitlement for `vybehub.app` in the native shell.
 3. Push to `origin/main`, then run Lovable Publish and production smoke test on `vybehub.app`.
+
