@@ -8,7 +8,7 @@ const post = { id: 'post-one', type: 'post', caption: 'Hello', createdAt: '2026-
   mediaUrl: null, mediaUrls: [], thumbnailUrl: null, ageRating: 'unrated', tags: ['gaming'],
   likeCount: 7, commentCount: 2, viewCount: 30, isPinned: false, isBookmarked: true, reactionType: 'love',
   author: { id: 'profile-bob', username: 'bob', displayName: 'Bob', avatarUrl: null } };
-const response = () => ({ ownerUid: 'alice', viewerProfileId: 'profile-alice', contentType: 'post', posts: [structuredClone(post)], nextCursor: null as string | null });
+const response = () => ({ ownerUid: 'alice', viewerProfileId: 'profile-alice', contentType: 'post', feed: 'discover', posts: [structuredClone(post)], nextCursor: null as string | null });
 beforeEach(() => { state.invoke.mockReset(); state.invoke.mockResolvedValue({ data: response(), error: null }); });
 
 describe('current account social feed transport', () => {
@@ -22,6 +22,7 @@ describe('current account social feed transport', () => {
     (page: ReturnType<typeof response>) => { page.ownerUid = 'bob'; },
     (page: ReturnType<typeof response>) => { page.viewerProfileId = 'old-profile'; },
     (page: ReturnType<typeof response>) => { page.contentType = 'short'; },
+    (page: ReturnType<typeof response>) => { page.feed = 'following'; },
     (page: ReturnType<typeof response>) => { page.posts.push(page.posts[0]); },
     (page: ReturnType<typeof response>) => { page.posts[0].type = 'video'; },
     (page: ReturnType<typeof response>) => { page.posts[0].likeCount = -1; },

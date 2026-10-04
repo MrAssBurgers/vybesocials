@@ -162,6 +162,16 @@
         { "fieldPath": "user_id", "order": "ASCENDING" },
         { "fieldPath": "post_id", "order": "ASCENDING" }
       ] },
+    { "collectionGroup": "_follow_authority", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "follower_uid", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "likes", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "user_id", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ] },
     { "collectionGroup": "user_warnings", "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "user_id", "order": "ASCENDING" },

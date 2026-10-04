@@ -23,6 +23,14 @@ beforeEach(() => {
 });
 afterEach(() => { clients.splice(0).forEach(client => client.clear()); });
 describe('visible current-account Global feed', () => {
+  it('does not reuse discovery pages or cursors for a Following selection', async () => {
+    const hook = renderHook(({ feed }: { feed: 'personalized' | 'following' }) => useSocialFeed('short', true, feed), { ...setup(), initialProps: { feed: 'personalized' as 'personalized' | 'following' } });
+    await waitFor(() => expect(hook.result.current.data).toBeDefined());
+    state.read.mockImplementation(() => new Promise(() => {})); hook.rerender({ feed: 'following' });
+    expect(hook.result.current.data).toBeUndefined();
+    await waitFor(() => expect(state.read).toHaveBeenLastCalledWith(expect.objectContaining({ feed: 'following', contentType: 'short' }), expect.any(Function)));
+    expect(state.read.mock.calls.at(-1)![0].cursor).toBeUndefined();
+  });
   it('waits for a canonical account and performs no disabled reads', async () => {
     state.ready = false; const hook = renderHook(() => useSocialFeed('post'), setup());
     expect(hook.result.current.data).toBeUndefined(); expect(state.read).not.toHaveBeenCalled();

@@ -1,13 +1,18 @@
 # Viewer-aware feed read foundation
 
 `readSocialFeed` is a Firebase callable for a signed-in account. Home's Global
-tab now uses it through `useSocialFeed` and strict `socialFeedService` parsing.
-For You, Local and other legacy readers remain to be migrated. Integration tokens
+tab uses it through `useSocialFeed` and strict `socialFeedService` parsing.
+Shared personalized and Following hooks now use the same reader for Home,
+Clips' short/long-video lists and Watch's related-video list. Home keeps its DNA
+topic boost/reduce and chronological tie-breaking. Local and other legacy readers
+remain to be migrated. Integration tokens
 still cannot use this endpoint. Do not describe this as a completed embedded feed.
 
-Input: `{ expectedOwnerUid, expectedProfileId, cursor?, contentType? }` where the
+Input: `{ expectedOwnerUid, expectedProfileId, cursor?, contentType?, feed? }` where the
 optional type is `post`, `short` or `video`. Extra fields are rejected.
-Output: `{ ownerUid, viewerProfileId, contentType, posts, nextCursor }`. Each post has its
+Feed is `discover` (default), `personalized` or `following`, echoed in the receipt
+and bound into the opaque cursor. A cursor cannot be transferred between feeds.
+Output: `{ ownerUid, viewerProfileId, contentType, feed, posts, nextCursor }`. Each post has its
 ID, type, caption, creation time, media URLs, thumbnail, age label, tags, and a
 minimal author presentation. It also includes sanitized nonnegative safe-integer
 counter snapshots, pinned state, and the current viewer's reaction/bookmark state.
@@ -34,7 +39,7 @@ New content is obtained by refreshing the first page. No cross-page snapshot or
 ranking guarantee is made. Missing `created_at` rows are absent from the query.
 
 Cursors are random 24-byte references to server-owned boundary records, bound to
-viewer UID, canonical profile and content-type selection. They reveal no excluded post identifiers
+viewer UID, canonical profile, feed and content-type selection. They reveal no excluded post identifiers
 or times, survive deletion of the boundary post, and expire after ten minutes.
 Replaying a cursor rechecks all current audience decisions. It never reuses an
 old permission grant. The reader is limited to 30 calls per minute per account.
@@ -43,14 +48,40 @@ expiry is checked synchronously and never depends on TTL deletion timing. See
 [Firebase's index configuration reference](https://firebase.google.com/docs/reference/firestore/indexes/)
 and [TTL behavior](https://firebase.google.com/docs/firestore/ttl).
 
-## Global feed client behavior
+## Personalized and Following selection
+
+Following includes current accepted friends and canonical active follows, excluding
+self. Private accounts still require explicit owner approval; friendship or a
+previous automatic public follow cannot bypass that gate. Blocks, deleted or
+replaced identities and every post/profile audience restriction still apply.
+Cancelling a follow or removing a friendship is rechecked on the next read.
+An account with no accepted friendship or active follow gets a terminal empty
+page immediately, without scanning unrelated posts. Existing connections are
+still checked per author; finding a connection row never grants access by itself.
+
+Personalization sorts only admitted candidates. It retains engagement weighting
+(likes 2, comments 3, views 0.1) and reaction-mood matching. Learning uses at most
+100 recent reactions per canonical viewer alias, deduplicated by post. Signals
+are read only for admitted post IDs (140-row bound), unknown/negative/nonfinite
+signals are ignored and each strength is capped at one million. These are
+ranking hints, not verified rewards or moderation. Home additionally keeps DNA
+topic preferences; Clips retains its separate recent/trending display options.
+
+All modes scan 20 chronological candidates, not every matching connection at
+once. Following can have empty pages before an older friend's post; continuation
+remains available instead of silently exhausting the feed. This removes the old
+40-friend/per-author truncation but still needs candidate indexing and load tests
+for sparse connections at large scale. Ranking is within each candidate page,
+not a global score-sorted cursor. Access is always checked before ranking.
+
+## Feed client behavior
 
 - Reads bind to the live account epoch and canonical profile, with no raw-post,
   legacy RPC or disk-cache fallback. Strict parsing rejects wrong accounts,
   wrong types, duplicate IDs, unsafe media, unknown fields and repeated cursors.
 - Pages retain opaque continuation even when every candidate is excluded.
   Existing Home retry and Load more controls handle error and filtered-page states.
-- Leaving Global, hiding the document or changing accounts clears its rendered
+- Leaving the selected feed, hiding the document or changing accounts clears its rendered
   data. Returning uses a new query generation; aborted or late reads cannot
   populate that generation. Permission-read errors hide the old page instead of
   displaying stale data. Account-bound feed pages are excluded from disk writes
@@ -61,6 +92,8 @@ and [TTL behavior](https://firebase.google.com/docs/firestore/ttl).
   sessions with many pages can hit the existing 30-call/minute limit; the client
   shows a retry state rather than falling back to unfiltered data. Production
   read cost, latency and long-scroll behavior still need staging measurement.
+- Legacy personalized/Following boot warming and speculative raw-media prefetch
+  have been removed. Their historical disk-cache roots are discarded on restore.
 - Reactions and saved-post state are preserved without fetching raw posts on this
   path. Missing legacy reaction cleanup records are checked on the server before
   deletion; concurrent absence is distinguished from genuine permission errors.

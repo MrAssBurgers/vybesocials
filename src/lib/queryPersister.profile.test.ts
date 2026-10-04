@@ -12,7 +12,7 @@ vi.mock('@tanstack/query-async-storage-persister', () => ({
 vi.mock('idb-keyval', () => ({ get: vi.fn(), set: vi.fn(), del: vi.fn() }));
 import { shouldPersistQueryKey } from './queryPersister';
 
-const privateKeys = ['profile', 'profile-by-id', 'profile-by-username', 'profile-view-identity', 'profile-view-request', 'profile-visibility-resolved', 'profile-visibility-settings', 'profile-section', 'profile-blocked-pair', 'profile-view-level', 'profile-view-friends-count', 'profile-cover-bg', 'profile-friends-list', 'follow-list', 'follow-authority', 'follow-management', 'tagged-posts', 'social-feed'];
+const privateKeys = ['profile', 'profile-by-id', 'profile-by-username', 'profile-view-identity', 'profile-view-request', 'profile-visibility-resolved', 'profile-visibility-settings', 'profile-section', 'profile-blocked-pair', 'profile-view-level', 'profile-view-friends-count', 'profile-cover-bg', 'profile-friends-list', 'follow-list', 'follow-authority', 'follow-management', 'tagged-posts', 'social-feed', 'personalized-feed-v2', 'personalized-feed', 'infinite-following-posts'];
 function snapshot(): PersistedClient {
   const client = new QueryClient();
   for (const account of ['alice', 'bob']) {

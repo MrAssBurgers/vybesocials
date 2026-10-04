@@ -14,9 +14,12 @@ function validProof(row, id) {
         && typeof row.status === 'string' && states.includes(row.status) && validRevision(row.revision) && row.revision > 0
         && typeof row.approved_by_owner === 'boolean';
 }
-export function hasApprovedFollow(row, owner, follower) {
+export function hasCurrentFollow(row, owner, follower) {
     return validProof(row, followAuthorityId(owner.uid, follower.uid)) && row.owner_uid === owner.uid && row.owner_profile_id === owner.profileId
-        && row.follower_uid === follower.uid && row.follower_profile_id === follower.profileId && row.status === 'active' && row.approved_by_owner === true;
+        && row.follower_uid === follower.uid && row.follower_profile_id === follower.profileId && row.status === 'active';
+}
+export function hasApprovedFollow(row, owner, follower) {
+    return hasCurrentFollow(row, owner, follower) && row?.approved_by_owner === true;
 }
 export function normalizeFollowInput(raw, uid) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw))

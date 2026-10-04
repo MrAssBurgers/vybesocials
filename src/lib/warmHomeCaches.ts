@@ -4,94 +4,10 @@ import { getCachedCurrentProfile } from '@/lib/profileCache';
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { prefetchDMConversations } from '@/lib/loadDMConversations';
 import { setCachedUserLevel } from '@/lib/userLevelCache';
-import { signAndPreloadFeedPosts, signAndPreloadProfileAvatar } from '@/lib/imagePreload';
+import { signAndPreloadProfileAvatar } from '@/lib/imagePreload';
 
-function mapFeedRow(row: Record<string, unknown>) {
-  return {
-    id: row.id,
-    type: row.type,
-    media_url: typeof row.media_url === 'string' ? row.media_url : null,
-    thumbnail_url: typeof row.thumbnail_url === 'string' ? row.thumbnail_url : null,
-    caption: row.caption || '',
-    tags: row.tags || [],
-    created_at: row.created_at,
-    is_pinned: row.is_pinned,
-    view_count: row.view_count || 0,
-    author: {
-      id: row.author_id,
-      username: row.author_username,
-      avatar_url: typeof row.author_avatar_url === 'string' ? row.author_avatar_url : null,
-    },
-    like_count: Number(row.like_count) || 0,
-    comment_count: Number(row.comment_count) || 0,
-    is_liked: row.is_liked || false,
-    is_bookmarked: row.is_bookmarked || false,
-    reaction_type: row.reaction_type || null,
-  };
-}
-
-function warmPersonalizedFeed(queryClient: QueryClient, profileId: string) {
-  const feedKey = ['personalized-feed-v2', undefined, profileId, 0] as const;
-  if (queryClient.getQueryData(feedKey)) return;
-
-  void (async () => {
-    const { data, error } = await db.rpc('get_ranked_feed_v2', {
-      p_user_id: profileId,
-      p_content_type: null,
-      p_category: null,
-      p_lat: null,
-      p_lng: null,
-      p_radius_miles: null,
-      p_offset: 0,
-      p_limit: 15,
-    } as any);
-
-    let rows = (!error && data?.length ? data : null) as any[] | null;
-    if (!rows?.length) {
-      const fallback = await db.rpc('get_posts_with_counts', {
-        p_type: null,
-        p_author_id: null,
-        p_user_id: profileId,
-        p_offset: 0,
-        p_limit: 15,
-      });
-      if (!fallback.error && fallback.data?.length) rows = fallback.data as any[];
-    }
-    if (!rows?.length) return;
-
-    const posts = rows.map(mapFeedRow);
-    queryClient.setQueryData(feedKey, {
-      pages: [{ posts, nextPage: posts.length >= 15 ? 1 : null }],
-      pageParams: [0],
-    });
-    void signAndPreloadFeedPosts(posts, 8);
-  })();
-}
-
-function warmFollowingFeed(queryClient: QueryClient, profileId: string) {
-  const feedKey = ['infinite-following-posts', undefined, profileId, 0] as const;
-  if (queryClient.getQueryData(feedKey)) return;
-
-  void db
-    .rpc('get_following_posts_with_counts', {
-      p_user_id: profileId,
-      p_type: null,
-      p_offset: 0,
-      p_limit: 15,
-    })
-    .then(({ data, error }) => {
-      if (error || !data?.length) return;
-      const posts = (data as any[])
-        .map(mapFeedRow)
-        .filter((p) => p.author?.id !== profileId);
-      if (posts.length === 0) return;
-      queryClient.setQueryData(feedKey, {
-        pages: [{ posts, nextPage: posts.length >= 15 ? 1 : null }],
-        pageParams: [0],
-      });
-      void signAndPreloadFeedPosts(posts, 8);
-    });
-}
+// Feed content is loaded only by the visible account-bound reader. Boot warming
+// must not revive legacy raw posts or start their media downloads.
 
 // Private story media is loaded by the mounted, account-scoped story reader.
 // Boot warming cannot infer current friendship/close-friend authority.
@@ -211,8 +127,6 @@ export function warmHomeCachesForProfile(
   }
 
   signCachedProfileMedia();
-  warmPersonalizedFeed(queryClient, profileId);
-  warmFollowingFeed(queryClient, profileId);
   void prefetchDMConversations(queryClient, profileId, uid);
   warmNotifications(queryClient, profileId);
   warmUserMeta(queryClient, uid, profileId);

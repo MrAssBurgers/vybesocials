@@ -2,6 +2,27 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - For You and Following audience migration
+
+### What changed
+- Shared `usePersonalizedFeed` and `useInfiniteFollowingPosts` now use the account-bound callable reader. This covers Home For You/Following, Clips short/long-video lists and Watch's related-video list. Removed the legacy Home boot/feed warmers and raw media prefetch; discarded old personalized/Following disk-cache roots. Home retains its DNA boost/reduce and date tie-breaking. No raw RPC fallback remains in these shared hooks.
+- Added feed-bound cursor/receipt validation. Following admits current accepted friends or canonical active follows, excluding self; private accounts still require owner approval and all audience/block checks. Accounts with no connections return a terminal empty page without scanning unrelated posts. Older friend posts remain reachable through bounded candidate pagination; there is no silent forty-friend/per-author truncation.
+- Personalized ordering is applied only after access admission. Engagement and reaction-mood matching remain, with bounded learning from 100 recent reactions per viewer alias, deduplication, admitted-only mood queries and defensive signal normalization. This is per-page ranking, not globally score-sorted pagination. Added history/connection indexes and expanded Rules QA path coverage.
+
+### Verification
+- **300 files / 2,851 tests passed**. Functions/app builds, typecheck, CSS/boot checks and full lint passed (**0 errors / 5 inherited warnings**). App entry **app-Bwya6dD-.js: 1068.3 KiB raw / 321.9 KiB gzip**, within budget and smaller than the previous checkpoint.
+- Final isolated real-emulator feed fixture passed **17 grouped checks**, including feed/cursor substitution denial, owner approval for a formerly public follow, current friendship/follow revocation, blocked and self exclusion, personalized ranking without restricted posts, empty-connection termination and continuation to older friend content. Follow fixture passed **10 grouped checks**. The isolated process exited successfully and stopped; retained preview storage remained isolated.
+- Browser: Alice's For You now shows the synthetic public post and excludes the exact `only_me` post that the previous reader exposed. Changing the visible post to `only_me` removed it without reload; restoring it to public made it visible again. Clips, Following and long-video Following selectors reached the appropriate empty states without a raw fallback. Nonempty video decoding/native playback was not newly certified here. Screenshot: workspace outputs `vybe-for-you-feed.png`.
+- Demo posts/interactions remain synthetic. Complete local state is exported to ignored `work/local-preview/personalized-feed-verified-checkpoint-export`. Previous main **04f59a51** passed CI **37198938536** and Rules QA **37198938523**; exact remote checks for this checkpoint are inspected after pushing.
+
+### Release limits and next 3 tasks
+- No production deployment, Lovable Publish or production account mutation. Deploy the matching callable/client/indexes together in staging; never deploy all Functions or change production auth2faRequest. Local, direct post/profile/explore readers, standalone ranked/recommendation/share-preview endpoints and raw rules still need migration. Legacy media delivery, authoritative age policy, interaction permissions, deep-scroll read costs and browser timer delays remain. Following's bounded chronological scan may require several empty-page continuations for sparse connections; scalable candidate indexing is still needed.
+1. Implement truthful, audience-checked Local selection and migrate the remaining direct/legacy readers, then close raw paths and add controlled media/age policy.
+2. Complete embedded feed consent and native game/mod adapters with lifecycle/device checks.
+3. Continue mini-app and soft UI audits, including the intermittently white story tile, then selective staging. The original universal-app goal remains active and unfulfilled.
+
+---
+
 ## ACTIVE (2026-10-04) - Global feed uses current audience admission
 
 ### What changed

@@ -5,7 +5,7 @@ import { useFeedMuteFilter } from '@/hooks/useFeedMuteFilter';
 import { readSocialFeed } from '@/lib/socialFeedService';
 
 /** Current-account feed pages live only in memory while this surface is visible. */
-export function useSocialFeed(contentType?: 'post' | 'short' | 'video', enabled = true) {
+export function useSocialFeed(contentType?: 'post' | 'short' | 'video', enabled = true, feed: 'discover' | 'personalized' | 'following' = 'discover') {
   const account = useProfileAccount();
   const [visibility, setVisibility] = useState({ visible: document.visibilityState !== 'hidden', epoch: 0 });
   const lease = useRef(0);
@@ -22,7 +22,7 @@ export function useSocialFeed(contentType?: 'post' | 'short' | 'video', enabled 
   const active = enabled && visibility.visible && account.ready;
   const current = useRef(active); current.current = active;
   const query = useInfiniteQuery({
-    queryKey: ['social-feed', account.session.uid, account.session.epoch, account.profile?.id, contentType, visibility.epoch, activation.current.epoch],
+    queryKey: ['social-feed', account.session.uid, account.session.epoch, account.profile?.id, contentType, feed, visibility.epoch, activation.current.epoch],
     enabled: active, initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam, signal }) => {
       const generation = lease.current;
@@ -31,7 +31,7 @@ export function useSocialFeed(contentType?: 'post' | 'short' | 'video', enabled 
         if (signal.aborted || !current.current || lease.current !== generation) throw new Error('Reopen the feed to refresh access.');
       };
       return readSocialFeed({ expectedOwnerUid: account.user!.id, expectedProfileId: account.profile!.id,
-        ...(contentType ? { contentType } : {}), ...(pageParam ? { cursor: pageParam } : {}) }, guard);
+        feed, ...(contentType ? { contentType } : {}), ...(pageParam ? { cursor: pageParam } : {}) }, guard);
     },
     getNextPageParam: (last, _pages, _lastParam, pageParams) => {
       if (!last.nextCursor || pageParams.includes(last.nextCursor)) return undefined;

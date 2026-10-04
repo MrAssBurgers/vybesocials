@@ -2,7 +2,8 @@ import { randomBytes } from 'node:crypto';
 import { FieldPath, Timestamp } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { closeFriendAuthorityId, hasCloseFriendAuthority, normalizedProfileSettings, resolveIdentity, validAudienceId } from './profileAudienceAuthority.js';
-import { followAuthorityId, hasApprovedFollow } from './followAuthority.js';
+import { followAuthorityId, hasApprovedFollow, hasCurrentFollow } from './followAuthority.js';
+import { rankSocialPosts } from './socialFeedRanking.js';
 const PAGE_SIZE = 20;
 const CURSOR_TTL = 10 * 60 * 1000;
 export function normalizeSocialFeedInput(raw, uid) {
@@ -11,7 +12,8 @@ export function normalizeSocialFeedInput(raw, uid) {
     const row = raw;
     if (row.expectedOwnerUid !== uid)
         throw new HttpsError('failed-precondition', 'Your account changed. Reopen the feed.');
-    if (!validAudienceId(row.expectedProfileId) || Object.keys(row).some(key => !['expectedOwnerUid', 'expectedProfileId', 'cursor', 'contentType'].includes(key))
+    if (!validAudienceId(row.expectedProfileId) || Object.keys(row).some(key => !['expectedOwnerUid', 'expectedProfileId', 'cursor', 'contentType', 'feed'].includes(key))
+        || (row.feed !== undefined && !['discover', 'personalized', 'following'].includes(row.feed))
         || (row.contentType !== undefined && !['post', 'short', 'video'].includes(row.contentType))
         || (row.cursor !== undefined && (typeof row.cursor !== 'string' || !/^[a-f0-9]{48}$/.test(row.cursor)))) {
         throw new HttpsError('invalid-argument', 'Invalid feed selection.');
@@ -44,8 +46,8 @@ async function authorAdmission(db, tx, viewer, alias) {
     const self = author.uid === viewer.uid;
     if (author.row.is_private != null && typeof author.row.is_private !== 'boolean')
         return null;
-    if (author.row.is_private === true && !self && !hasApprovedFollow((await tx.get(db.collection('_follow_authority')
-        .doc(followAuthorityId(author.uid, viewer.uid)))).data(), author, viewer))
+    const follow = self ? undefined : (await tx.get(db.collection('_follow_authority').doc(followAuthorityId(author.uid, viewer.uid)))).data();
+    if (author.row.is_private === true && !self && !hasApprovedFollow(follow, author, viewer))
         return null;
     let friend = false;
     let close = false;
@@ -64,7 +66,7 @@ async function authorAdmission(db, tx, viewer, alias) {
     }
     const allows = (level) => typeof level === 'string' && ['public', 'everyone', 'friends', 'close_friends', 'only_me', 'private'].includes(level)
         && (self || level === 'public' || level === 'everyone' || (level === 'friends' && friend) || (level === 'close_friends' && close));
-    return { author, settings, allows };
+    return { author, settings, allows, connected: !self && (friend || hasCurrentFollow(follow, author, viewer)) };
 }
 function projectPost(id, row, admission) {
     const { author, allows, settings } = admission;
@@ -123,14 +125,27 @@ export async function readSocialFeedPage(db, uid, raw, nowMs = Date.now()) {
                 || !(cursor.expires_at instanceof Timestamp) || cursor.expires_at.toMillis() <= nowMs
                 || typeof cursor.post_id !== 'string' || !cursor.post_id || cursor.post_id.includes('/') || Buffer.byteLength(cursor.post_id) > 1500
                 || (cursor.content_type ?? null) !== (input.contentType ?? null)
+                || (cursor.feed ?? 'discover') !== (input.feed ?? 'discover')
                 || !Object.hasOwn(cursor, 'created_at'))
                 throw new HttpsError('failed-precondition', 'This feed page expired. Refresh the feed.');
             query = query.startAfter(cursor.created_at, cursor.post_id);
         }
+        if (input.feed === 'following') {
+            const connections = await Promise.all([
+                tx.get(db.collection('friend_requests').where('sender_id', 'in', viewer.aliases).where('status', '==', 'accepted').limit(1)),
+                tx.get(db.collection('friend_requests').where('receiver_id', 'in', viewer.aliases).where('status', '==', 'accepted').limit(1)),
+                tx.get(db.collection('_follow_authority').where('follower_uid', '==', viewer.uid).where('status', '==', 'active').limit(1)),
+            ]);
+            // An empty connection set cannot contain older matching posts. Avoid
+            // sending new accounts through empty pages of the entire global timeline.
+            if (connections.every(result => result.empty))
+                return { ownerUid: uid, viewerProfileId: viewer.profileId,
+                    contentType: input.contentType ?? null, feed: 'following', posts: [], nextCursor: null };
+        }
         const snapshot = await tx.get(query);
         const candidates = snapshot.docs.slice(0, PAGE_SIZE);
         const admissions = new Map();
-        const posts = [];
+        let posts = [];
         for (const post of candidates) {
             const row = post.data();
             if (input.contentType && row.type !== input.contentType)
@@ -143,9 +158,22 @@ export async function readSocialFeedPage(db, uid, raw, nowMs = Date.now()) {
             const admission = await admissions.get(row.author_id);
             if (!admission || (row.user_id !== undefined && (typeof row.user_id !== 'string' || !admission.author.aliases.includes(row.user_id))))
                 continue;
+            if (input.feed === 'following' && !admission.connected)
+                continue;
             const projected = projectPost(post.id, row, admission);
             if (projected)
                 posts.push(projected);
+        }
+        if (input.feed === 'personalized' && posts.length) {
+            const history = [];
+            for (const alias of viewer.aliases) {
+                const rows = await tx.get(db.collection('likes').where('user_id', '==', alias).orderBy('created_at', 'desc').limit(100));
+                history.push(...rows.docs.map(doc => doc.data()));
+            }
+            const signals = await tx.get(db.collection('post_mood_signals').where('post_id', 'in', posts.map(post => post.id)).limit(141));
+            if (signals.size > 140)
+                throw new HttpsError('resource-exhausted', 'Feed ranking needs repair. Please contact support.');
+            posts = rankSocialPosts(posts, history, signals.docs.map(doc => doc.data()));
         }
         // Only enrich admitted posts. Never fetch raw post documents again on the client.
         // One query per viewer alias avoids Firestore's Cartesian IN-query limit.
@@ -176,11 +204,11 @@ export async function readSocialFeedPage(db, uid, raw, nowMs = Date.now()) {
             // retain it privately so a bad row cannot permanently strand pagination.
             tx.create(db.collection('_social_feed_cursors').doc(newCursor), {
                 version: 1, owner_uid: uid, profile_id: viewer.profileId, post_id: last.id,
-                created_at: last.data().created_at, content_type: input.contentType ?? null, expires_at: Timestamp.fromMillis(nowMs + CURSOR_TTL),
+                created_at: last.data().created_at, content_type: input.contentType ?? null, feed: input.feed ?? 'discover', expires_at: Timestamp.fromMillis(nowMs + CURSOR_TTL),
             });
             nextCursor = newCursor;
         }
-        return { ownerUid: uid, viewerProfileId: viewer.profileId, contentType: input.contentType ?? null,
+        return { ownerUid: uid, viewerProfileId: viewer.profileId, contentType: input.contentType ?? null, feed: input.feed ?? 'discover',
             posts: posts.map(post => ({ ...post, reactionType: reactions.get(post.id) ?? null, isBookmarked: bookmarks.has(post.id) })), nextCursor };
     });
 }

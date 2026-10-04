@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, Globe, Sparkles, LayoutGrid, Eye, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
-import { useInfiniteFollowingPosts, usePersonalizedFeed, usePrefetchPosts } from '@/hooks/useInfinitePosts';
+import { useInfiniteFollowingPosts, usePersonalizedFeed } from '@/hooks/useInfinitePosts';
 import { useSocialFeed } from '@/hooks/useSocialFeed';
 import { useLocalFeed } from '@/hooks/useLocalFeed';
 import type { Post } from '@/hooks/useInfinitePosts';
@@ -103,7 +103,6 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const { config: gridConfig } = useGridLayout();
   const isVisible = useCallback((id: string) => gridConfig.widgets.find(w => w.id === id)?.enabled ?? false, [gridConfig.widgets]);
   const { data: dnaPrefs } = useDNAPreferences();
-  usePrefetchPosts();
   
   // Only fetch feeds for the active tab to reduce concurrent DB load
   const isForYouTab = activeTab === 'foryou';
@@ -133,6 +132,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   // Following feed — merged into For You only when that tab is active
   const {
     data: followingData,
+    isError: followingError,
     isPending: followingPending,
     isFetching: followingFetching,
     fetchNextPage: fetchNextFollowing,
@@ -414,7 +414,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             forYouPosts={forYouPosts}
             forYouLoading={forYouFeedLoading}
             forYouRefreshing={forYouFeedRefreshing}
-            forYouError={forYouError}
+            forYouError={forYouError || followingError}
             onRetryForYou={() => { refetchForYou(); refetchFollowing(); }}
             forYouFetching={forYouFetching || followingFetching}
             isFetchingNextForYou={isFetchingNextForYou || isFetchingNextFollowing}

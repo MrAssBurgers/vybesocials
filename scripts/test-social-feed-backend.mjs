@@ -16,6 +16,7 @@ const { Timestamp } = await import('../functions/node_modules/firebase-admin/lib
 const { readSocialFeed } = await import('../functions/lib/socialFeed.js');
 const { readSocialFeedPage } = await import('../functions/lib/_shared/socialFeedAuthority.js');
 const { closeFriendAuthorityId } = await import('../functions/lib/_shared/profileAudienceAuthority.js');
+const { manageFollowAuthority, followAuthorityId } = await import('../functions/lib/_shared/followAuthority.js');
 const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
 const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile(new URL('../firestore.rules', import.meta.url), 'utf8') } });
 const viewer = { uid: 'feed-viewer', profile: 'feed-viewer-profile' };
@@ -41,7 +42,7 @@ try {
   await check('callable rejects guests, account changes and malformed inputs before rate work', async () => {
     await assert.rejects(readSocialFeed.run({ data: {} }), { code: 'unauthenticated' });
     await assert.rejects(readSocialFeed.run({ auth: { uid: viewer.uid }, data: request(author) }), { code: 'failed-precondition' });
-    for (const patch of [{ admin: true }, { cursor: 'wrong/path' }, { expectedProfileId: [] }, { contentType: ['post'] }, { contentType: 'unknown' }]) await assert.rejects(read(viewer, patch), { code: 'invalid-argument' });
+    for (const patch of [{ admin: true }, { cursor: 'wrong/path' }, { expectedProfileId: [] }, { contentType: ['post'] }, { contentType: 'unknown' }, { feed: ['following'] }, { feed: 'unknown' }]) await assert.rejects(read(viewer, patch), { code: 'invalid-argument' });
     assert.equal((await db.collection('_rate_limits').get()).size, 0);
   });
   await check('returns only projected content with canonical author and viewer identities', async () => {
@@ -83,6 +84,8 @@ try {
     const first = await read(viewer, { contentType: 'post' }); assert.equal(first.posts.length, 0); assert.ok(first.nextCursor);
     await assert.rejects(read(viewer, { cursor: first.nextCursor, contentType: 'short' }), { code: 'failed-precondition' });
     await assert.rejects(read(viewer, { cursor: first.nextCursor }), { code: 'failed-precondition' });
+    await assert.rejects(read(viewer, { contentType: 'post', cursor: first.nextCursor, feed: 'following' }), { code: 'failed-precondition' });
+    await assert.rejects(read(viewer, { contentType: 'post', cursor: first.nextCursor, feed: 'personalized' }), { code: 'failed-precondition' });
     const next = await read(viewer, { contentType: 'post', cursor: first.nextCursor });
     assert.deepEqual(next.posts.map(post => post.id), ['older-post']); assert.equal(next.nextCursor, null);
     await clearPosts(); await seed();
@@ -151,6 +154,53 @@ try {
     let page = await read(); assert.equal(page.posts.length, 0); assert.ok(page.nextCursor);
     page = await read(viewer, { cursor: page.nextCursor }); assert.deepEqual(page.posts.map(post => post.id), ['visible-after']); assert.equal(page.nextCursor, null);
     await resetPolicy();
+  });
+  await check('Following requires a current friendship or canonical active follow and rechecks revocation', async () => {
+    await clearPosts(); await resetPolicy(); await seed();
+    await seed('self', { author_id: viewer.profile });
+    assert.deepEqual((await read(viewer, { feed: 'following' })).posts, []);
+    await relationship.set({ sender_id: viewer.uid, receiver_id: author.profile, status: 'accepted' });
+    assert.deepEqual((await read(viewer, { feed: 'following' })).posts.map(post => post.id), ['one']);
+    await relationship.delete();
+    const followInput = { expectedOwnerUid: viewer.uid, expectedProfileId: viewer.profile, action: 'request', targetId: author.profile, revision: 0 };
+    const followed = await manageFollowAuthority(db, viewer.uid, followInput);
+    assert.deepEqual((await read(viewer, { feed: 'following' })).posts.map(post => post.id), ['one']);
+    await block.set({ blocker_id: author.uid, blocked_id: viewer.profile });
+    assert.deepEqual((await read(viewer, { feed: 'following' })).posts, []); await block.delete();
+    await db.doc(`profiles/${author.profile}`).update({ is_private: true });
+    assert.deepEqual((await read(viewer, { feed: 'following' })).posts, []);
+    const pending = await manageFollowAuthority(db, viewer.uid, { ...followInput, revision: followed.revision });
+    await manageFollowAuthority(db, author.uid, { expectedOwnerUid: author.uid, expectedProfileId: author.profile, action: 'approve', relationshipId: pending.relationshipId, revision: pending.revision });
+    assert.deepEqual((await read(viewer, { feed: 'following' })).posts.map(post => post.id), ['one']);
+    await manageFollowAuthority(db, viewer.uid, { expectedOwnerUid: viewer.uid, expectedProfileId: viewer.profile, action: 'unfollow', relationshipId: pending.relationshipId, revision: pending.revision + 1 });
+    assert.deepEqual((await read(viewer, { feed: 'following' })).posts, []);
+    await db.doc(`profiles/${author.profile}`).update({ is_private: false });
+    await db.doc(`_follow_authority/${followAuthorityId(author.uid, viewer.uid)}`).delete();
+    await clearPosts(); await seed();
+  });
+  await check('personalization ranks admitted posts using viewer signals without surfacing restricted content', async () => {
+    await clearPosts(); await seed('popular', { like_count: 2 }); await seed('funny');
+    await seed('private', { audience: 'only_me', like_count: 999999 });
+    await db.doc('likes/learn-humor').set({ user_id: viewer.profile, post_id: 'past-post', reaction_type: 'haha', created_at: '2026-10-04T12:00:00.000Z' });
+    await db.doc('post_mood_signals/humor').set({ post_id: 'funny', mood: 'funny', signal_strength: 3 });
+    await db.doc('post_mood_signals/private').set({ post_id: 'private', mood: 'funny', signal_strength: 999999 });
+    const ranked = await read(viewer, { feed: 'personalized' }); assert.equal(ranked.feed, 'personalized');
+    assert.deepEqual(ranked.posts.map(post => post.id), ['funny', 'popular']);
+    await db.doc('likes/learn-humor').delete();
+    assert.deepEqual((await read(viewer, { feed: 'personalized' })).posts.map(post => post.id), ['popular', 'funny']);
+    await db.doc('post_mood_signals/humor').delete(); await db.doc('post_mood_signals/private').delete();
+  });
+  await check('Following continues past unrelated candidates to older friend posts', async () => {
+    await clearPosts();
+    await Promise.all(Array.from({ length: 21 }, (_, i) => seed(`self-${i}`, { author_id: viewer.profile })));
+    await seed('older-friend', { created_at: '2026-10-03T12:00:00.000Z' });
+    const disconnected = await read(viewer, { feed: 'following' }); assert.deepEqual(disconnected.posts, []); assert.equal(disconnected.nextCursor, null);
+    await relationship.set({ sender_id: author.profile, receiver_id: viewer.uid, status: 'accepted' });
+    const first = await read(viewer, { feed: 'following' }); assert.deepEqual(first.posts, []); assert.ok(first.nextCursor);
+    const second = await read(viewer, { feed: 'following', cursor: first.nextCursor });
+    assert.deepEqual(second.posts.map(post => post.id), ['older-friend']); assert.equal(second.nextCursor, null);
+    await relationship.delete();
+    assert.deepEqual((await read(viewer, { feed: 'following', cursor: first.nextCursor })).posts, []);
   });
   await check('cursor proof is unreadable and unwriteable to owner, guests and staff', async () => {
     const saved = (await db.collection('_social_feed_cursors').limit(1).get()).docs[0]; assert.ok(saved);

@@ -15,9 +15,12 @@ function validProof(row: AudienceRow | undefined, id: string): row is AudienceRo
     && typeof row.status === 'string' && states.includes(row.status) && validRevision(row.revision) && row.revision > 0
     && typeof row.approved_by_owner === 'boolean';
 }
-export function hasApprovedFollow(row: AudienceRow | undefined, owner: AudienceIdentity, follower: AudienceIdentity): boolean {
+export function hasCurrentFollow(row: AudienceRow | undefined, owner: AudienceIdentity, follower: AudienceIdentity): boolean {
   return validProof(row, followAuthorityId(owner.uid, follower.uid)) && row.owner_uid === owner.uid && row.owner_profile_id === owner.profileId
-    && row.follower_uid === follower.uid && row.follower_profile_id === follower.profileId && row.status === 'active' && row.approved_by_owner === true;
+    && row.follower_uid === follower.uid && row.follower_profile_id === follower.profileId && row.status === 'active';
+}
+export function hasApprovedFollow(row: AudienceRow | undefined, owner: AudienceIdentity, follower: AudienceIdentity): boolean {
+  return hasCurrentFollow(row, owner, follower) && row?.approved_by_owner === true;
 }
 export function normalizeFollowInput(raw: unknown, uid: string) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new HttpsError('invalid-argument', 'Follow details are required.');
