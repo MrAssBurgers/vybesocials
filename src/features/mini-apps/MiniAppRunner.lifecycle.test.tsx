@@ -46,6 +46,26 @@ describe('mini app runtime lifecycle', () => {
     } finally { document.removeEventListener('visibilitychange', observeAfterRunner); }
   });
 
+  it('destroys the runtime synchronously on native pause while the WebView remains visible', () => {
+    const { container } = render(<MiniAppRunner source={source} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Run app' }));
+    const oldFrame = container.querySelector('iframe')!;
+    let presentDuringPause: boolean | undefined;
+    const observe = () => { presentDuringPause = Boolean(container.querySelector('iframe')); };
+    document.addEventListener('app-paused', observe);
+    try {
+      fireEvent(document, new CustomEvent('app-paused'));
+      expect(document.visibilityState).toBe('visible');
+      expect(presentDuringPause).toBe(false);
+      expect(oldFrame.isConnected).toBe(false);
+      expect(screen.getByRole('status')).toHaveTextContent('App stopped in the background');
+      fireEvent(document, new CustomEvent('app-resumed'));
+      expect(container.querySelector('iframe')).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
+      expect(container.querySelector('iframe')).not.toBe(oldFrame);
+    } finally { document.removeEventListener('app-paused', observe); }
+  });
+
   it('tears down before pagehide and requires a new Run after a cached page returns', () => {
     const { container } = render(<MiniAppRunner source={source} />);
     fireEvent.click(screen.getByRole('button', { name: 'Run app' }));
@@ -149,6 +169,8 @@ describe('mini app runtime lifecycle', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Run app' }));
     const frame = container.querySelector('iframe')!;
     const visibilityListener = addDocument.mock.calls.find(([event]) => event === 'visibilitychange')?.[1];
+    const nativePauseListener = addDocument.mock.calls.find(([event]) => event === 'app-paused')?.[1];
+    expect(nativePauseListener).toBeTypeOf('function');
     const pagehideListener = addWindow.mock.calls.find(([event]) => event === 'pagehide')?.[1];
     expect(visibilityListener).toBeTypeOf('function');
     expect(pagehideListener).toBeTypeOf('function');
@@ -156,5 +178,6 @@ describe('mini app runtime lifecycle', () => {
     expect(frame.isConnected).toBe(false);
     expect(removeDocument).toHaveBeenCalledWith('visibilitychange', visibilityListener);
     expect(removeWindow).toHaveBeenCalledWith('pagehide', pagehideListener);
+    expect(removeDocument).toHaveBeenCalledWith('app-paused', nativePauseListener);
   });
 });

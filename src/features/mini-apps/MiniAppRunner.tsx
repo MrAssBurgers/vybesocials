@@ -75,6 +75,8 @@ export function MiniAppRunner({ source }: { source: MiniAppSource }) {
     };
     const visibilityChanged = () => { if (document.visibilityState === 'hidden') stopInBackground(); };
     document.addEventListener('visibilitychange', visibilityChanged);
+    // Capacitor emits this even when its WebView has not changed visibility.
+    document.addEventListener('app-paused', stopInBackground);
     window.addEventListener('pagehide', stopInBackground);
     // A visibility transition between the Run click and this commit must not
     // leave a frame mounted. Layout effects already flush this update.
@@ -84,6 +86,7 @@ export function MiniAppRunner({ source }: { source: MiniAppSource }) {
     }
     return () => {
       document.removeEventListener('visibilitychange', visibilityChanged);
+      document.removeEventListener('app-paused', stopInBackground);
       window.removeEventListener('pagehide', stopInBackground);
     };
   }, [running, reducedMotion, runtimeReducedMotion]);

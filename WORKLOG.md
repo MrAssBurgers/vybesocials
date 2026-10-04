@@ -2,6 +2,23 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Stop mini apps on native shell pause
+
+### What changed
+- MiniAppRunner now listens to the existing document app-paused event emitted by the Capacitor appStateChange bridge. It destroys its iframe synchronously through the same background-stop path, even when document.visibilityState still reports visible. Listener cleanup follows runtime teardown; app-resumed never implicitly restarts authored code.
+
+### Verification
+- App 305 files / 2,896 tests passed, build and scoped lint passed. Entry app-B9nfNxiV.js: 1068.1 KiB raw / 321.9 KiB gzip. Regression verifies iframe removal within the native-pause event, no automatic resume, fresh explicit restart and listener cleanup.
+- Real browser with the actual runner/theme provider: synthetic counter started and reached 30; local QA button dispatched the shell pause signal while page remained visible; frame disappeared and background-stop message appeared. Resume retained zero iframes. This simulates the bridge event, not physical-device behavior. Ignored work/mini-native-pause-preview.html and .tsx; proof in workspace outputs/vybe-mini-app-native-pause.png.
+- Navigation commit 0a7e09e1 CI 37207000881 and Rules QA 37207000861 succeeded. Unpublish commit a8013984 Rules QA 37207325135 succeeded; CI 37207325177 still in progress at last check.
+
+### Next 3 tasks and limits
+1. Verify physical native-shell pause/resume and continue resource/network isolation. Browser iframe teardown is not a CPU isolation boundary; malicious synchronous code can still block the host, and network guard limitations remain documented.
+2. Continue game/mod integration host adapters, mini-app quota/retention work and direct audience/media reader migrations.
+3. Follow CI and complete coordinated selective rollout before production claims. No production/Lovable deployment. Original broad goal remains active and incomplete.
+
+---
+
 ## ACTIVE (2026-10-04) - Preserve newer mini-app publications during removal
 
 ### What changed
