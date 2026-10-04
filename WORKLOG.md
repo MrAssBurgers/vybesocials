@@ -2,6 +2,28 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Feed load, reports, one claim, Android stay signed in
+
+### What changed
+- Home, For You, Following, Global, and Local were calling `readSocialFeed`. That function is not deployed (`HTTP 404`), and the screen treated the failure as an empty feed. When the callable is missing, the app reads the signed-in timeline that already works, keeps that page for 30 minutes, and shows it again as soon as you come back. A denied read still clears the page. A different account or area still starts clean.
+- Reports call `reportModeration`, which is also not deployed, and Firestore rules block direct writes to `reports`. A signed-in report now saves a `content_flags` row staff can already review. Message text is not copied into that flag. Staff review and mini-app removal still need the function.
+- Finishing a challenge claims that reward immediately. Several completions in the same moment update one toast, `+N XP claimed`. The extra "Claim your XP" toasts and the claim dialog are gone. Activity no longer waits 20 seconds before the progress sync starts.
+- On Android, including the Fold WebView that has no `; wv`, the Firebase user is copied into the unlocked Despia vault and restored before auth starts if the WebView wiped localStorage. Sign-out clears that copy. iOS splash timing is unchanged.
+
+### Verification
+- `npm run test`: 320 files, 3031 passed.
+- `tsc --noEmit -p tsconfig.app.json` passed. ESLint on the edited files passed. `npm run build` passed.
+- Firebase CLI has no authorized account, so `reportModeration` and `readSocialFeed` were not deployed. The client paths above do not need that deploy.
+
+### Blockers
+- Staff tools that list the new report queue still need `npx firebase login` and a deploy of only `functions:reportModeration`. Do not deploy `auth2faRequest`.
+- The vault restore runs inside the Despia shell. A WebView that also clears that vault cannot keep a session.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then force-close VYBE on the phone so this bundle replaces the Play Store web view.
+2. After `npx firebase login`, deploy only `functions:reportModeration` if staff should use the new report queue.
+3. Leave `auth2faRequest` undeployed. Password sign-in stays open while production returns no challenge id.
+
 ## ACTIVE (2026-10-04) - Validate direct mini-app links before rendering
 
 ### What changed

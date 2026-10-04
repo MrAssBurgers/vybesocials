@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const state = vi.hoisted(() => ({ invoke: vi.fn() }));
+const state = vi.hoisted(() => ({ invoke: vi.fn(), feed: vi.fn() }));
 vi.mock('@/lib/firebase/functionsService', () => ({ invokeFunction: state.invoke }));
+vi.mock('@/lib/firebase/feedRpc', () => ({ runFeedRpc: (...args: unknown[]) => state.feed(...args) }));
 import { readSocialFeed, readSocialPostPreviews } from './socialFeedService';
 
 const input = { expectedOwnerUid: 'alice', expectedProfileId: 'profile-alice', contentType: 'post' as const };
@@ -87,6 +88,19 @@ describe('current account social feed transport', () => {
     state.invoke.mockResolvedValue({ error: { code: 'permission-denied', message: 'Access changed' }, data: response() });
     await expect(readSocialFeed(input, () => {})).rejects.toMatchObject({ code: 'permission-denied', message: 'Access changed' });
     expect(state.invoke).toHaveBeenCalledTimes(1);
+    expect(state.feed).not.toHaveBeenCalled();
+  });
+  it('loads the signed-in timeline when the audience feed function is not deployed', async () => {
+    state.invoke.mockResolvedValue({ error: { name: 'not-found', message: 'NOT_FOUND' }, data: null });
+    state.feed.mockResolvedValue([{
+      id: 'post-live', type: 'post', caption: 'Hi', created_at: '2026-10-04T12:00:00.000Z',
+      author_id: 'profile-bob', author_username: 'bob', media_url: 'https://cdn.example/a.jpg',
+      like_count: 1, comment_count: 0, is_liked: false, is_bookmarked: false,
+    }]);
+    const page = await readSocialFeed(input, () => {});
+    expect(state.feed).toHaveBeenCalledWith('get_posts_with_counts', expect.objectContaining({ p_offset: 0, p_limit: 15 }));
+    expect(page.posts[0]).toMatchObject({ id: 'post-live', author: { username: 'bob' } });
+    expect(page.nextCursor).toBeNull();
   });
   it('denies before transport and after an account changes in flight', async () => {
     const stale = () => { throw new Error('Account changed'); };

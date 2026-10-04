@@ -1,4 +1,5 @@
-import { db } from '@/lib/firebase';
+import { db, getFirebaseAuth } from '@/lib/firebase';
+import { claimChallengeRewardOnce } from '@/lib/challengeClaimOnce';
 
 type SyncInvalidator = () => void;
 let syncInvalidator: SyncInvalidator | null = null;
@@ -43,12 +44,23 @@ export function syncChallengeProgressAfterActivity(userId: string | undefined): 
 }
 
 let incrementInflight: Promise<unknown> | null = null;
-let lastIncrementAt = 0;
-const INCREMENT_GAP_MS = 20_000;
+let incrementQueued: { profileId: string | undefined; requirementType: string; increment: number } | null = null;
+
+function claimFreshRewards(data: unknown) {
+  const uid = getFirebaseAuth()?.currentUser?.uid;
+  const completed = data && typeof data === 'object' && Array.isArray((data as { newly_completed?: unknown }).newly_completed)
+    ? (data as { newly_completed: unknown[] }).newly_completed
+    : [];
+  if (!uid) return;
+  for (const challengeId of completed) {
+    if (typeof challengeId !== 'string' || !challengeId || challengeId.includes('/')) continue;
+    void claimChallengeRewardOnce(`${uid}_${challengeId}`, 0, challengeId);
+  }
+}
 
 /**
- * Record challenge activity. The server recounts progress itself, so a second
- * full sync right after increment only adds another cold function call.
+ * Record challenge activity. The server recounts progress itself.
+ * A follow-up is kept if another action lands while one sync is in flight.
  */
 export function recordChallengeActivity(
   _profileId: string | undefined,
@@ -56,18 +68,25 @@ export function recordChallengeActivity(
   increment = 1,
 ): void {
   if (!requirementType) return;
-  const now = Date.now();
-  if (incrementInflight || now - lastIncrementAt < INCREMENT_GAP_MS) return;
-  lastIncrementAt = now;
+  if (incrementInflight) {
+    incrementQueued = { profileId: _profileId, requirementType, increment };
+    return;
+  }
   incrementInflight = db.rpc('increment_challenge_progress', {
     p_requirement_type: requirementType,
     p_increment: increment,
-  }).then(({ error }) => {
+  }).then(({ data, error }) => {
     if (error && import.meta.env.DEV) {
       console.warn('[challenges] increment failed:', requirementType, error.message || error);
     }
-    if (!error) syncInvalidator?.();
+    if (!error) {
+      syncInvalidator?.();
+      claimFreshRewards(data);
+    }
   }).finally(() => {
     incrementInflight = null;
+    const next = incrementQueued;
+    incrementQueued = null;
+    if (next) recordChallengeActivity(next.profileId, next.requirementType, next.increment);
   });
 }

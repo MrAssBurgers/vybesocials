@@ -35,6 +35,7 @@ import {
   mirrorAuthUserJson,
   prefersLocalAuthPersistence,
   seedFirebaseAuthFromBackup,
+  writeAuthVault,
 } from '@/lib/authSessionMirror';
 import type { VybeSession, VybeUser, VybeAuthError } from './types';
 import { setDocument } from './firestoreDb';
@@ -111,7 +112,10 @@ function rememberAuthUser(user: FirebaseUser | null) {
   const apiKey = currentApiKey();
   if (!apiKey) return;
   try {
-    mirrorAuthUserJson(localStorage, apiKey, JSON.stringify(user.toJSON()));
+    const json = JSON.stringify(user.toJSON());
+    mirrorAuthUserJson(localStorage, apiKey, json);
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+    if (prefersLocalAuthPersistence(ua)) writeAuthVault(json);
   } catch {
     /* private mode */
   }

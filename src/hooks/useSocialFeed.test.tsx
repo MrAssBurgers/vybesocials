@@ -64,12 +64,13 @@ describe('visible current-account Global feed', () => {
     await waitFor(() => expect(hook.result.current.isError).toBe(true));
     expect(hook.result.current.data).toBeUndefined();
   });
-  it('hides posts immediately on tab exit and rechecks on return', async () => {
+  it('hides posts while the tab is closed and shows the cached page as soon as it returns', async () => {
     const hook = renderHook(({ enabled }) => useSocialFeed('post', enabled), { ...setup(), initialProps: { enabled: true } });
     await waitFor(() => expect(hook.result.current.data).toBeDefined());
     hook.rerender({ enabled: false }); expect(hook.result.current.data).toBeUndefined();
     state.read.mockImplementation(() => new Promise(() => {}));
-    hook.rerender({ enabled: true }); expect(hook.result.current.data).toBeUndefined();
+    hook.rerender({ enabled: true });
+    expect(hook.result.current.data?.pages[0].posts).toEqual([{ id: 'alice-post' }]);
     await waitFor(() => expect(state.read).toHaveBeenCalledTimes(2));
   });
   it('rejects late results from a hidden document and rereads when visible', async () => {

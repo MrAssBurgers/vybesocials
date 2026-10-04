@@ -38,6 +38,99 @@ export function clearMirroredAuth(storage: Pick<Storage, 'getItem' | 'removeItem
     if (key && key.startsWith('firebase:authUser:')) keys.push(key);
   }
   keys.forEach((key) => storage.removeItem(key));
+  clearAuthVault();
+}
+
+/** Unlocked Despia vault copy. Play Store WebViews wipe localStorage on quit. */
+export const AUTH_VAULT_KEY = 'vybe_auth_user';
+
+type VaultRead = (key: string, timeoutMs: number) => Promise<string | null>;
+type VaultWrite = (key: string, value: string) => void;
+let vaultRead: VaultRead | null = null;
+let vaultWrite: VaultWrite | null = null;
+let lastVaultJson = '';
+
+export function setAuthVaultTransportForTests(transport: { read: VaultRead; write: VaultWrite } | null) {
+  vaultRead = transport?.read ?? null;
+  vaultWrite = transport?.write ?? null;
+  lastVaultJson = '';
+}
+
+export function usableAuthJson(value: string | null): string | null {
+  if (!value || value.length > 200_000) return null;
+  try {
+    const parsed = JSON.parse(value) as { uid?: unknown; localId?: unknown };
+    if (parsed && (typeof parsed.uid === 'string' || typeof parsed.localId === 'string')) return value;
+  } catch { /* ignore */ }
+  return null;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), ms);
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      () => { clearTimeout(timer); resolve(null); },
+    );
+  });
+}
+
+async function readDespiaVault(timeoutMs: number): Promise<string | null> {
+  if (vaultRead) return vaultRead(AUTH_VAULT_KEY, timeoutMs);
+  try {
+    const mod = await withTimeout(import('despia-native'), timeoutMs);
+    const despia = mod && ((mod as { default?: unknown }).default || mod);
+    if (typeof despia !== 'function') return null;
+    const data = await withTimeout(
+      Promise.resolve(despia(`readvault://?key=${AUTH_VAULT_KEY}`, [AUTH_VAULT_KEY])),
+      timeoutMs,
+    );
+    const raw = data && typeof data === 'object' ? (data as Record<string, unknown>)[AUTH_VAULT_KEY] : null;
+    if (typeof raw !== 'string' || !raw) return null;
+    try { return decodeURIComponent(raw); } catch { return raw; }
+  } catch {
+    return null;
+  }
+}
+
+function nativeVaultLikely(): boolean {
+  if (vaultRead || vaultWrite) return true;
+  if (typeof navigator === 'undefined') return false;
+  return prefersLocalAuthPersistence(navigator.userAgent || '');
+}
+
+export function writeAuthVault(json: string) {
+  const usable = usableAuthJson(json);
+  if (!usable || usable === lastVaultJson) return;
+  lastVaultJson = usable;
+  if (!nativeVaultLikely()) return;
+  if (vaultWrite) {
+    vaultWrite(AUTH_VAULT_KEY, usable);
+    return;
+  }
+  void import('despia-native').then((mod) => {
+    const despia = (mod as { default?: unknown }).default || mod;
+    if (typeof despia !== 'function') return;
+    void despia(`setvault://?key=${AUTH_VAULT_KEY}&value=${encodeURIComponent(usable)}&locked=false`);
+  }).catch(() => { /* browser without the native bridge */ });
+}
+
+export function clearAuthVault() {
+  lastVaultJson = '';
+  if (!nativeVaultLikely()) return;
+  if (vaultWrite) {
+    vaultWrite(AUTH_VAULT_KEY, '');
+    return;
+  }
+  void import('despia-native').then((mod) => {
+    const despia = (mod as { default?: unknown }).default || mod;
+    if (typeof despia !== 'function') return;
+    void despia(`setvault://?key=${AUTH_VAULT_KEY}&value=&locked=false`);
+  }).catch(() => {});
+}
+
+export async function readAuthVault(timeoutMs = 700): Promise<string | null> {
+  return usableAuthJson(await readDespiaVault(timeoutMs));
 }
 
 let preparePromise: Promise<void> | null = null;
@@ -105,26 +198,36 @@ async function readIndexedDbAuth(apiKey: string, timeoutMs: number): Promise<str
   });
 }
 
-/** Seed localStorage, then spend at most ~400ms copying an IndexedDB session across. */
+export function resetAuthStoragePrepareForTests() {
+  preparePromise = null;
+  prepareDone = true;
+}
+
+/** Seed localStorage, then the native vault, then IndexedDB. Phones wait at most ~700ms. */
 export function ensureAuthStorageReady(apiKey: string, ua = ''): Promise<void> {
   if (preparePromise) return preparePromise;
   const storage = typeof localStorage === 'undefined' ? null : localStorage;
   if (storage) seedFirebaseAuthFromBackup(storage, apiKey);
-  if (!apiKey || !storage || !prefersLocalAuthPersistence(ua) || typeof indexedDB === 'undefined') {
-    prepareDone = true;
-    preparePromise = Promise.resolve();
-    return preparePromise;
-  }
-  if (storage.getItem(firebaseAuthStorageKey(apiKey))) {
+  const key = apiKey ? firebaseAuthStorageKey(apiKey) : '';
+  const needsVault = !!apiKey && !!storage && prefersLocalAuthPersistence(ua) && !storage.getItem(key);
+  const needsIdb = needsVault && typeof indexedDB !== 'undefined';
+  if (!needsVault && !needsIdb) {
     prepareDone = true;
     preparePromise = Promise.resolve();
     return preparePromise;
   }
   prepareDone = false;
   preparePromise = (async () => {
-    const copied = await readIndexedDbAuth(apiKey, 350);
-    if (copied) mirrorAuthUserJson(storage, apiKey, copied);
-    else seedFirebaseAuthFromBackup(storage, apiKey);
+    if (!storage || !apiKey) return;
+    if (!storage.getItem(key)) {
+      const fromVault = await readAuthVault(700);
+      if (fromVault) mirrorAuthUserJson(storage, apiKey, fromVault);
+    }
+    if (!storage.getItem(key) && typeof indexedDB !== 'undefined') {
+      const copied = await readIndexedDbAuth(apiKey, 350);
+      if (copied) mirrorAuthUserJson(storage, apiKey, copied);
+      else seedFirebaseAuthFromBackup(storage, apiKey);
+    }
   })().finally(() => {
     prepareDone = true;
   });

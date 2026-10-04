@@ -9,7 +9,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useChallengesWithProgress, CHALLENGE_ROUTES } from '@/hooks/useChallenges';
-import { useUnclaimedRewards, useClaimReward, useNextLevelProgress, useVybePassTiers } from '@/hooks/useVybePass';
+import { useUnclaimedRewards, useNextLevelProgress, useVybePassTiers } from '@/hooks/useVybePass';
+import { claimChallengeRewardOnce } from '@/lib/challengeClaimOnce';
 import { useRewardNotifications } from '@/components/vybepass/RewardNotificationProvider';
 import { GlassCard } from '@/components/ui/glass/GlassCard';
 import { Progress } from '@/components/ui/progress';
@@ -193,7 +194,6 @@ export default function ChallengesHubPage() {
   const { data: unclaimedRewards } = useUnclaimedRewards();
   const { data: tiers } = useVybePassTiers();
   const { currentXP, currentLevel, progressPercent, xpToNextLevel } = useNextLevelProgress();
-  const claimReward = useClaimReward();
   const [activeTab, setActiveTab] = useState<string>('all');
   const [vybePassOpen, setVybePassOpen] = useState(false);
   const [claimingId, setClaimingId] = useState<string | null>(null);
@@ -264,9 +264,15 @@ export default function ChallengesHubPage() {
     queryClient.setQueryData(unclaimedKey, (current: unknown) => (
       Array.isArray(current) ? current.filter((row: { id?: string }) => row?.id !== rewardId) : current
     ));
-    toast.success(reward?.xp_amount ? `+${reward.xp_amount} XP claimed!` : 'Reward claimed');
     try {
-      const result = await claimReward.mutateAsync(rewardId);
+      const challengeId = reward && typeof (reward as { challenge_id?: unknown }).challenge_id === 'string'
+        ? (reward as { challenge_id: string }).challenge_id
+        : undefined;
+      const result = await claimChallengeRewardOnce(rewardId, Number(reward?.xp_amount) || 0, challengeId);
+      if (!result) {
+        queryClient.setQueryData(unclaimedKey, previousUnclaimed);
+        return;
+      }
       void queryClient.invalidateQueries({ queryKey: ['claimed-rewards'] });
       void queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards'] });
       void queryClient.invalidateQueries({ queryKey: ['challenge-progress'] });
@@ -274,7 +280,7 @@ export default function ChallengesHubPage() {
         showLevelUp({
           oldLevel: result.level_result.old_level,
           newLevel: result.level_result.new_level,
-          rewards: result.level_result.new_rewards || [],
+          rewards: Array.isArray(result.level_result.new_rewards) ? result.level_result.new_rewards as [] : [],
         });
       }
     } catch (error) {

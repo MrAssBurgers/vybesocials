@@ -116,7 +116,6 @@ export function RewardNotificationProvider({ children }: RewardNotificationProvi
           pendingReward={pendingReward}
           modalOpen={modalOpen}
           dismissRewardModal={dismissRewardModal}
-          showRewardModal={showRewardModal}
           showLevelUp={showLevelUp}
           levelUpOpen={levelUpOpen}
           setLevelUpOpen={setLevelUpOpen}
@@ -134,7 +133,6 @@ function RewardRealtimeAndModals({
   pendingReward,
   modalOpen,
   dismissRewardModal,
-  showRewardModal,
   showLevelUp,
   levelUpOpen,
   setLevelUpOpen,
@@ -145,7 +143,6 @@ function RewardRealtimeAndModals({
   pendingReward: ChallengeReward | null;
   modalOpen: boolean;
   dismissRewardModal: () => void;
-  showRewardModal: (reward: ChallengeReward) => void;
   showLevelUp: (data: LevelUpData) => void;
   levelUpOpen: boolean;
   setLevelUpOpen: (open: boolean) => void;
@@ -155,7 +152,9 @@ function RewardRealtimeAndModals({
 }) {
   // Subscribe to realtime reward updates - shows modal when challenge completes
   useRealtimeChallengeRewards(
-    (reward) => showRewardModal(reward),
+    () => {
+      // Claimed automatically. One toast, no extra "claim" dialog.
+    },
     (data) => showLevelUp(data),
   );
 

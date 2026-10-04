@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   AUTH_BACKUP_KEY,
   clearMirroredAuth,
+  ensureAuthStorageReady,
   firebaseAuthStorageKey,
   mirrorAuthUserJson,
   prefersLocalAuthPersistence,
+  resetAuthStoragePrepareForTests,
   seedFirebaseAuthFromBackup,
+  setAuthVaultTransportForTests,
+  writeAuthVault,
 } from './authSessionMirror';
 
 function memoryStorage(initial: Record<string, string> = {}) {
@@ -46,5 +50,29 @@ describe('auth session mirror', () => {
     clearMirroredAuth(storage);
     expect(storage.getItem(AUTH_BACKUP_KEY)).toBeNull();
     expect(storage.getItem(firebaseAuthStorageKey('test-key'))).toBeNull();
+  });
+
+  it('restores a wiped phone session from the unlocked vault before auth starts', async () => {
+    const fold = 'Mozilla/5.0 (Linux; Android 17; SM-F971N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36';
+    const writes: string[] = [];
+    resetAuthStoragePrepareForTests();
+    setAuthVaultTransportForTests({
+      read: async () => '{"uid":"fold-user"}',
+      write: (_key, value) => { writes.push(value); },
+    });
+    localStorage.clear();
+    await ensureAuthStorageReady('phone-key', fold);
+    expect(localStorage.getItem(firebaseAuthStorageKey('phone-key'))).toBe('{"uid":"fold-user"}');
+    expect(localStorage.getItem(AUTH_BACKUP_KEY)).toBe('{"uid":"fold-user"}');
+    writeAuthVault('{"uid":"fold-user"}');
+    writeAuthVault('{"uid":"fold-user"}');
+    writeAuthVault('{"uid":"next"}');
+    expect(writes).toEqual(['{"uid":"fold-user"}', '{"uid":"next"}']);
+    clearMirroredAuth(localStorage);
+    expect(writes.at(-1)).toBe('');
+    expect(localStorage.getItem(AUTH_BACKUP_KEY)).toBeNull();
+    setAuthVaultTransportForTests(null);
+    resetAuthStoragePrepareForTests();
+    localStorage.clear();
   });
 });
