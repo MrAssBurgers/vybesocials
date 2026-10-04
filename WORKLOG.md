@@ -2,6 +2,24 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Preserve newer mini-app publications during removal
+
+### What changed
+- Unpublish now reads and deletes in a transaction only when the current publication revision matches the version the creator confirmed. Legacy snapshots compare precise update timestamps. Missing snapshots can acknowledge a lost successful response; a subsequently republished version cannot be removed by that old retry.
+- Preserve publication revisions in gallery records. On conflicts close the stale confirmation, refresh current content and explain why removal was stopped. Existing owner-only delete permissions remain unchanged; this protects current-client UX from stale confirmations, not an owner deliberately deleting through an older client.
+
+### Verification
+- App 305 files / 2,895 tests passed; build and scoped lint passed. Entry app-BntKzacD.js 1068.1 KiB raw / 321.9 KiB gzip. Tests cover stale revisions, retry after deletion/republishing, legacy nanosecond changes, private draft preservation and refreshed conflict UI.
+- Actual retained demo: open an unpublish confirmation, publish newer synthetic source through the checked backend, confirm the old removal. Newer source remains public, confirmation closes and page refreshes to Publishing QA · newer version. A fresh explicit confirmation then removes it and returns to the library. Original private draft remains. Proof: workspace outputs/vybe-mini-app-newer-version.png. Helper in ignored work/mini-unpublish-fixture.mjs.
+- Retained export: work/local-preview/mini-unpublish-verified-export. Previous publication commit aa42349e passed CI 37206691291 and Rules QA 37206691255; navigation commit 0a7e09e1 passed Rules QA 37207000861, CI 37207000881 still running at last observation.
+
+### Next 3 tasks and limits
+1. Continue mini-app runtime CPU/network isolation and publication receipt-retention/private-draft quota work.
+2. Continue universal game/mod host adapters and remaining audience/media reader migrations.
+3. Follow exact CI handles, physical-device checks and coordinated selective rollout. No production deployment occurred. Broad objective remains active and incomplete.
+
+---
+
 ## ACTIVE (2026-10-04) - Mini-app studio return navigation
 
 ### What changed

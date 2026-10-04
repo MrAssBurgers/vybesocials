@@ -40,6 +40,17 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('mini apps studio flow', () => {
+  it('closes stale unpublish confirmation and refreshes the newer publication', async () => {
+    const old = { ...record(MINI_APP_TEMPLATES[0].source), title: 'Older version' };
+    repository.list.mockResolvedValueOnce({ apps: [old], nextCursor: null }).mockResolvedValue({ apps: [{ ...old, title: 'Newer version' }], nextCursor: null });
+    repository.unpublish.mockRejectedValueOnce(Object.assign(new Error('Publication changed'), { code: 'mini-app-publication-conflict' }));
+    mount(); await screen.findByText('Older version');
+    fireEvent.click(screen.getByRole('button', { name: 'Unpublish', exact: true }));
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Unpublish', exact: true }));
+    expect(await screen.findByText('Newer version')).toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
   it.each(['All mini apps', 'Unpublish'])('returns to the library after opening a published studio app via %s', async action => {
     const app = record({ ...MINI_APP_TEMPLATES[0].source, title: 'Navigation QA' });
     repository.get.mockResolvedValue(app);

@@ -64,7 +64,14 @@ function MiniAppsForUser({ epoch }: { epoch: number }) {
       toast.success('App unpublished. Your private draft is still available.');
       setUnpublishTarget(null);
       if (appId) navigate('/mini-apps');
-    } catch (error) { if (mounted.current) toast.error(miniAppError(error)); }
+    } catch (error) {
+      if (mounted.current) {
+        if (error && typeof error === 'object' && 'code' in error && error.code === 'mini-app-publication-conflict') {
+          setUnpublishTarget(null); refresh();
+        }
+        toast.error(miniAppError(error));
+      }
+    }
     finally { if (mounted.current) setUnpublishing(false); }
   };
 

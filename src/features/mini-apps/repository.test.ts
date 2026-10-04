@@ -7,7 +7,7 @@ vi.mock('@/lib/firebase/functionsService', () => ({ invokeFunction: vi.fn() }));
 vi.mock('@/lib/firebase/authService', () => ({ getFirebaseAuth: () => state.auth }));
 vi.mock('@/lib/firebase/firestoreDb', () => ({ getFirestoreDb: () => ({}) }));
 vi.mock('firebase/firestore', () => ({
-  runTransaction: vi.fn(async (_db, run) => { const result = await run({ get: state.transactionRead, set: state.transactionWrite }); if (state.loseAck) { state.loseAck = false; throw new Error('Response lost'); } return result; }),
+  runTransaction: vi.fn(async (_db, run) => { const result = await run({ get: state.transactionRead, set: state.transactionWrite, delete: (ref: { path: string }) => state.rows.delete(ref.path) }); if (state.loseAck) { state.loseAck = false; throw new Error('Response lost'); } return result; }),
   collection: (_db: unknown, name: string) => name,
   doc: (first: unknown, collection?: string, id?: string) => id ? { path: `${collection}/${id}`, id } : { path: `${first}/app-${++state.sequence}`, id: `app-${state.sequence}` },
   serverTimestamp: () => ({ seconds: 1000 + state.sequence, nanoseconds: 0 }),
@@ -83,10 +83,36 @@ describe('mini app private drafts and public snapshots', () => {
     expect(state.rows.get(`mini_apps/${draft.id}`)?.title).toBe('Updated privately');
     expect(state.rows.get(`mini_apps/${draft.id}`)?.created_at).toEqual(original?.created_at);
   });
+  it('cannot unpublish a newer snapshot from a stale confirmation', async () => {
+    const draft = await saveMiniAppDraft('alice', source);
+    await publishMiniApp('alice', draft);
+    const opened = { ...state.rows.get(`mini_apps/${draft.id}`), id: draft.id } as any;
+    state.rows.set(`mini_apps/${draft.id}`, { ...opened, publication_revision: 'b'.repeat(32) });
+    await expect(unpublishMiniApp('alice', opened)).rejects.toMatchObject({ code: 'mini-app-publication-conflict' });
+    expect(state.rows.get(`mini_apps/${draft.id}`)?.publication_revision).toBe('b'.repeat(32));
+  });
+  it('retries an acknowledged-lost unpublish without removing a republished app', async () => {
+    const draft = await saveMiniAppDraft('alice', source);
+    await publishMiniApp('alice', draft);
+    const opened = { ...state.rows.get(`mini_apps/${draft.id}`), id: draft.id } as any;
+    state.loseAck = true;
+    await expect(unpublishMiniApp('alice', opened)).rejects.toThrow('Response lost');
+    await unpublishMiniApp('alice', opened);
+    state.rows.set(`mini_apps/${draft.id}`, { ...opened, publication_revision: 'b'.repeat(32) });
+    await expect(unpublishMiniApp('alice', opened)).rejects.toMatchObject({ code: 'mini-app-publication-conflict' });
+  });
+  it('preserves legacy snapshots unless the displayed timestamp still matches', async () => {
+    const opened = { ...source, id: 'legacy', owner_id: 'alice', schema_version: 1 as const, updated_at: { seconds: 1000, nanoseconds: 1 } };
+    state.rows.set('mini_apps/legacy', { ...opened, updated_at: { seconds: 1000, nanoseconds: 2 } });
+    await expect(unpublishMiniApp('alice', opened)).rejects.toMatchObject({ code: 'mini-app-publication-conflict' });
+    state.rows.set('mini_apps/legacy', opened);
+    await unpublishMiniApp('alice', opened);
+    expect(state.rows.has('mini_apps/legacy')).toBe(false);
+  });
   it('unpublishing preserves the private draft', async () => {
     const draft = await saveMiniAppDraft('alice', source);
     await publishMiniApp('alice', draft);
-    await unpublishMiniApp('alice', draft);
+    await unpublishMiniApp('alice', { ...state.rows.get(`mini_apps/${draft.id}`), id: draft.id } as any);
     expect(state.rows.has(`mini_apps/${draft.id}`)).toBe(false);
     expect(state.rows.has(`mini_app_drafts/${draft.id}`)).toBe(true);
   });

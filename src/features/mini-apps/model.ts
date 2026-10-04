@@ -16,6 +16,7 @@ export interface MiniAppRecord extends MiniAppSource {
   owner_id: string;
   schema_version: 1;
   status?: 'published';
+  publication_revision?: string;
   created_at?: unknown;
   updated_at?: unknown;
 }

@@ -1,4 +1,4 @@
-import { collection, deleteDoc, doc, documentId, orderBy, startAfter, getDoc, getDocs, limit, query, runTransaction, serverTimestamp, where } from 'firebase/firestore';
+import { collection, doc, documentId, orderBy, startAfter, getDoc, getDocs, limit, query, runTransaction, serverTimestamp, where } from 'firebase/firestore';
 import { getFirestoreDb } from '@/lib/firebase/firestoreDb';
 import { validateMiniApp, type MiniAppRecord, type MiniAppSource } from './model';
 import { invokeFunction } from '@/lib/firebase/functionsService';
@@ -21,7 +21,7 @@ export async function listMiniAppsPage(ownerId: string, view: 'published' | 'dra
     if (!/^[\w-]{1,128}$/.test(row.id) || data.schema_version !== 1 || typeof data.owner_id !== 'string'
       || (privateView ? data.owner_id !== ownerId : data.status !== 'published')) continue;
     try { apps.push({ ...validateMiniApp(data), id: row.id, owner_id: data.owner_id, schema_version: 1,
-      ...(privateView ? {} : { status: 'published' as const }), created_at: data.created_at, updated_at: data.updated_at }); }
+      ...(privateView ? {} : { status: 'published' as const, publication_revision: data.publication_revision }), created_at: data.created_at, updated_at: data.updated_at }); }
     catch { /* A malformed candidate cannot prevent continuation to older apps. */ }
   }
   const last = candidates.at(-1);
@@ -93,6 +93,24 @@ export async function publishMiniApp(ownerId: string, draft: MiniAppRecord, inte
 export async function unpublishMiniApp(ownerId: string, app: MiniAppRecord): Promise<void> {
   const guard = miniAppAccountGuard(ownerId); guard();
   if (app.owner_id !== ownerId) throw new Error('You can only unpublish your own apps.');
-  await deleteDoc(doc(getFirestoreDb(), 'mini_apps', app.id));
+  const conflict = () => Object.assign(new Error('This app changed since you opened it. Refresh the library and review the latest version before unpublishing.'), { code: 'mini-app-publication-conflict' });
+  const version = (row: MiniAppRecord) => {
+    if (typeof row.publication_revision === 'string' && /^[a-f0-9]{32}$/.test(row.publication_revision)) return row.publication_revision;
+    const time = row.updated_at as { seconds?: number; nanoseconds?: number } | undefined;
+    if (row.publication_revision === undefined && Number.isInteger(time?.seconds) && Number.isInteger(time?.nanoseconds)) return `legacy:${time!.seconds}:${time!.nanoseconds}`;
+    throw conflict();
+  };
+  if (!/^[\w-]{1,128}$/.test(app.id)) throw conflict();
+  const expected = version(app);
+  const reference = doc(getFirestoreDb(), 'mini_apps', app.id);
+  await runTransaction(getFirestoreDb(), async transaction => {
+    guard();
+    const snapshot = await transaction.get(reference);
+    guard();
+    if (!snapshot.exists()) return; // A lost successful response is safe to retry.
+    const current = snapshot.data() as MiniAppRecord;
+    if (current.owner_id !== ownerId || version(current) !== expected) throw conflict();
+    transaction.delete(reference);
+  });
   guard();
 }
