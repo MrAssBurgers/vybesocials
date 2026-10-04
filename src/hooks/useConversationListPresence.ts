@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Conversation } from '@/hooks/useMessages';
 import { subscribeUserPresence, toUiActivity, type UserPresenceDoc } from '@/lib/usersPresenceDoc';
 import { uiActivityFromState } from '@/lib/presenceActivity';
@@ -52,31 +52,37 @@ export function useConversationListPresence(
     () => targets.map((t) => `${t.conversationId}:${t.peerId}`).join('|'),
     [targets],
   );
+  const targetsRef = useRef(targets);
+  targetsRef.current = targets;
 
   const [activityByConversation, setActivityByConversation] =
     useState<ConversationPresenceMap>(new Map());
 
   useEffect(() => {
-    if (!targets.length) {
-      setActivityByConversation(new Map());
+    const currentTargets = targetsRef.current;
+    if (!currentTargets.length) {
+      setActivityByConversation(previous => previous.size ? new Map() : previous);
       return;
     }
 
+    let active = true;
     const peerDocs = new Map<string, UserPresenceDoc | null>();
 
     const sync = () => {
+      if (!active) return;
       const next = new Map<string, ActivityType>();
-      for (const { conversationId, peerId } of targets) {
+      for (const { conversationId, peerId } of currentTargets) {
         const doc = peerDocs.get(peerId) ?? null;
         const state = toUiActivity(doc, conversationId);
         if (state === 'offline') continue;
         const activity = uiActivityFromState(state);
         if (activity !== 'idle') next.set(conversationId, activity);
       }
-      setActivityByConversation(next);
+      setActivityByConversation(previous => previous.size === next.size
+        && [...next].every(([id, activity]) => previous.get(id) === activity) ? previous : next);
     };
 
-    const unsubs = targets.map(({ peerId }) =>
+    const unsubs = currentTargets.map(({ peerId }) =>
       subscribeUserPresence(peerId, (doc) => {
         peerDocs.set(peerId, doc);
         sync();
@@ -84,9 +90,10 @@ export function useConversationListPresence(
     );
 
     return () => {
+      active = false;
       unsubs.forEach((u) => u());
     };
-  }, [targetsKey, targets]);
+  }, [targetsKey, profileId, authUid]);
 
   return activityByConversation;
 }

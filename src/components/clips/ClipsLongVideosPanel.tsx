@@ -6,6 +6,8 @@ import { usePersonalizedFeed, useInfiniteFollowingPosts } from '@/hooks/useInfin
 import { VideoCard } from '@/components/explore/VideoCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { FeedFailureNotice } from '@/components/posts/FeedFailureNotice';
+import { FeedEmptyPage } from '@/components/feed/FeedEmptyPage';
+import { latestPageAddsVisiblePosts } from '@/lib/feedContinuation';
 import { flattenUniqueFeedPosts } from '@/lib/feedReliability';
 import { cn } from '@/lib/utils';
 import { CLIPS_TOP_UI_OFFSET } from '@/lib/clipsLayout';
@@ -27,6 +29,7 @@ export const ClipsLongVideosPanel = memo(function ClipsLongVideosPanel() {
 
   const activeQuery = sort === 'following' ? followingQuery : forYouQuery;
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = activeQuery;
+  const canAutoContinue = latestPageAddsVisiblePosts(data?.pages) && !activeQuery.isError;
 
   const videos = useMemo(() => {
     const all = flattenUniqueFeedPosts(data?.pages);
@@ -44,10 +47,10 @@ export const ClipsLongVideosPanel = memo(function ClipsLongVideosPanel() {
   const { ref: loadMoreRef, inView } = useInView({ threshold: 0, rootMargin: '600px' });
 
   useEffect(() => {
-    if (inView && hasNextPage && !isFetchingNextPage) {
+    if (canAutoContinue && inView && hasNextPage && !isFetchingNextPage) {
       fetchNextPage();
     }
-  }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [canAutoContinue, inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   return (
     <div
@@ -97,6 +100,7 @@ export const ClipsLongVideosPanel = memo(function ClipsLongVideosPanel() {
         <div className="px-4 pt-8"><FeedFailureNotice label="videos" retrying={activeQuery.isFetching} onRetry={() => { void activeQuery.refetch(); }} /></div>
       ) : videos.length === 0 ? (
         <div className="px-4 pt-8">
+          <FeedEmptyPage hasMore={hasNextPage} loading={isFetchingNextPage} onLoadMore={() => { void fetchNextPage(); }}>
           <EmptyState
             emoji="📺"
             title="No long videos yet"
@@ -108,13 +112,16 @@ export const ClipsLongVideosPanel = memo(function ClipsLongVideosPanel() {
             actionLabel="Upload video"
             onAction={() => navigate('/upload')}
           />
+          </FeedEmptyPage>
         </div>
       ) : (
         <div className="px-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
           {videos.map((post) => (
             <VideoCard key={post.id} post={post} />
           ))}
-          {hasNextPage && (
+          {activeQuery.isError ? <div className="col-span-full"><FeedFailureNotice label="more videos" retrying={activeQuery.isFetching} onRetry={() => { void activeQuery.refetch(); }} /></div>
+          : hasNextPage && !canAutoContinue ? <div className="col-span-full"><FeedEmptyPage hasMore loading={isFetchingNextPage} onLoadMore={() => { void fetchNextPage(); }}>{null}</FeedEmptyPage></div>
+          : hasNextPage && (
             <div ref={loadMoreRef} className="col-span-full h-12 flex items-center justify-center">
               {isFetchingNextPage && (
                 <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />

@@ -91,6 +91,10 @@ import { useInteractionStreakBump } from '@/hooks/useInteractionStreakBump';
 
 import { SwipeToReply } from './SwipeToReply';
 import { MessageActionMenu } from './MessageActionMenu';
+import { MessageReportDialog } from './MessageReportDialog';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
+import { useSafetyReport } from '@/hooks/useSafetyReport';
+import { readDmDraft, writeDmDraft } from '@/lib/dmDraftStorage';
 import { DMHoldMenu } from './DMHoldMenu';
 import { ReplyPreview } from './ReplyPreview';
 import { StickerPanel } from './StickerPanel';
@@ -141,6 +145,7 @@ import { SharedPostBubble } from './SharedPostBubble';
 import { SharedThemeMessageBubble } from '@/components/messages/bubbles/SharedThemeMessageBubble';
 import { formatMessageDate } from './chat-view/formatMessageDate';
 import { ChatComposer as MessageInputArea } from './chat-view/ChatComposer';
+import { ConversationWriteGate, isConversationWriteBlocked } from './chat-view/ConversationWriteGate';
 import { ChatThreadShell } from './chat-view/ChatThreadShell';
 import { groupMessages, spacingClassForItem } from './chat-view/groupMessages';
 import { ChatSearchSheet } from './ChatSearchSheet';
@@ -189,6 +194,14 @@ const THEME_COLORS: Record<string, { bubble: string; text: string }> = {
 };
 
 export function ChatView() {
+  const { user } = useAuth();
+  const session = useReportAccountSession();
+  const { conversationId } = useParams<{ conversationId: string }>();
+  // Replies, editor text and open media panels belong to this one account/route.
+  return <ChatViewContent key={JSON.stringify([user?.id, session.epoch, conversationId])} />;
+}
+
+function ChatViewContent() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -196,15 +209,21 @@ export function ChatView() {
   const profileId = useAuthProfileId();
   const authUserId = profile?.user_id ?? user?.id;
   const queryClient = useQueryClient();
+  const reportSession = useReportAccountSession();
+  const assertMessageActionCurrent = useSafetyReport(conversationId || '').assertCurrent;
+  const reportScope = JSON.stringify([user?.id, reportSession.epoch, conversationId]);
+  const [reportedMessage, setReportedMessage] = useState<{ id: string; scope: string } | null>(null);
+  useEffect(() => { setReportedMessage(null); }, [reportScope]);
   const bumpStreak = useInteractionStreakBump();
   const { isDesktop } = useBreakpoint();
   
-  const { data: conversation, isPending: conversationPending, isFetched: conversationFetched, isError: conversationError, refetch: refetchConversation } = useConversationDetail(conversationId);
+  const { data: conversation, isPending: conversationPending, isFetched: conversationFetched, isError: conversationError, error: conversationFailure, refetch: refetchConversation } = useConversationDetail(conversationId);
   const cachedConversation = useMemo(
     () => (conversationId ? findCachedDmConversation(queryClient, conversationId, profileId) : undefined),
     [conversationId, profileId, queryClient, conversation],
   );
   const activeConversation = conversation ?? cachedConversation;
+  const conversationWriteBlocked = isConversationWriteBlocked({ isError: conversationError, isFetched: conversationFetched, hasConversation: !!activeConversation, error: conversationFailure });
   const safeConversation = activeConversation ? { ...activeConversation, members: ensureArray(activeConversation.members) } : activeConversation;
   const isGroupChat = safeConversation?.is_group || false;
   const { data: messagesRaw, isPending: messagesPending, isFetched: messagesFetched, isError: messagesError, isFetching: messagesFetching, refetch: refetchMessages } = useMessages(conversationId);
@@ -386,18 +405,13 @@ export function ChatView() {
   const messageTextRef = useRef<string>('');
   const [hasText, setHasText] = useState(false);
 
-  // Initial draft load + restore on conversation switch
-  useEffect(() => {
-    if (!conversationId) {
-      messageTextRef.current = '';
-      setHasText(false);
-      return;
-    }
-    let saved = '';
-    try { saved = localStorage.getItem(`draft:${conversationId}`) || ''; } catch { /* ignore */ }
+  // Restore only this account's tab-local draft, before painting the composer.
+  useLayoutEffect(() => {
+    const saved = readDmDraft(conversationId, reportSession);
     messageTextRef.current = saved;
+    if (inputRef.current) inputRef.current.value = saved;
     setHasText(saved.length > 0);
-  }, [conversationId]);
+  }, [conversationId, reportSession]);
 
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     try {
@@ -730,7 +744,9 @@ export function ChatView() {
 
   // Batch-mark messages as read after paint — avoids N mutations + cache thrash on open.
   const flushMessageViews = useCallback(async (messageIds: string[]) => {
-    if (!conversationId || !profile?.id || messageIds.length === 0) return;
+    if (!conversationId || !profile?.id || profile.user_id !== user?.id || messageIds.length === 0) return;
+    try { assertMessageActionCurrent(); } catch { return; }
+    const capturedSession = reportSession;
 
     const realIds = messageIds.filter((id) => typeof id === 'string' && !id.startsWith('temp-'));
     if (realIds.length === 0) return;
@@ -740,15 +756,18 @@ export function ChatView() {
     const idSet = new Set(realIds);
 
     try {
-      await db.from('message_views').upsert(
+      const { error: viewsError } = await db.from('message_views').upsert(
         realIds.map((message_id) => ({ message_id, user_id: profile.id })),
         { onConflict: 'message_id,user_id', ignoreDuplicates: true },
       );
+      assertMessageActionCurrent();
+      if (viewsError) return;
 
       const { data: expiryCandidates } = await db
         .from('messages')
         .select('id, view_mode, saved_by_sender, saved_by_recipient, expires_at')
         .in('id', realIds);
+      assertMessageActionCurrent();
 
       const needExpiry = (expiryCandidates || []).filter(
         (m) =>
@@ -767,12 +786,16 @@ export function ChatView() {
               .eq('id', m.id),
           ),
         );
+        assertMessageActionCurrent();
       }
     } catch (err) {
+      try { assertMessageActionCurrent(); } catch { return; }
       if (import.meta.env.DEV) console.warn('[ChatView] batch mark viewed failed:', err);
+      return;
     }
 
-    queryClient.setQueryData<Message[]>(messagesQueryKey(conversationId), (old) => {
+    try { assertMessageActionCurrent(); } catch { return; }
+    queryClient.setQueryData<Message[]>(messagesQueryKey(conversationId, capturedSession), (old) => {
       if (!old?.some((m) => idSet.has(m.id))) return old;
       return old.map((m) => {
         if (!idSet.has(m.id)) return m;
@@ -791,7 +814,7 @@ export function ChatView() {
         };
       });
     });
-  }, [profile?.id, queryClient, conversationId]);
+  }, [profile?.id, profile?.user_id, user?.id, queryClient, conversationId, assertMessageActionCurrent, reportSession]);
 
   // Auto-mark messages as read (EXCEPT VYBEs which require explicit tap-to-view)
   useEffect(() => {
@@ -937,6 +960,7 @@ export function ChatView() {
   }, []);
 
   const handleInputChange = useCallback((value: string) => {
+    try { assertMessageActionCurrent(); } catch { return; }
     // Update ref IMMEDIATELY (no re-render).
     messageTextRef.current = value;
 
@@ -945,16 +969,7 @@ export function ChatView() {
     const nowHas = value.length > 0;
     setHasText(prev => prev === nowHas ? prev : nowHas);
 
-    // Auto-save draft to localStorage
-    try {
-      if (conversationId) {
-        if (value.length > 0) {
-          localStorage.setItem(`draft:${conversationId}`, value);
-        } else {
-          localStorage.removeItem(`draft:${conversationId}`);
-        }
-      }
-    } catch { /* quota exceeded or private browsing */ }
+    writeDmDraft(conversationId, value, reportSession);
 
     // Schedule typing indicator update (non-blocking)
     if (typingTimeoutRef.current) {
@@ -973,7 +988,7 @@ export function ChatView() {
       typingUpdateScheduledRef.current = false;
       setTyping(false);
     }
-  }, [setTyping, conversationId]);
+  }, [setTyping, conversationId, reportSession, assertMessageActionCurrent]);
 
   // Append helper used by emoji pickers (still needs to update the DOM input).
   const appendToInput = useCallback((appended: string) => {
@@ -983,11 +998,13 @@ export function ChatView() {
   }, [writeInputDom, handleInputChange]);
 
   const handleSend = useCallback(() => {
+    if (conversationWriteBlocked) return;
+    try { assertMessageActionCurrent(); } catch { return; }
     const raw = messageTextRef.current;
     if (!raw.trim() || !conversationId) return;
 
     // Clear draft on send
-    try { localStorage.removeItem(`draft:${conversationId}`); } catch { /* */ }
+    writeDmDraft(conversationId, '', reportSession);
 
     const text = raw.trim();
 
@@ -1013,15 +1030,18 @@ export function ChatView() {
     setTyping(false);
 
     void sendText(text, viewMode, replyId).then(() => {
+      assertMessageActionCurrent();
       if (!isGroupChat && otherMember?.id) {
         bumpStreak(otherMember.id);
       }
     }).catch(() => {
+      try { assertMessageActionCurrent(); } catch { return; }
       messageTextRef.current = text;
+      writeDmDraft(conversationId, text, reportSession);
       writeInputDom(text);
       setHasText(true);
     });
-  }, [conversationId, viewMode, replyingTo, setTyping, sendText, editingMessageId, editMessage, isGroupChat, otherMember?.id, bumpStreak, writeInputDom]);
+  }, [conversationId, viewMode, replyingTo, setTyping, sendText, editingMessageId, editMessage, isGroupChat, otherMember?.id, bumpStreak, writeInputDom, conversationWriteBlocked, assertMessageActionCurrent, reportSession]);
 
 
   // sendWithReply is now handled by useInstantSend's sendText
@@ -1044,15 +1064,18 @@ export function ChatView() {
   // Send media message helper - uses instant send for optimistic UI
   const sendMediaMessage = useCallback(async (mediaUrl: string, mediaType: string) => {
     if (!conversationId || !profileId) return;
+    assertMessageActionCurrent();
+    if (conversationWriteBlocked) throw new Error('Sending is unavailable for this conversation.');
 
     try {
       await sendMedia(mediaUrl, mediaType, viewMode, replyingTo?.id);
+      assertMessageActionCurrent();
       setReplyingTo(null);
     } catch (error) {
       console.error('Failed to send media:', error);
       throw error;
     }
-  }, [conversationId, profileId, viewMode, replyingTo?.id, sendMedia]);
+  }, [conversationId, profileId, viewMode, replyingTo?.id, sendMedia, conversationWriteBlocked, assertMessageActionCurrent]);
 
   // Compress image before upload for better mobile performance
   const compressImage = useCallback(async (file: File): Promise<Blob> => {
@@ -1225,6 +1248,8 @@ export function ChatView() {
 
 
   const handleOpenSnapCamera = useCallback(() => {
+    if (conversationWriteBlocked) return;
+    try { assertMessageActionCurrent(); } catch { return; }
     if (callStore.state.phase !== 'idle') {
       toast.error('End your call to use the camera');
       return;
@@ -1243,7 +1268,7 @@ export function ChatView() {
       replyToMessageId: replyingTo?.id,
       replyConversationId: conversationId,
     });
-  }, [callStore.state.phase, openCamera, conversationId, otherMember?.id, replyingTo?.id]);
+  }, [callStore.state.phase, openCamera, conversationId, otherMember?.id, replyingTo?.id, conversationWriteBlocked, assertMessageActionCurrent]);
 
   // Handle video selection - opens the preview modal
   const handleVideoSelect = useCallback((file: File) => {
@@ -1940,6 +1965,8 @@ export function ChatView() {
                     onReply={() => handleReply(message)}
                     onUnsendForEveryone={() => unsendForEveryone.mutate(message.id)}
                     onDeleteForMe={() => deleteForMe.mutate(message.id)}
+                    onReport={!isOwn ? () => setReportedMessage({ id: message.id, scope: reportScope }) : undefined}
+                    reportScope={reportScope}
                     onEdit={() => {
                       setEditingMessageId(message.id);
                       setEditText(message.content || '');
@@ -1969,9 +1996,11 @@ export function ChatView() {
                             // Outbox items (queued while offline) resend from the
                             // stored payload even if this ChatView remounted;
                             // fall back to the in-memory retry for same-session failures.
-                            void retryFailedItem(message.id).then((handled) => {
+                            try { assertMessageActionCurrent(); } catch { return; }
+                            void retryFailedItem(message.id, reportSession).then((handled) => {
+                              assertMessageActionCurrent();
                               if (!handled) retryMessage(message.id);
-                            });
+                            }).catch(() => { /* The outbox owns retry errors; old account callbacks stop here. */ });
                           }
                         : undefined
                     }
@@ -2070,7 +2099,7 @@ export function ChatView() {
 
       {/* Camera-First Overlay */}
       <CameraFirstOverlay
-        isOpen={cameraFirstMode}
+        isOpen={cameraFirstMode && !conversationWriteBlocked}
         recipientName={displayName}
         recipientAvatar={otherMember?.avatar_url || undefined}
         onClose={() => setCameraFirstMode(false)}
@@ -2084,7 +2113,7 @@ export function ChatView() {
       {/* VYBE Camera Modal — only mount when open to avoid heavy AR/MediaPipe init in DM view */}
       {/* Video Send Preview Modal */}
       <VideoSendPreview
-        open={showVideoPreview}
+        open={showVideoPreview && !conversationWriteBlocked}
         onClose={() => {
           setShowVideoPreview(false);
           setPendingVideoFile(null);
@@ -2096,6 +2125,7 @@ export function ChatView() {
       />
 
       {/* Input area - wrapped with DM safety for non-group chats */}
+      <ConversationWriteGate blocked={conversationWriteBlocked}>
       {!isGroupChat && otherMember?.id ? (
         <DMSafetyGate
           targetUserId={otherMember.id}
@@ -2251,6 +2281,14 @@ export function ChatView() {
         />
         </>
       )}
+      </ConversationWriteGate>
+
+      {conversationId && reportedMessage?.scope === reportScope && <MessageReportDialog
+        key={`${reportScope}:${reportedMessage.id}`}
+        messageId={reportedMessage.id}
+        conversationId={conversationId}
+        onClose={() => setReportedMessage(current => current?.scope === reportScope && current.id === reportedMessage.id ? null : current)}
+      />}
 
       {/* Business Offer Dialog */}
       {userBusiness && conversationId && profile && otherMember && (
@@ -2297,6 +2335,7 @@ const MessageBubble = memo(function MessageBubble({
   onReply,
   onUnsendForEveryone,
   onDeleteForMe,
+  onReport,
   onEdit,
   allMessages,
   themeColor = { bubble: 'bg-primary', text: 'text-primary-foreground' },
@@ -2327,6 +2366,8 @@ const MessageBubble = memo(function MessageBubble({
   onReply: () => void;
   onUnsendForEveryone: () => void;
   onDeleteForMe: () => void;
+  onReport?: () => void;
+  reportScope?: string;
   onEdit?: () => void;
   onSaveSticker?: (url: string) => void;
   allMessages?: Message[];
@@ -2498,6 +2539,7 @@ const MessageBubble = memo(function MessageBubble({
   return (
     <div 
       id={`message-${message.id}`}
+      onContextMenu={handleContextMenu}
       className={cn(
         'flex w-full group/message relative rounded-lg',
         isOwn ? 'justify-end' : 'justify-start'
@@ -2575,6 +2617,7 @@ const MessageBubble = memo(function MessageBubble({
               onEdit={onEdit}
               onUnsendForEveryone={onUnsendForEveryone}
               onDeleteForMe={onDeleteForMe}
+              onReport={onReport}
             />
           </div>
         {(() => null)()}
@@ -2988,6 +3031,7 @@ const MessageBubble = memo(function MessageBubble({
             onDeleteForMe();
             closeContextMenu();
           }}
+          onReport={onReport}
           onSave={(isMediaMessage || isVideoMessage) && message.media_url ? async () => {
             try {
               const { getSignedUrl, needsSigning } = await import('@/lib/signedUrlCache');
@@ -3049,6 +3093,7 @@ const MessageBubble = memo(function MessageBubble({
     prevProps.showReactions === nextProps.showReactions &&
     prevProps.profileId === nextProps.profileId &&
     prevProps.authUserId === nextProps.authUserId &&
+    prevProps.reportScope === nextProps.reportScope &&
     prevProps.forceShowContextMenu === nextProps.forceShowContextMenu &&
     prevProps.message.saved_by_sender === nextProps.message.saved_by_sender &&
     prevProps.message.saved_by_recipient === nextProps.message.saved_by_recipient &&

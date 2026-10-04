@@ -1,12 +1,13 @@
 import { createHash } from 'node:crypto';
 import { FieldPath, type DocumentSnapshot, type Firestore, type Transaction } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
+import { verifiedMessageEvidence } from './messageReportEvidence.js';
 
 type Row = Record<string, unknown>;
-export type ReportTargetType = 'profile' | 'post' | 'comment' | 'mini_app';
+export type ReportTargetType = 'profile' | 'post' | 'comment' | 'mini_app' | 'message';
 export interface ReportActor { uid: string; profileId: string; }
 export const REPORT_REASONS = ['spam', 'harassment', 'inappropriate', 'hate', 'impersonation', 'other', 'blocked_user'] as const;
-const TARGETS: ReportTargetType[] = ['profile', 'post', 'comment', 'mini_app'];
+const TARGETS: ReportTargetType[] = ['profile', 'post', 'comment', 'mini_app', 'message'];
 const STATUSES = ['pending', 'reviewed', 'dismissed', 'actioned'] as const;
 const immutable = ['reporter_uid', 'reporter_id', 'target_type', 'target_id', 'target_owner_uid', 'target_owner_profile_id', 'reason', 'details', 'created_at', 'target_revision'] as const;
 export const reportHash = (...parts: unknown[]) => createHash('sha256').update(JSON.stringify(parts)).digest('hex');
@@ -37,6 +38,7 @@ export function isAttestedReport(row: Row | undefined, authority: Row | undefine
     || !TARGETS.includes(row.target_type as ReportTargetType) || !REPORT_REASONS.includes(row.reason as typeof REPORT_REASONS[number])
     || typeof row.details !== 'string' || row.details.length > 1000 || typeof row.created_at !== 'string' || iso(row.created_at) !== row.created_at
     || !(row.target_revision === null || (typeof row.target_revision === 'string' && /^[a-f0-9]{64}$/.test(row.target_revision)))) return false;
+  if (row.target_type === 'message' && (typeof row.message_evidence_hash !== 'string' || !/^[a-f0-9]{64}$/.test(row.message_evidence_hash) || row.message_evidence_hash !== authority.message_evidence_hash || row.target_revision === null)) return false;
   return immutable.every(key => row[key] === authority[key]);
 }
 
@@ -82,7 +84,7 @@ export async function reportStaff(tx: Transaction, db: Firestore, uid: string): 
   return actor;
 }
 
-async function targetIdentity(tx: Transaction, db: Firestore, id: string): Promise<ReportActor> {
+export async function targetIdentity(tx: Transaction, db: Firestore, id: string): Promise<ReportActor> {
   const direct = await tx.get(db.doc(`profiles/${id}`));
   if (direct.exists) {
     const uid = direct.data()?.user_id;
@@ -94,7 +96,7 @@ async function targetIdentity(tx: Transaction, db: Firestore, id: string): Promi
   return reportActor(tx, db, id);
 }
 
-export async function reportTarget(tx: Transaction, db: Firestore, type: ReportTargetType, id: string) {
+export async function reportTarget(tx: Transaction, db: Firestore, type: Exclude<ReportTargetType, 'message'>, id: string) {
   const identity = type === 'profile' ? await targetIdentity(tx, db, id) : null;
   const canonicalId = identity?.profileId || id;
   const collection = { profile: 'profiles', post: 'posts', comment: 'comments', mini_app: 'mini_apps' }[type];
@@ -161,6 +163,14 @@ export async function inspectReport(tx: Transaction, db: Firestore, id: string) 
   let target = { type: targetType, id: targetId, ownerUid: null as string | null, available: false, title: 'Content unavailable', caption: null as string | null, revision: null as string | null };
   let source: Row | undefined;
   let hold: ReturnType<typeof holdSummary> = null;
+  if (targetType === 'message') {
+    // Legacy leads never become a private-message lookup API for staff.
+    const recorded = loaded.summary.verification === 'verified'
+      ? verifiedMessageEvidence(await tx.get(db.doc(`_message_report_evidence/${id}`)), loaded.row) : null;
+    return { report: loaded.summary, target: { ...target, title: recorded ? 'Reported message' : 'Message evidence unavailable',
+      available: !!recorded, ownerUid: recorded?.senderUid ?? null,
+      ...(recorded ? { messageEvidence: recorded } : {}) }, hold: null };
+  }
   if (targetType && targetId) {
     if (targetType === 'mini_app') hold = holdSummary((await tx.get(db.doc(`_mini_app_moderation/${targetId}`))).data(), targetId);
     try {

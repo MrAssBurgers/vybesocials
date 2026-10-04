@@ -6,8 +6,18 @@ import { isStoriesQueryKey, sanitizeStoriesCacheData } from '@/lib/storiesCacheS
 
 // Moderator notes, reporter identities and inspected source must be fetched
 // under current server authority, never restored from a previous disk snapshot.
-const PRIVATE_REPORT_KEYS = new Set(['admin-reports', 'report-inspection', 'pending-moderation-count', 'post-deletion-log']);
-const isPrivateReportKey = (key?: readonly unknown[]) => typeof key?.[0] === 'string' && PRIVATE_REPORT_KEYS.has(key[0]);
+const PRIVATE_REPORT_KEYS = new Set(['admin-reports', 'report-inspection', 'pending-moderation-count', 'post-deletion-log', 'feed-mutes']);
+// The disk cache is shared by all accounts on this browser. Private conversation
+// previews, message bodies and their related records need current membership;
+// neither a user-shaped query key nor a previous successful read proves it.
+const PRIVATE_DM_KEYS = new Set([
+  'dm-conversations', 'conversations', 'conversation-detail', 'conversation',
+  'messages', 'chat-search', 'message-transcript', 'message-pins', 'message-requests',
+  'conversation-offers', 'scheduled-messages', 'vanish-messages', 'vanish-threads',
+  'trashed-conversations', 'dm-reminders', 'word-reactions',
+]);
+const isPrivatePersistedKey = (key?: readonly unknown[]) => typeof key?.[0] === 'string'
+  && (PRIVATE_REPORT_KEYS.has(key[0]) || PRIVATE_DM_KEYS.has(key[0]));
 
 /**
  * IndexedDB-backed storage adapter for react-query persistence.
@@ -53,9 +63,13 @@ function deserializePersistedClient(cached: string): PersistedClient {
     if (!parsed || typeof parsed !== 'object' || !parsed.clientState) {
       return emptyPersistedClient();
     }
-    const restored = revivePersistedClient(parsed);
-    restored.clientState.queries = restored.clientState.queries.filter(entry => !isPrivateReportKey(entry?.queryKey));
-    return restored;
+    // Filter old snapshots before revival can normalize their member/profile
+    // data. This also migrates caches written before private queries were denied.
+    const queries = parsed.clientState.queries;
+    if (!Array.isArray(queries)) return emptyPersistedClient();
+    return revivePersistedClient({ ...parsed, clientState: { ...parsed.clientState,
+      queries: queries.filter(entry => !isPrivatePersistedKey(entry?.queryKey)),
+    } });
   } catch {
     // Corrupt persisted cache (truncated write, quota kill, bad JSON) must not
     // throw at boot — a stale-but-empty cache beats a white screen. Drop it so
@@ -75,7 +89,7 @@ function serializePersistedClient(client: PersistedClient): string {
     ...client,
     clientState: {
       ...client.clientState,
-      queries: queries.filter(entry => !isPrivateReportKey(entry?.queryKey)).map((entry) => {
+      queries: queries.filter(entry => !isPrivatePersistedKey(entry?.queryKey)).map((entry) => {
         if (!entry?.queryKey || !isStoriesQueryKey(entry.queryKey)) return entry;
         const data = entry.state?.data;
         if (data == null) return entry;
@@ -118,9 +132,8 @@ const EPHEMERAL_KEY_FRAGMENTS = [
   'audio-features',
   // Per-thread message history & unread counters stay ephemeral — replaying
   // stale snapshots caused wrong message ordering / wrong unread badges.
-  // NOTE: the DM conversation LIST ('dm-conversations') is intentionally
-  // allowed through so /messages hydrates instantly on cold start. We gate
-  // it on non-empty data below to avoid the empty-flash regression.
+  // Conversation lists and other private message roots are also denied above,
+  // including during restore of snapshots written by older app versions.
   'messages',
   'unread-messages',
   'unread-messages-count',
@@ -131,8 +144,6 @@ const EPHEMERAL_KEY_FRAGMENTS = [
 
 // Keys whose persisted snapshot must be non-empty to be worth replaying.
 const NON_EMPTY_ONLY_FRAGMENTS = [
-  'dm-conversations',
-  'conversations',
   'personalized-feed',
   'infinite-following-posts',
   'infinite-posts',
@@ -151,7 +162,7 @@ function hasPersistableFeedPages(data: unknown): boolean {
 
 export function shouldPersistQueryKey(queryKey: readonly unknown[], data?: unknown): boolean {
   try {
-    if (isPrivateReportKey(queryKey)) return false;
+    if (isPrivatePersistedKey(queryKey)) return false;
     const flat = JSON.stringify(queryKey).toLowerCase();
     if (EPHEMERAL_KEY_FRAGMENTS.some((f) => flat.includes(f))) return false;
     if (NON_EMPTY_ONLY_FRAGMENTS.some((f) => flat.includes(f))) {
@@ -159,7 +170,7 @@ export function shouldPersistQueryKey(queryKey: readonly unknown[], data?: unkno
       if (flat.includes('feed') || flat.includes('infinite-posts') || flat.includes('following')) {
         return hasPersistableFeedPages(data);
       }
-      // List-shaped keys (dm-conversations, etc.) must stay arrays — object snapshots crash render.
+      // List-shaped keys must stay arrays — object snapshots crash render.
       return false;
     }
     if (mustPersistAsArray(queryKey)) {

@@ -169,7 +169,8 @@ export function SnapCaptureFlow({
         replyToMessageId: launchContext.replyToMessageId,
       });
 
-      startSnapSend({
+      try {
+        startSnapSend({
         draft,
         file: baked.file,
         senderId,
@@ -182,7 +183,11 @@ export function SnapCaptureFlow({
               avatar_url: profile.avatar_url,
             }
           : undefined,
-      });
+        });
+      } catch {
+        toast.error('Your account changed. Reopen the camera before sending this snap.');
+        return;
+      }
 
       if (shouldStayOnCameraAfterSend(launchContext.source)) {
         toast.success(globalSendConfirmationText(selectionCount(sel)), { duration: 2200 });

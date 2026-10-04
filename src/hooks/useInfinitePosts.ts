@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { useEffect, useRef } from 'react';
 import { ensureMediaUrlsReady } from '@/lib/signedUrlCache';
 import { useBlockedUserIds } from '@/hooks/useBlockedUsers';
+import { useFeedMuteFilter } from '@/hooks/useFeedMuteFilter';
 import { refetchFeedOnMount } from '@/lib/queryRefetchPolicy';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import { preloadFeedPostsMedia } from '@/lib/imagePreload';
@@ -215,7 +216,7 @@ export function useInfinitePosts(
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
 
-  return query;
+  return useFeedMuteFilter(query, isProfileView);
 }
 
 export function useInfiniteFollowingPosts(
@@ -282,7 +283,7 @@ export function useInfiniteFollowingPosts(
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
 
-  return query;
+  return useFeedMuteFilter(query);
 }
 
 export function usePrefetchPosts() {
@@ -382,7 +383,7 @@ export function usePersonalizedFeed(
   // Run even while profile hydrates — cold-start uses get_trending_feed when profileId is missing.
   const enabled = tabEnabled;
 
-  return useInfiniteQuery({
+  const query = useInfiniteQuery({
     queryKey: ['personalized-feed-v2', type, profileId, blockedIds.length],
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
       const limit = pageParam === 0 ? INITIAL_PAGE_SIZE : PAGE_SIZE;
@@ -432,4 +433,5 @@ export function usePersonalizedFeed(
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
+  return useFeedMuteFilter(query);
 }

@@ -30,6 +30,10 @@ import {
 } from '@/lib/dmBroadcast';
 import { insertDmMessage } from '@/lib/dmSendCore';
 import { haptics } from '@/lib/haptics';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
+import { reportAccountGuard } from '@/lib/reportModerationService';
+import { isMessageSessionCurrent } from '@/lib/messagesQueryKey';
+import { ownedDmProfileId } from '@/lib/dmAccountScope';
 
 export type ViewMode = 'view_once' | 'replay_once' | '24h' | 'permanent' | 'keep' | 'timed' | 'on_close';
 
@@ -167,13 +171,17 @@ export function useUnreadMessagesCount() {
 }
 
 export function useConversations() {
-  const profileId = useAuthProfileId();
+  const { user, profile } = useAuth();
+  const session = useReportAccountSession();
+  const rawProfileId = useAuthProfileId();
+  const profileId = user?.id === session.uid && profile?.user_id === session.uid ? rawProfileId : undefined;
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: ['conversations', profileId],
+    queryKey: ['conversations', profileId, session.uid, session.epoch],
     queryFn: async () => {
       if (!profileId) return [];
+      const guard = reportAccountGuard(session.uid); guard();
 
       // Fetch hidden conversations and conversations in parallel
       // First get the conversation IDs the user is a member of
@@ -182,7 +190,7 @@ export function useConversations() {
         .select('conversation_id')
         .eq('user_id', profileId);
       
-      if (membershipError) throw membershipError;
+      guard(); if (membershipError) throw membershipError;
       if (!membershipData?.length) return [];
       
       const userConversationIds = membershipData.map(m => m.conversation_id);
@@ -285,78 +293,57 @@ export function useConversations() {
         };
       });
 
-      return sortDmConversations(result, profileId) as Conversation[];
+      guard(); return sortDmConversations(result, profileId) as Conversation[];
     },
     enabled: !!profileId,
     staleTime: 60000, // 1 minute cache
-    gcTime: 1000 * 60 * 60 * 24, // 24h — keep conversations cached for offline
+    gcTime: 0,
     refetchOnWindowFocus: true, // Refetch when user returns to app
     refetchOnMount: refetchListOnMount,
     refetchOnReconnect: true,
-    placeholderData: (prev) => prev,
     networkMode: 'online',
   });
 
   // Realtime updates are now handled by useGlobalRealtimeMessages at App level
   // This prevents duplicate subscriptions and ensures consistent updates
 
-  return query;
+  return { ...query, data: profileId && isMessageSessionCurrent(session) ? query.data : undefined };
 }
 
 export function useMessages(conversationId: string | undefined) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const session = useReportAccountSession();
   const profileId = useAuthProfileId();
-  const actorId = profileId ?? profile?.id;
+  const accountReady = !!user?.id && user.id === session.uid;
+  const actorId = accountReady && profile?.user_id === user.id ? (profileId ?? profile.id) : undefined;
   const queryClient = useQueryClient();
   const prevActorRef = useRef<string | undefined>(actorId);
 
   const query = useQuery({
-    queryKey: messagesQueryKey(conversationId),
+    queryKey: messagesQueryKey(conversationId, session),
     queryFn: async () => {
-      if (!conversationId) return [];
-      const seeded = readMessagesCache(queryClient, conversationId);
-      // Never commit a successful empty network result while profile is unresolved.
-      if (!actorId) {
-        return seeded;
-      }
-      try {
-        return await loadConversationMessages(queryClient, conversationId, actorId, {
-          recentOnly: true,
-        });
-      } catch (error) {
-        const cached = readMessagesCache(queryClient, conversationId);
-        if (cached.length) {
-          return mergeMessagesWithLocalCache(queryClient, conversationId, cached);
-        }
-        const minimal = await fetchRecentConversationMessages<Message>(
-          conversationId,
-          MESSAGE_SELECT_MINIMAL,
-          CHAT_INITIAL_MESSAGE_LIMIT,
-        );
-        if (!minimal.error && minimal.data?.length) {
-          return mergeMessagesWithLocalCache(queryClient, conversationId, minimal.data);
-        }
-        throw error;
-      }
+      if (!conversationId || !actorId) return [];
+      const guard = reportAccountGuard(session.uid); guard();
+      const result = await loadConversationMessages(queryClient, conversationId, actorId, {
+        recentOnly: true, session,
+      });
+      guard(); return result;
     },
-    enabled: !!conversationId,
-    staleTime: 60_000,
-    gcTime: 1000 * 60 * 60 * 24 * 14,
+    enabled: !!conversationId && !!actorId,
+    staleTime: 0,
+    gcTime: 0,
     refetchOnWindowFocus: false,
-    refetchOnMount: (query) => {
-      // Empty OR inbox preview seed (typically 1 msg) → hydrate in background.
-      return shouldRefetchWhenEmptyOrSparse(query, 8);
-    },
+    refetchOnMount: 'always',
     refetchOnReconnect: true,
     initialData: () => {
-      if (!conversationId) return undefined;
-      const cached = readMessagesCache(queryClient, conversationId);
+      if (!conversationId || !actorId) return undefined;
+      const cached = readMessagesCache(queryClient, conversationId, session);
       return cached.length ? cached : undefined;
     },
     placeholderData: () => {
-      if (!conversationId) return undefined;
+      if (!conversationId || !actorId) return undefined;
       // Only this conversation's cache — never flash another chat's messages.
-      const cached = readMessagesCache(queryClient, conversationId);
+      const cached = readMessagesCache(queryClient, conversationId, session);
       return cached.length ? cached : undefined;
     },
     // Match inbox — offlineFirst can pause forever with isFetched=false.
@@ -380,13 +367,15 @@ export function useMessages(conversationId: string | undefined) {
   // Always merge live cache (temp-* / failed sends) — setQueryData patches must show
   // even when query.data is a stale snapshot.
   const data = useMemo(() => {
+    if (!accountReady || !actorId || !isMessageSessionCurrent(session) || query.isError) return [];
     if (!conversationId) return normalizeMessagesCache(query.data);
     return mergeMessagesWithLocalCache(
       queryClient,
       conversationId,
       query.data,
+      session,
     );
-  }, [conversationId, queryClient, query.data, query.dataUpdatedAt]);
+  }, [conversationId, queryClient, query.data, query.dataUpdatedAt, query.isError, accountReady, actorId, session]);
 
   return { ...query, data };
 }
@@ -440,6 +429,7 @@ export function useUnsendMessage() {
 }
 
 export function useMarkMessageViewed(conversationId?: string) {
+  const session = useReportAccountSession();
   const { profile } = useAuth();
   const queryClient = useQueryClient();
 
@@ -478,6 +468,7 @@ export function useMarkMessageViewed(conversationId?: string) {
       }
     },
     onSuccess: (_data, messageId) => {
+      if (!isMessageSessionCurrent(session)) return;
       if (typeof messageId === 'string' && messageId.startsWith('temp-')) return;
       const viewedAt = new Date().toISOString();
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
@@ -501,16 +492,17 @@ export function useMarkMessageViewed(conversationId?: string) {
         });
       };
       if (conversationId) {
-        patchMessagesCache(queryClient, conversationId, patchRow);
+        patchMessagesCache(queryClient, conversationId, patchRow, session);
         return;
       }
-      queryClient.setQueriesData<Message[]>({ queryKey: ['messages'] }, patchRow);
+      queryClient.setQueriesData<Message[]>({ queryKey: ['messages'], predicate: q => q.queryKey[2] === session.uid && q.queryKey[3] === session.epoch }, patchRow);
     },
   });
 }
 
 /** Lock Vybe snap after the one allowed hold-replay (persists across refresh). */
 export function useMarkVybeReplayExhausted(conversationId?: string) {
+  const session = useReportAccountSession();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -523,6 +515,7 @@ export function useMarkVybeReplayExhausted(conversationId?: string) {
       if (error) throw error;
     },
     onSuccess: (_data, messageId) => {
+      if (!isMessageSessionCurrent(session)) return;
       const patchRow = (old: Message[] | undefined) => {
         if (!old?.some((m) => m.id === messageId)) return old;
         return old.map((m) =>
@@ -532,9 +525,9 @@ export function useMarkVybeReplayExhausted(conversationId?: string) {
         );
       };
       if (conversationId) {
-        patchMessagesCache(queryClient, conversationId, patchRow as any);
+        patchMessagesCache(queryClient, conversationId, patchRow as any, session);
       } else {
-        queryClient.setQueriesData<Message[]>({ queryKey: ['messages'] }, patchRow as any);
+        queryClient.setQueriesData<Message[]>({ queryKey: ['messages'], predicate: q => q.queryKey[2] === session.uid && q.queryKey[3] === session.epoch }, patchRow as any);
       }
     },
   });
@@ -545,16 +538,20 @@ export function useMarkVybeReplayExhausted(conversationId?: string) {
  * Saved messages are exempt from the 48h auto-expiry; both users see the saved state.
  */
 export function useToggleSavedMessage(conversationId?: string) {
+  const session = useReportAccountSession();
+  const guard = useMemo(() => reportAccountGuard(session.uid), [session]);
   const { profile, user } = useAuth();
   const queryClient = useQueryClient();
   return useMutation({
     // Optimistic flip so the badge animates instantly — never wait on RPC.
     onMutate: async (messageId: string) => {
+      guard();
       if (!conversationId) return;
-      await queryClient.cancelQueries({ queryKey: ['messages', conversationId] });
-      const previous = queryClient.getQueryData<Message[]>(['messages', conversationId]);
+      await queryClient.cancelQueries({ queryKey: messagesQueryKey(conversationId, session) });
+      guard();
+      const previous = queryClient.getQueryData<Message[]>(messagesQueryKey(conversationId, session));
       const profileId = profile?.id;
-      queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+      queryClient.setQueryData<Message[]>(messagesQueryKey(conversationId, session), (old) => {
         if (!old) return old;
         const profileId = profile?.id;
         if (!profileId) return old;
@@ -565,16 +562,19 @@ export function useToggleSavedMessage(conversationId?: string) {
       return { previous };
     },
     mutationFn: async (messageId: string) => {
+      guard();
       const { data, error } = await db.rpc('toggle_message_saved', { _message_id: messageId });
+      guard();
       if (error) throw error;
       const row = Array.isArray(data) ? data[0] : data;
       return { messageId, ...(row as any) };
     },
     onSuccess: ({ messageId, saved_by_sender, saved_by_recipient, saved_at, expires_at }) => {
+      if (!isMessageSessionCurrent(session)) return;
       if (!conversationId) return;
       // A null RPC row means the server didn't confirm — keep the optimistic state.
       if (saved_by_sender === undefined && saved_by_recipient === undefined) return;
-      queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+      queryClient.setQueryData<Message[]>(messagesQueryKey(conversationId, session), (old) => {
         if (!old) return old;
         return old.map((m) =>
           m.id === messageId
@@ -584,9 +584,10 @@ export function useToggleSavedMessage(conversationId?: string) {
       });
     },
     onError: (err: any, _messageId, context: any) => {
+      if (!isMessageSessionCurrent(session)) return;
       // Roll back optimistic UI on real failure
       if (conversationId && context?.previous) {
-        queryClient.setQueryData(['messages', conversationId], context.previous);
+        queryClient.setQueryData(messagesQueryKey(conversationId, session), context.previous);
       }
       // Harmless RPC raises (race conditions, message not yet loaded, group quirks)
       // stay silent — Snapchat behavior. Only show toast for actual network/server errors.
@@ -767,13 +768,34 @@ export function useTypingIndicator(conversationId: string | undefined) {
 type CaptureType = 'screenshot' | 'screen_recording_start' | 'screen_recording_stop' | 'possible_recording';
 
 export function useScreenshotNotification(conversationId: string | undefined) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const session = useReportAccountSession();
+  const actorId = user?.id === session.uid && profile?.user_id === session.uid
+    ? ownedDmProfileId(session.uid, profile) : undefined;
+  const view = useRef({ conversationId, session, actorId }); view.current = { conversationId, session, actorId };
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const captureGuard = useMemo(() => {
+    const guard = reportAccountGuard(user?.id || '');
+    return () => {
+      guard();
+      if (!mounted.current || !actorId || !session.uid || !isMessageSessionCurrent(session)
+        || view.current.session !== session || view.current.actorId !== actorId || view.current.conversationId !== conversationId) {
+        throw Object.assign(new Error('The chat account changed.'), { code: 'account-changed' });
+      }
+    };
+  }, [user?.id, actorId, session, conversationId]);
+  const isCurrentCapture = useCallback(() => { try { captureGuard(); return true; } catch { return false; } }, [captureGuard]);
   const queryClient = useQueryClient();
   const [screenshotEvents, setScreenshotEvents] = useState<{ id: string; username: string; timestamp: string }[]>([]);
   const [isRecording, setIsRecording] = useState(false);
+  const scope = `${session.uid || ''}:${session.epoch}:${actorId || ''}:${conversationId || ''}`;
+  const [eventScope, setEventScope] = useState(scope);
   const seenEventIds = useRef(new Set<string>());
+  useEffect(() => { seenEventIds.current.clear(); setScreenshotEvents([]); setIsRecording(false); setEventScope(scope); }, [scope]);
 
   const addScreenshotEvent = useCallback((id: string, username: string, timestamp: string) => {
+    if (!isCurrentCapture()) return;
     if (seenEventIds.current.has(id)) return;
     seenEventIds.current.add(id);
     haptics.warning();
@@ -782,11 +804,11 @@ export function useScreenshotNotification(conversationId: string | undefined) {
       duration: 5000,
     });
     setScreenshotEvents((prev) => [...prev, { id, username, timestamp }]);
-  }, []);
+  }, [isCurrentCapture]);
 
   const handleIncomingCapture = useCallback(
     (payload: DmScreenshotPayload) => {
-      if (!profile?.id || payload.userId === profile.id) return;
+      if (!isCurrentCapture() || !actorId || payload.userId === actorId) return;
       const username = payload.username || 'Someone';
       if (payload.captureType === 'screenshot') {
         addScreenshotEvent(payload.id, username, payload.timestamp);
@@ -800,11 +822,11 @@ export function useScreenshotNotification(conversationId: string | undefined) {
         setIsRecording(false);
       }
     },
-    [profile?.id, addScreenshotEvent],
+    [actorId, addScreenshotEvent, isCurrentCapture],
   );
 
   const notifyCapture = useCallback(async (captureType: CaptureType) => {
-    if (!conversationId || !profile?.id) return;
+    if (!conversationId || !actorId || !isCurrentCapture()) return;
 
     let content: string;
     let messageType: string;
@@ -836,7 +858,7 @@ export function useScreenshotNotification(conversationId: string | undefined) {
 
     void sendDmBroadcastScreenshot(conversationId, {
       id: eventId,
-      userId: profile.id,
+      userId: actorId,
       username: profile.username || undefined,
       captureType,
       timestamp,
@@ -846,33 +868,39 @@ export function useScreenshotNotification(conversationId: string | undefined) {
       if (captureType === 'screenshot') {
         await db.from('screenshot_notifications').insert({
           conversation_id: conversationId,
-          user_id: profile.id,
+          user_id: actorId,
         });
+        captureGuard();
       }
 
-      await insertDmMessage({
+      captureGuard();
+      const result = await insertDmMessage({
         conversation_id: conversationId,
-        sender_id: profile.id,
+        sender_id: actorId,
         content,
         message_type: messageType,
         client_message_id: eventId,
-      });
+      }, { accountGuard: captureGuard });
+      captureGuard();
+      if (result.error) throw result.error;
 
-      queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+      void queryClient.invalidateQueries({ queryKey: messagesQueryKey(conversationId, session), exact: true });
     } catch (err) {
+      if (!isCurrentCapture()) return;
       console.error('[Capture] Capture notification error:', err);
     }
-  }, [conversationId, profile?.id, profile?.username, queryClient]);
+  }, [conversationId, actorId, profile?.username, queryClient, captureGuard, isCurrentCapture, session]);
 
   // Convenience wrapper for screenshot (backward compatible)
   const notifyScreenshot = useCallback(() => notifyCapture('screenshot'), [notifyCapture]);
 
   // Instant screenshot alerts via DM broadcast (works across tabs/devices).
   useEffect(() => {
-    if (!conversationId) return;
+    if (!conversationId || !actorId || !isCurrentCapture()) return;
+    let active = true;
 
     prewarmDmBroadcastChannel(conversationId);
-    const unsubBroadcast = subscribeDmBroadcastScreenshot(conversationId, handleIncomingCapture);
+    const unsubBroadcast = subscribeDmBroadcastScreenshot(conversationId, payload => { if (active && isCurrentCapture()) handleIncomingCapture(payload); });
 
     const channel = subscribePostgresChannel(`screenshots:${conversationId}`, [
       {
@@ -880,13 +908,14 @@ export function useScreenshotNotification(conversationId: string | undefined) {
         table: 'screenshot_notifications',
         filter: `conversation_id=eq.${conversationId}`,
         callback: async (payload) => {
-          if ((payload.new as { user_id?: string }).user_id === profile?.id) return;
+          if (!active || !isCurrentCapture() || (payload.new as { user_id?: string }).user_id === actorId) return;
 
           const { data: user } = await db
             .from('profiles')
             .select('username')
             .eq('id', (payload.new as { user_id: string }).user_id)
             .single();
+          if (!active || !isCurrentCapture()) return;
 
           const username = user?.username || 'Someone';
           addScreenshotEvent(
@@ -899,10 +928,11 @@ export function useScreenshotNotification(conversationId: string | undefined) {
     ]);
 
     return () => {
+      active = false;
       unsubBroadcast();
       removeRealtimeChannel(channel);
     };
-  }, [conversationId, profile?.id, handleIncomingCapture, addScreenshotEvent]);
+  }, [conversationId, actorId, handleIncomingCapture, addScreenshotEvent, isCurrentCapture]);
 
   // Clear old screenshot events after they've been displayed
   useEffect(() => {
@@ -917,7 +947,8 @@ export function useScreenshotNotification(conversationId: string | undefined) {
     return () => clearTimeout(timer);
   }, [screenshotEvents]);
 
-  return { notifyScreenshot, notifyCapture, screenshotEvents, isRecording };
+  const showCurrentEvents = eventScope === scope && isCurrentCapture();
+  return { notifyScreenshot, notifyCapture, screenshotEvents: showCurrentEvents ? screenshotEvents : [], isRecording: showCurrentEvents && isRecording };
 }
 
 export function useStreaks() {
@@ -947,11 +978,14 @@ export function useStreaks() {
 }
 
 export function useAddReaction() {
+  const session = useReportAccountSession();
+  const guard = useMemo(() => reportAccountGuard(session.uid), [session]);
   const { profile, user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ messageId, emoji }: { messageId: string; emoji: string }) => {
+      guard();
       if (!profile?.id) throw new Error('Not authenticated');
       const ownerIds = [...new Set([profile.id, user?.id].filter(Boolean))] as string[];
 
@@ -963,11 +997,13 @@ export function useAddReaction() {
         .eq('message_id', messageId)
         .eq('user_id', profile.id)
         .maybeSingle();
+      guard();
 
       // Rules allow delete + create. Clear every id this account may have used.
       await Promise.all(ownerIds.map((ownerId) =>
         db.from('message_reactions').delete().eq('message_id', messageId).eq('user_id', ownerId),
       ));
+      guard();
 
       if (existing?.emoji === emoji) {
         // Toggle off — already deleted above
@@ -983,15 +1019,17 @@ export function useAddReaction() {
     // Optimistic update: patch the message reactions array in cache immediately,
     // preserving message ordering. Realtime channel will reconcile.
     onMutate: async ({ messageId, emoji }) => {
+      guard();
       if (!profile?.id) return;
       const userId = profile.id;
 
       // Cancel in-flight refetches so they don't overwrite our optimistic state
       await queryClient.cancelQueries({ queryKey: ['messages'] });
+      guard();
 
       // Snapshot all messages caches so we can roll back on error
       const snapshots: Array<[readonly unknown[], Message[] | undefined]> = [];
-      const queries = queryClient.getQueriesData<Message[]>({ queryKey: ['messages'] });
+      const queries = queryClient.getQueriesData<Message[]>({ queryKey: ['messages'], predicate: q => q.queryKey[2] === session.uid && q.queryKey[3] === session.epoch });
 
       for (const [key, messages] of queries) {
         if (!messages) continue;
@@ -1025,6 +1063,7 @@ export function useAddReaction() {
       return { snapshots };
     },
     onError: (_err, _vars, context) => {
+      if (!isMessageSessionCurrent(session)) return;
       // Roll back optimistic updates
       context?.snapshots?.forEach(([key, snapshot]) => {
         queryClient.setQueryData(key, snapshot);
@@ -1106,6 +1145,7 @@ export function useMarkConversationReadByUser() {
  * This prevents re-opening viewed vybes after refresh
  */
 export function useMarkVybeViewed() {
+  const session = useReportAccountSession();
   const { profile } = useAuth();
   const queryClient = useQueryClient();
 
@@ -1122,8 +1162,9 @@ export function useMarkVybeViewed() {
       return messageId;
     },
     onSuccess: (messageId) => {
+      if (!isMessageSessionCurrent(session)) return;
       // Update the local cache to reflect viewed state
-      queryClient.setQueriesData<Message[]>({ queryKey: ['messages'] }, (old) => {
+      queryClient.setQueriesData<Message[]>({ queryKey: ['messages'], predicate: q => q.queryKey[2] === session.uid && q.queryKey[3] === session.epoch }, (old) => {
         if (!old) return old;
         return old.map(msg => 
           msg.id === messageId ? { ...msg, viewed_at: new Date().toISOString() } : msg

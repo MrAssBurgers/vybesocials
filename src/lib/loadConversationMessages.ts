@@ -11,6 +11,9 @@ import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSess
 import { mergeMessagesWithLocalCache, readMessagesCache } from '@/lib/messagesQueryKey';
 import { findInQueryArray, safeDmMembers, ensureArray } from '@/lib/persistedCollections';
 import { withTimeout } from '@/lib/withTimeout';
+import { reportAccountGuard, reportAccountSnapshot, type ReportAccountSession } from '@/lib/reportModerationService';
+import { isMessageSessionCurrent } from '@/lib/messagesQueryKey';
+import { isOwnedDmActor } from '@/lib/dmAccountScope';
 
 export const MESSAGE_SELECT_SLIM = `
   *,
@@ -39,6 +42,7 @@ export type LoadConversationMessagesOptions = {
   /** Single round trip — instant thread paint. Default true. */
   recentOnly?: boolean;
   select?: string;
+  session?: ReportAccountSession;
 };
 
 const REPAIR_TIMEOUT_MS = 3000;
@@ -120,15 +124,30 @@ async function fetchFullTimed(
   }
 }
 
-/** Prefer seed/cache when network hangs; throw only when there is nothing to paint. */
+function isAccessDenial(error: unknown): boolean {
+  const failure = error as { code?: string; message?: string };
+  return /permission|unauthenticated|denied|account.changed/i.test(`${failure?.code || ''} ${failure?.message || error}`);
+}
+
+/** A failed retry cannot erase an earlier authoritative denial. */
+function retryFailure(previous: unknown, latest: unknown): unknown {
+  return latest && isAccessDenial(previous) ? previous : latest;
+}
+
+/** Only transient failures may reuse this session's in-memory cache. */
 function settleOrThrowSeed(
   queryClient: QueryClient,
   conversationId: string,
   error: unknown,
+  session: ReportAccountSession,
 ): Message[] {
-  const existing = readMessagesCache(queryClient, conversationId);
+  // A denial can be a revoked membership. Cached content must never override it.
+  const failure = error as { code?: string; message?: string };
+  const transient = /timeout|timed out|network|unavailable|offline|failed to fetch/i.test(`${failure?.code || ''} ${failure?.message || error}`);
+  if (!transient || isAccessDenial(error)) throw error;
+  const existing = readMessagesCache(queryClient, conversationId, session);
   if (existing.length) {
-    return mergeMessagesWithLocalCache(queryClient, conversationId, existing);
+    return mergeMessagesWithLocalCache(queryClient, conversationId, existing, session);
   }
   throw error instanceof Error ? error : new Error(String(error ?? 'Message fetch failed'));
 }
@@ -171,6 +190,13 @@ export async function loadConversationMessages(
   actorId?: string | null,
   options?: LoadConversationMessagesOptions,
 ): Promise<Message[]> {
+  const session = options?.session ?? reportAccountSnapshot();
+  const accountGuard = reportAccountGuard(session.uid);
+  const guard = () => {
+    accountGuard();
+    if (!isMessageSessionCurrent(session)) throw Object.assign(new Error('Your account changed. Open this chat again.'), { code: 'account-changed' });
+  };
+  guard();
   const recentOnly = options?.recentOnly ?? true;
   const maxMessages =
     options?.maxMessages ??
@@ -181,21 +207,20 @@ export async function loadConversationMessages(
     syncSessionProfileId(actorId) ??
     actorId ??
     (await resolveSessionProfileId(actorId));
+  guard();
 
   if (!resolvedActorId) {
-    // Never wipe an inbox/open seed when profile isn't ready yet.
-    const existing = readMessagesCache(queryClient, conversationId);
-    if (existing.length) return existing;
     return [];
   }
+  if (!isOwnedDmActor(resolvedActorId, session.uid!)) throw new Error('The chat account could not be verified.');
 
   const cachedConv =
     findInQueryArray(
-      queryClient.getQueryData<Conversation[]>(['dm-conversations', resolvedActorId]),
+      queryClient.getQueryData<Conversation[]>(['dm-conversations', resolvedActorId, session.uid, session.epoch]),
       (c) => c.id === conversationId,
     ) ??
     findInQueryArray(
-      queryClient.getQueryData<Conversation[]>(['conversations', resolvedActorId]),
+      queryClient.getQueryData<Conversation[]>(['conversations', resolvedActorId, session.uid, session.epoch]),
       (c) => c.id === conversationId,
     );
   const otherFromMembers =
@@ -207,6 +232,7 @@ export async function loadConversationMessages(
     otherFromMembers || inferOtherParticipantId(conversationId, resolvedActorId) || null;
 
   const runRepairBackground = () => {
+    guard();
     void prepareConversationForMessages(conversationId, resolvedActorId, otherProfileId, {
       fast: true,
     }).catch(() => {});
@@ -214,12 +240,15 @@ export async function loadConversationMessages(
 
   if (recentOnly) {
     let { data, error } = await fetchRecentTimed(conversationId, select, maxMessages);
+    guard();
 
     if (error) {
       await repairWithTimeout(conversationId, resolvedActorId, otherProfileId);
+      guard();
       const retry = await fetchRecentTimed(conversationId, MESSAGE_SELECT_MINIMAL, maxMessages);
+      guard();
       data = retry.data;
-      error = retry.error;
+      error = retryFailure(error, retry.error);
     } else if (data?.length) {
       // Paint immediately — repair membership in background if needed.
       if (!isConversationMessagesReady(conversationId, resolvedActorId)) {
@@ -228,38 +257,49 @@ export async function loadConversationMessages(
     } else {
       // Empty thread: timed repair + one retry (never hang forever).
       await repairWithTimeout(conversationId, resolvedActorId, otherProfileId);
+      guard();
       const retry = await fetchRecentTimed(conversationId, MESSAGE_SELECT_MINIMAL, maxMessages);
+      guard();
+      if (retry.error) error = retry.error;
       if (!retry.error && retry.data?.length) {
         data = retry.data;
         error = retry.error;
       }
     }
 
-    if (error) return settleOrThrowSeed(queryClient, conversationId, error);
+    if (error) return settleOrThrowSeed(queryClient, conversationId, error, session);
 
-    const rows = ((data || []) as Message[]).filter((m) => !m.is_deleted);
+    const rows = ((data || []) as Message[]).filter((m) => !m.is_deleted && m.conversation_id === conversationId);
     const filtered = filterMessagesForViewer(rows, resolvedActorId);
     const enriched = await enrichMessagesFromProfiles(filtered);
-    return mergeMessagesWithLocalCache(queryClient, conversationId, sortChronological(enriched));
+    guard();
+    return mergeMessagesWithLocalCache(queryClient, conversationId, sortChronological(enriched), session);
   }
 
   let { data, error } = await fetchFullTimed(conversationId, select, maxMessages);
+  guard();
 
   if (error) {
     await repairWithTimeout(conversationId, resolvedActorId, otherProfileId);
+    guard();
     const retryPlain = await fetchFullTimed(conversationId, MESSAGE_SELECT_SLIM, maxMessages);
+    guard();
     if (!retryPlain.error) {
       data = retryPlain.data;
       error = retryPlain.error;
     } else {
+      error = retryFailure(error, retryPlain.error);
       const retryRecent = await fetchRecentTimed(
         conversationId,
         MESSAGE_SELECT_WARM,
         CHAT_INITIAL_MESSAGE_LIMIT,
       );
+      guard();
       if (!retryRecent.error) {
         data = sortChronological((retryRecent.data || []) as Message[]);
         error = retryRecent.error;
+      } else {
+        error = retryFailure(error, retryRecent.error);
       }
     }
   } else if (data?.length) {
@@ -268,23 +308,27 @@ export async function loadConversationMessages(
     }
   } else {
     await repairWithTimeout(conversationId, resolvedActorId, otherProfileId);
+    guard();
     const retryEmpty = await fetchRecentTimed(
       conversationId,
       MESSAGE_SELECT_WARM,
       CHAT_INITIAL_MESSAGE_LIMIT,
     );
+    guard();
+    if (retryEmpty.error) error = retryEmpty.error;
     if (!retryEmpty.error && retryEmpty.data?.length) {
       data = sortChronological(retryEmpty.data as Message[]);
     }
   }
 
-  if (error) return settleOrThrowSeed(queryClient, conversationId, error);
+  if (error) return settleOrThrowSeed(queryClient, conversationId, error, session);
 
-  const rows = ((data || []) as Message[]).filter((m) => !m.is_deleted);
+  const rows = ((data || []) as Message[]).filter((m) => !m.is_deleted && m.conversation_id === conversationId);
 
   const filtered = filterMessagesForViewer(rows, resolvedActorId);
   const enriched = await enrichMessagesFromProfiles(filtered);
-  return mergeMessagesWithLocalCache(queryClient, conversationId, enriched);
+  guard();
+  return mergeMessagesWithLocalCache(queryClient, conversationId, enriched, session);
 }
 
 function sortChronological(messages: Message[]): Message[] {

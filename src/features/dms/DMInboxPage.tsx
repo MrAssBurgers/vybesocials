@@ -12,8 +12,16 @@ import { useDMInbox } from './useDMInbox';
 import { writeFilterScroll } from '@/lib/dmInboxFilterPersistence';
 import { isDmLeaveSuppressActive } from '@/lib/leaveDmConversation';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
+import { useAuth } from '@/lib/auth';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 
 export function DMInboxPage() {
+  const { user } = useAuth();
+  const session = useReportAccountSession();
+  return <DMInboxContent key={JSON.stringify([user?.id, session.epoch])} />;
+}
+
+function DMInboxContent() {
   const navigate = useNavigate();
   const { warmConversation } = useChatPrefetch();
   const inbox = useDMInbox();

@@ -28,7 +28,7 @@ describe('authenticated reporting request and retry boundary', () => {
     expect(state.invoke.mock.calls[0][1]).toMatchObject({ reason: 'other', details: expect.stringMatching(/^Copyright concern\n/) });
     expect(state.invoke.mock.calls[0][1].details).toHaveLength(1000);
   });
-  it.each([{ ...input, targetId: '../private' }, { ...input, reason: '' }, { ...input, targetType: 'message' }])('rejects unsupported or malformed input before transport', async value => {
+  it.each([{ ...input, targetId: '../private' }, { ...input, reason: '' }, { ...input, targetType: 'conversation' }])('rejects unsupported or malformed input before transport', async value => {
     await expect(submitSafetyReport(value as typeof input)).rejects.toThrow();
     expect(state.invoke).not.toHaveBeenCalled();
   });
@@ -138,5 +138,45 @@ describe('bounded moderation data and action acknowledgements', () => {
   it('rejects explicit empty React-account guards even while Firebase is signed in', async () => {
     await expect(reportModerationRequest({ action: 'count' }, reportAccountGuard(''))).rejects.toMatchObject({ code: 'account-changed' });
     expect(state.invoke).not.toHaveBeenCalled();
+  });
+});
+
+const messageEvidence = { messageId: 'message-1', conversationId: 'private-conversation', senderUid: 'sender', senderProfileId: 'sender-profile', content: '<img src="https://example.invalid/private" onerror="alert(1)">', contentTruncated: false, messageType: 'text', mediaType: 'image', hasMedia: true, createdAt: '2026-10-04T11:00:00.000Z', editedAt: null, capturedAt: '2026-10-04T12:00:00.000Z' };
+const messageReport = { ...report, targetType: 'message', targetId: 'message-1' };
+const messageInspection = (evidence: unknown = messageEvidence) => ({ report: messageReport, target: { type: 'message', id: 'message-1', ownerUid: 'sender', available: true, caption: 'Must not become a second private text copy', messageEvidence: evidence }, hold: null });
+
+describe('private reported message evidence', () => {
+  it('sends the exact message ID without caller-supplied sender, conversation or content', async () => {
+    state.invoke.mockResolvedValue(ack);
+    await submitSafetyReport({ targetType: 'message', targetId: 'message-1', reason: 'harassment', conversationId: 'forged', senderUid: 'victim', content: 'private text' } as Parameters<typeof submitSafetyReport>[0]);
+    expect(state.invoke).toHaveBeenCalledWith('report-moderation', { action: 'submit', targetType: 'message', targetId: 'message-1', reason: 'harassment', requestId: expect.any(String) });
+  });
+  it('keeps only the bounded snapshot DTO, with no media URL or surrounding messages', async () => {
+    state.invoke.mockResolvedValue({ data: messageInspection({ ...messageEvidence, mediaUrl: 'https://private.invalid/token', surroundingMessages: ['secret'] }) });
+    const inspected = await inspectSafetyReport('report-1');
+    expect(inspected.target.messageEvidence).toEqual(messageEvidence);
+    expect(inspected.target.caption).toBeNull();
+    expect(JSON.stringify(inspected)).not.toContain('private.invalid');
+    expect(JSON.stringify(inspected)).not.toContain('surroundingMessages');
+    expect(sessionStorage.length).toBe(0);
+  });
+  it('accepts valid captured text when a legacy message has an empty message type', async () => {
+    state.invoke.mockResolvedValue({ data: messageInspection({ ...messageEvidence, messageType: '' }) });
+    expect((await inspectSafetyReport('report-1')).target.messageEvidence?.content).toBe(messageEvidence.content);
+  });
+  it.each([
+    { messageId: 'other-message' }, { senderUid: 'someone-else' }, { conversationId: 'nested/path' }, { content: 'x'.repeat(8001) },
+    { content: {} }, { hasMedia: 'true' }, { capturedAt: 'not-a-date' }, { createdAt: 42 }, { contentTruncated: null },
+  ])('rejects malformed or rebound snapshot fields %j', async change => {
+    state.invoke.mockResolvedValue({ data: messageInspection({ ...messageEvidence, ...change }) });
+    await expect(inspectSafetyReport('report-1')).rejects.toThrow('captured message could not be verified');
+  });
+  it('does not expose private evidence for legacy or unavailable message leads', async () => {
+    state.invoke.mockResolvedValue({ data: { ...messageInspection(), report: { ...messageReport, verification: 'legacy' } } });
+    await expect(inspectSafetyReport('report-1')).rejects.toThrow('captured message could not be verified');
+    const data = messageInspection(); data.target.available = false;
+    state.invoke.mockResolvedValue({ data: { ...data, report: { ...messageReport, verification: 'legacy' } } });
+    const inspected = await inspectSafetyReport('report-1');
+    expect(inspected.target.messageEvidence).toBeUndefined(); expect(inspected.target.caption).toBeNull();
   });
 });

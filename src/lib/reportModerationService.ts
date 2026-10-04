@@ -2,23 +2,48 @@ import { getFirebaseAuth } from '@/lib/firebase/authService';
 import { invokeFunction } from '@/lib/firebase/functionsService';
 import { validateMiniApp, type MiniAppSource } from '@/features/mini-apps/model';
 
-export type ReportTargetType = 'profile' | 'post' | 'comment' | 'mini_app';
+export type ReportTargetType = 'profile' | 'post' | 'comment' | 'mini_app' | 'message';
 export type ReportReason = 'spam' | 'harassment' | 'inappropriate' | 'hate' | 'impersonation' | 'other' | 'blocked_user';
 export interface ReportSubmission { targetType: ReportTargetType; targetId: string; reason: string; details?: string }
 export type ReportAccountGuard = () => void;
 let observedAuth: ReturnType<typeof getFirebaseAuth>;
-let observedUid: string | undefined;
-let epoch = 0;
 let unsubscribe: (() => void) | undefined;
+export interface ReportAccountSession { readonly uid: string | undefined; readonly epoch: number }
+let accountSession: ReportAccountSession = Object.freeze({ uid: undefined, epoch: 0 });
+const accountListeners = new Set<() => void>();
+let notificationQueued = false;
+
+function updateAccountSession(uid: string | undefined, force: boolean, notifyImmediately: boolean) {
+  if (!force && accountSession.uid === uid) return;
+  accountSession = Object.freeze({ uid, epoch: accountSession.epoch + 1 });
+  if (notifyImmediately) {
+    for (const listener of [...accountListeners]) listener();
+  } else if (accountListeners.size && !notificationQueued) {
+    // Reads may discover an Auth replacement during React render. Publish the
+    // cached identity immediately, but notify other mounted views after render.
+    notificationQueued = true;
+    queueMicrotask(() => { notificationQueued = false; for (const listener of [...accountListeners]) listener(); });
+  }
+}
 
 export function reportAccountSnapshot() {
   const auth = getFirebaseAuth();
   if (auth !== observedAuth) {
-    unsubscribe?.(); observedAuth = auth; observedUid = auth?.currentUser?.uid; epoch++;
-    unsubscribe = auth?.onAuthStateChanged(user => { if (observedUid !== user?.uid) { observedUid = user?.uid; epoch++; } });
+    unsubscribe?.(); observedAuth = auth;
+    updateAccountSession(auth?.currentUser?.uid, true, false);
+    unsubscribe = auth?.onAuthStateChanged(user => {
+      if (observedAuth === auth) updateAccountSession(user?.uid, false, true);
+    });
   }
-  if (observedUid !== auth?.currentUser?.uid) { observedUid = auth?.currentUser?.uid; epoch++; }
-  return { uid: observedUid, epoch };
+  updateAccountSession(auth?.currentUser?.uid, false, false);
+  return accountSession;
+}
+/** Keep the Auth observer alive for imperative ABA guards; view subscriptions
+ * only own their React listener and never tear down another caller's observer. */
+export function reportAccountSubscribe(listener: () => void) {
+  accountListeners.add(listener);
+  reportAccountSnapshot();
+  return () => { accountListeners.delete(listener); };
 }
 export function reportAccountGuard(expectedUid = reportAccountSnapshot().uid): ReportAccountGuard {
   const started = reportAccountSnapshot();
@@ -36,7 +61,7 @@ export function isReportSessionError(error: unknown) {
 const isRow = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const reasons = new Set<ReportReason>(['spam', 'harassment', 'inappropriate', 'hate', 'impersonation', 'other', 'blocked_user']);
 function normalizeSubmission(input: ReportSubmission) {
-  if (!['profile', 'post', 'comment', 'mini_app'].includes(input.targetType) || typeof input.targetId !== 'string' || !input.targetId || input.targetId.length > 200 || input.targetId.includes('/')) throw new Error('Open the content again before reporting it.');
+  if (!['profile', 'post', 'comment', 'mini_app', 'message'].includes(input.targetType) || typeof input.targetId !== 'string' || !input.targetId || input.targetId.length > 200 || input.targetId.includes('/')) throw new Error('Open the content again before reporting it.');
   const suppliedReason = typeof input.reason === 'string' ? input.reason.trim() : '';
   if (!suppliedReason) throw new Error('Choose a reason for your report.');
   const knownReason = reasons.has(suppliedReason as ReportReason);
@@ -112,9 +137,14 @@ export interface ReportSummary {
   reviewedAt: string | null; reviewedBy: string | null; adminNotes: string;
 }
 export interface ReportPage { reports: ReportSummary[]; nextCursor: string | null }
+export interface MessageReportEvidence {
+  messageId: string; conversationId: string; senderUid: string; senderProfileId: string;
+  content: string | null; messageType: string; mediaType: string | null; hasMedia: boolean;
+  createdAt: string | null; editedAt: string | null; capturedAt: string; contentTruncated: boolean;
+}
 export interface ReportInspection {
   report: ReportSummary;
-  target: { type: ReportTargetType | null; id: string | null; ownerUid: string | null; available: boolean; title: string; caption: string | null; revision: string | null; source?: MiniAppSource };
+  target: { type: ReportTargetType | null; id: string | null; ownerUid: string | null; available: boolean; title: string; caption: string | null; revision: string | null; source?: MiniAppSource; messageEvidence?: MessageReportEvidence };
   hold: { active: boolean; revision: string | null; note: string; removedAt: string | null; releasedAt: string | null } | null;
 }
 const text = (value: unknown, limit = 1000) => typeof value === 'string' ? value.slice(0, limit) : '';
@@ -124,7 +154,7 @@ function normalizedReport(value: unknown): ReportSummary {
   if (!isRow(value) || !id(value.id)) throw new Error('A report could not be read. Please refresh the list.');
   return {
     id: id(value.id)!, verification: value.verification === 'verified' ? 'verified' : 'legacy',
-    targetType: ['profile', 'post', 'comment', 'mini_app'].includes(String(value.targetType)) ? value.targetType as ReportTargetType : null,
+    targetType: ['profile', 'post', 'comment', 'mini_app', 'message'].includes(String(value.targetType)) ? value.targetType as ReportTargetType : null,
     targetId: id(value.targetId), reporterId: id(value.reporterId), reporterUid: id(value.reporterUid), targetOwnerUid: id(value.targetOwnerUid),
     reason: text(value.reason) || 'Reason unavailable', details: text(value.details),
     status: ['pending', 'reviewed', 'dismissed', 'actioned'].includes(String(value.status)) ? value.status as ReportStatus : 'unknown',
@@ -146,9 +176,25 @@ export async function inspectSafetyReport(reportId: string, guard = reportAccoun
   const report = normalizedReport(data.report);
   if (report.id !== reportId || !isRow(data.target) || typeof data.target.available !== 'boolean') throw new Error('This report could not be inspected. Please refresh.');
   const target = data.target;
-  const targetType = ['profile', 'post', 'comment', 'mini_app'].includes(String(target.type)) ? target.type as ReportTargetType : null;
+  const targetType = ['profile', 'post', 'comment', 'mini_app', 'message'].includes(String(target.type)) ? target.type as ReportTargetType : null;
   const targetId = id(target.id);
   if (targetType !== report.targetType || targetId !== report.targetId) throw new Error('The report target changed. Please refresh.');
   const hold = isRow(data.hold) ? { active: data.hold.active === true, revision: typeof data.hold.revision === 'string' && /^[a-f0-9]{64}$/.test(data.hold.revision) ? data.hold.revision : null, note: text(data.hold.note), removedAt: date(data.hold.removedAt), releasedAt: date(data.hold.releasedAt) } : null;
-  return { report, target: { type: targetType, id: targetId, ownerUid: id(target.ownerUid), available: target.available === true, title: text(target.title, 200), caption: typeof target.caption === 'string' ? text(target.caption, 8000) : null, revision: id(target.revision), ...(target.available && targetType === 'mini_app' && target.source ? { source: validateMiniApp(target.source) } : {}) }, hold };
+  let messageEvidence: MessageReportEvidence | undefined;
+  if (target.available && targetType === 'message') {
+    const evidence = target.messageEvidence;
+    if (report.verification !== 'verified' || !isRow(evidence) || evidence.messageId !== targetId || !id(evidence.conversationId)
+      || !id(evidence.senderUid) || evidence.senderUid !== target.ownerUid || !id(evidence.senderProfileId)
+      || !(evidence.content === null || (typeof evidence.content === 'string' && evidence.content.length <= 8000))
+      || typeof evidence.messageType !== 'string' || evidence.messageType.length > 64
+      || !(evidence.mediaType === null || (typeof evidence.mediaType === 'string' && evidence.mediaType.length <= 80))
+      || typeof evidence.hasMedia !== 'boolean' || typeof evidence.contentTruncated !== 'boolean' || !date(evidence.capturedAt)
+      || !(evidence.createdAt === null || date(evidence.createdAt)) || !(evidence.editedAt === null || date(evidence.editedAt))) throw new Error('The captured message could not be verified. Refresh this report.');
+    // Copy only the bounded evidence contract. Never keep unexpected media URLs,
+    // surrounding messages or backend-only evidence fields in the UI cache.
+    messageEvidence = { messageId: targetId!, conversationId: evidence.conversationId as string, senderUid: evidence.senderUid as string, senderProfileId: evidence.senderProfileId as string,
+      content: evidence.content as string | null, messageType: evidence.messageType, mediaType: evidence.mediaType as string | null, hasMedia: evidence.hasMedia,
+      createdAt: evidence.createdAt as string | null, editedAt: evidence.editedAt as string | null, capturedAt: evidence.capturedAt as string, contentTruncated: evidence.contentTruncated };
+  }
+  return { report, target: { type: targetType, id: targetId, ownerUid: id(target.ownerUid), available: target.available === true, title: text(target.title, 200), caption: targetType !== 'message' && typeof target.caption === 'string' ? text(target.caption, 8000) : null, revision: id(target.revision), ...(target.available && targetType === 'mini_app' && target.source ? { source: validateMiniApp(target.source) } : {}), ...(messageEvidence ? { messageEvidence } : {}) }, hold };
 }

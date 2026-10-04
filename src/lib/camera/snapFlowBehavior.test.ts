@@ -17,10 +17,10 @@ describe('shouldStayOnCameraAfterSend', () => {
 });
 
 describe('globalSendConfirmationText', () => {
-  it('formats destination counts', () => {
-    expect(globalSendConfirmationText(0)).toBe('Sent');
-    expect(globalSendConfirmationText(1)).toBe('Sent to 1');
-    expect(globalSendConfirmationText(3)).toBe('Sent to 3');
+  it('describes dispatch without claiming upload or delivery succeeded', () => {
+    expect(globalSendConfirmationText(0)).toBe('Preparing snap');
+    expect(globalSendConfirmationText(1)).toBe('Preparing to send to 1');
+    expect(globalSendConfirmationText(3)).toBe('Preparing to send to 3');
   });
 });
 

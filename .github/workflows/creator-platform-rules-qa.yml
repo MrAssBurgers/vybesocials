@@ -24,6 +24,13 @@ on:
       - 'scripts/test-report-authority-rules.mjs'
       - 'scripts/test-report-authority-backend.mjs'
       - 'scripts/test-report-notification-backend.mjs'
+      - 'scripts/test-message-report-backend.mjs'
+      - 'scripts/test-feed-mute-rules.mjs'
+      - 'functions/src/_shared/messageReportEvidence.ts'
+      - 'src/lib/feedMuteService*'
+      - 'src/hooks/useFeedMute*'
+      - 'src/hooks/useMessageActions*'
+      - 'src/components/chat/MessageReportDialog*'
       - 'functions/src/reportModeration.ts'
       - 'functions/src/reportNotify.ts'
       - 'functions/src/_shared/report*.ts'
@@ -112,6 +119,13 @@ on:
       - 'scripts/test-report-authority-rules.mjs'
       - 'scripts/test-report-authority-backend.mjs'
       - 'scripts/test-report-notification-backend.mjs'
+      - 'scripts/test-message-report-backend.mjs'
+      - 'scripts/test-feed-mute-rules.mjs'
+      - 'functions/src/_shared/messageReportEvidence.ts'
+      - 'src/lib/feedMuteService*'
+      - 'src/hooks/useFeedMute*'
+      - 'src/hooks/useMessageActions*'
+      - 'src/components/chat/MessageReportDialog*'
       - 'functions/src/reportModeration.ts'
       - 'functions/src/reportNotify.ts'
       - 'functions/src/_shared/report*.ts'
@@ -242,6 +256,8 @@ jobs:
           node --check scripts/test-report-authority-rules.mjs
           node --check scripts/test-report-authority-backend.mjs
           node --check scripts/test-report-notification-backend.mjs
+          node --check scripts/test-message-report-backend.mjs
+          node --check scripts/test-feed-mute-rules.mjs
 
       # Explicit demo project + QA-only config prevents the repository's
       # production default in .firebaserc from being selected.
@@ -265,6 +281,8 @@ jobs:
           node scripts/test-token-marketplace-rules.mjs &&
           node scripts/test-token-marketplace-backend.mjs &&
           node scripts/test-report-authority-backend.mjs &&
+          node scripts/test-message-report-backend.mjs &&
+          node scripts/test-feed-mute-rules.mjs &&
           node scripts/test-report-notification-backend.mjs"
 
       - name: Upload emulator diagnostics

@@ -206,12 +206,12 @@ export function ProfileHeroCard({
           <div className="flex items-center gap-1 flex-shrink-0">
             {isOwnProfile ? (
               <>
-                <Link to="/settings">
-                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg bg-foreground/5 hover:bg-foreground/10">
+                <Button asChild variant="ghost" size="icon" className="h-8 w-8 rounded-lg bg-foreground/5 hover:bg-foreground/10">
+                  <Link to="/settings" aria-label="Profile settings">
                     <Settings className="h-4 w-4" />
-                  </Button>
-                </Link>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg bg-foreground/5 hover:bg-foreground/10" onClick={handleShare}>
+                  </Link>
+                </Button>
+                <Button aria-label="Share profile" variant="ghost" size="icon" className="h-8 w-8 rounded-lg bg-foreground/5 hover:bg-foreground/10" onClick={handleShare}>
                   <Share2 className="h-4 w-4" />
                 </Button>
               </>
@@ -219,7 +219,7 @@ export function ProfileHeroCard({
               <>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg bg-foreground/5 hover:bg-foreground/10">
+                    <Button aria-label="Profile safety actions" variant="ghost" size="icon" className="h-8 w-8 rounded-lg bg-foreground/5 hover:bg-foreground/10">
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>

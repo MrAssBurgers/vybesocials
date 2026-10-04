@@ -8,11 +8,14 @@
  * - Includes deduplication and retry logic for reliability
  */
 
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
-import { getEffectiveProfileId } from '@/lib/profileCache';
+import { conversationDetailQueryKey, dmListQueryKey, isDmConversationForViewer, ownedDmProfileId } from '@/lib/dmAccountScope';
+import { readQueryArray } from '@/lib/persistedCollections';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
+import { reportAccountSnapshot, type ReportAccountSession } from '@/lib/reportModerationService';
 import { removeChannelByTopic, removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
 import { subscribeDmBroadcastMessages } from '@/lib/dmBroadcast';
 import {
@@ -91,13 +94,19 @@ function isOptimisticDuplicate(conversationId: string, content: string, _senderI
 
 // Debounced refetch for the unknown-conversation case
 let unknownConvoRefetchTimer: ReturnType<typeof setTimeout> | null = null;
-function scheduleUnknownConvoRefetch(qc: ReturnType<typeof useQueryClient>, profileId: string) {
+function scheduleUnknownConvoRefetch(qc: ReturnType<typeof useQueryClient>, profileId: string, session: ReportAccountSession) {
   if (unknownConvoRefetchTimer) return;
   unknownConvoRefetchTimer = setTimeout(() => {
     unknownConvoRefetchTimer = null;
-    qc.invalidateQueries({ queryKey: ['dm-conversations', profileId] });
-    qc.invalidateQueries({ queryKey: ['conversations', profileId] });
+    if (!isCurrentSession(session)) return;
+    void qc.invalidateQueries({ queryKey: dmListQueryKey(profileId, session), exact: true });
+    void qc.invalidateQueries({ queryKey: ['conversations', profileId, session.uid, session.epoch], exact: true });
   }, 800);
+}
+
+function isCurrentSession(session: ReportAccountSession) {
+  const current = reportAccountSnapshot();
+  return !!session.uid && session.uid === current.uid && session.epoch === current.epoch;
 }
 
 function isPresenceOnline(isOnline: boolean | undefined, lastSeenAt: string | undefined): boolean {
@@ -127,38 +136,30 @@ function patchUsersPresenceCache(
 
 export function useGlobalRealtimeMessages() {
   const { profile, user } = useAuth();
-  const profileId = getEffectiveProfileId(profile?.id);
-  const authUid = user?.id ?? profile?.user_id ?? null;
+  const session = useReportAccountSession();
+  const profileId = user?.id === session.uid ? ownedDmProfileId(session.uid, profile) : undefined;
+  const authUid = user?.id === session.uid ? user?.id ?? null : null;
   const queryClient = useQueryClient();
   const scopedRtRef = useRef<ScopedMessageRealtimeHandle | null>(null);
-  const rtContextRef = useRef({
+  const rtContext = useMemo<ScopedMessageRealtimeContext>(() => ({
+    accountSession: session,
     profileId: profileId!,
     authUid,
     queryClient,
     getViewingConversationId: () => currentConversationId,
-    isMessageProcessed,
-    markMessageProcessed,
+    isMessageProcessed: id => isMessageProcessed(`${session.uid}:${session.epoch}:${id}`),
+    markMessageProcessed: id => markMessageProcessed(`${session.uid}:${session.epoch}:${id}`),
     isOptimisticDuplicate,
-    scheduleUnknownConvoRefetch: (pid: string) => scheduleUnknownConvoRefetch(queryClient, pid),
-  });
-
-  rtContextRef.current.profileId = profileId ?? '';
-  rtContextRef.current.authUid = authUid;
-  rtContextRef.current.queryClient = queryClient;
-  rtContextRef.current.scheduleUnknownConvoRefetch = (pid: string) =>
-    scheduleUnknownConvoRefetch(queryClient, pid);
-
-  const rtContext = useCallback(
-    () => rtContextRef.current as ScopedMessageRealtimeContext,
-    [],
-  );
+    scheduleUnknownConvoRefetch: (pid: string) => scheduleUnknownConvoRefetch(queryClient, pid, session),
+  }), [profileId, authUid, queryClient, session]);
 
   // Global presence channel — patches ['user-presence', id] and
   // ['users-presence', ...] caches as soon as anyone toggles online/offline,
   // so the DM list reflects status in near-realtime instead of waiting 20s.
   const presenceChannelRef = useRef<ReturnType<typeof db.channel> | null>(null);
   useEffect(() => {
-    if (!profileId) return;
+    if (!profileId || !isCurrentSession(session)) return;
+    let active = true;
     removeRealtimeChannel(presenceChannelRef.current);
     presenceChannelRef.current = null;
     removeChannelByTopic(`global-presence:${profileId}`);
@@ -168,6 +169,7 @@ export function useGlobalRealtimeMessages() {
         event: '*',
         table: 'user_presence',
         callback: (payload: any) => {
+          if (!active || !isCurrentSession(session)) return;
           const row = payload.new || payload.old;
           if (!row?.user_id) return;
           queryClient.setQueryData(['user-presence', row.user_id], {
@@ -185,12 +187,13 @@ export function useGlobalRealtimeMessages() {
     ]);
     presenceChannelRef.current = ch;
     return () => {
+      active = false;
       try {
         removeRealtimeChannel(presenceChannelRef.current);
         presenceChannelRef.current = null;
       } catch { /* never throw from cleanup */ }
     };
-  }, [profileId, queryClient]);
+  }, [profileId, queryClient, session]);
 
   // Broadcast listener for instant delivery on the currently viewed conversation
   const [activeConvoId, setActiveConvoId] = useState<string | null>(currentConversationId);
@@ -201,13 +204,23 @@ export function useGlobalRealtimeMessages() {
 
   useEffect(() => {
     if (!profileId || !activeConvoId) return;
-
+    let active = true;
     const convoId = activeConvoId;
-    return subscribeDmBroadcastMessages(convoId, (msg) => {
+    const captured = { ...rtContext, isActive: () => active };
+    const unsubscribe = subscribeDmBroadcastMessages(convoId, (msg) => {
+      if (!active || !isCurrentSession(session) || msg?.conversation_id !== convoId) return;
       if (!msg?.id || msg.sender_id === profileId || msg.sender_id === authUid) return;
-      applyBroadcastMessage(rtContext(), msg);
+      // A native BroadcastChannel can outlive the account that opened a thread.
+      // Require this session's verified conversation before using its fast path;
+      // Firestore delivery remains available while the authorized view loads.
+      const detail = queryClient.getQueryData(conversationDetailQueryKey(convoId, session));
+      const list = readQueryArray(queryClient.getQueryData(dmListQueryKey(profileId, session)));
+      if (!isDmConversationForViewer(detail, profileId, authUid)
+        && !list.some(row => row?.id === convoId && isDmConversationForViewer(row, profileId, authUid))) return;
+      applyBroadcastMessage(captured, msg);
     });
-  }, [profileId, authUid, rtContext, activeConvoId]);
+    return () => { active = false; unsubscribe(); };
+  }, [profileId, authUid, rtContext, activeConvoId, session, queryClient]);
 
   // Resync scoped listeners when conversation list cache updates (debounced)
   useEffect(() => {
@@ -225,7 +238,8 @@ export function useGlobalRealtimeMessages() {
         if (event?.type !== 'updated') return;
         const key = event.query?.queryKey;
         if (!Array.isArray(key)) return;
-        if (key[0] === 'dm-conversations' || key[0] === 'conversations') {
+        if ((key[0] === 'dm-conversations' || key[0] === 'conversations')
+          && key[1] === profileId && key[2] === session.uid && key[3] === session.epoch && isCurrentSession(session)) {
           scheduleResync();
         }
       } catch (err) {
@@ -236,22 +250,18 @@ export function useGlobalRealtimeMessages() {
       if (resyncTimer) clearTimeout(resyncTimer);
       unsub();
     };
-  }, [profileId, queryClient]);
+  }, [profileId, queryClient, session]);
 
   useEffect(() => {
     if (!profileId) return;
     scopedRtRef.current?.teardown();
-    scopedRtRef.current = setupScopedMessageRealtime(rtContext());
+    const handle = setupScopedMessageRealtime(rtContext);
+    scopedRtRef.current = handle;
     return () => {
-      scopedRtRef.current?.teardown();
-      scopedRtRef.current = null;
+      handle.teardown();
+      if (scopedRtRef.current === handle) scopedRtRef.current = null;
     };
   }, [profileId, rtContext]);
-
-  // Keep handler closures fresh without tearing down Firestore listeners.
-  useEffect(() => {
-    scopedRtRef.current?.updateContext(rtContext());
-  }, [authUid, queryClient, rtContext]);
 
   // Resync when user opens a DM (may not be in list cache yet)
   useEffect(() => {

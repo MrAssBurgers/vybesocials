@@ -10,6 +10,7 @@ import { getUserFriendlyError } from '@/lib/errorUtils';
 import { db } from '@/lib/firebase';
 import { haptics } from '@/lib/haptics';
 import { BlockedUsersCard } from './BlockedUsersCard';
+import { MutedUsersCard } from './MutedUsersCard';
 import { FriendProfileVisibilityCard } from './FriendProfileVisibilityCard';
 import { RelationshipEmojiSettings } from './RelationshipEmojiSettings';
 import { SettingsSectionCard, SettingsPanel, SettingsToggleRow, SettingsActionRow } from './SettingsUI';
@@ -306,6 +307,7 @@ export function PrivacySection({ onOpenParental }: { onOpenParental?: () => void
       </SettingsSectionCard>
 
         <BlockedUsersCard />
+        <MutedUsersCard />
         <FriendProfileVisibilityCard />
     </div>
   );

@@ -83,23 +83,31 @@ export async function listUserChats(userId: string): Promise<ChatWithMembers[]> 
     .sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
 }
 
-export async function createDmChat(otherUserId: string): Promise<string> {
+export async function createDmChat(otherUserId: string, accountGuard?: () => void): Promise<string> {
+  accountGuard?.();
   const { data: { user } } = await firebaseAuth.getUser();
+  accountGuard?.();
   if (!user) throw new Error('Not authenticated');
 
   const myProfileId = (await resolveProfileIdFromAuthUid(user.id)) || user.id;
+  accountGuard?.();
   const otherId = (await normalizeToProfileId(otherUserId)) || otherUserId;
+  accountGuard?.();
   await syncUserAuthIndex(user.id, myProfileId);
+  accountGuard?.();
 
   const existing = await findExistingDmBetweenProfiles(myProfileId, otherId);
+  accountGuard?.();
   if (existing) {
     await ensureDmMembershipPair(existing, myProfileId, otherId);
+    accountGuard?.();
     return existing;
   }
 
   const profileMemberIds = [myProfileId, otherId].sort();
   const chatId = profileMemberIds.join('_');
   const otherProfile = await getUserProfile(otherId);
+  accountGuard?.();
   const otherAuthUid = otherProfile?.user_id ?? null;
   const allMemberIds = [
     ...new Set([myProfileId, otherId, user.id, otherAuthUid].filter(Boolean)),
@@ -116,8 +124,10 @@ export async function createDmChat(otherUserId: string): Promise<string> {
     created_at: now,
     updated_at: now,
   });
+  accountGuard?.();
 
   for (const memberId of allMemberIds) {
+    accountGuard?.();
     await setDocument('conversation_members', `${chatId}_${memberId}`, {
       id: `${chatId}_${memberId}`,
       conversation_id: chatId,
@@ -129,6 +139,7 @@ export async function createDmChat(otherUserId: string): Promise<string> {
       created_at: now,
       updated_at: now,
     });
+    accountGuard?.();
   }
 
   return chatId;

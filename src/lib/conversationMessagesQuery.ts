@@ -10,6 +10,10 @@ export const CHAT_OLDER_MESSAGE_PAGE = 150;
 /** Hard cap — history loads page-by-page on scroll, so this just bounds cache size. */
 export const CHAT_MAX_MESSAGE_HISTORY = 10000;
 
+function isAccessDenial(error: VybeAuthError): boolean {
+  return /permission|unauthenticated|denied/i.test(`${error.code || ''} ${error.message || ''}`);
+}
+
 function sortByCreatedDesc<T extends MessageRow>(rows: T[]): T[] {
   return [...rows].sort(
     (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(),
@@ -54,6 +58,7 @@ export async function fetchRecentConversationMessages<T extends MessageRow>(
   if (!ordered.error) {
     return { data: sortByCreatedDesc((ordered.data || []) as T[]), error: null };
   }
+  if (isAccessDenial(ordered.error)) return { data: null, error: ordered.error };
 
   const fetchLimit = Math.max(limit * 5, 250);
   const { data, error } = await db
@@ -96,6 +101,7 @@ export async function fetchOlderConversationMessages<T extends MessageRow>(
     const hasMore = rows.length > limit;
     return { data: rows.slice(0, limit), error: null, hasMore };
   }
+  if (isAccessDenial(ordered.error)) return { data: null, error: ordered.error, hasMore: false };
 
   // Fallback: index-free scan + client filter (misses history past the scan cap).
   const fetchLimit = Math.max(limit * 8, 400);

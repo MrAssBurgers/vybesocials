@@ -6,18 +6,15 @@ import {
   MESSAGE_FETCH_TIMEOUT_MS,
   MESSAGE_SELECT_WARM,
 } from '@/lib/loadConversationMessages';
-import type { LoadedDMConversation } from '@/lib/loadDMConversations';
+import { readDmConversationsCache, type LoadedDMConversation } from '@/lib/loadDMConversations';
 import { CHAT_INITIAL_MESSAGE_LIMIT } from '@/lib/conversationMessagesQuery';
 import { messagesQueryKey, readMessagesCache, normalizeMessageRow } from '@/lib/messagesQueryKey';
-import { buildConversationPlaceholder } from '@/lib/dmMembershipRepair';
-import {
-  ensureArray,
-  findInQueryArray,
-  normalizeDmConversation,
-} from '@/lib/persistedCollections';
+import { normalizeDmConversation } from '@/lib/persistedCollections';
 import { scheduleIdleWork } from '@/lib/scheduleIdleWork';
 import { withTimeout } from '@/lib/withTimeout';
 import { dmThreadLog } from '@/lib/dmThreadDebug';
+import { reportAccountGuard, reportAccountSnapshot, type ReportAccountSession } from '@/lib/reportModerationService';
+import { conversationDetailQueryKey, isDmConversationForViewer, isOwnedDmActor, ownedDmProfileId } from '@/lib/dmAccountScope';
 
 type DMConversation = LoadedDMConversation;
 
@@ -28,31 +25,10 @@ export function findCachedDmConversation(
   queryClient: QueryClient,
   conversationId: string,
   profileId?: string | null,
+  session: ReportAccountSession = reportAccountSnapshot(),
 ): DMConversation | undefined {
-  if (!conversationId) return undefined;
-
-  const keys = [profileId].filter(Boolean) as string[];
-  for (const key of keys) {
-    const hit =
-      findInQueryArray(
-        queryClient.getQueryData<DMConversation[]>(['dm-conversations', key]),
-        (c) => c.id === conversationId,
-      ) ??
-      findInQueryArray(
-        queryClient.getQueryData<DMConversation[]>(['conversations', key]),
-        (c) => c.id === conversationId,
-      );
-    if (hit) return normalizeDmConversation(hit);
-  }
-
-  for (const [, data] of queryClient.getQueriesData<DMConversation[]>({
-    queryKey: ['dm-conversations'],
-  })) {
-    const hit = ensureArray<DMConversation>(data).find((c) => c.id === conversationId);
-    if (hit) return normalizeDmConversation(hit);
-  }
-
-  return undefined;
+  if (!conversationId || !session.uid) return undefined;
+  return readDmConversationsCache(queryClient, profileId, session.uid, session).find(row => row.id === conversationId);
 }
 
 /** Seed conversation-detail from inbox cache so the chat header paints instantly. */
@@ -61,32 +37,26 @@ export function seedConversationDetailCache(
   conversationId: string,
   profileId?: string | null,
   conversationHint?: DMConversation | null,
+  session: ReportAccountSession = reportAccountSnapshot(),
 ): void {
-  if (!conversationId) return;
+  if (!conversationId || !session.uid) return;
+  try { reportAccountGuard(session.uid)(); } catch { return; }
+  const current = reportAccountSnapshot();
+  if (current.epoch !== session.epoch) return;
 
-  const detailKey = ['conversation-detail', conversationId] as const;
-  if (conversationHint) {
+  const detailKey = conversationDetailQueryKey(conversationId, session);
+  const viewerId = ownedDmProfileId(session.uid) || session.uid;
+  if (conversationHint?.id === conversationId && isDmConversationForViewer(conversationHint, viewerId, session.uid)) {
     queryClient.setQueryData(detailKey, normalizeDmConversation(conversationHint));
     return;
   }
 
-  const cached = findCachedDmConversation(queryClient, conversationId, profileId);
+  const cached = findCachedDmConversation(queryClient, conversationId, profileId, session);
   if (cached) {
     queryClient.setQueryData(detailKey, normalizeDmConversation(cached));
     return;
   }
 
-  const existing = queryClient.getQueryData<DMConversation>(detailKey);
-  if (
-    existing?.members?.length &&
-    existing.members.some((m) => m.profile?.username)
-  ) {
-    return;
-  }
-
-  if (!profileId) return;
-  const seed = buildConversationPlaceholder(conversationId, profileId) as unknown as DMConversation;
-  queryClient.setQueryData(detailKey, normalizeDmConversation(seed));
 }
 
 type InboxMessageSeed = {
@@ -110,16 +80,20 @@ export function seedMessagesFromInboxPreview(
   conversationId: string,
   profileId?: string | null,
   conversationHint?: InboxMessageSeed | null,
+  session: ReportAccountSession = reportAccountSnapshot(),
 ): void {
-  if (readMessagesCache(queryClient, conversationId).length > 0) return;
+  if (!session.uid || reportAccountSnapshot().epoch !== session.epoch) return;
+  if (readMessagesCache(queryClient, conversationId, session).length > 0) return;
 
-  const conv =
-    conversationHint ??
-    findCachedDmConversation(queryClient, conversationId, profileId);
+  const viewerId = ownedDmProfileId(session.uid) || session.uid;
+  const trustedHint = conversationHint && 'id' in conversationHint && conversationHint.id === conversationId
+    && isDmConversationForViewer(conversationHint, viewerId, session.uid) ? conversationHint : undefined;
+  const conv = trustedHint ?? findCachedDmConversation(queryClient, conversationId, profileId, session);
   const last = conv?.last_message;
   if (!last?.id || !last.created_at) return;
 
-  queryClient.setQueryData<Message[]>(messagesQueryKey(conversationId), [
+  if (last.conversation_id && last.conversation_id !== conversationId) return;
+  queryClient.setQueryData<Message[]>(messagesQueryKey(conversationId, session), [
     normalizeMessageRow({
       ...last,
       conversation_id: conversationId,
@@ -145,29 +119,40 @@ export function warmDmConversation(
   conversationHint?: InboxMessageSeed | DMConversation | null,
 ): void {
   if (!conversationId) return;
+  const session = reportAccountSnapshot();
+  if (!session.uid || !isOwnedDmActor(actorId || profileId, session.uid)) return;
+  const guard = reportAccountGuard(session.uid);
+  try { guard(); } catch { return; }
 
   prewarmDmBroadcastChannel(conversationId);
-  seedConversationDetailCache(queryClient, conversationId, profileId, conversationHint as DMConversation | null);
-  seedMessagesFromInboxPreview(queryClient, conversationId, profileId, conversationHint);
+  seedConversationDetailCache(queryClient, conversationId, profileId, conversationHint as DMConversation | null, session);
+  seedMessagesFromInboxPreview(queryClient, conversationId, profileId, conversationHint, session);
 
   const resolvedActor = actorId ?? profileId;
   // Seed-only when profile isn't ready — don't block a later actor warm.
   if (!resolvedActor) return;
 
-  if (readMessagesCache(queryClient, conversationId).length >= WARM_SKIP_THRESHOLD) return;
-  if (warmInflight.has(conversationId)) return;
-  warmInflight.add(conversationId);
+  if (readMessagesCache(queryClient, conversationId, session).length >= WARM_SKIP_THRESHOLD) return;
+  const warmKey = JSON.stringify([session.uid, session.epoch, conversationId]);
+  if (warmInflight.has(warmKey)) return;
+  warmInflight.add(warmKey);
 
   const run = () => {
+    try { guard(); } catch { warmInflight.delete(warmKey); return; }
     void withTimeout(
       queryClient.fetchQuery({
-        queryKey: messagesQueryKey(conversationId),
-        queryFn: () =>
-          loadConversationMessages(queryClient, conversationId, resolvedActor, {
+        queryKey: messagesQueryKey(conversationId, session),
+        queryFn: async () => {
+          guard();
+          const data = await loadConversationMessages(queryClient, conversationId, resolvedActor, {
             recentOnly: true,
             maxMessages: CHAT_INITIAL_MESSAGE_LIMIT,
             select: MESSAGE_SELECT_WARM,
-          }),
+            session,
+          });
+          guard();
+          return data;
+        },
         staleTime: 0,
       }),
       MESSAGE_FETCH_TIMEOUT_MS,
@@ -178,7 +163,7 @@ export function warmDmConversation(
         dmThreadLog('warmTimedOut', conversationId);
       })
       .finally(() => {
-        warmInflight.delete(conversationId);
+        warmInflight.delete(warmKey);
       });
   };
 
@@ -197,12 +182,14 @@ export function warmDmConversationBatch(
   actorId?: string | null,
   conversationHints?: Map<string, InboxMessageSeed>,
 ): void {
+  const session = reportAccountSnapshot();
+  const guard = reportAccountGuard(session.uid || '');
   const unique = [...new Set(conversationIds.filter(Boolean))].slice(0, 8);
   unique.forEach((id, index) => {
     const hint = conversationHints?.get(id);
     // Always idle — inbox open must not race chat paint with 12 parallel fetches.
     scheduleIdleWork(
-      () => warmDmConversation(queryClient, id, profileId, actorId, 'normal', hint),
+      () => { try { guard(); } catch { return; } warmDmConversation(queryClient, id, profileId, actorId, 'normal', hint); },
       200 + index * 120,
     );
   });

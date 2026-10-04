@@ -1,26 +1,19 @@
-import { useCallback, useRef, useState, useEffect } from 'react';
+import { useCallback, useRef, useState, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
-import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { Message, ViewMode } from './useMessages';
 import { registerOptimisticMessage } from './useGlobalRealtimeMessages';
-import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
-import {
-  inferOtherParticipantId,
-  isConversationMessagesReady,
-  repairConversationForSend,
-} from '@/lib/dmMembershipRepair';
-import { patchMessagesCache, replaceOptimisticMessage } from '@/lib/messagesQueryKey';
-import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
-import { firebaseAuth } from '@/lib/firebase/authService';
-import { withTimeout } from '@/lib/withTimeout';
+import { inferOtherParticipantId } from '@/lib/dmMembershipRepair';
+import { patchMessagesCache, replaceOptimisticMessage, isMessageSessionCurrent } from '@/lib/messagesQueryKey';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
+import { reportAccountGuard } from '@/lib/reportModerationService';
+import { dmListQueryKey, ownedDmProfileId } from '@/lib/dmAccountScope';
 import { toast } from 'sonner';
 import { inferOtherUserIdFromConversation } from '@/lib/dmMemberResolve';
 import { patchDmConversationActivity, sortDmConversations } from '@/lib/dmConversationSort';
-import { findInQueryArray, safeDmMembers } from '@/lib/persistedCollections';
+import { findInQueryArray } from '@/lib/persistedCollections';
 import {
-  bumpConversationUpdatedAt,
   expiresAtForViewMode,
   insertDmMessage,
   isTransientSendError,
@@ -48,18 +41,38 @@ export interface PendingMessage {
  * Messages appear immediately, then sync with server
  */
 export function useInstantSend(conversationId: string | undefined) {
-  const { profile } = useAuth();
-  const profileId = useAuthProfileId();
-  const effectiveProfileId = profileId ?? profile?.id;
+  const session = useReportAccountSession();
+  const { profile, user } = useAuth();
+  // Native Auth can update before AuthProvider renders the new profile. A new
+  // native session must not authorize the previous account's visible composer.
+  const effectiveProfileId = user?.id === session.uid && profile?.user_id === session.uid
+    ? ownedDmProfileId(session.uid, profile) : undefined;
+  const currentView = useRef({ conversationId, session, effectiveProfileId });
+  currentView.current = { conversationId, session, effectiveProfileId };
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const accountGuard = useMemo(() => {
+    const guard = reportAccountGuard(user?.id || '');
+    return () => {
+      guard();
+      const view = currentView.current;
+      if (!mounted.current || !effectiveProfileId || !session.uid || user?.id !== session.uid
+        || profile?.user_id !== session.uid || !isMessageSessionCurrent(session)
+        || view.session !== session || view.effectiveProfileId !== effectiveProfileId || view.conversationId !== conversationId) {
+        throw Object.assign(new Error('Your chat account changed. Open this chat again before sending.'), { code: 'account-changed' });
+      }
+    };
+  }, [session, user?.id, profile?.user_id, effectiveProfileId, conversationId]);
+  const isCurrentOperation = useCallback(() => { try { accountGuard(); return true; } catch { return false; } }, [accountGuard]);
   const queryClient = useQueryClient();
   
   const pendingMessagesRef = useRef<Map<string, PendingMessage>>(new Map());
-  const sendReadyRef = useRef<{ conversationId?: string; senderId?: string; inflight?: Promise<string> }>({});
   const [videoUploadProgress, setVideoUploadProgress] = useState<Record<string, number>>({});
+  useEffect(() => { pendingMessagesRef.current.clear(); setVideoUploadProgress({}); }, [session, effectiveProfileId, conversationId]);
 
   useEffect(() => {
-    prewarmDmBroadcastChannel(conversationId);
-  }, [conversationId]);
+    if (isCurrentOperation()) prewarmDmBroadcastChannel(conversationId);
+  }, [conversationId, isCurrentOperation]);
 
   // Generate a temporary ID for optimistic updates
   const generateTempId = useCallback(() => {
@@ -72,9 +85,11 @@ export function useInstantSend(conversationId: string | undefined) {
     message: Partial<Message>,
     senderIdOverride?: string,
   ) => {
-    if (!conversationId || !effectiveProfileId) return false;
+    if (!conversationId || !effectiveProfileId || !isCurrentOperation()) return false;
+    accountGuard();
 
     const senderId = senderIdOverride || effectiveProfileId;
+    if (senderId !== effectiveProfileId) throw new Error('This message sender could not be verified.');
 
     const optimisticMessage: Message = {
       id: tempId,
@@ -104,7 +119,7 @@ export function useInstantSend(conversationId: string | undefined) {
     patchMessagesCache(queryClient, conversationId, (old) => {
       if (!old) return [optimisticMessage];
       return [...old, optimisticMessage];
-    });
+    }, session);
 
     void sendDmBroadcastMessage(conversationId, optimisticMessage as unknown as Record<string, unknown>);
 
@@ -129,22 +144,22 @@ export function useInstantSend(conversationId: string | undefined) {
 
     // Update BOTH conversation query keys immediately for instant sync
     if (effectiveProfileId) {
-      queryClient.setQueryData<any[]>(['conversations', effectiveProfileId], updateConversationList);
-      queryClient.setQueryData<any[]>(['dm-conversations', effectiveProfileId], updateConversationList);
+      queryClient.setQueryData<any[]>(['conversations', effectiveProfileId, session.uid, session.epoch], updateConversationList);
+      queryClient.setQueryData<any[]>(dmListQueryKey(effectiveProfileId, session), updateConversationList);
     }
 
     return true;
-  }, [conversationId, effectiveProfileId, profile, queryClient]);
+  }, [conversationId, effectiveProfileId, profile, queryClient, session, accountGuard, isCurrentOperation]);
 
   const confirmMessage = useCallback((tempId: string, realMessage: Message) => {
-    if (!conversationId) return;
-    replaceOptimisticMessage(queryClient, conversationId, tempId, realMessage);
+    if (!conversationId || !isCurrentOperation()) return;
+    replaceOptimisticMessage(queryClient, conversationId, tempId, realMessage, session);
     pendingMessagesRef.current.delete(tempId);
-  }, [conversationId, queryClient]);
+  }, [conversationId, queryClient, session, isCurrentOperation]);
 
   // Mark message as failed
   const markFailed = useCallback((tempId: string, error: string) => {
-    if (!conversationId || !effectiveProfileId) return;
+    if (!conversationId || !effectiveProfileId || !isCurrentOperation()) return;
 
     const pending = pendingMessagesRef.current.get(tempId);
 
@@ -185,72 +200,43 @@ export function useInstantSend(conversationId: string | undefined) {
       } as any;
 
       return [...rows, failedRow];
-    });
+    }, session);
 
     if (pending) {
       pending.status = 'failed';
       pending.error = error;
     }
-  }, [conversationId, effectiveProfileId, profile, queryClient]);
+  }, [conversationId, effectiveProfileId, profile, queryClient, session, isCurrentOperation]);
 
   // Remove a message from cache
   const removeMessage = useCallback((tempId: string) => {
-    if (!conversationId) return;
+    if (!conversationId || !isCurrentOperation()) return;
 
     patchMessagesCache(queryClient, conversationId, (old) => {
       if (!old) return old;
       return old.filter(m => m.id !== tempId);
-    });
+    }, session);
 
     pendingMessagesRef.current.delete(tempId);
-  }, [conversationId, queryClient]);
+  }, [conversationId, queryClient, session, isCurrentOperation]);
 
   const ensureSendReady = useCallback(async (): Promise<string> => {
+    accountGuard();
     if (!conversationId) throw new Error('No conversation');
-    const senderId = (await resolveSessionProfileId(profile?.id)) || profile?.id;
-    if (!senderId) throw new Error('Not authenticated');
-
-    const { data: { user } } = await firebaseAuth.getUser();
-    if (user?.id) {
-      await syncUserAuthIndex(user.id, senderId);
-    }
-
-    const cachedConv =
-      findInQueryArray(queryClient.getQueryData<any[]>(['dm-conversations', senderId]), (c) => c.id === conversationId) ??
-      findInQueryArray(queryClient.getQueryData<any[]>(['conversations', senderId]), (c) => c.id === conversationId);
-    const otherFromMembers =
-      safeDmMembers(cachedConv?.members).find((m: { user_id?: string }) => m.user_id !== senderId)?.user_id;
-    const otherProfileId =
-      (cachedConv &&
-        inferOtherUserIdFromConversation(cachedConv, senderId, profile?.user_id)) ||
-      otherFromMembers ||
-      inferOtherParticipantId(conversationId, senderId) ||
-      null;
-
-    await withTimeout(
-      repairConversationForSend(conversationId, senderId, otherProfileId),
-      4_000,
-      'Chat setup timed out',
-    ).catch((err) => {
-      console.warn('[InstantSend] repair before send:', err);
-    });
-
-    // Don't hard-block — insert retries repair on permission-denied. Blocking here
-    // surfaced "Message failed to send" when membership was still propagating.
-    if (!isConversationMessagesReady(conversationId, senderId)) {
-      console.warn('[InstantSend] membership not verified yet; attempting send with inline repair');
-    }
-
-    sendReadyRef.current = { conversationId, senderId };
-    return senderId;
-  }, [conversationId, profile?.id, profile?.user_id, profileId, queryClient]);
+    if (!effectiveProfileId) throw new Error('Not authenticated');
+    // New chats are created by createDmChat. Every send is authorized and its
+    // membership aliases repaired by the canonical server callable; never
+    // perform identity/membership writes from an asynchronous composer warmup.
+    return effectiveProfileId;
+  }, [conversationId, effectiveProfileId, accountGuard]);
 
   const resolveOtherProfileId = useCallback(
     (senderId: string) => {
       const cachedConv =
-        findInQueryArray(queryClient.getQueryData<any[]>(['dm-conversations', senderId]), (c) => c.id === conversationId) ??
-        findInQueryArray(queryClient.getQueryData<any[]>(['conversations', senderId]), (c) => c.id === conversationId);
-      const authUid = profile?.user_id ?? null;
+        findInQueryArray(queryClient.getQueryData<any[]>(dmListQueryKey(senderId, session)), (c) => c.id === conversationId) ??
+        findInQueryArray(queryClient.getQueryData<any[]>(['conversations', senderId, session.uid, session.epoch]), (c) => c.id === conversationId);
+      accountGuard();
+      const authUid = session.uid ?? null;
       return (
         (cachedConv &&
           inferOtherUserIdFromConversation(cachedConv, senderId, authUid)) ||
@@ -258,40 +244,13 @@ export function useInstantSend(conversationId: string | undefined) {
         null
       );
     },
-    [conversationId, profile?.user_id, queryClient],
+    [conversationId, queryClient, session, accountGuard],
   );
 
   const resolveSenderIdForSend = useCallback(async (): Promise<string> => {
-    if (
-      sendReadyRef.current.conversationId === conversationId &&
-      sendReadyRef.current.senderId
-    ) {
-      return sendReadyRef.current.senderId;
-    }
-    if (effectiveProfileId) {
-      sendReadyRef.current = { conversationId, senderId: effectiveProfileId };
-      // Background repair — the send itself retries inline, but a repair
-      // failure here is the earliest signal that membership is broken.
-      void ensureSendReady().catch((err) => {
-        console.warn('[InstantSend] background membership repair failed:', err);
-      });
-      return effectiveProfileId;
-    }
+    accountGuard();
     return ensureSendReady();
-  }, [conversationId, effectiveProfileId, ensureSendReady]);
-
-  // Pre-warm sender id in background — never block chat open on full repair.
-  useEffect(() => {
-    if (!conversationId || !effectiveProfileId) return;
-    sendReadyRef.current = { conversationId, senderId: effectiveProfileId };
-    void ensureSendReady()
-      .then((id) => {
-        sendReadyRef.current = { conversationId, senderId: id };
-      })
-      .catch((err) => {
-        console.warn('[InstantSend] pre-warm membership repair failed:', err);
-      });
-  }, [conversationId, effectiveProfileId, ensureSendReady]);
+  }, [ensureSendReady, accountGuard]);
 
   const insertMessageWithRetry = useCallback(
     async (
@@ -308,12 +267,13 @@ export function useInstantSend(conversationId: string | undefined) {
       return insertDmMessage(
         { ...payload, sender_id: senderId } as Parameters<typeof insertDmMessage>[0],
         {
+          accountGuard,
           otherProfileId,
           push: { senderName, preview },
         },
       );
     },
-    [profile?.display_name, profile?.username],
+    [profile?.display_name, profile?.username, accountGuard],
   );
 
   // Send a text message instantly
@@ -323,6 +283,7 @@ export function useInstantSend(conversationId: string | undefined) {
     replyToId?: string,
     onOptimisticAdded?: () => void,
   ) => {
+    accountGuard();
     if (!conversationId || !effectiveProfileId || !content.trim()) {
       throw new Error('Not ready to send yet — try again in a moment.');
     }
@@ -356,6 +317,7 @@ export function useInstantSend(conversationId: string | undefined) {
     void (async () => {
     try {
       const senderId = await resolveSenderIdForSend();
+      accountGuard();
       const otherProfileId = resolveOtherProfileId(senderId);
 
       const expiresAt = expiresAtForViewMode(viewMode);
@@ -377,9 +339,8 @@ export function useInstantSend(conversationId: string | undefined) {
         otherProfileId,
       );
 
-      void bumpConversationUpdatedAt(conversationId);
-
       const { data, error } = await insertPromise;
+      accountGuard();
 
       if (error) throw error;
       if (!data) throw new Error('Failed to send message');
@@ -388,18 +349,27 @@ export function useInstantSend(conversationId: string | undefined) {
       void sendDmBroadcastMessage(conversationId, data as unknown as Record<string, unknown>);
 
     } catch (error: any) {
+      if (!isCurrentOperation()) return;
       if (isTransientSendError(error) && conversationId && effectiveProfileId) {
         const pending = pendingMessagesRef.current.get(tempId);
-        void outboxEnqueue({
-          tempId,
-          conversationId,
-          senderId: effectiveProfileId,
-          content: pending?.content,
-          viewMode: pending?.viewMode || viewMode,
-          replyToId: pending?.replyToId,
-          expiresAt: expiresAtForViewMode(viewMode),
-        });
-        toast.info('Message queued — will send when you\'re back online', { duration: 3500 });
+        try {
+          await outboxEnqueue({
+            tempId,
+            conversationId,
+            senderId: effectiveProfileId,
+            content: pending?.content,
+            viewMode: pending?.viewMode || viewMode,
+            replyToId: pending?.replyToId,
+            expiresAt: expiresAtForViewMode(viewMode),
+          }, session);
+          accountGuard();
+          toast.info('Message queued — will send when you\'re back online', { duration: 3500 });
+        } catch {
+          if (isCurrentOperation()) {
+            markFailed(tempId, 'Could not save this message for retry.');
+            toast.error('Message was not queued. Keep this chat open and try again.');
+          }
+        }
         return;
       }
       console.error('Failed to send message:', error);
@@ -407,7 +377,7 @@ export function useInstantSend(conversationId: string | undefined) {
       toast.error('Message failed to send');
     }
     })();
-  }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, resolveSenderIdForSend, insertMessageWithRetry, resolveOtherProfileId]);
+  }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, resolveSenderIdForSend, insertMessageWithRetry, resolveOtherProfileId, accountGuard, session, isCurrentOperation]);
 
   // Send media message
   const sendMedia = useCallback(async (
@@ -416,6 +386,7 @@ export function useInstantSend(conversationId: string | undefined) {
     viewMode: ViewMode = 'permanent',
     replyToId?: string
   ) => {
+    accountGuard();
     if (!conversationId || !effectiveProfileId) return;
 
     const tempId = generateTempId();
@@ -439,6 +410,7 @@ export function useInstantSend(conversationId: string | undefined) {
 
     try {
       const senderId = await resolveSenderIdForSend();
+      accountGuard();
       const otherProfileId =
         inferOtherParticipantId(conversationId!, senderId) || null;
       const expiresAt = expiresAtForViewMode(viewMode);
@@ -459,20 +431,21 @@ export function useInstantSend(conversationId: string | undefined) {
         otherProfileId,
       );
 
+      accountGuard();
       if (error) throw error;
       if (!data) throw new Error('Failed to send media');
 
       confirmMessage(tempId, data);
       void sendDmBroadcastMessage(conversationId, data as unknown as Record<string, unknown>);
-      void bumpConversationUpdatedAt(conversationId);
 
       return data;
     } catch (error: any) {
+      if (!isCurrentOperation()) throw error;
       console.error('Failed to send media:', error);
       markFailed(tempId, error.message || 'Failed to send');
       throw error;
     }
-  }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, resolveSenderIdForSend, insertMessageWithRetry]);
+  }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, resolveSenderIdForSend, insertMessageWithRetry, accountGuard, session, isCurrentOperation]);
 
   // Send video with optimistic UI and progress tracking
   const sendVideo = useCallback(async (
@@ -483,6 +456,7 @@ export function useInstantSend(conversationId: string | undefined) {
     replyToId?: string,
     caption?: string
   ) => {
+    accountGuard();
     if (!conversationId || !effectiveProfileId) return;
 
     const tempId = generateTempId();
@@ -517,6 +491,7 @@ export function useInstantSend(conversationId: string | undefined) {
     try {
       // Simulate upload progress (real progress would come from XHR)
       const updateProgress = (p: number) => {
+        accountGuard();
         setVideoUploadProgress(prev => ({ ...prev, [tempId]: p }));
         const pending = pendingMessagesRef.current.get(tempId);
         if (pending) {
@@ -526,12 +501,12 @@ export function useInstantSend(conversationId: string | undefined) {
 
       updateProgress(10);
 
-      // Upload to Supabase storage - MUST use profile.user_id (auth ID) for RLS
-      if (!profile.user_id) {
+      // Firebase storage paths belong to the initiating authenticated account.
+      if (!session.uid || profile?.user_id !== session.uid) {
         throw new Error('Account not ready - please refresh and try again');
       }
       const fileExt = file.name.split('.').pop() || 'mp4';
-      const fileName = `${profile.user_id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+      const fileName = `${session.uid}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
       
       updateProgress(30);
       
@@ -556,6 +531,7 @@ export function useInstantSend(conversationId: string | undefined) {
       updateProgress(85);
 
       const senderId = await ensureSendReady();
+      accountGuard();
       const otherProfileId = resolveOtherProfileId(senderId);
       const expiresAt = expiresAtForViewMode(viewMode);
 
@@ -578,11 +554,11 @@ export function useInstantSend(conversationId: string | undefined) {
 
       if (error) throw error;
       if (!data) throw new Error('Failed to send video');
+      accountGuard();
 
       updateProgress(100);
       confirmMessage(tempId, data);
       void sendDmBroadcastMessage(conversationId, data as unknown as Record<string, unknown>);
-      void bumpConversationUpdatedAt(conversationId);
 
       // Cleanup
       URL.revokeObjectURL(localUrl);
@@ -593,15 +569,17 @@ export function useInstantSend(conversationId: string | undefined) {
 
       return data;
     } catch (error: any) {
+      if (!isCurrentOperation()) { URL.revokeObjectURL(localUrl); throw error; }
       console.error('Failed to send video:', error);
       markFailed(tempId, error.message || 'Failed to send');
       URL.revokeObjectURL(localUrl);
       throw error;
     }
-  }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, resolveSenderIdForSend]);
+  }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, ensureSendReady, insertMessageWithRetry, resolveOtherProfileId, accountGuard, session, isCurrentOperation]);
 
   // Retry a failed message
   const retry = useCallback(async (tempId: string) => {
+    accountGuard();
     const pending = pendingMessagesRef.current.get(tempId);
     if (!pending) return;
 
@@ -614,7 +592,7 @@ export function useInstantSend(conversationId: string | undefined) {
     } else if (pending.content) {
       return sendText(pending.content, pending.viewMode, pending.replyToId);
     }
-  }, [removeMessage, sendMedia, sendText]);
+  }, [removeMessage, sendMedia, sendText, accountGuard]);
 
   return {
     sendText,
@@ -623,6 +601,6 @@ export function useInstantSend(conversationId: string | undefined) {
     retry,
     removeMessage,
     videoUploadProgress,
-    getPendingMessages: () => Array.from(pendingMessagesRef.current.values()),
+    getPendingMessages: () => isCurrentOperation() ? Array.from(pendingMessagesRef.current.values()) : [],
   };
 }

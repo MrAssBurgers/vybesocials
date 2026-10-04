@@ -10,6 +10,7 @@ vi.mock('@tanstack/react-query', () => ({ useInfiniteQuery: (options: unknown) =
 vi.mock('@/lib/firebase', () => ({ db: { rpc: state.rpc } }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ profile: state.profile, user: { id: 'auth-viewer' } }) }));
 vi.mock('@/hooks/useBlockedUsers', () => ({ useBlockedUserIds: () => state.blocked }));
+vi.mock('@/hooks/useFeedMuteFilter', () => ({ useFeedMuteFilter: (query: unknown) => query }));
 vi.mock('@/lib/profileCache', () => ({ getEffectiveProfileId: (id?: string) => id ?? null }));
 vi.mock('@/lib/signedUrlCache', () => ({ ensureMediaUrlsReady: state.media }));
 vi.mock('@/lib/imagePreload', () => ({ preloadFeedPostsMedia: vi.fn() }));

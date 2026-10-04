@@ -49,6 +49,7 @@ import type { ActivityType } from '@/components/chat/LiveActivityIndicator';
 import type { DMConversationPreview, DMInboxRow, DMStoryState, DmInboxFilterId, DmInboxTabId, InboxCallSummary } from './dm.types';
 
 const TAB_STORAGE_KEY = 'vybe-dm-inbox-tab';
+const EMPTY_CONVERSATIONS: LoadedDMConversation[] = [];
 
 function conversationContentRevision(conversation: LoadedDMConversation): string {
   const lastMessage = conversation.last_message;
@@ -393,7 +394,7 @@ export function useDMInbox() {
   }, []);
 
   const presenceMapRaw = useConversationListPresence(
-    presenceReady && inboxListActive ? allConversations : [],
+    presenceReady && inboxListActive ? allConversations : EMPTY_CONVERSATIONS,
     profileId,
     user?.id,
     activeConversationId,

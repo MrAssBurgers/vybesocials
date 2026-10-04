@@ -39,7 +39,7 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
   interactive = true,
   backgroundOnly = false,
 }: VybeLiquidBackgroundProps) {
-  const { resolvedTheme } = useTheme();
+  const { resolvedTheme, reducedMotion } = useTheme();
   const isLight = resolvedTheme === 'light';
   const rootRef = useRef<HTMLDivElement>(null);
   const touchRef = useRef<HTMLDivElement>(null);
@@ -47,7 +47,7 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
   const washRef = useRef<HTMLDivElement>(null);
   const boostTimerRef = useRef<number | null>(null);
   const lastTouchRef = useRef(0);
-  const orientPendingRef = useRef(false);
+  const orientFrameRef = useRef<number | null>(null);
 
   const applyBgBoost = useCallback((clientX: number, clientY: number) => {
     const root = rootRef.current;
@@ -97,22 +97,27 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
   const useStaticAurora =
     STABLE_APP_BACKGROUND ||
     isNativePerfMode() ||
-    (typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    reducedMotion;
 
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
     if (useStaticAurora) {
-      root.classList.add('vybe-liquid-bg--static');
+      if (boostTimerRef.current) window.clearTimeout(boostTimerRef.current);
+      boostTimerRef.current = null;
+      root.classList.remove('vybe-liquid-bg--boost');
+      for (const property of ['--pull-x', '--pull-y', '--tilt-x', '--tilt-y']) root.style.setProperty(property, '0px');
+      touchRef.current?.classList.remove('vybe-liquid-touch--play');
+      surgeRef.current?.classList.remove('vybe-liquid-surge--play');
+      washRef.current?.classList.remove('vybe-liquid-wash--play');
     }
   }, [useStaticAurora]);
 
   useEffect(() => {
-    if (STABLE_APP_BACKGROUND) return;
+    if (useStaticAurora) return;
     if (!backgroundOnly || !interactive) return;
     return registerVybeLiquidBgBoost(applyBgBoost);
-  }, [backgroundOnly, interactive, applyBgBoost]);
+  }, [backgroundOnly, interactive, applyBgBoost, useStaticAurora]);
 
   useEffect(() => {
     return () => {
@@ -121,48 +126,43 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
   }, []);
 
   useEffect(() => {
-    if (STABLE_APP_BACKGROUND || isNativePerfMode()) return;
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduceMotion) return;
+    if (useStaticAurora || typeof DeviceOrientationEvent === 'undefined') return;
 
     const root = rootRef.current;
     if (!root) return;
 
+    let tiltX = 0;
+    let tiltY = 0;
     const applyTilt = () => {
-      orientPendingRef.current = false;
+      orientFrameRef.current = null;
+      root.style.setProperty('--tilt-x', `${tiltX}px`);
+      root.style.setProperty('--tilt-y', `${tiltY}px`);
     };
 
     const onOrient = (e: DeviceOrientationEvent) => {
       const gamma = e.gamma ?? 0;
       const beta = e.beta ?? 0;
-      root.style.setProperty('--tilt-x', `${Math.max(-12, Math.min(12, gamma * 0.18))}px`);
-      root.style.setProperty('--tilt-y', `${Math.max(-8, Math.min(8, (beta - 45) * 0.1))}px`);
-      if (!orientPendingRef.current) {
-        orientPendingRef.current = true;
-        requestAnimationFrame(applyTilt);
-      }
+      tiltX = Math.max(-12, Math.min(12, gamma * 0.18));
+      tiltY = Math.max(-8, Math.min(8, (beta - 45) * 0.1));
+      if (orientFrameRef.current === null) orientFrameRef.current = requestAnimationFrame(applyTilt);
     };
 
     const req = (DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> })
       .requestPermission;
 
-    if (typeof req === 'function') {
-      req()
-        .then((state) => {
-          if (state === 'granted') {
-            window.addEventListener('deviceorientation', onOrient, { passive: true });
-          }
-        })
-        .catch(() => {});
-    } else {
-      window.addEventListener('deviceorientation', onOrient, { passive: true });
-    }
+    // Decorative parallax must never request sensor permission on mount.
+    if (typeof req === 'function') return;
+    window.addEventListener('deviceorientation', onOrient, { passive: true });
 
-    return () => window.removeEventListener('deviceorientation', onOrient);
-  }, []);
+    return () => {
+      window.removeEventListener('deviceorientation', onOrient);
+      if (orientFrameRef.current !== null) cancelAnimationFrame(orientFrameRef.current);
+      orientFrameRef.current = null;
+    };
+  }, [useStaticAurora]);
 
   useEffect(() => {
-    if (STABLE_APP_BACKGROUND) return;
+    if (useStaticAurora) return;
     if (!interactive || backgroundOnly) return;
 
     const onDown = (e: PointerEvent) => {
@@ -171,7 +171,7 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
 
     window.addEventListener('pointerdown', onDown, { capture: true, passive: true });
     return () => window.removeEventListener('pointerdown', onDown, { capture: true });
-  }, [interactive, backgroundOnly, triggerTouchResponse]);
+  }, [interactive, backgroundOnly, triggerTouchResponse, useStaticAurora]);
 
   const blobLayout = backgroundOnly ? APP_SHELL_BLOB_LAYOUT : BLOB_LAYOUT;
   const showStaticColorLayers = isNativePerfMode() && backgroundOnly;
@@ -199,6 +199,7 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
       className={cn(
         'vybe-liquid-bg fixed inset-0 overflow-hidden pointer-events-none select-none',
         isLight ? 'vybe-liquid-bg--bright' : 'vybe-liquid-bg--dark',
+        useStaticAurora && 'vybe-liquid-bg--static',
         className,
       )}
       data-allow-animation="true"
@@ -231,7 +232,7 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
 
       {showGrain && <div className="vybe-liquid-grain absolute inset-0" />}
 
-      {!backgroundOnly && !isNativePerfMode() && touchEffects}
+      {!backgroundOnly && !useStaticAurora && touchEffects}
     </div>
   );
 });

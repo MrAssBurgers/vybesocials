@@ -4,6 +4,18 @@ import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import type { Message } from '@/hooks/useMessages';
+import { useSafetyReport } from '@/hooks/useSafetyReport';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
+import { messagesQueryKey } from '@/lib/messagesQueryKey';
+import { ownedDmProfileId } from '@/lib/dmAccountScope';
+import { isReportSessionError } from '@/lib/reportModerationService';
+
+function useMessageActionScope() {
+  const { user, profile } = useAuth();
+  const session = useReportAccountSession();
+  const lifetime = useSafetyReport('message-action');
+  return { session, guard: lifetime.assertCurrent, actorId: ownedDmProfileId(user?.id, profile) };
+}
 
 /**
  * Unsend message for everyone (soft delete via UPDATE - no new row insertion)
@@ -11,23 +23,24 @@ import type { Message } from '@/hooks/useMessages';
  * Now with instant optimistic UI updates
  */
 export function useUnsendForEveryone() {
-  const { profile } = useAuth();
+  const { session, guard, actorId } = useMessageActionScope();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (messageId: string) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      guard();
+      if (!actorId) throw new Error('Not authenticated');
 
       if (messageId.startsWith('temp-')) {
         const cached = queryClient
           .getQueriesData<Message[]>({ queryKey: ['messages'] })
-          .find(([, msgs]) => Array.isArray(msgs) && msgs.some((m) => m.id === messageId));
+          .find(([key, msgs]) => key[2] === session.uid && key[3] === session.epoch && Array.isArray(msgs) && msgs.some((m) => m.id === messageId));
         const queryKey = cached?.[0];
         const conversationId = Array.isArray(queryKey)
           ? (queryKey[1] as string | undefined)
           : undefined;
         if (!conversationId) throw new Error('Message is still sending');
-        return { messageId, conversationId };
+        return { messageId, conversationId, guard, session };
       }
 
       const { data: message, error: fetchError } = await db
@@ -35,10 +48,11 @@ export function useUnsendForEveryone() {
         .select('sender_id, conversation_id')
         .eq('id', messageId)
         .maybeSingle();
+      guard();
 
       if (fetchError) throw fetchError;
       if (!message) throw new Error('Message not found');
-      if (message.sender_id !== profile.id) {
+      if (message.sender_id !== actorId && message.sender_id !== session.uid) {
         throw new Error('You can only unsend your own messages');
       }
 
@@ -51,17 +65,21 @@ export function useUnsendForEveryone() {
           media_url: null,
         })
         .eq('id', messageId);
+      guard();
 
       if (error) throw error;
 
-      return { messageId, conversationId: message.conversation_id as string };
+      return { messageId, conversationId: message.conversation_id as string, guard, session };
     },
     onMutate: async (messageId) => {
-      await queryClient.cancelQueries({ queryKey: ['messages'] });
-      return { messageId };
+      guard();
+      await queryClient.cancelQueries({ predicate: query => query.queryKey[0] === 'messages' && query.queryKey[2] === session.uid && query.queryKey[3] === session.epoch });
+      guard();
+      return { messageId, guard };
     },
-    onSuccess: ({ messageId, conversationId }) => {
-      queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+    onSuccess: ({ messageId, conversationId, guard: completedGuard, session: completedSession }) => {
+      try { completedGuard(); } catch { return; }
+      queryClient.setQueryData<Message[]>(messagesQueryKey(conversationId, completedSession), (old) => {
         if (!old) return old;
         return old.filter((m) => m.id !== messageId);
       });
@@ -69,7 +87,9 @@ export function useUnsendForEveryone() {
       invalidateConversationCaches(queryClient);
       toast.success('Message unsent');
     },
-    onError: (error: any) => {
+    onError: (error: any, _variables, context) => {
+      if (isReportSessionError(error)) return;
+      try { (context?.guard || guard)(); } catch { return; }
       console.error('Failed to unsend message:', error);
       toast.error(error?.message || 'Failed to unsend message');
     },
@@ -81,12 +101,13 @@ export function useUnsendForEveryone() {
  * Now with instant optimistic UI updates
  */
 export function useDeleteForMe() {
-  const { profile } = useAuth();
+  const { session, guard, actorId } = useMessageActionScope();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (messageId: string) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      guard();
+      if (!actorId) throw new Error('Not authenticated');
 
       // Get conversation ID for cache invalidation
       const { data: message, error: fetchError } = await db
@@ -94,6 +115,7 @@ export function useDeleteForMe() {
         .select('conversation_id')
         .eq('id', messageId)
         .maybeSingle();
+      guard();
 
       if (fetchError) throw fetchError;
       if (!message) throw new Error('Message not found');
@@ -103,25 +125,30 @@ export function useDeleteForMe() {
         .from('message_deletions')
         .upsert({
           message_id: messageId,
-          user_id: profile.id,
+          user_id: actorId,
         }, {
           onConflict: 'message_id,user_id',
         });
+      guard();
 
       if (error) throw error;
 
-      return { messageId, conversationId: message.conversation_id };
+      return { messageId, conversationId: message.conversation_id, guard, session };
     },
-    onSuccess: ({ messageId, conversationId }) => {
+    onMutate: () => { guard(); return { guard }; },
+    onSuccess: ({ messageId, conversationId, guard: completedGuard, session: completedSession }) => {
+      try { completedGuard(); } catch { return; }
       // Remove from cache after successful DB update
-      queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+      queryClient.setQueryData<Message[]>(messagesQueryKey(conversationId, completedSession), (old) => {
         if (!old) return old;
         return old.filter(m => m.id !== messageId);
       });
 
       toast.success('Message deleted for you');
     },
-    onError: (error: any) => {
+    onError: (error: any, _variables, context) => {
+      if (isReportSessionError(error)) return;
+      try { (context?.guard || guard)(); } catch { return; }
       console.error('Failed to delete message:', error);
       toast.error(error?.message || 'Failed to delete message');
     },
@@ -133,12 +160,13 @@ export function useDeleteForMe() {
  * Now with instant optimistic UI updates
  */
 export function useEditMessage() {
-  const { profile } = useAuth();
+  const { session, guard, actorId } = useMessageActionScope();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ messageId, newContent }: { messageId: string; newContent: string }) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      guard();
+      if (!actorId) throw new Error('Not authenticated');
 
       // Verify ownership + grab conversation_id for cache updates
       const { data: message, error: fetchError } = await db
@@ -146,10 +174,11 @@ export function useEditMessage() {
         .select('sender_id, conversation_id, created_at')
         .eq('id', messageId)
         .maybeSingle();
+      guard();
 
       if (fetchError) throw fetchError;
       if (!message) throw new Error('Message not found');
-      if (message.sender_id !== profile.id) {
+      if (message.sender_id !== actorId && message.sender_id !== session.uid) {
         throw new Error('You can only edit your own messages');
       }
       // Client-side guard so users see the right error even before hitting the RPC
@@ -158,11 +187,18 @@ export function useEditMessage() {
         throw new Error("It's been more than 15 minutes — you can no longer edit this");
       }
 
-      return { messageId, newContent, conversationId: message.conversation_id };
+      const { error } = await db.rpc('edit_message', {
+        p_message_id: messageId,
+        p_new_content: newContent,
+      });
+      guard();
+      if (error) throw error;
+      return { messageId, newContent, conversationId: message.conversation_id, guard, session };
     },
-    onSuccess: async ({ messageId, newContent, conversationId }) => {
-      // Optimistic update
-      queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+    onMutate: () => { guard(); return { guard }; },
+    onSuccess: ({ messageId, newContent, conversationId, guard: completedGuard, session: completedSession }) => {
+      try { completedGuard(); } catch { return; }
+      queryClient.setQueryData<Message[]>(messagesQueryKey(conversationId, completedSession), (old) => {
         if (!old) return old;
         return old.map(m => m.id === messageId
           ? { ...m, content: newContent, is_edited: true, edited_at: new Date().toISOString() }
@@ -170,21 +206,11 @@ export function useEditMessage() {
         );
       });
 
-      // Server-side 15-min enforcement via SECURITY DEFINER RPC
-      const { error } = await db.rpc('edit_message', {
-        p_message_id: messageId,
-        p_new_content: newContent,
-      });
-
-      if (error) {
-        queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
-        toast.error(error.message || 'Failed to edit message');
-        return;
-      }
-
       toast.success('Message edited');
     },
-    onError: (error: any) => {
+    onError: (error: any, _variables, context) => {
+      if (isReportSessionError(error)) return;
+      try { (context?.guard || guard)(); } catch { return; }
       console.error('Failed to edit message:', error);
       toast.error(error?.message || 'Failed to edit message');
     },
@@ -192,19 +218,17 @@ export function useEditMessage() {
 }
 
 // Report a message
-export function useReportMessage() {
-  const { profile } = useAuth();
-
-  return useMutation({
+export function useReportMessage(targetKey = '') {
+  const submit = useSafetyReport(targetKey);
+  const mutation = useMutation({
     mutationFn: async ({ messageId, reason }: { messageId: string; reason: string }) => {
-      if (!profile?.id) throw new Error('Not authenticated');
-
-      // Private message evidence needs its own membership-verified contract.
-      // Do not log message details or acknowledge an unsubmitted report.
-      throw new Error('Message-specific reporting is not available yet. You can report or block the account from its profile.');
-    },
-    onError: (error: any) => {
-      toast.error(error instanceof Error ? error.message : 'The message report was not submitted.');
+      submit.assertCurrent();
+      if (!messageId || messageId.startsWith('temp-')) throw new Error('Wait until this message has finished sending before reporting it.');
+      const receipt = await submit({ targetType: 'message', targetId: messageId, reason });
+      submit.assertCurrent();
+      toast.success('Message report submitted.');
+      return receipt;
     },
   });
+  return { ...mutation, sessionKey: submit.sessionKey };
 }

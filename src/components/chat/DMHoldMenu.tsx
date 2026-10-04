@@ -6,7 +6,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Reply, Copy, Download, Sparkles, Edit3, Trash2, EyeOff, Bookmark } from 'lucide-react';
+import { Reply, Copy, Download, Sparkles, Edit3, Trash2, EyeOff, Bookmark, Flag } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { getTopEmojis } from '@/lib/frequentEmojis';
@@ -24,6 +24,7 @@ export interface DMHoldMenuProps {
   onEdit?: () => void;
   onUnsend?: () => void;
   onDeleteForMe?: () => void;
+  onReport?: () => void;
   onSave?: () => void;
   onSaveSticker?: () => void;
   onToggleKeep?: () => void;
@@ -45,6 +46,7 @@ export const DMHoldMenu = memo(function DMHoldMenu({
   onEdit,
   onUnsend,
   onDeleteForMe,
+  onReport,
   onSave,
   onSaveSticker,
   onToggleKeep,
@@ -175,6 +177,7 @@ export const DMHoldMenu = memo(function DMHoldMenu({
             {onDeleteForMe && (
               <MenuRow icon={EyeOff} label="Delete for me" onClick={() => handleAction(onDeleteForMe)} muted />
             )}
+            {!isOwn && onReport && <MenuRow icon={Flag} label="Report message" onClick={() => handleAction(onReport)} destructive />}
           </motion.div>
         </>
       )}

@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { Message } from '@/hooks/useMessages';
 import { ensureArray } from '@/lib/persistedCollections';
+import { reportAccountSnapshot, type ReportAccountSession } from '@/lib/reportModerationService';
 
 /** Ensure views/reactions survive React Query persistence (plain objects). */
 export function normalizeMessageRow(msg: Message): Message {
@@ -32,8 +33,13 @@ export function normalizeMessagesCache(messages: unknown): Message[] {
   return needsFix ? arr.map(normalizeMessageRow) : arr;
 }
 
-export function messagesQueryKey(conversationId: string | undefined) {
-  return ['messages', conversationId] as const;
+export function messagesQueryKey(conversationId: string | undefined, session = reportAccountSnapshot()) {
+  return ['messages', conversationId, session.uid, session.epoch] as const;
+}
+
+export function isMessageSessionCurrent(session: ReportAccountSession) {
+  const current = reportAccountSnapshot();
+  return current.uid === session.uid && current.epoch === session.epoch;
 }
 
 /** Append or replace an incoming message, dropping matching optimistic temps. */
@@ -83,6 +89,7 @@ export function replaceOptimisticMessage(
   conversationId: string,
   tempId: string,
   realMessage: Message,
+  session = reportAccountSnapshot(),
 ): void {
   patchMessagesCache(queryClient, conversationId, (old) => {
     const tempRow = old?.find((m) => m.id === tempId);
@@ -118,7 +125,7 @@ export function replaceOptimisticMessage(
     }
 
     return appendIncomingMessage(old, realWithSender);
-  });
+  }, session);
 }
 
 /** Patch the message list cache for this conversation. */
@@ -126,12 +133,15 @@ export function patchMessagesCache(
   queryClient: QueryClient,
   conversationId: string,
   patch: (old: Message[] | undefined) => Message[] | undefined,
+  session = reportAccountSnapshot(),
 ): void {
-  queryClient.setQueryData<Message[]>(messagesQueryKey(conversationId), patch);
+  if (!isMessageSessionCurrent(session)) return;
+  queryClient.setQueryData<Message[]>(messagesQueryKey(conversationId, session), patch);
 }
 
-export function readMessagesCache(queryClient: QueryClient, conversationId: string): Message[] {
-  return normalizeMessagesCache(queryClient.getQueryData<Message[]>(messagesQueryKey(conversationId)));
+export function readMessagesCache(queryClient: QueryClient, conversationId: string, session = reportAccountSnapshot()): Message[] {
+  if (!isMessageSessionCurrent(session)) return [];
+  return normalizeMessagesCache(queryClient.getQueryData<Message[]>(messagesQueryKey(conversationId, session)));
 }
 
 /** Merge server fetch with optimistic temps + recently sent messages missing from fetch. */
@@ -139,9 +149,11 @@ export function mergeMessagesWithLocalCache(
   queryClient: QueryClient,
   conversationId: string,
   serverMessages: unknown,
+  session = reportAccountSnapshot(),
 ): Message[] {
+  if (!isMessageSessionCurrent(session)) return [];
   const server = normalizeMessagesCache(serverMessages);
-  const existing = readMessagesCache(queryClient, conversationId);
+  const existing = readMessagesCache(queryClient, conversationId, session);
   const serverIds = new Set(server.map((m) => m.id));
 
   // Oldest row in the server page — anything older in cache came from
@@ -177,8 +189,10 @@ export function setMessagesCacheFromServer(
   queryClient: QueryClient,
   conversationId: string,
   serverMessages: Message[],
+  session = reportAccountSnapshot(),
 ): void {
-  queryClient.setQueryData<Message[]>(messagesQueryKey(conversationId), () =>
-    mergeMessagesWithLocalCache(queryClient, conversationId, serverMessages),
+  if (!isMessageSessionCurrent(session)) return;
+  queryClient.setQueryData<Message[]>(messagesQueryKey(conversationId, session), () =>
+    mergeMessagesWithLocalCache(queryClient, conversationId, serverMessages, session),
   );
 }

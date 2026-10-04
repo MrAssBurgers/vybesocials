@@ -1,4 +1,6 @@
 import { useState, useEffect, memo, lazy, Suspense, useRef } from 'react';
+import { reportAccountSnapshot } from '@/lib/reportModerationService';
+import { messagesQueryKey, isMessageSessionCurrent } from '@/lib/messagesQueryKey';
 import './lib/i18n';
 import { db } from '@/lib/firebase';
 import './styles/liquid.css';
@@ -102,25 +104,28 @@ const RealtimeSyncInner = () => {
   }, []);
   useEffect(() => {
     const onOutboxFlush = (event: Event) => {
-      const cid = (event as CustomEvent<{ conversationId?: string }>).detail?.conversationId;
-      if (!cid) return;
-      queryClient.invalidateQueries({ queryKey: ['messages', cid] });
-      queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      const detail = (event as CustomEvent<{ conversationId?: string; ownerUid?: string; accountEpoch?: number }>).detail;
+      const session = reportAccountSnapshot();
+      const cid = detail?.conversationId;
+      if (!cid || !session.uid || detail.ownerUid !== session.uid || detail.accountEpoch !== session.epoch) return;
+      queryClient.invalidateQueries({ queryKey: messagesQueryKey(cid, session) });
+      queryClient.invalidateQueries({ predicate: q => ['dm-conversations', 'conversations'].includes(String(q.queryKey[0])) && q.queryKey[2] === session.uid && q.queryKey[3] === session.epoch });
     };
     // A queued message exhausted retries — mark it failed in the thread (reuses
     // the existing per-bubble retry UI) instead of silently dropping it.
     const onOutboxFailed = (event: Event) => {
-      const detail = (event as CustomEvent<{ conversationId?: string; tempId?: string; error?: string }>).detail;
+      const detail = (event as CustomEvent<{ conversationId?: string; tempId?: string; error?: string; ownerUid?: string; accountEpoch?: number }>).detail;
+      const session = reportAccountSnapshot();
       const cid = detail?.conversationId;
       const tempId = detail?.tempId;
-      if (!cid || !tempId) return;
+      if (!cid || !tempId || !session.uid || detail.ownerUid !== session.uid || detail.accountEpoch !== session.epoch) return;
       import('@/lib/messagesQueryKey').then(({ patchMessagesCache }) => {
+        if (!isMessageSessionCurrent(session)) return;
         patchMessagesCache(queryClient, cid, (old) => {
           if (!old?.length) return old;
           if (!old.some((m) => m.id === tempId)) return old;
           return old.map((m) => (m.id === tempId ? { ...m, _failed: true, _error: detail?.error } : m));
-        });
+        }, session);
       });
       toast.error("Message couldn't be sent", {
         description: detail?.error || 'Tap the message to retry.',

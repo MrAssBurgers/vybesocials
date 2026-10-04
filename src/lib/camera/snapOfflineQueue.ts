@@ -13,6 +13,9 @@ import type { SnapMediaDraft } from '@/lib/camera/snapDraft';
 const KEY = 'vybe-snap-outbox-v1';
 
 export interface QueuedSnapJob {
+  /** Older rows without a verifiable owner must never be adopted by the active account. */
+  schemaVersion?: 2;
+  ownerUid?: string;
   jobId: string;
   draft: SnapMediaDraft;
   /** Media persisted as a Blob so it survives reloads (blob: URLs do not). */
@@ -22,6 +25,7 @@ export interface QueuedSnapJob {
   remainingConversationIds: string[];
   remainingStoryDestinationIds: string[];
   senderId: string;
+  caption?: string;
   queuedAt: number;
   attempts: number;
   /** 'pending' auto-flushes on reconnect; 'failed' waits for explicit retry. */
@@ -67,7 +71,7 @@ export function createMemorySnapQueueStore(
   };
 }
 
-export type SnapQueueSendResult = 'sent' | 'retry_later' | 'failed';
+export type SnapQueueSendResult = 'sent' | 'retry_later' | 'failed' | 'skip_account';
 export type SnapQueueSender = (job: QueuedSnapJob) => Promise<SnapQueueSendResult>;
 
 export interface SnapOfflineQueue {
@@ -161,6 +165,10 @@ export function createSnapOfflineQueue(store: SnapQueueStore): SnapOfflineQueue 
             await writeAll(current.filter((j) => j.jobId !== job.jobId));
             continue;
           }
+
+          // Another account's queued media must neither send nor block this
+          // account's later jobs. Preserve its status and retry count unchanged.
+          if (result === 'skip_account') continue;
 
           if (result === 'retry_later') {
             // Offline / transient — keep pending, retry on next reconnect.

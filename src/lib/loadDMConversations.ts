@@ -5,7 +5,6 @@ import { isPermissionDeniedError, warnOnce } from '@/lib/logOnce';
 import { reportAppCrash } from '@/lib/bugReportClient';
 import { normalizeDmConversationList, safeDmMembers, reviveQueriesInCache } from '@/lib/persistedCollections';
 import { purgeStuckStoryUploads } from '@/lib/storiesCacheSanitize';
-import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
 import { withTimeout } from '@/lib/withTimeout';
 import { fetchMemberProfiles, fetchConversationMetaForList, syntheticDeterministicConversation, normalizeToProfileId } from '@/lib/dmMembershipRepair';
@@ -21,6 +20,10 @@ import {
 } from '@/lib/dmMemberResolve';
 import { maxLastReadAt } from '@/lib/markConversationRead';
 import { getDmConversationSortTime, sortDmConversations } from '@/lib/dmConversationSort';
+import { reportAccountGuard, reportAccountSnapshot, isReportSessionError, type ReportAccountSession } from '@/lib/reportModerationService';
+import { dmListQueryKey, isDmConversationForViewer, isOwnedDmActor, ownedDmProfileId } from '@/lib/dmAccountScope';
+import { getProfileByAuthUid } from '@/lib/firebase/users';
+import { setCachedProfile } from '@/lib/profileCache';
 
 export interface LoadedDMConversation extends Conversation {
   _sortTime: string;
@@ -38,10 +41,15 @@ export function syncDmListCaches(
   queryClient: QueryClient,
   profileId: string,
   data: LoadedDMConversation[],
+  session: ReportAccountSession = reportAccountSnapshot(),
 ): void {
-  const normalized = normalizeDmConversationList<LoadedDMConversation>(data);
-  queryClient.setQueryData(['dm-conversations', profileId], normalized);
-  queryClient.setQueryData(['conversations', profileId], normalized);
+  const current = reportAccountSnapshot();
+  if (!session.uid || current.uid !== session.uid || current.epoch !== session.epoch) return;
+  if (!isOwnedDmActor(profileId, session.uid)) return;
+  const normalized = normalizeDmConversationList<LoadedDMConversation>(data)
+    .filter(row => isDmConversationForViewer(row, ownedDmProfileId(session.uid) || profileId, session.uid));
+  queryClient.setQueryData(dmListQueryKey(profileId, session), normalized);
+  queryClient.setQueryData(['conversations', profileId, session.uid, session.epoch], normalized);
 }
 
 /** Read + normalize DM list from any warm React Query key (instant /messages paint). */
@@ -49,30 +57,29 @@ export function readDmConversationsCache(
   queryClient: QueryClient,
   profileId?: string | null,
   authUid?: string | null,
+  session: ReportAccountSession = reportAccountSnapshot(),
 ): LoadedDMConversation[] {
+  if (!authUid || authUid !== session.uid) return [];
+  const current = reportAccountSnapshot();
+  if (current.uid !== session.uid || current.epoch !== session.epoch) return [];
+  const viewerProfileId = ownedDmProfileId(authUid) || (isOwnedDmActor(profileId, authUid) ? profileId : undefined);
   let best: LoadedDMConversation[] = [];
 
   const tryKey = (id: string | null | undefined) => {
-    if (!id) return;
+    if (!id || !isOwnedDmActor(id, authUid)) return;
     const primary = normalizeDmConversationList<LoadedDMConversation>(
-      queryClient.getQueryData(['dm-conversations', id]),
-    );
+      queryClient.getQueryData(dmListQueryKey(id, session)),
+    ).filter(row => isDmConversationForViewer(row, viewerProfileId, authUid));
     if (primary.length > best.length) best = primary;
     const legacy = normalizeDmConversationList<LoadedDMConversation>(
-      queryClient.getQueryData(['conversations', id]),
-    );
+      queryClient.getQueryData(['conversations', id, session.uid, session.epoch]),
+    ).filter(row => isDmConversationForViewer(row, viewerProfileId, authUid));
     if (legacy.length > best.length) best = legacy;
   };
 
   tryKey(profileId);
   tryKey(authUid);
 
-  if (best.length) return best;
-
-  for (const [, data] of queryClient.getQueriesData({ queryKey: ['dm-conversations'] })) {
-    const hit = normalizeDmConversationList<LoadedDMConversation>(data);
-    if (hit.length > best.length) best = hit;
-  }
   return best;
 }
 
@@ -95,16 +102,24 @@ export async function loadDMConversations(
   profileId: string,
   fallback?: LoadedDMConversation[],
 ): Promise<LoadDMConversationsResult> {
-  const stale = fallback?.length ? fallback : [];
+  const session = reportAccountSnapshot();
+  const guard = reportAccountGuard(session.uid || '');
+  guard();
+  const ownProfileId = ownedDmProfileId(session.uid);
+  const stale = normalizeDmConversationList<LoadedDMConversation>(fallback)
+    .filter(row => isDmConversationForViewer(row, ownProfileId, session.uid));
 
   try {
     const result = await withTimeout(
-      loadDMConversationsOnce(profileId, stale),
+      loadDMConversationsOnce(profileId, stale, guard, session.uid!),
       35_000,
       'Loading chats timed out',
     );
+    guard();
     return result;
   } catch (err) {
+    guard();
+    if (isReportSessionError(err)) throw err;
     console.warn('[DM] load failed:', err);
     if (stale.length > 0) {
       return { data: stale, error: null, profileId };
@@ -206,11 +221,14 @@ async function discoverConversationIdsViaChats(
 async function loadDMConversationsOnce(
   profileId: string,
   stale: LoadedDMConversation[],
+  guard: () => void,
+  expectedUid: string,
 ): Promise<LoadDMConversationsResult> {
   try {
     // OAuth custom-token race: wait briefly for auth before membership queries.
     const { waitForAuthSession } = await import('@/lib/auth');
     const sessionReady = await waitForAuthSession(2000);
+    guard();
     if (!sessionReady?.user) {
       if (stale.length > 0) {
         return { data: stale, error: null, profileId };
@@ -222,14 +240,16 @@ async function loadDMConversationsOnce(
       };
     }
 
-    const effectiveProfileId =
-      syncSessionProfileId(profileId) ??
-      (await resolveSessionProfileId(profileId)) ??
-      profileId;
     const authUid = sessionReady.user.id ?? null;
+    if (authUid !== expectedUid) throw Object.assign(new Error('Your account changed.'), { code: 'account-changed' });
+    const profile = await getProfileByAuthUid(authUid);
+    guard();
+    const effectiveProfileId = profile?.user_id === authUid ? profile.id : authUid;
+    if (profile?.user_id === authUid) setCachedProfile({ ...profile, username: profile.username || '', display_name: profile.display_name || null, avatar_url: profile.avatar_url || null });
 
     if (authUid && effectiveProfileId) {
       await syncUserAuthIndex(authUid, effectiveProfileId);
+      guard();
     }
 
     const [
@@ -241,6 +261,7 @@ async function loadDMConversationsOnce(
       db.from('hidden_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
       db.from('trashed_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
     ]);
+    guard();
 
     const membershipMap = new Map<string, { last_read_at?: string | null; conversation_id: string }>();
 
@@ -290,19 +311,18 @@ async function loadDMConversationsOnce(
     }
 
     if (!userConversationIds.length) {
-      if (stale.length > 0) {
-        userConversationIds = stale.map((c) => c.id).filter(Boolean);
-      }
-      if (!userConversationIds.length) {
-        return { data: [], error: null, profileId: effectiveProfileId };
-      }
+      return { data: [], error: null, profileId: effectiveProfileId };
     }
 
     const hiddenIds = new Set((hiddenData || []).map((h) => h.conversation_id));
     const trashedIds = new Set((trashedData || []).map((t) => t.conversation_id));
 
     const conversationResults = await fetchConversationsForList(userConversationIds);
-    const conversationsRaw = conversationResults.filter(Boolean) as Record<string, unknown>[];
+    guard();
+    const conversationsRaw = conversationResults.filter(row => row && (
+      isDmConversationForViewer(row, effectiveProfileId, authUid)
+      || (!Array.isArray(row.member_ids) && membershipMap.has(String(row.id)))
+    )) as Record<string, unknown>[];
     conversationsRaw.sort(
       (a, b) =>
         new Date(String(b.updated_at || 0)).getTime() -
@@ -335,6 +355,7 @@ async function loadDMConversationsOnce(
       fetchLatestMessagePerConversation(userConversationIds),
       profileSeedIds.length ? fetchMemberProfiles(profileSeedIds) : Promise.resolve(new Map()),
     ]);
+    guard();
 
     if (membersError) {
       console.warn('[DM] all-members query error:', membersError.message);
@@ -352,6 +373,7 @@ async function loadDMConversationsOnce(
       missingProfileIds.length > 0
         ? await fetchMemberProfiles([...new Set([...profileSeedIds, ...missingProfileIds])] as string[])
         : seededProfiles;
+    guard();
 
     const membersByConv = new Map<string, any[]>();
     (allMembers || []).forEach((m) => {
@@ -456,6 +478,7 @@ async function loadDMConversationsOnce(
     const missingLastMessageIds = sorted.filter((c) => !c.last_message).map((c) => c.id);
     if (missingLastMessageIds.length > 0) {
       const { data: backfill } = await fetchLatestMessagePerConversation<Message>(missingLastMessageIds);
+      guard();
       for (const msg of backfill) {
         if (msg.is_deleted || !msg.conversation_id) continue;
         const conv = sorted.find((c) => String(c.id) === String(msg.conversation_id));
@@ -470,8 +493,11 @@ async function loadDMConversationsOnce(
       sorted = sortDmConversations(sorted, effectiveProfileId);
     }
 
+    guard();
     return { data: sorted, error: null, profileId: effectiveProfileId };
   } catch (err) {
+    guard();
+    if (isReportSessionError(err)) throw err;
     console.warn('[DM] load failed:', err);
     if (stale.length > 0) {
       return { data: stale, error: null, profileId };
@@ -487,22 +513,20 @@ export async function prefetchDMConversations(
   profileId: string,
   authUid?: string | null,
 ): Promise<void> {
-  const cached = readDmConversationsCache(queryClient, profileId, authUid);
-  if (cached.length > 0) {
-    syncDmListCaches(queryClient, profileId, cached);
-    void loadDMConversations(profileId, cached).then(({ data, profileId: resolvedId }) => {
-      if (data.length > 0) {
-        syncDmListCaches(queryClient, resolvedId, data);
-        if (resolvedId !== profileId) syncDmListCaches(queryClient, profileId, data);
-      }
-    });
-    return;
-  }
-
-  const { data, profileId: resolvedId } = await loadDMConversations(profileId, cached);
-  if (data.length > 0) {
-    syncDmListCaches(queryClient, resolvedId, data);
-    if (resolvedId !== profileId) syncDmListCaches(queryClient, profileId, data);
+  const session = reportAccountSnapshot();
+  const guard = reportAccountGuard(authUid || session.uid || '');
+  try {
+    guard();
+    if (!session.uid || !isOwnedDmActor(profileId, session.uid)) return;
+    const cached = readDmConversationsCache(queryClient, profileId, session.uid, session);
+    const { data, error, profileId: resolvedId } = await loadDMConversations(profileId, cached);
+    guard();
+    if (error) return;
+    syncDmListCaches(queryClient, resolvedId, data, session);
+    if (resolvedId !== profileId) syncDmListCaches(queryClient, profileId, data, session);
+    syncDmListCaches(queryClient, session.uid, data, session);
+  } catch (error) {
+    if (!isReportSessionError(error)) console.warn('[DM] prefetch unavailable');
   }
 }
 
@@ -533,21 +557,8 @@ export function prefetchDMConversationsFromNav(): void {
   const queryClient = (window as any).__REACT_QUERY_CLIENT__ as QueryClient | null | undefined;
   if (!queryClient) return;
 
-  const entries = queryClient.getQueriesData<LoadedDMConversation[]>({
-    queryKey: ['dm-conversations'],
-  });
-  for (const [key, data] of entries) {
-    const profileId = key[1] as string | undefined;
-    if (!profileId) continue;
-    if (Array.isArray(data) && data.length > 0) return;
-    void prefetchDMConversations(queryClient, profileId);
-    return;
-  }
-
-  void (async () => {
-    const resolved = await resolveSessionProfileId();
-    if (resolved) {
-      void prefetchDMConversations(queryClient, resolved);
-    }
-  })();
+  const session = reportAccountSnapshot();
+  if (!session.uid) return;
+  const profileId = ownedDmProfileId(session.uid) || session.uid;
+  void prefetchDMConversations(queryClient, profileId, session.uid);
 }

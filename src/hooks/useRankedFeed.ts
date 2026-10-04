@@ -3,6 +3,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useBlockedUserIds } from '@/hooks/useBlockedUsers';
+import { useFeedMuteFilter } from '@/hooks/useFeedMuteFilter';
 import type { Post } from '@/hooks/useInfinitePosts';
 
 /**
@@ -56,7 +57,7 @@ export function useRankedFeed(opts: RankedFeedOptions = {}) {
   const profileId = useAuthProfileId();
   const blockedIds = useBlockedUserIds();
 
-  return useInfiniteQuery({
+  const query = useInfiniteQuery({
     queryKey: [
       'ranked-feed-v2',
       profileId,
@@ -98,6 +99,7 @@ export function useRankedFeed(opts: RankedFeedOptions = {}) {
     placeholderData: (prev) => prev,
     retry: 2,
   });
+  return useFeedMuteFilter(query);
 }
 
 /**

@@ -6,6 +6,7 @@ import { db } from '@/lib/firebase';
 import { firebaseStorage } from '@/lib/firebase/storageService';
 import { withTimeout } from '@/lib/withTimeout';
 import { compressImage, generateStoryThumbnail } from '@/lib/storyUtils';
+import { reportAccountGuard, isReportSessionError } from '@/lib/reportModerationService';
 
 export interface SnapUploadResult {
   mediaUrl: string;
@@ -18,6 +19,7 @@ export interface UploadSnapMediaParams {
   /** Auth user id — chat-media storage layout is `${authUserId}/…`. */
   authUserId: string;
   onProgress?: (fraction: number) => void;
+  accountGuard?: () => void;
 }
 
 function snapExtension(file: File | Blob, isVideo: boolean): string {
@@ -35,7 +37,9 @@ export async function uploadSnapMedia({
   isVideo,
   authUserId,
   onProgress,
+  accountGuard = reportAccountGuard(authUserId),
 }: UploadSnapMediaParams): Promise<SnapUploadResult> {
+  accountGuard();
   let uploadFile: File | Blob = file;
   if (!isVideo && file instanceof File) {
     try {
@@ -44,6 +48,7 @@ export async function uploadSnapMedia({
       /* fall back to original */
     }
   }
+  accountGuard();
   onProgress?.(0.2);
 
   const ext = snapExtension(uploadFile, isVideo);
@@ -62,6 +67,7 @@ export async function uploadSnapMedia({
   if (uploadError) {
     throw new Error(uploadError.message || 'Upload failed');
   }
+  accountGuard();
   onProgress?.(0.75);
 
   // Prefer a real https download URL (renders everywhere, including stories);
@@ -69,12 +75,14 @@ export async function uploadSnapMedia({
   const publicUrl =
     (await firebaseStorage.resolveDownloadUrl('chat-media', fileName)) ||
     db.storage.from('chat-media').getPublicUrl(fileName).data.publicUrl;
+  accountGuard();
   if (!publicUrl) throw new Error('Failed to get media URL after upload');
 
   let thumbnailUrl: string | undefined;
   if (isVideo && file instanceof File) {
     try {
       const thumbBlob = await generateStoryThumbnail(file, true);
+      accountGuard();
       if (thumbBlob) {
         const thumbName = `${authUserId}/${Date.now()}_snap_thumb.jpg`;
         const { error: thumbError } = await withTimeout(
@@ -86,16 +94,19 @@ export async function uploadSnapMedia({
           'Cover upload timed out',
         );
         if (!thumbError) {
+          accountGuard();
           thumbnailUrl =
             (await firebaseStorage.resolveDownloadUrl('chat-media', thumbName)) ||
             undefined;
         }
       }
-    } catch {
+    } catch (error) {
+      if (isReportSessionError(error)) throw error;
       /* thumbnail is best-effort */
     }
   }
 
+  accountGuard();
   onProgress?.(1);
   return { mediaUrl: publicUrl, thumbnailUrl };
 }

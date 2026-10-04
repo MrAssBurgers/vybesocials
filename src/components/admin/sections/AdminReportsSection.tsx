@@ -11,15 +11,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Flag, Eye, RefreshCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
-import { inspectSafetyReport, isReportSessionError, performReportAction, reportAccountGuard, reportAccountSnapshot, type ReportStatus } from '@/lib/reportModerationService';
+import { inspectSafetyReport, isReportSessionError, performReportAction, reportAccountGuard, type ReportStatus } from '@/lib/reportModerationService';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 
 const safeText = (value: unknown, limit = 1000) => typeof value === 'string' ? value.slice(0, limit) : '';
 const dateLabel = (value: unknown) => typeof value === 'string' && Number.isFinite(Date.parse(value)) ? formatDistanceToNow(new Date(value), { addSuffix: true }) : 'Date unavailable';
-const targetLabel = (type: string | null) => ({ profile: 'Account', post: 'Post', comment: 'Comment', mini_app: 'Mini app' })[type || ''] || 'Unknown target';
+const targetLabel = (type: string | null) => ({ profile: 'Account', post: 'Post', comment: 'Comment', mini_app: 'Mini app', message: 'Message' })[type || ''] || 'Unknown target';
 
 export function AdminReportsSection() {
   const { user } = useAuth();
-  const session = reportAccountSnapshot();
+  const session = useReportAccountSession();
   // Private source, notes and confirmation state never cross sessions.
   return <ReportsForSession key={user?.id + ':' + session.epoch} uid={user?.id} epoch={session.epoch} />;
 }
@@ -82,7 +83,7 @@ function ReportsForSession({ uid, epoch }: { uid?: string; epoch: number }) {
 
   return <div className="space-y-4">
     <Card className="liquid-glass rounded-3xl border-white/10 overflow-hidden">
-      <CardHeader><CardTitle className="flex items-center gap-2"><Flag className="h-5 w-5 text-primary" />User reports</CardTitle><CardDescription>Inspect the current content before deciding what to do. Older reports are marked unverified.</CardDescription></CardHeader>
+      <CardHeader><CardTitle className="flex items-center gap-2"><Flag className="h-5 w-5 text-primary" />User reports</CardTitle><CardDescription>Inspect the available evidence before deciding what to do. Older reports are marked unverified.</CardDescription></CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3"><label className="text-sm">Show <select aria-label="Report status" className="ml-2 rounded-lg border bg-background p-2" value={status} onChange={event => { setStatus(event.target.value as typeof status); setCursor(undefined); }}><option value="pending">Pending</option><option value="reviewed">Reviewed</option><option value="dismissed">Dismissed</option><option value="actioned">Action taken</option><option value="">All statuses</option></select></label><Button variant="ghost" onClick={refreshReports} disabled={reports.isFetching}><RefreshCw className="mr-2 h-4 w-4" />Refresh reports</Button></div>
         {reports.isPending ? <p role="status">Loading reports…</p> : reports.isError ? <div role="alert"><p>Reports could not be loaded. This does not mean the queue is empty.</p><Button className="mt-2" variant="outline" onClick={refreshReports}>Try again</Button></div> : !reports.data?.length ? <p className="py-6 text-muted-foreground">No reports on this page.</p> : <div className="space-y-3">{reports.data.map(report => <article key={report.id} className="space-y-3 rounded-2xl border border-border bg-card/60 p-4">
@@ -96,12 +97,20 @@ function ReportsForSession({ uid, epoch }: { uid?: string; epoch: number }) {
 
     <Dialog open={!!selected} onOpenChange={next => { if (!next && !busy) { setSelected(null); setConfirmation(null); setNote(''); setActionError(''); } }}>
       <DialogContent className="max-h-[90dvh] max-w-3xl overflow-y-auto">
-        <DialogHeader><DialogTitle>Inspect report</DialogTitle><DialogDescription>Review the current target. Marking a report reviewed or dismissed does not remove content.</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>Inspect report</DialogTitle><DialogDescription>Review the available evidence. Marking a report reviewed or dismissed does not remove content.</DialogDescription></DialogHeader>
         {inspection.isPending ? <p role="status">Loading current content…</p> : inspection.isError ? <div role="alert"><p>Current content could not be loaded. No action was taken.</p><Button className="mt-3" onClick={() => void inspection.refetch()} variant="outline">Retry inspection</Button></div> : inspected && <div className="space-y-4">
           <Badge variant="outline">{inspected.report.verification === 'verified' ? 'Verified submission' : 'Older report · identity and target were not verified at submission'}</Badge>
           <h3 className="font-semibold break-words">{inspected.target.title || targetLabel(inspected.target.type)}</h3>
           {inspected.target.caption && <p className="whitespace-pre-wrap break-words text-sm">{inspected.target.caption}</p>}
-          {!inspected.target.available && <p className="rounded-xl border p-3 text-sm">The reported content is no longer available for inspection.</p>}
+          {!inspected.target.available && <p className="rounded-xl border p-3 text-sm">{inspected.target.type === 'message' ? 'No verified message snapshot is available. This view does not load messages from the conversation.' : 'The reported content is no longer available for inspection.'}</p>}
+          {inspected.target.messageEvidence && <section aria-label="Reported message snapshot" className="space-y-3 rounded-xl border p-4">
+            <h3 className="font-semibold">Message captured when reported</h3>
+            <p className="text-sm text-muted-foreground">This is a saved copy from when the report was submitted, not the current conversation.</p>
+            <p className="text-xs text-muted-foreground">Captured <time dateTime={inspected.target.messageEvidence.capturedAt}>{new Date(inspected.target.messageEvidence.capturedAt).toLocaleString()}</time></p>
+            <div className="max-h-80 overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-muted p-3 text-sm">{inspected.target.messageEvidence.content || 'No message text was available.'}</div>
+            {inspected.target.messageEvidence.contentTruncated && <p className="text-xs text-muted-foreground">Only the first 8,000 characters were retained in this snapshot.</p>}
+            <p className="text-sm text-muted-foreground">{inspected.target.messageEvidence.hasMedia ? `Attachment present${inspected.target.messageEvidence.mediaType ? ` (${inspected.target.messageEvidence.mediaType})` : ''}. Media files are not included or loaded.` : 'No attachment was recorded.'}</p>
+          </section>}
           {inspected.target.source && <section aria-label="Mini app source" className="space-y-3"><p className="text-sm text-muted-foreground">Code is shown as text. This review does not run the app or load its external services.</p><p className="text-sm whitespace-pre-wrap break-words">{inspected.target.source.description}</p>{(['html', 'css', 'javascript'] as const).map(language => <details key={language} open className="rounded-xl border p-3"><summary className="cursor-pointer font-semibold">{language === 'html' ? 'HTML' : language === 'css' ? 'CSS' : 'JavaScript'}</summary><pre tabIndex={0} className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted p-3 text-xs"><code>{inspected.target.source![language] || '(empty)'}</code></pre></details>)}</section>}
           {inspected.hold?.active && <div className="rounded-xl border border-destructive/40 p-3 text-sm"><p className="font-semibold">Publishing is on hold</p><p className="whitespace-pre-wrap break-words">{inspected.hold.note}</p><p className="mt-2 text-muted-foreground">Releasing the hold does not publish the app. The creator must publish it again.</p></div>}
           <label className="block space-y-2 text-sm"><span>Review note {confirmation ? '(required)' : '(optional)'}</span><Textarea aria-label="Review note" value={note} maxLength={1000} disabled={busy} onChange={event => setNote(event.target.value)} placeholder="Explain the decision for the review record." /></label>

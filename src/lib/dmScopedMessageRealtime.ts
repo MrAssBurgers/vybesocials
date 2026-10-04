@@ -5,7 +5,9 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { startTransition } from 'react';
 import { db } from '@/lib/firebase';
-import { appendIncomingMessage } from '@/lib/messagesQueryKey';
+import { appendIncomingMessage, messagesQueryKey } from '@/lib/messagesQueryKey';
+import { reportAccountSnapshot, type ReportAccountSession } from '@/lib/reportModerationService';
+import { dmListQueryKey, isDmConversationForViewer } from '@/lib/dmAccountScope';
 import { maybeShowForegroundDmNotification } from '@/lib/foregroundDmNotification';
 import { patchDmConversationActivity, sortDmConversations } from '@/lib/dmConversationSort';
 import { readQueryArray, safeDmMembers } from '@/lib/persistedCollections';
@@ -58,6 +60,8 @@ function isFreshEnoughForDmToast(createdAt: unknown, now = Date.now()): boolean 
 }
 
 export interface ScopedMessageRealtimeContext {
+  accountSession: ReportAccountSession;
+  isActive?: () => boolean;
   profileId: string;
   authUid: string | null;
   queryClient: QueryClient;
@@ -68,20 +72,26 @@ export interface ScopedMessageRealtimeContext {
   scheduleUnknownConvoRefetch: (profileId: string) => void;
 }
 
+function isCurrent(ctx: ScopedMessageRealtimeContext): boolean {
+  const current = reportAccountSnapshot();
+  return ctx.isActive?.() !== false && !!ctx.authUid && ctx.authUid === ctx.accountSession.uid
+    && current.uid === ctx.accountSession.uid && current.epoch === ctx.accountSession.epoch;
+}
+const legacyListKey = (ctx: ScopedMessageRealtimeContext) => ['conversations', ctx.profileId, ctx.accountSession.uid, ctx.accountSession.epoch] as const;
+
 function selectScopedConversationIds(
-  queryClient: QueryClient,
-  profileId: string,
-  getViewingConversationId: () => string | null,
+  ctx: ScopedMessageRealtimeContext,
 ): Set<string> {
+  const { queryClient, profileId, getViewingConversationId } = ctx;
   const ids = new Set<string>();
   const viewing = getViewingConversationId();
   if (viewing) ids.add(viewing);
 
   const cached = readQueryArray(
-    queryClient.getQueryData(['dm-conversations', profileId]) ??
-      queryClient.getQueryData(['conversations', profileId]),
+    queryClient.getQueryData(dmListQueryKey(profileId, ctx.accountSession)) ??
+      queryClient.getQueryData(legacyListKey(ctx)),
   );
-  const sorted = sortDmConversations(cached, profileId);
+  const sorted = sortDmConversations(cached.filter(row => isDmConversationForViewer(row, profileId, ctx.authUid)), profileId);
   for (const conv of sorted) {
     if (ids.size >= MAX_SCOPED_DM_LISTENERS) break;
     if (conv?.id) ids.add(conv.id);
@@ -90,16 +100,14 @@ function selectScopedConversationIds(
 }
 
 async function selectScopedConversationIdsWithFallback(
-  queryClient: QueryClient,
-  profileId: string,
-  authUid: string | null,
-  getViewingConversationId: () => string | null,
+  ctx: ScopedMessageRealtimeContext,
 ): Promise<Set<string>> {
-  const ids = selectScopedConversationIds(queryClient, profileId, getViewingConversationId);
+  const ids = selectScopedConversationIds(ctx);
   if (ids.size >= MAX_SCOPED_DM_LISTENERS) return ids;
 
   try {
-    const fromDb = await fetchMembershipConversationIds(profileId, authUid);
+    const fromDb = await fetchMembershipConversationIds(ctx);
+    if (!isCurrent(ctx)) return new Set();
     for (const id of fromDb) {
       if (ids.size >= MAX_SCOPED_DM_LISTENERS) break;
       ids.add(id);
@@ -111,14 +119,16 @@ async function selectScopedConversationIdsWithFallback(
 }
 
 async function fetchMembershipConversationIds(
-  profileId: string,
-  authUid: string | null,
+  ctx: ScopedMessageRealtimeContext,
 ): Promise<Set<string>> {
+  const { profileId, authUid } = ctx;
   const ids = new Set<string>();
+  if (!isCurrent(ctx)) return ids;
   const { data: rows } = await db
     .from('conversation_members')
     .select('conversation_id')
     .eq('user_id', profileId);
+  if (!isCurrent(ctx)) return ids;
   rows?.forEach((r: { conversation_id?: string }) => r.conversation_id && ids.add(r.conversation_id));
 
   if (authUid && authUid !== profileId) {
@@ -126,6 +136,7 @@ async function fetchMembershipConversationIds(
       .from('conversation_members')
       .select('conversation_id')
       .eq('user_id', authUid);
+    if (!isCurrent(ctx)) return new Set();
     authRows?.forEach((r: { conversation_id?: string }) => r.conversation_id && ids.add(r.conversation_id));
   }
   return ids;
@@ -139,6 +150,7 @@ function patchConversationLists(
   isViewingConvo: boolean,
 ) {
   startTransition(() => {
+    if (!isCurrent(ctx)) return;
     const updateConversations = (old: unknown) => {
       const list = readQueryArray<any>(old);
       if (!list.length) return list;
@@ -172,10 +184,10 @@ function patchConversationLists(
       return sortDmConversations(updated, ctx.profileId);
     };
 
-    ctx.queryClient.setQueryData<any[]>(['conversations', ctx.profileId], sorted);
-    ctx.queryClient.setQueryData<any[]>(['dm-conversations', ctx.profileId], sorted);
+    ctx.queryClient.setQueryData<any[]>(legacyListKey(ctx), sorted);
+    ctx.queryClient.setQueryData<any[]>(dmListQueryKey(ctx.profileId, ctx.accountSession), sorted);
 
-    const cached = readQueryArray(ctx.queryClient.getQueryData(['dm-conversations', ctx.profileId]));
+    const cached = readQueryArray(ctx.queryClient.getQueryData(dmListQueryKey(ctx.profileId, ctx.accountSession)));
     if (cached.length && !cached.some((c) => c.id === conversationId)) {
       ctx.scheduleUnknownConvoRefetch(ctx.profileId);
     }
@@ -183,6 +195,7 @@ function patchConversationLists(
 }
 
 function handleMessageInsert(ctx: ScopedMessageRealtimeContext, rawMessage: unknown) {
+  if (!isCurrent(ctx)) return;
   const newMessage = sanitizeRealtimeMessage(rawMessage);
   if (!newMessage) return;
   const conversationId = newMessage.conversation_id;
@@ -206,8 +219,8 @@ function handleMessageInsert(ctx: ScopedMessageRealtimeContext, rawMessage: unkn
     let sender: any = null;
     const cachedConvos =
       readQueryArray(
-        ctx.queryClient.getQueryData(['dm-conversations', ctx.profileId]) ??
-          ctx.queryClient.getQueryData(['conversations', ctx.profileId]),
+        ctx.queryClient.getQueryData(dmListQueryKey(ctx.profileId, ctx.accountSession)) ??
+          ctx.queryClient.getQueryData(legacyListKey(ctx)),
       );
 
     if (cachedConvos.length) {
@@ -220,7 +233,7 @@ function handleMessageInsert(ctx: ScopedMessageRealtimeContext, rawMessage: unkn
 
     const fullMessage = { ...newMessage, sender, views: [], reactions: [] };
 
-    ctx.queryClient.setQueryData<any[]>(['messages', conversationId], (old) =>
+    ctx.queryClient.setQueryData<any[]>(messagesQueryKey(conversationId, ctx.accountSession), (old) =>
       appendIncomingMessage(old, fullMessage),
     );
 
@@ -231,8 +244,8 @@ function handleMessageInsert(ctx: ScopedMessageRealtimeContext, rawMessage: unkn
         .eq('id', newMessage.sender_id)
         .maybeSingle()
         .then(({ data: fetchedSender }) => {
-          if (!fetchedSender) return;
-          ctx.queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
+          if (!fetchedSender || !isCurrent(ctx)) return;
+          ctx.queryClient.setQueryData<any[]>(messagesQueryKey(conversationId, ctx.accountSession), (old) => {
             if (!old?.length) return old;
             return old.map((m) =>
               m.id === newMessage.id ? { ...m, sender: fetchedSender } : m,
@@ -249,6 +262,8 @@ function handleMessageInsert(ctx: ScopedMessageRealtimeContext, rawMessage: unkn
           profileId: ctx.profileId,
           isViewingConvo,
           queryClient: ctx.queryClient,
+          accountSession: ctx.accountSession,
+          isCurrent: () => isCurrent(ctx),
         });
       }
     }
@@ -258,6 +273,7 @@ function handleMessageInsert(ctx: ScopedMessageRealtimeContext, rawMessage: unkn
 }
 
 function handleMessageUpdate(ctx: ScopedMessageRealtimeContext, rawMessage: unknown) {
+  if (!isCurrent(ctx)) return;
   const updatedMessage = sanitizeRealtimeMessage(rawMessage);
   if (!updatedMessage) return;
   const conversationId = updatedMessage.conversation_id;
@@ -265,7 +281,7 @@ function handleMessageUpdate(ctx: ScopedMessageRealtimeContext, rawMessage: unkn
   if (ctx.isMessageProcessed(updateKey)) return;
   ctx.markMessageProcessed(updateKey);
 
-  ctx.queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
+  ctx.queryClient.setQueryData<any[]>(messagesQueryKey(conversationId, ctx.accountSession), (old) => {
     if (!old) return old;
 
     if (updatedMessage.is_deleted) {
@@ -308,6 +324,7 @@ function handleMessageUpdate(ctx: ScopedMessageRealtimeContext, rawMessage: unkn
 }
 
 function handleMessageDelete(ctx: ScopedMessageRealtimeContext, rawMessage: unknown) {
+  if (!isCurrent(ctx)) return;
   const deletedMessage = sanitizeRealtimeMessage(rawMessage);
   if (!deletedMessage) return;
   const conversationId = deletedMessage.conversation_id;
@@ -319,7 +336,7 @@ function handleMessageDelete(ctx: ScopedMessageRealtimeContext, rawMessage: unkn
   const createdMs = new Date(deletedMessage.created_at || 0).getTime();
   const isRecentOwnSend = isFromCurrentUser && Date.now() - createdMs < 60_000;
 
-  ctx.queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
+  ctx.queryClient.setQueryData<any[]>(messagesQueryKey(conversationId, ctx.accountSession), (old) => {
     if (!old) return old;
 
     if (isRecentOwnSend) {
@@ -365,14 +382,18 @@ function conversationIdSetKey(ids: Set<string>): string {
 export function setupScopedMessageRealtime(
   ctx: ScopedMessageRealtimeContext,
 ): ScopedMessageRealtimeHandle {
-  let activeCtx = ctx;
+  let active = true;
+  ctx = { ...ctx, accountSession: { ...ctx.accountSession } };
+  const originalActive = ctx.isActive;
+  let activeCtx = { ...ctx, isActive: () => active && originalActive?.() !== false };
+  const current = () => active && isCurrent(activeCtx);
   const convChannels = new Map<string, RealtimeChannel>();
   let membersChannel: RealtimeChannel | null = null;
   let syncTimer: ReturnType<typeof setTimeout> | null = null;
   let lastSyncedKey = '';
 
   const attachConversation = (conversationId: string) => {
-    if (convChannels.has(conversationId)) return;
+    if (!current() || convChannels.has(conversationId)) return;
 
     const ch = subscribePostgresChannel(
       `global-messages:${ctx.profileId}:${conversationId}`,
@@ -382,6 +403,7 @@ export function setupScopedMessageRealtime(
           table: 'messages',
           filter: `conversation_id=eq.${conversationId}`,
           callback: (payload) => {
+            if (!current() || payload.new?.conversation_id !== conversationId) return;
             try {
               handleMessageInsert(activeCtx, payload.new);
             } catch (err) {
@@ -393,13 +415,13 @@ export function setupScopedMessageRealtime(
           event: 'UPDATE',
           table: 'messages',
           filter: `conversation_id=eq.${conversationId}`,
-          callback: (payload) => handleMessageUpdate(activeCtx, payload.new),
+          callback: (payload) => { if (current() && payload.new?.conversation_id === conversationId) handleMessageUpdate(activeCtx, payload.new); },
         },
         {
           event: 'DELETE',
           table: 'messages',
           filter: `conversation_id=eq.${conversationId}`,
-          callback: (payload) => handleMessageDelete(activeCtx, payload.old),
+          callback: (payload) => { if (current() && payload.old?.conversation_id === conversationId) handleMessageDelete(activeCtx, payload.old); },
         },
       ],
       (status) => {
@@ -412,12 +434,10 @@ export function setupScopedMessageRealtime(
   };
 
   const syncConversationListeners = async () => {
-    const ids = await selectScopedConversationIdsWithFallback(
-      activeCtx.queryClient,
-      activeCtx.profileId,
-      activeCtx.authUid,
-      activeCtx.getViewingConversationId,
-    );
+    if (!current()) return;
+    const captured = activeCtx;
+    const ids = await selectScopedConversationIdsWithFallback(captured);
+    if (!current() || activeCtx !== captured) return;
 
     const nextKey = conversationIdSetKey(ids);
     if (nextKey === lastSyncedKey) return;
@@ -439,14 +459,14 @@ export function setupScopedMessageRealtime(
   };
 
   const scheduleSync = () => {
-    if (syncTimer) return;
+    if (!current() || syncTimer) return;
     syncTimer = setTimeout(() => {
       syncTimer = null;
       void syncConversationListeners();
     }, 300);
   };
 
-  membersChannel = subscribePostgresChannel(
+  if (current()) membersChannel = subscribePostgresChannel(
     `global-members:${ctx.profileId}`,
     [
       {
@@ -478,9 +498,11 @@ export function setupScopedMessageRealtime(
   return {
     resync: syncConversationListeners,
     updateContext: (nextCtx) => {
-      activeCtx = nextCtx;
+      if (nextCtx.authUid === ctx.authUid && nextCtx.profileId === ctx.profileId
+        && nextCtx.accountSession.uid === ctx.accountSession.uid && nextCtx.accountSession.epoch === ctx.accountSession.epoch) activeCtx = { ...nextCtx, isActive: () => active && nextCtx.isActive?.() !== false };
     },
     teardown: () => {
+      active = false;
       if (syncTimer) clearTimeout(syncTimer);
       removeRealtimeChannel(membersChannel);
       membersChannel = null;
@@ -500,6 +522,7 @@ export function applyBroadcastMessage(
   ctx: ScopedMessageRealtimeContext,
   msg: Record<string, unknown>,
 ) {
+  if (!isCurrent(ctx)) return;
   if (!msg?.id || !msg.conversation_id) return;
   const conversationId = String(msg.conversation_id);
   if (ctx.isMessageProcessed(String(msg.id))) return;
@@ -511,7 +534,7 @@ export function applyBroadcastMessage(
 
   // Sender already has optimistic + confirmMessage swap — skip append to avoid glitches.
   if (!(isFromCurrentUser && isViewingConvo)) {
-    ctx.queryClient.setQueryData<any[]>(['messages', conversationId], (old) =>
+    ctx.queryClient.setQueryData<any[]>(messagesQueryKey(conversationId, ctx.accountSession), (old) =>
       appendIncomingMessage(old, msg as any),
     );
   }
@@ -523,6 +546,8 @@ export function applyBroadcastMessage(
         profileId: ctx.profileId,
         isViewingConvo,
         queryClient: ctx.queryClient,
+        accountSession: ctx.accountSession,
+        isCurrent: () => isCurrent(ctx),
       });
     }
   }

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
+import { useFeedMuteFilter } from '@/hooks/useFeedMuteFilter';
 import { containsBlockedContent, filterBlockedContent } from '@/lib/contentModeration';
 import { optimizeForUpload, isVideoFile, generateVideoThumbnail, getCompressedExtension } from '@/lib/mediaOptimizer';
 import { withTimeout } from '@/lib/withTimeout';
@@ -63,7 +64,7 @@ export function usePosts(
   const queryEnabled =
     options?.enabled !== false && (authorId !== undefined ? !!authorId : true);
 
-  return useQuery({
+  const postsQuery = useQuery({
     // Version profile cache entries whenever their server-read contract changes.
     // Persisted empty results previously stayed fresh for 30 minutes, so a new
     // bundle never executed the repaired query even after a full navigation.
@@ -308,12 +309,13 @@ export function usePosts(
       return validPosts;
     },
   });
+  return useFeedMuteFilter(postsQuery, !!authorId);
 }
 
 export function useFollowingPosts() {
   const { profile } = useAuth();
 
-  return useQuery({
+  const postsQuery = useQuery({
     queryKey: ['following-posts', profile?.id],
     queryFn: async (): Promise<Post[]> => {
       if (!profile) return [];
@@ -419,6 +421,7 @@ export function useFollowingPosts() {
     },
     enabled: !!profile,
   });
+  return useFeedMuteFilter(postsQuery);
 }
 
 export function useCreatePost() {

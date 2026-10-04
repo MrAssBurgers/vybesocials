@@ -85,7 +85,8 @@ export function MessageActionMenu({
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 opacity-0 group-hover/message:opacity-100 transition-opacity rounded-full hover:bg-muted/80"
+          aria-label="Message actions"
+          className="h-6 w-6 opacity-0 group-hover/message:opacity-100 focus-visible:opacity-100 transition-opacity rounded-full hover:bg-muted/80"
           onPointerDown={(e) => {
             (e.currentTarget as any)._pointerY = e.clientY;
             e.stopPropagation();
@@ -144,7 +145,7 @@ export function MessageActionMenu({
           Delete for me
         </DropdownMenuItem>
 
-        {!isOwn && (
+        {!isOwn && onReport && (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem 

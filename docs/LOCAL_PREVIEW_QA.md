@@ -80,6 +80,10 @@ For a moderation walkthrough, run `node scripts/qa/seed-local-preview.mjs --with
 
 Report a synthetic mini app as Alice or Bob, then inspect it through the moderator's Admin → Reports screen. Inspection shows the source without running it. Removal requires a note and confirmation, archives the actual publication and prevents that same app ID from being published while its hold is active. The creator's private draft remains available. A moderator can explicitly release the inspected hold; this does not publish the draft. The creator must choose Publish again. Never use an ordinary production tab for these test actions.
 
+For the message-report walkthrough, run `node scripts/qa/test-message-preview.mjs` with the same five guarded demo variables. It signs in synthetic Bob and Alice, rejects an expected sender UID that differs from the authenticated caller, sends one permanent text message through the actual `sendDmMessage` callable, verifies retry deduplication and recipient access, and checks that reporting one's own message is rejected (five checks). It prints the local conversation URL and stores it in ignored `work/local-preview/message-fixture/latest-message.json`. Reruns reuse the same client message identity. No report is created by the fixture: sign in as Alice, open its local URL, use the message menu → Report message, choose Other and submit. In the moderator tab, inspect its captured text through Admin → Reports. No provider notification is enabled. This checks reporting, not live two-device delivery or native push.
+
+Feed mute is a separate private account preference. Open a synthetic peer's profile safety menu → Mute in feeds, then verify it in Settings → Privacy → Muted in feeds. Reloading retains the preference; unmuting removes it. Explicitly opened profiles and conversations remain accessible. This preview does not supply a successful provider-backed post publication to manufacture feed content.
+
 The game fixture compiles the actual source Firebase adapter into ignored `work/local-preview/game-sdk/`, signs in through the real Auth emulator, and checks:
 
 1. Private PNG staging through authenticated callables and Storage, including server verification.
@@ -111,7 +115,7 @@ Demo authentication uses tab-session persistence and skips the normal auth recov
 
 ## What is available, and what a passing result means
 
-The generated entry point runs 22 actual source-built marketplace, reporting/moderation, premium gift/status, first-party game capture, game consent management, challenge progress/claims, and community create/join/invite/manage/message callables. Client Firestore and Storage operations still run through the copied rules. Synthetic Admin seeding supplies initial fixtures; mutations made through the UI or game script use the real SDK/service paths.
+The generated entry point runs 23 actual source-built marketplace, reporting/moderation, direct-message sending, premium gift/status, first-party game capture, game consent management, challenge progress/claims, and community create/join/invite/manage/message callables. Client Firestore and Storage operations still run through the copied rules. Synthetic Admin seeding supplies initial fixtures; mutations made through the UI or game script use the real SDK/service paths.
 
 The preview intentionally excludes billing, email, push delivery, provider-backed AI/moderation, live audio/video token issuance, broad auth exports and scheduled cleanup jobs. `gamePartnerApi` is not currently exported in this preview, and the seed is a first-party registration, not a verified partner registration. Consent UI alone does not demonstrate a partner device/token/upload round trip. A missing callable or denied provider request is a truthful unavailable result, not permission to add a fake successful response.
 

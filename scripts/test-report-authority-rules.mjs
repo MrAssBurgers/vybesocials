@@ -52,7 +52,7 @@ try {
     await denied(`${label} cannot erase report evidence`, () => deleteDoc(doc(client, 'reports', 'canonical-report')));
   }
 
-  const privateTables = ['_report_authority', '_report_requests', '_report_audit', '_report_quotas', '_mini_app_moderation', 'report_notification_deliveries', 'admin_alerts'];
+  const privateTables = ['_report_authority', '_report_requests', '_report_audit', '_report_quotas', '_message_report_evidence', '_mini_app_moderation', 'report_notification_deliveries', 'admin_alerts'];
   for (const table of privateTables) {
     await seed(table, 'protected', { version: 1, user_id: aliceUid, owner_uid: aliceUid, report_id: 'canonical-report', active: true, status: 'pending', read: false });
     for (const [label, client] of actors) {

@@ -161,8 +161,6 @@ const SEND_DM_OPTS = {
 
 export const sendDmMessage = onCall(SEND_DM_OPTS, async (request) => {
   const authUid = requireAuth(request);
-  const allowed = await rateLimit(`dm-send:${authUid}`, 60, 60);
-  enforceRateLimit(allowed);
 
   const data = (request.data || {}) as {
     conversationId?: string;
@@ -174,7 +172,15 @@ export const sendDmMessage = onCall(SEND_DM_OPTS, async (request) => {
     messageType?: string;
     clientMessageId?: string | null;
     otherProfileId?: string | null;
+    expectedSenderUid?: string;
   };
+  // Bind new clients' queued intent to the identity present at dispatch. The
+  // SDK may acquire a token asynchronously after the local account changes.
+  if (data.expectedSenderUid !== undefined && data.expectedSenderUid !== authUid) {
+    throw new HttpsError('failed-precondition', 'Your account changed. Open this chat again before sending.');
+  }
+  const allowed = await rateLimit(`dm-send:${authUid}`, 60, 60);
+  enforceRateLimit(allowed);
 
   const conversationId = typeof data.conversationId === 'string' ? data.conversationId.trim() : '';
   if (!validDocumentId(conversationId)) throw new HttpsError('invalid-argument', 'Valid conversationId required');

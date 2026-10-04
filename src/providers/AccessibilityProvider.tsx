@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
+import { useTheme } from '@/lib/theme';
 
 interface AccessibilityState {
   reduceMotion: boolean;
@@ -12,43 +13,36 @@ const AccessibilityContext = createContext<AccessibilityState>({
 });
 
 export function AccessibilityProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AccessibilityState>({
-    reduceMotion: false,
-    prefersContrast: false,
-  });
+  const { reducedMotion } = useTheme();
+  const [prefersContrast, setPrefersContrast] = useState(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-contrast: more)').matches : false);
 
   useEffect(() => {
-    // Check for reduced motion preference
-    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (typeof window.matchMedia !== 'function') return;
     const contrastQuery = window.matchMedia('(prefers-contrast: more)');
     
-    const updateMotion = (e: MediaQueryListEvent | MediaQueryList) => {
-      const reduce = isNativePerfMode() || e.matches;
-      setState(prev => ({ ...prev, reduceMotion: reduce }));
-      document.documentElement.classList.toggle('reduce-motion', reduce);
-    };
-    
     const updateContrast = (e: MediaQueryListEvent | MediaQueryList) => {
-      setState(prev => ({ ...prev, prefersContrast: e.matches }));
+      setPrefersContrast(e.matches);
       document.documentElement.classList.toggle('high-contrast', e.matches);
     };
 
     // Initial check
-    updateMotion(motionQuery);
     updateContrast(contrastQuery);
 
     // Listen for changes
-    motionQuery.addEventListener('change', updateMotion);
     contrastQuery.addEventListener('change', updateContrast);
 
     return () => {
-      motionQuery.removeEventListener('change', updateMotion);
       contrastQuery.removeEventListener('change', updateContrast);
+      document.documentElement.classList.remove('high-contrast');
     };
   }, []);
 
   return (
-    <AccessibilityContext.Provider value={state}>
+    // ThemeProvider owns the shared CSS class. A second media listener could
+    // remove it while the user's saved in-app preference still requires it.
+    <AccessibilityContext.Provider value={{ reduceMotion: reducedMotion || isNativePerfMode(), prefersContrast }}>
       {children}
     </AccessibilityContext.Provider>
   );

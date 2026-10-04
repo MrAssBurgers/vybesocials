@@ -15,8 +15,12 @@ export const reportDeliveryId = (reportId: string) => createHash('sha256').updat
 export function reportEmail(reportId: string, row: Record<string, unknown>, config: { from: string; to: string }): ReportEmail {
   const fields = [
     ['Report ID', boundedText(reportId, 1500)], ['Reason', boundedText(row.reason)],
-    ['Details', boundedText(row.details, 2000)], ['Reporter', boundedText(row.reporter_id, 1500)],
-    ['Target type', boundedText(row.target_type, 40)], ['Target ID', boundedText(row.target_id, 1500)],
+    // Message text, participants and freeform details stay in the authenticated
+    // queue, including when the reporter quotes a conversation in their notes.
+    ...(row.target_type === 'message' ? [] : [
+      ['Details', boundedText(row.details, 2000)], ['Reporter', boundedText(row.reporter_id, 1500)],
+      ['Target type', boundedText(row.target_type, 40)], ['Target ID', boundedText(row.target_id, 1500)],
+    ]),
   ];
   return {
     from: config.from, to: [config.to],

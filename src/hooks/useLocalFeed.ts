@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { Post } from '@/hooks/useInfinitePosts';
 import { refetchFeedOnMount } from '@/lib/queryRefetchPolicy';
 import { toast } from 'sonner';
+import { useFeedMuteFilter } from '@/hooks/useFeedMuteFilter';
 
 const PAGE_SIZE = 15;
 const STALE_TIME = 5 * 60 * 1000;
@@ -103,7 +104,7 @@ export function useLocalFeed(options?: { enabled?: boolean }) {
   const feedEnabled = options?.enabled ?? false;
   const { location } = useUserLocation({ enabled: feedEnabled });
 
-  return useInfiniteQuery({
+  const query = useInfiniteQuery({
     queryKey: ['local-feed', profileId, location?.lat, location?.lng],
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
       const offset = pageParam * PAGE_SIZE;
@@ -148,6 +149,7 @@ export function useLocalFeed(options?: { enabled?: boolean }) {
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
+  return useFeedMuteFilter(query);
 }
 
 async function fetchFallbackFeed(offset: number, userId?: string): Promise<{ posts: Post[]; nextPage: number | null }> {

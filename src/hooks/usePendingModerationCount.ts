@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useUserRole } from '@/hooks/useModeration';
 import { useAuth } from '@/lib/auth';
-import { getPendingReportCount, reportAccountGuard, reportAccountSnapshot } from '@/lib/reportModerationService';
+import { getPendingReportCount, reportAccountGuard } from '@/lib/reportModerationService';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 
 /**
  * Returns total count of pending moderation items (reports, flags, appeals, bug reports)
@@ -11,7 +12,7 @@ import { getPendingReportCount, reportAccountGuard, reportAccountSnapshot } from
  */
 export function usePendingModerationCount() {
   const { user } = useAuth();
-  const session = reportAccountSnapshot();
+  const session = useReportAccountSession();
   const guard = reportAccountGuard(user?.id || '');
   const { data: userRole } = useUserRole();
   const isStaff =
@@ -34,7 +35,7 @@ export function usePendingModerationCount() {
         reports + (flags.count || 0) + (appeals.count || 0) + (bugs.count || 0);
       return total;
     },
-    enabled: isStaff && !!user?.id,
+    enabled: isStaff && !!user?.id && session.uid === user.id,
     gcTime: 0, retry: false,
     staleTime: 60_000,
     refetchInterval: isStaff ? 60_000 : false,

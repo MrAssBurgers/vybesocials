@@ -27,4 +27,16 @@ describe('report notification content', () => {
     expect(reportDeliveryId('same')).not.toBe(reportDeliveryId('different'));
     expect(reportDeliveryId('slash/quote"')).toMatch(/^[a-f0-9]{64}$/);
   });
+  it('keeps private-message evidence, participant identities and quoted details out of provider payloads', () => {
+    const payload = reportEmail('safe-report-id', {
+      target_type: 'message', reason: 'harassment', details: 'private-quoted-content',
+      reporter_id: 'private-reporter', reporter_uid: 'private-auth-id',
+      target_id: 'private-message-id', target_owner_uid: 'private-sender',
+      conversation_id: 'private-conversation', content: 'private-original-content',
+    }, config);
+    expect(JSON.stringify(payload)).not.toContain('private-');
+    expect(payload.text).toContain('safe-report-id');
+    expect(payload.text).toContain('harassment');
+    expect(payload.html).toContain('https://vybehub.app/admin');
+  });
 });

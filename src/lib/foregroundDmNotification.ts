@@ -11,6 +11,7 @@ import { isNativePlatform } from '@/lib/capacitor';
 import { dmNotificationTag, shouldShowInAppNotification } from '@/lib/inAppNotificationDedupe';
 import { isFreshForegroundDmMessage } from '@/lib/foregroundDmFreshness';
 import type { QueryClient } from '@tanstack/react-query';
+import { reportAccountSnapshot, type ReportAccountSession } from '@/lib/reportModerationService';
 
 function messagePreview(message: {
   content?: string | null;
@@ -38,7 +39,9 @@ async function showWebNotification(
   body: string,
   conversationId: string,
   isGroup: boolean,
+  current: () => boolean,
 ) {
+  if (!current()) return;
   if (isNativePlatform || isDespiaRuntime()) return;
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   if (!document.hidden) return;
@@ -47,6 +50,7 @@ async function showWebNotification(
   if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
     try {
       const registration = await navigator.serviceWorker.ready;
+      if (!current()) return;
       await registration.showNotification(title, {
         body,
         icon: '/icons/icon-192x192.png',
@@ -65,12 +69,14 @@ async function showWebNotification(
     }
   }
 
+  if (!current()) return;
   const notification = new Notification(title, {
     body,
     icon: '/icons/icon-192x192.png',
     tag,
   });
   notification.onclick = () => {
+    if (!current()) { notification.close(); return; }
     window.focus();
     const route = `/messages/${conversationId}`;
     if (navigationRef.current) navigationRef.current(route);
@@ -84,8 +90,15 @@ export async function maybeShowForegroundDmNotification(options: {
   profileId: string;
   isViewingConvo: boolean;
   queryClient: QueryClient;
+  accountSession: ReportAccountSession;
+  isCurrent?: () => boolean;
 }): Promise<void> {
-  const { message, profileId, isViewingConvo, queryClient } = options;
+  const { message, profileId, isViewingConvo, queryClient, accountSession } = options;
+  const current = () => {
+    const live = reportAccountSnapshot();
+    return !!accountSession.uid && live.uid === accountSession.uid && live.epoch === accountSession.epoch && options.isCurrent?.() !== false;
+  };
+  if (!current()) return;
   const conversationId = String(message.conversation_id || '');
   const messageId = String(message.id || '');
   if (!conversationId || !messageId) return;
@@ -106,12 +119,14 @@ export async function maybeShowForegroundDmNotification(options: {
     .select('username, avatar_url, display_name')
     .eq('id', message.sender_id)
     .maybeSingle();
+  if (!current()) return;
 
   const { data: conversation } = await db
     .from('conversations')
     .select('is_group, name')
     .eq('id', conversationId)
     .maybeSingle();
+  if (!current()) return;
 
   const senderName = sender?.display_name || sender?.username || 'Someone';
   const preview = messagePreview(message as { content?: string | null; media_type?: string | null });
@@ -137,7 +152,8 @@ export async function maybeShowForegroundDmNotification(options: {
     isGroup ? `${senderName}: ${preview}` : preview,
     conversationId,
     isGroup,
+    current,
   );
 
-  queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profileId] });
+  if (current()) void queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profileId] });
 }

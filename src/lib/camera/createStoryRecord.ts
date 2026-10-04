@@ -7,6 +7,7 @@ import { db } from '@/lib/firebase';
 import { resolveStoryAuthorProfileId } from '@/lib/resolveSessionProfileId';
 import { recordChallengeActivity } from '@/lib/challengeProgressClient';
 import type { StoryDestinationId } from '@/lib/camera/recipientSelection';
+import { reportAccountGuard } from '@/lib/reportModerationService';
 
 export interface CreateStoryRecordParams {
   mediaUrl: string;
@@ -15,6 +16,9 @@ export interface CreateStoryRecordParams {
   caption?: string;
   durationSec?: number | null;
   destination: StoryDestinationId;
+  /** Verified once by the bound snap job; never resolve a newer account's author. */
+  authorId?: string;
+  accountGuard?: () => void;
 }
 
 /**
@@ -33,12 +37,16 @@ export async function createStoryRecord({
   caption,
   durationSec,
   destination,
+  authorId: boundAuthorId,
+  accountGuard = reportAccountGuard(),
 }: CreateStoryRecordParams): Promise<void> {
+  accountGuard();
   if (!storyDestinationSupported(destination)) {
     throw new Error('This story audience is not available yet');
   }
 
-  const authorId = await resolveStoryAuthorProfileId();
+  const authorId = boundAuthorId || await resolveStoryAuthorProfileId();
+  accountGuard();
 
   const payload = {
     author_id: authorId,
@@ -55,6 +63,7 @@ export async function createStoryRecord({
   };
 
   const { error } = await (db.from('stories') as any).insert(payload);
+  accountGuard();
   if (error) {
     const msg = error.message || '';
     if (/row-level security|policy|42501/i.test(msg)) {

@@ -6,6 +6,8 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { useRankedFeed } from '@/hooks/useRankedFeed';
 import { VideoCard } from '@/components/explore/VideoCard';
+import { FeedEmptyPage } from '@/components/feed/FeedEmptyPage';
+import { FeedFailureNotice } from '@/components/posts/FeedFailureNotice';
 
 const CATEGORIES = [
   { id: 'foryou', label: 'For You', icon: Sparkles },
@@ -21,6 +23,7 @@ export default function VideoBrowse() {
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
+    isError, isFetching, refetch,
   } = useRankedFeed({ contentType: 'video' });
 
   const videos = useMemo(
@@ -91,12 +94,16 @@ export default function VideoBrowse() {
               <div key={i} className="aspect-video bg-muted rounded-xl animate-pulse" />
             ))}
           </div>
+        ) : isError && filteredVideos.length === 0 ? (
+          <FeedFailureNotice label="videos" retrying={isFetching} onRetry={() => { void refetch(); }} />
         ) : filteredVideos.length === 0 ? (
+          <FeedEmptyPage hasMore={hasNextPage} loading={isFetchingNextPage} onLoadMore={() => { void fetchNextPage(); }}>
           <div className="text-center py-16">
             <Film className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
             <p className="font-medium mb-1">No videos yet</p>
             <p className="text-sm text-muted-foreground">Be the first to upload a video!</p>
           </div>
+          </FeedEmptyPage>
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

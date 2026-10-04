@@ -44,6 +44,7 @@ import {
 } from '@/components/feed/FeedOfflineStates';
 import { openFriendLink } from '@/lib/friendLinkUi';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { FeedEmptyPage } from '@/components/feed/FeedEmptyPage';
 
 const FeedAdCard = lazy(() => import('@/components/ads/FeedAdCard').then(m => ({ default: m.FeedAdCard })));
 const MemoizedPostCard = memo(PostCard);
@@ -141,6 +142,8 @@ interface Props {
   onRetryForYou?: () => void;
   forYouFetching: boolean;
   isFetchingNextForYou: boolean;
+  hasNextForYou?: boolean;
+  onLoadMoreForYou?: () => void;
   globalPosts: Post[];
   globalLoading: boolean;
   globalRefreshing?: boolean;
@@ -148,6 +151,8 @@ interface Props {
   onRetryGlobal?: () => void;
   globalFetching: boolean;
   isFetchingNextGlobal: boolean;
+  hasNextGlobal?: boolean;
+  onLoadMoreGlobal?: () => void;
   localPosts: Post[];
   localLoading: boolean;
   localRefreshing?: boolean;
@@ -155,6 +160,8 @@ interface Props {
   onRetryLocal?: () => void;
   localFetching: boolean;
   isFetchingNextLocal: boolean;
+  hasNextLocal?: boolean;
+  onLoadMoreLocal?: () => void;
   loadMoreRef: (node: HTMLDivElement | null) => void;
 }
 
@@ -291,6 +298,7 @@ function FeedSection({
   forYouPosts, forYouLoading, forYouRefreshing, forYouError, onRetryForYou, forYouFetching, isFetchingNextForYou,
   globalPosts, globalLoading, globalRefreshing, globalError, onRetryGlobal, globalFetching, isFetchingNextGlobal,
   localPosts, localLoading, localRefreshing, localError, onRetryLocal, localFetching, isFetchingNextLocal,
+  hasNextForYou, onLoadMoreForYou, hasNextGlobal, onLoadMoreGlobal, hasNextLocal, onLoadMoreLocal,
   loadMoreRef,
 }: Props) {
   const { user, profile, loading: authLoading } = useAuth();
@@ -368,6 +376,8 @@ function FeedSection({
             isError={forYouError}
             onRetry={onRetryForYou}
             isFetchingNext={isFetchingNextForYou}
+            hasNextPage={hasNextForYou}
+            onLoadMore={onLoadMoreForYou}
             loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}}
             emptyIcon="✨"
             emptyText="No posts yet. Follow creators or check Global!"
@@ -385,6 +395,8 @@ function FeedSection({
             isError={localError}
             onRetry={onRetryLocal}
             isFetchingNext={isFetchingNextLocal}
+            hasNextPage={hasNextLocal}
+            onLoadMore={onLoadMoreLocal}
             loadMoreRef={activeTab === 'local' ? loadMoreRef : () => {}}
             emptyIcon="📍"
             emptyText="No local posts yet. Share what's happening nearby!"
@@ -401,6 +413,8 @@ function FeedSection({
             isError={globalError}
             onRetry={onRetryGlobal}
             isFetchingNext={isFetchingNextGlobal}
+            hasNextPage={hasNextGlobal}
+            onLoadMore={onLoadMoreGlobal}
             loadMoreRef={activeTab === 'global' ? loadMoreRef : () => {}}
             emptyIcon="🌍"
             emptyText="No posts yet. Be the first to share something!"
@@ -413,8 +427,8 @@ function FeedSection({
   );
 }
 
-function InlinePostList({
-  posts, isLoading, isRefreshing, isError, onRetry, isFetchingNext, loadMoreRef, emptyIcon, emptyText, onExplore, showAds, emptyOverride,
+export function InlinePostList({
+  posts, isLoading, isRefreshing, isError, onRetry, isFetchingNext, loadMoreRef, emptyIcon, emptyText, onExplore, showAds, emptyOverride, hasNextPage, onLoadMore,
 }: {
   posts: Post[];
   isLoading: boolean;
@@ -422,6 +436,8 @@ function InlinePostList({
   isError?: boolean;
   onRetry?: () => void;
   isFetchingNext: boolean;
+  hasNextPage?: boolean;
+  onLoadMore?: () => void;
   loadMoreRef: (node: HTMLDivElement | null) => void;
   emptyIcon: string;
   emptyText: string;
@@ -572,6 +588,7 @@ function InlinePostList({
     );
   }
   if (!isLoading && posts.length === 0) {
+    if (hasNextPage && onLoadMore) return <FeedEmptyPage hasMore loading={isFetchingNext} onLoadMore={onLoadMore}>{null}</FeedEmptyPage>;
     if (emptyOverride) return <>{emptyOverride}</>;
     const iconMap: Record<string, { icon: typeof Sparkles; gradient: string }> = {
       '✨': { icon: Sparkles, gradient: 'from-violet-500/20 to-fuchsia-500/20' },
@@ -662,8 +679,12 @@ function InlinePostList({
         )}
       </div>
 
-      {/* Caught Up screen after all posts */}
-      {!isFetchingNext && posts.length >= 5 && (
+      {hasNextPage && onLoadMore && <div className="flex justify-center py-4">
+        <Button variant="secondary" disabled={isFetchingNext} onClick={onLoadMore}>{isFetchingNext ? 'Loading more…' : 'Load more'}</Button>
+      </div>}
+
+      {/* Only claim completion when the raw cursor is exhausted. */}
+      {!hasNextPage && !isFetchingNext && posts.length >= 5 && (
         <CaughtUpScreen />
       )}
 

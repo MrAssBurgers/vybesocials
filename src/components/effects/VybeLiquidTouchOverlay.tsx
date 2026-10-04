@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
+import { useTheme } from '@/lib/theme';
 
 import { useVybeLiquidTouchDocumentShell } from '@/hooks/useVybeLiquidTouchDocumentShell';
 import { setVybeLiquidTouchSystemActive } from '@/lib/liquidShellState';
@@ -24,17 +25,18 @@ interface VybeLiquidTouchOverlayProps {
 export const VybeLiquidTouchOverlay = memo(function VybeLiquidTouchOverlay({
   zIndex = 5010,
 }: VybeLiquidTouchOverlayProps) {
+  const { reducedMotion } = useTheme();
   const hostRef = useRef<HTMLDivElement>(null);
   const touchRef = useRef<HTMLDivElement>(null);
   const surgeRef = useRef<HTMLDivElement>(null);
   const washRef = useRef<HTMLDivElement>(null);
 
-  useVybeLiquidTouchDocumentShell(true);
+  useVybeLiquidTouchDocumentShell(!reducedMotion);
 
   useEffect(() => {
-    setVybeLiquidTouchSystemActive(true);
+    setVybeLiquidTouchSystemActive(!reducedMotion);
     return () => setVybeLiquidTouchSystemActive(false);
-  }, []);
+  }, [reducedMotion]);
 
   const playTouchVisuals = useCallback((clientX: number, clientY: number) => {
     // Skip while user is actively scrolling — repaints during scroll cause jank.
@@ -50,17 +52,21 @@ export const VybeLiquidTouchOverlay = memo(function VybeLiquidTouchOverlay({
     retrigger(touchRef.current, 'vybe-liquid-touch--play');
   }, []);
 
-  useEffect(() => registerVybeLiquidTouchVisuals(playTouchVisuals), [playTouchVisuals]);
+  useEffect(() => {
+    if (reducedMotion) return;
+    return registerVybeLiquidTouchVisuals(playTouchVisuals);
+  }, [playTouchVisuals, reducedMotion]);
 
   useEffect(() => {
+    if (reducedMotion) return;
     const onDown = (e: PointerEvent) => {
       triggerVybeLiquidTouch(e.clientX, e.clientY);
     };
     window.addEventListener('pointerdown', onDown, { capture: true, passive: true });
     return () => window.removeEventListener('pointerdown', onDown, { capture: true });
-  }, []);
+  }, [reducedMotion]);
 
-
+  if (reducedMotion) return null;
   return (
     <div
       ref={hostRef}

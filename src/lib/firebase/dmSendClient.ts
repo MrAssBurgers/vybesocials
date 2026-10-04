@@ -14,6 +14,7 @@ export interface SendDmPayload {
   /** Idempotency key (optimistic temp id / outbox id) — prevents duplicate reconnect sends. */
   clientMessageId?: string | null;
   otherProfileId?: string | null;
+  expectedSenderUid?: string;
 }
 
 /**
@@ -33,6 +34,7 @@ export async function sendDmViaCloudFunction(
     messageType: payload.messageType,
     clientMessageId: payload.clientMessageId ?? null,
     otherProfileId: payload.otherProfileId ?? null,
+    expectedSenderUid: payload.expectedSenderUid,
   }).single();
 
   if (error) {

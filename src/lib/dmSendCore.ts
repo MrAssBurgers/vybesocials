@@ -15,6 +15,7 @@ import {
 } from '@/lib/dmSendErrors';
 import type { Message, ViewMode } from '@/hooks/useMessages';
 import { recordChallengeActivity } from '@/lib/challengeProgressClient';
+import { reportAccountGuard, reportAccountSnapshot } from '@/lib/reportModerationService';
 
 const DM_SEND_LOG_KEY = 'vybe-dm-send-log';
 const DM_SEND_LOG_MAX = 100;
@@ -67,6 +68,7 @@ export interface DmInsertPayload {
 }
 
 export interface DmInsertOptions {
+  accountGuard?: () => void;
   otherProfileId?: string | null;
   maxAttempts?: number;
   /** Server `onDmMessageCreated` is primary. Client backup only when forceClientBackup. */
@@ -126,6 +128,12 @@ export async function insertDmMessage(
   payload: DmInsertPayload,
   opts?: DmInsertOptions,
 ): Promise<{ data: Message | null; error: { message: string; code?: string } | null }> {
+  const sessionGuard = reportAccountGuard();
+  const expectedSenderUid = reportAccountSnapshot().uid;
+  const accountFailure = () => {
+    try { sessionGuard(); opts?.accountGuard?.(); return null; }
+    catch { return { data: null, error: { code: 'account-changed', message: 'Your account changed. Open this chat again before sending.' } }; }
+  };
   const otherProfileId =
     opts?.otherProfileId ??
     inferOtherParticipantId(payload.conversation_id, payload.sender_id) ??
@@ -135,6 +143,7 @@ export async function insertDmMessage(
   const maxAttempts = Math.max(1, opts?.maxAttempts ?? 3);
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const before = accountFailure(); if (before) return before;
     logDmSend({
       op: 'callable_start',
       conversationId: payload.conversation_id,
@@ -152,7 +161,9 @@ export async function insertDmMessage(
       messageType: payload.message_type,
       clientMessageId: payload.client_message_id ?? null,
       otherProfileId,
+      expectedSenderUid,
     });
+    const after = accountFailure(); if (after) return after;
 
     if (!cloud.error && cloud.data) {
       logDmSend({

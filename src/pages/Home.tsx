@@ -420,6 +420,11 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             onRetryForYou={() => { refetchForYou(); refetchFollowing(); }}
             forYouFetching={forYouFetching || followingFetching}
             isFetchingNextForYou={isFetchingNextForYou || isFetchingNextFollowing}
+            hasNextForYou={hasNextForYou || hasNextFollowing}
+            onLoadMoreForYou={() => {
+              if (hasNextForYou && !isFetchingNextForYou) void fetchNextForYou();
+              if (hasNextFollowing && !isFetchingNextFollowing) void fetchNextFollowing();
+            }}
             globalPosts={globalPosts}
             globalLoading={globalFeedLoading}
             globalRefreshing={globalFeedRefreshing}
@@ -427,6 +432,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             onRetryGlobal={() => refetchGlobal()}
             globalFetching={globalFetching}
             isFetchingNextGlobal={isFetchingNextGlobal}
+            hasNextGlobal={hasNextGlobal}
+            onLoadMoreGlobal={() => { if (hasNextGlobal && !isFetchingNextGlobal) void fetchNextGlobal(); }}
             localPosts={localPosts}
             localLoading={localFeedLoading}
             localRefreshing={localFeedRefreshing}
@@ -434,6 +441,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             onRetryLocal={() => refetchLocal()}
             localFetching={localFetching}
             isFetchingNextLocal={isFetchingNextLocal}
+            hasNextLocal={hasNextLocal}
+            onLoadMoreLocal={() => { if (hasNextLocal && !isFetchingNextLocal) void fetchNextLocal(); }}
             loadMoreRef={loadMoreRef}
           />
 

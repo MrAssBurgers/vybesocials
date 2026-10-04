@@ -744,6 +744,7 @@ service cloud.firestore {
     // Report attribution, review actions, delivery and mini-app holds are
     // maintained by authenticated server APIs. Browser staff have no bypass.
     match /_report_authority/{id}             { allow read, write: if false; }
+    match /_message_report_evidence/{document=**} { allow read, write: if false; }
     match /_report_requests/{id}              { allow read, write: if false; }
     match /_report_audit/{id}                 { allow read, write: if false; }
     match /_report_quotas/{id}                { allow read, write: if false; }
@@ -752,6 +753,25 @@ service cloud.firestore {
     match /admin_alerts/{id}                 { allow read, write: if false; }
 
     // ---------- social: follows / blocks / friend requests ----------
+    // Feed preferences are private to the Firebase account. Muting is not a
+    // block, moderation action or permission change for the target account.
+    match /feed_mutes/{ownerUid}/authors/{targetProfileId} {
+      allow read, delete: if signedIn() && uid() == ownerUid;
+      allow create: if signedIn() && uid() == ownerUid &&
+        request.resource.data.keys().hasAll(['schema_version', 'owner_uid', 'target_profile_id', 'target_uid', 'created_at']) &&
+        request.resource.data.keys().hasOnly(['schema_version', 'owner_uid', 'target_profile_id', 'target_uid', 'created_at']) &&
+        request.resource.data.schema_version == 1 &&
+        request.resource.data.owner_uid == ownerUid &&
+        request.resource.data.target_profile_id == targetProfileId &&
+        request.resource.data.target_uid is string &&
+        request.resource.data.target_uid.size() > 0 &&
+        request.resource.data.target_uid.size() <= 200 &&
+        request.resource.data.target_uid != ownerUid &&
+        request.resource.data.created_at == request.time &&
+        exists(/databases/$(database)/documents/profiles/$(targetProfileId)) &&
+        get(/databases/$(database)/documents/profiles/$(targetProfileId)).data.user_id == request.resource.data.target_uid;
+      allow update: if false;
+    }
     match /follows/{docId} {
       allow read: if signedIn();
       allow create: if willOwnProfile('follower_id');

@@ -4,8 +4,9 @@ import { db, requireAuth } from './_shared/admin.js';
 import {
   assertReportFields, holdSummary, inspectReport, listReports, readReport,
   reportActor, reportHash, reportId, reportQuota, reportRequestId, reportStaff,
-  reportTarget, reportText, REPORT_REASONS, type ReportTargetType,
+  reportTarget, reportText, targetIdentity, REPORT_REASONS, type ReportTargetType,
 } from './_shared/reportAuthority.js';
+import { captureMessageEvidence, messageEvidenceHash, messageReportTarget } from './_shared/messageReportEvidence.js';
 
 type Input = Record<string, unknown>;
 const mutationFields = {
@@ -20,7 +21,7 @@ function mutationInput(input: Input) {
   assertReportFields(input, mutationFields[action]);
   const requestId = reportRequestId(input.requestId);
   if (action === 'submit') {
-    if (!['profile', 'post', 'comment', 'mini_app'].includes(String(input.targetType)) || !REPORT_REASONS.includes(input.reason as typeof REPORT_REASONS[number])) throw new HttpsError('invalid-argument', 'Choose a supported report target and reason');
+    if (!['profile', 'post', 'comment', 'mini_app', 'message'].includes(String(input.targetType)) || !REPORT_REASONS.includes(input.reason as typeof REPORT_REASONS[number])) throw new HttpsError('invalid-argument', 'Choose a supported report target and reason');
     return { action, requestId, targetType: input.targetType as ReportTargetType, targetId: reportId(input.targetId), reason: input.reason as string, details: reportText(input.details, 1000) };
   }
   const note = reportText(input.note, 1000, action !== 'review');
@@ -84,23 +85,30 @@ export async function runReportModeration(database: Firestore, uid: string, inpu
     // Stage writes only after the operation has completed all of its reads.
     let writeAction: () => void;
     if (operation.action === 'submit') {
-      const target = await reportTarget(tx, database, operation.targetType!, operation.targetId!);
+      const target = operation.targetType === 'message'
+        ? await messageReportTarget(tx, database, operation.targetId!, actor, id => targetIdentity(tx, database, id), now)
+        : await reportTarget(tx, database, operation.targetType!, operation.targetId!);
       const id = `r_${key}`;
       const reportRef = database.doc(`reports/${id}`);
       const authorityRef = database.doc(`_report_authority/${id}`);
       const [existing, proof] = await Promise.all([tx.get(reportRef), tx.get(authorityRef)]);
       if (existing.exists || proof.exists) throw new HttpsError('failed-precondition', 'Report identity needs review');
+      const messageEvidence = target.type === 'message' ? captureMessageEvidence(target, id, actor, time) : null;
+      const messageEvidenceRef = messageEvidence ? database.doc(`_message_report_evidence/${id}`) : null;
+      if (messageEvidenceRef && (await tx.get(messageEvidenceRef)).exists) throw new HttpsError('failed-precondition', 'Message evidence identity needs review');
       const immutable = {
         reporter_uid: actor.uid, reporter_id: actor.profileId,
         target_type: target.type, target_id: target.id,
         target_owner_uid: target.owner.uid, target_owner_profile_id: target.owner.profileId,
         reason: operation.reason!, details: operation.details!, created_at: time, target_revision: target.revision,
+        ...(messageEvidence ? { message_evidence_hash: messageEvidenceHash(messageEvidence) } : {}),
       };
       result = { success: true, reportId: id, status: 'pending' };
       evidence = { report_id: id, target_type: target.type, target_id: target.id };
       writeAction = () => {
         tx.create(reportRef, { schema_version: 2, id, ...immutable, status: 'pending', reviewed_at: null, reviewed_by: null, admin_notes: '' });
         tx.create(authorityRef, { version: 1, report_id: id, ...immutable });
+        if (messageEvidence && messageEvidenceRef) tx.create(messageEvidenceRef, messageEvidence);
       };
     } else if (operation.action === 'review') {
       const report = await readReport(tx, database, operation.reportId!);

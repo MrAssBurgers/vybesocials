@@ -18,6 +18,9 @@ import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { ensureMediaUrlsReady } from '@/lib/signedUrlCache';
 import type { Post } from '@/hooks/useInfinitePosts';
+import { useFeedMuteFilter } from '@/hooks/useFeedMuteFilter';
+import { FeedEmptyPage } from '@/components/feed/FeedEmptyPage';
+import { latestPageAddsVisiblePosts } from '@/lib/feedContinuation';
 
 const PAGE_SIZE = 15;
 
@@ -146,7 +149,7 @@ export default function ClipsViewer() {
   }, []);
 
   // ─── 2. Fetch infinite feed AFTER initial post ───
-  const feedQuery = useInfiniteQuery({
+  const rawFeedQuery = useInfiniteQuery({
     queryKey: ['clips-viewer-feed', profile?.id, postId],
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
       if (profile?.id) {
@@ -177,6 +180,8 @@ export default function ClipsViewer() {
     enabled: !!initialPost,
     staleTime: 5 * 60 * 1000,
   });
+  const feedQuery = useFeedMuteFilter(rawFeedQuery);
+  const canAutoContinue = latestPageAddsVisiblePosts(feedQuery.data?.pages) && !feedQuery.isError;
 
   // ─── 3. Merge: [clicked_post, ...feed_posts] ───
   const allClips = useMemo(() => {
@@ -203,10 +208,10 @@ export default function ClipsViewer() {
   // ─── Infinite scroll trigger ───
   const { ref: loadMoreRef, inView } = useInView({ threshold: 0, rootMargin: '200px' });
   useEffect(() => {
-    if (inView && feedQuery.hasNextPage && !feedQuery.isFetchingNextPage) {
+    if (canAutoContinue && inView && feedQuery.hasNextPage && !feedQuery.isFetchingNextPage) {
       feedQuery.fetchNextPage();
     }
-  }, [inView, feedQuery.hasNextPage, feedQuery.isFetchingNextPage]);
+  }, [canAutoContinue, inView, feedQuery.hasNextPage, feedQuery.isFetchingNextPage, feedQuery.fetchNextPage]);
 
   // ─── IntersectionObserver for active index ───
   useEffect(() => {
@@ -341,7 +346,13 @@ export default function ClipsViewer() {
           </div>
         ))}
 
-        {feedQuery.hasNextPage && (
+        {feedQuery.isError ? <div className="snap-start bg-background px-4 py-10 text-center">
+          <FeedFailureNotice label="clip recommendations" retrying={feedQuery.isFetching} onRetry={() => { void feedQuery.refetch(); }} />
+          <button type="button" className="mt-4 min-h-11 text-sm text-primary hover:underline" onClick={() => navigate('/settings')}>Manage feed mutes in Settings</button>
+        </div>
+        : feedQuery.isLoading ? <p role="status" className="snap-start p-6 text-center text-white/70">Loading clip recommendations…</p>
+        : feedQuery.hasNextPage && !canAutoContinue ? <div className="snap-start bg-background"><FeedEmptyPage hasMore loading={feedQuery.isFetchingNextPage} onLoadMore={() => { void feedQuery.fetchNextPage(); }}>{null}</FeedEmptyPage></div>
+        : feedQuery.hasNextPage && (
           <div
             ref={loadMoreRef}
             className="h-20 flex items-center justify-center bg-black snap-start"

@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 import { FieldPath } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
+import { verifiedMessageEvidence } from './messageReportEvidence.js';
 export const REPORT_REASONS = ['spam', 'harassment', 'inappropriate', 'hate', 'impersonation', 'other', 'blocked_user'];
-const TARGETS = ['profile', 'post', 'comment', 'mini_app'];
+const TARGETS = ['profile', 'post', 'comment', 'mini_app', 'message'];
 const STATUSES = ['pending', 'reviewed', 'dismissed', 'actioned'];
 const immutable = ['reporter_uid', 'reporter_id', 'target_type', 'target_id', 'target_owner_uid', 'target_owner_profile_id', 'reason', 'details', 'created_at', 'target_revision'];
 export const reportHash = (...parts) => createHash('sha256').update(JSON.stringify(parts)).digest('hex');
@@ -43,6 +44,8 @@ export function isAttestedReport(row, authority) {
         || !TARGETS.includes(row.target_type) || !REPORT_REASONS.includes(row.reason)
         || typeof row.details !== 'string' || row.details.length > 1000 || typeof row.created_at !== 'string' || iso(row.created_at) !== row.created_at
         || !(row.target_revision === null || (typeof row.target_revision === 'string' && /^[a-f0-9]{64}$/.test(row.target_revision))))
+        return false;
+    if (row.target_type === 'message' && (typeof row.message_evidence_hash !== 'string' || !/^[a-f0-9]{64}$/.test(row.message_evidence_hash) || row.message_evidence_hash !== authority.message_evidence_hash || row.target_revision === null))
         return false;
     return immutable.every(key => row[key] === authority[key]);
 }
@@ -91,7 +94,7 @@ export async function reportStaff(tx, db, uid) {
         throw new HttpsError('permission-denied', 'An active moderation role is required');
     return actor;
 }
-async function targetIdentity(tx, db, id) {
+export async function targetIdentity(tx, db, id) {
     const direct = await tx.get(db.doc(`profiles/${id}`));
     if (direct.exists) {
         const uid = direct.data()?.user_id;
@@ -185,6 +188,14 @@ export async function inspectReport(tx, db, id) {
     let target = { type: targetType, id: targetId, ownerUid: null, available: false, title: 'Content unavailable', caption: null, revision: null };
     let source;
     let hold = null;
+    if (targetType === 'message') {
+        // Legacy leads never become a private-message lookup API for staff.
+        const recorded = loaded.summary.verification === 'verified'
+            ? verifiedMessageEvidence(await tx.get(db.doc(`_message_report_evidence/${id}`)), loaded.row) : null;
+        return { report: loaded.summary, target: { ...target, title: recorded ? 'Reported message' : 'Message evidence unavailable',
+                available: !!recorded, ownerUid: recorded?.senderUid ?? null,
+                ...(recorded ? { messageEvidence: recorded } : {}) }, hold: null };
+    }
     if (targetType && targetId) {
         if (targetType === 'mini_app')
             hold = holdSummary((await tx.get(db.doc(`_mini_app_moderation/${targetId}`))).data(), targetId);

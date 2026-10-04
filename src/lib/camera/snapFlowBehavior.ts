@@ -12,8 +12,8 @@ export function shouldStayOnCameraAfterSend(source: CameraLaunchSource): boolean
 }
 
 export function globalSendConfirmationText(destinationCount: number): string {
-  if (destinationCount <= 0) return 'Sent';
-  return destinationCount === 1 ? 'Sent to 1' : `Sent to ${destinationCount}`;
+  if (destinationCount <= 0) return 'Preparing snap';
+  return destinationCount === 1 ? 'Preparing to send to 1' : `Preparing to send to ${destinationCount}`;
 }
 
 export function shouldAnimateSnapSend(

@@ -16,6 +16,8 @@ import { cn } from '@/lib/utils';
 import { useVideoAds } from '@/hooks/useVideoAds';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { FeedFailureNotice } from '@/components/posts/FeedFailureNotice';
+import { FeedEmptyPage } from '@/components/feed/FeedEmptyPage';
+import { latestPageAddsVisiblePosts } from '@/lib/feedContinuation';
 import { flattenUniqueFeedPosts, shouldHandleFeedShortcut } from '@/lib/feedReliability';
 import { readClipsMutedPreference, writeClipsMutedPreference } from '@/lib/videoPlayback';
 import { ClipsLongVideosPanel } from '@/components/clips/ClipsLongVideosPanel';
@@ -43,6 +45,7 @@ export default function ClipsPage() {
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = activeQuery;
 
   const shorts = useMemo(() => flattenUniqueFeedPosts(data?.pages), [data]);
+  const canAutoContinue = latestPageAddsVisiblePosts(data?.pages) && !activeQuery.isError;
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [globalMuted, setGlobalMuted] = useState(() => readClipsMutedPreference());
@@ -117,10 +120,10 @@ export default function ClipsPage() {
   });
 
   useEffect(() => {
-    if (inView && hasNextPage && !isFetchingNextPage) {
+    if (canAutoContinue && inView && hasNextPage && !isFetchingNextPage) {
       fetchNextPage();
     }
-  }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [canAutoContinue, inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   useEffect(() => {
     if (!isShortsMode || !shorts?.length) return;
@@ -287,6 +290,7 @@ export default function ClipsPage() {
         >
           <ClipsFeedHeader active={feedTab} onChange={handleFeedTabChange} />
           <div className="flex flex-col items-center">
+            <FeedEmptyPage hasMore={hasNextPage} loading={isFetchingNextPage} onLoadMore={() => { void fetchNextPage(); }}>
             <EmptyState
               emoji={feedTab === 'following' ? '👥' : '🎬'}
               title={feedTab === 'following' ? 'No clips from people you follow' : 'No clips yet'}
@@ -298,6 +302,7 @@ export default function ClipsPage() {
               actionLabel={feedTab === 'following' ? 'Discover creators' : 'Upload clip'}
               onAction={() => navigate(feedTab === 'following' ? '/explore' : '/upload')}
             />
+            </FeedEmptyPage>
             <button
               type="button"
               onClick={() => handleFeedTabChange('videos')}
@@ -360,7 +365,9 @@ export default function ClipsPage() {
             </div>
           ))}
 
-          {hasNextPage && (
+          {activeQuery.isError ? <div className="snap-start bg-background px-4 py-10"><FeedFailureNotice label="more clips" retrying={activeQuery.isFetching} onRetry={() => { void activeQuery.refetch(); }} /></div>
+          : hasNextPage && !canAutoContinue ? <div className="snap-start bg-background"><FeedEmptyPage hasMore loading={isFetchingNextPage} onLoadMore={() => { void fetchNextPage(); }}>{null}</FeedEmptyPage></div>
+          : hasNextPage && (
             <div
               ref={loadMoreRef}
               className="h-20 flex items-center justify-center bg-black snap-start"

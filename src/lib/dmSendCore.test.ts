@@ -1,6 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const sendDmViaCloudFunction = vi.fn();
+const account = vi.hoisted(() => ({ uid: 'a' as string | null, listeners: new Set<(user: { uid: string } | null) => void>() }));
+const auth = vi.hoisted(() => ({ get currentUser() { return account.uid ? { uid: account.uid } : null; }, onAuthStateChanged(cb: (user: { uid: string } | null) => void) { account.listeners.add(cb); return () => account.listeners.delete(cb); } }));
+vi.mock('@/lib/firebase/authService', () => ({ getFirebaseAuth: () => auth }));
+vi.mock('@/lib/firebase/functionsService', () => ({ invokeFunction: vi.fn() }));
+function switchAccount(uid: string | null) { account.uid = uid; account.listeners.forEach(cb => cb(uid ? { uid } : null)); }
 
 vi.mock('@/lib/firebase/dmSendClient', () => ({
   sendDmViaCloudFunction: (...args: unknown[]) => sendDmViaCloudFunction(...args),
@@ -28,6 +33,18 @@ vi.mock('@/lib/firebase', () => ({
 describe('insertDmMessage — callable-only path', () => {
   beforeEach(() => {
     sendDmViaCloudFunction.mockReset();
+    switchAccount('a');
+  });
+
+  it.each([false, true])('stops a late confirmation or retry after account change (returning=%s)', async returning => {
+    sendDmViaCloudFunction.mockImplementation(async () => {
+      switchAccount('b'); if (returning) switchAccount('a');
+      return { data: null, error: { code: 'unavailable', message: 'Network unavailable' } };
+    });
+    const { insertDmMessage } = await import('@/lib/dmSendCore');
+    const result = await insertDmMessage({ conversation_id: 'a_b', sender_id: 'a', content: 'private', client_message_id: 'account-switch' });
+    expect(result.error?.code).toBe('account-changed');
+    expect(sendDmViaCloudFunction).toHaveBeenCalledTimes(1);
   });
 
   it('routes every send through sendDmMessage and never touches client inserts', async () => {

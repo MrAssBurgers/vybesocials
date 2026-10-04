@@ -14,6 +14,30 @@ beforeEach(() => { vi.stubGlobal('crypto', webcrypto); state.invoke.mockReset();
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe('report forms are bound to their mounted account and target', () => {
+  it('recovers from a Firebase readiness mismatch without a manual React render', async () => {
+    state.uid = null;
+    state.listener?.(null);
+    state.invoke.mockResolvedValue(ack);
+    const { result } = renderHook(() => useSafetyReport('post-1'));
+    const beforeReady = result.current;
+    expect(beforeReady.isCurrent()).toBe(false);
+    act(() => { state.uid = 'alice'; state.listener?.({ uid: 'alice' }); });
+    expect(result.current.isCurrent()).toBe(true);
+    expect(result.current.sessionKey).not.toBe(beforeReady.sessionKey);
+    await expect(beforeReady(input)).rejects.toMatchObject({ code: 'account-changed' });
+    await expect(result.current(input)).resolves.toMatchObject({ reportId: 'confirmed' });
+    expect(state.invoke).toHaveBeenCalledTimes(1);
+  });
+  it('rebinds a mounted form after an account round trip while rejecting its old callback', async () => {
+    state.invoke.mockResolvedValue(ack);
+    const { result } = renderHook(() => useSafetyReport('post-1'));
+    const previous = result.current;
+    act(() => { switchTo('bob'); switchTo('alice'); });
+    expect(result.current.sessionKey).not.toBe(previous.sessionKey);
+    await expect(previous(input)).rejects.toMatchObject({ code: 'account-changed' });
+    await expect(result.current(input)).resolves.toMatchObject({ reportId: 'confirmed' });
+    expect(state.invoke).toHaveBeenCalledTimes(1);
+  });
   it('requires the rendered React account, even if native Firebase is already signed in', async () => {
     state.reactUid = null;
     const { result } = renderHook(() => useSafetyReport('post-1'));

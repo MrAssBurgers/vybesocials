@@ -5,7 +5,8 @@ import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { isStaffQueryEnabled } from '@/lib/adminAccess';
 import { invokeEdgeFeature } from '@/lib/edgeFeature';
 import { isPreviewFounderUser, isFounderAuthId } from '@/lib/previewSandbox';
-import { getPendingReportCount, getReportPage, performReportAction, reportAccountGuard, reportAccountSnapshot, type ReportStatus, type ReportSummary } from '@/lib/reportModerationService';
+import { getPendingReportCount, getReportPage, performReportAction, reportAccountGuard, type ReportStatus, type ReportSummary } from '@/lib/reportModerationService';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 
 export type AdminUserRole = 'admin' | 'moderator';
 
@@ -95,12 +96,12 @@ export function useContentFlags() {
 export function useReports(input: { cursor?: string; status?: Exclude<ReportStatus, 'unknown'> } = {}) {
   const { user, authReady } = useAuth();
   const profileId = useAuthProfileId();
-  const session = reportAccountSnapshot();
+  const session = useReportAccountSession();
   const guard = reportAccountGuard(user?.id || '');
   const query = useQuery({
     queryKey: ['admin-reports', user?.id, session.epoch, input.status, input.cursor],
     queryFn: () => getReportPage(input, guard),
-    enabled: isStaffQueryEnabled(authReady, user, profileId),
+    enabled: isStaffQueryEnabled(authReady, user, profileId) && session.uid === user?.id,
     gcTime: 0, retry: false,
   });
   return { ...query, data: query.data?.reports, nextCursor: query.data?.nextCursor ?? null };
@@ -109,9 +110,9 @@ export function useReports(input: { cursor?: string; status?: Exclude<ReportStat
 export function useReportCount() {
   const { user, authReady } = useAuth();
   const profileId = useAuthProfileId();
-  const session = reportAccountSnapshot();
+  const session = useReportAccountSession();
   const guard = reportAccountGuard(user?.id || '');
-  return useQuery({ queryKey: ['pending-moderation-count', user?.id, session.epoch, 'reports'], queryFn: () => getPendingReportCount(guard), enabled: isStaffQueryEnabled(authReady, user, profileId), gcTime: 0, retry: false, refetchInterval: 60_000 });
+  return useQuery({ queryKey: ['pending-moderation-count', user?.id, session.epoch, 'reports'], queryFn: () => getPendingReportCount(guard), enabled: isStaffQueryEnabled(authReady, user, profileId) && session.uid === user?.id, gcTime: 0, retry: false, refetchInterval: 60_000 });
 }
 
 export function useUpdateFlag() {
@@ -147,7 +148,7 @@ export function useUpdateFlag() {
 export function useUpdateReport() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const session = reportAccountSnapshot();
+  const session = useReportAccountSession();
   const guard = reportAccountGuard(user?.id || '');
   return useMutation({
     mutationFn: ({ id, status, admin_notes }: { id: string; status: 'reviewed' | 'dismissed'; admin_notes?: string }) => performReportAction({ action: 'review', reportId: id, status, ...(admin_notes ? { note: admin_notes } : {}) }, guard),

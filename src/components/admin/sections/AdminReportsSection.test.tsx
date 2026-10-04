@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   inspect: vi.fn(), action: vi.fn(), refetch: vi.fn(), success: vi.fn(),
 }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: state.uid } }) }));
+vi.mock('@/hooks/useReportAccountSession', () => ({ useReportAccountSession: () => ({ uid: state.uid, epoch: state.epoch }) }));
 vi.mock('@/hooks/useModeration', () => ({ useReports: () => ({ data: state.listError ? undefined : [report], nextCursor: null, isPending: false, isError: state.listError, isFetching: false, refetch: state.refetch }) }));
 vi.mock('@/lib/firebase', () => ({ db: { from: () => ({ select: () => ({ order: () => ({ limit: async () => ({ data: [], error: null }) }) }) }) } }));
 vi.mock('sonner', () => ({ toast: { success: state.success } }));
@@ -64,6 +65,29 @@ beforeEach(() => {
 afterEach(() => { cleanup(); clients.splice(0).forEach(client => client.clear()); });
 
 describe('report moderation decisions', () => {
+  it('shows a bounded reported-at message snapshot as text without loading media or opening a conversation', async () => {
+    const content = '<img src="https://private.invalid" onerror="alert(1)"><script>doNotRun()</script>';
+    const capturedAt = '2026-10-04T12:00:00.000Z';
+    state.inspect.mockResolvedValue({ report: { ...report, targetType: 'message', targetId: 'message-1' }, hold: null, target: { type: 'message', id: 'message-1', ownerUid: 'sender', available: true, title: 'Reported message', caption: null, revision: null,
+      messageEvidence: { messageId: 'message-1', conversationId: 'private-conversation', senderUid: 'sender', senderProfileId: 'sender-profile', content, contentTruncated: true, messageType: 'text', mediaType: 'image', hasMedia: true, createdAt: null, editedAt: null, capturedAt } } });
+    mount(); await openInspection();
+    const section = screen.getByRole('region', { name: 'Reported message snapshot' });
+    expect(section).toHaveTextContent(content);
+    expect(section).toHaveTextContent('saved copy from when the report was submitted');
+    expect(section).toHaveTextContent('first 8,000 characters');
+    expect(section).toHaveTextContent('Attachment present (image). Media files are not included or loaded.');
+    expect(section.querySelector('time')).toHaveAttribute('dateTime', capturedAt);
+    expect(section.querySelector('a, img, video, audio, iframe, script')).toBeNull();
+    expect(section).not.toHaveTextContent('private-conversation');
+    expect(screen.queryByRole('button', { name: 'Remove mini app' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mark reviewed' })).toBeEnabled();
+  });
+  it('does not claim an older message lead was deleted or load private content without a verified snapshot', async () => {
+    state.inspect.mockResolvedValue({ report: { ...report, targetType: 'message', targetId: 'message-1', verification: 'legacy' }, hold: null, target: { type: 'message', id: 'message-1', available: false, title: 'Reported message', caption: null, revision: null, ownerUid: null } });
+    mount(); await openInspection();
+    expect(screen.getByText('No verified message snapshot is available. This view does not load messages from the conversation.')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Reported message snapshot' })).not.toBeInTheDocument();
+  });
   it('shows authored code as escaped text without constructing active elements', async () => {
     mount(); await openInspection();
     const section = screen.getByRole('region', { name: 'Mini app source' });

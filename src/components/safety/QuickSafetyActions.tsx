@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Flag, 
@@ -24,6 +24,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { blockUserAndNotifyModeration } from '@/lib/blockUserSafety';
 import { useSafetyReport } from '@/hooks/useSafetyReport';
 import { isReportSessionError } from '@/lib/reportModerationService';
+import { useFeedMuteActions } from '@/hooks/useFeedMutes';
 
 interface QuickSafetyActionsProps {
   targetUserId: string;
@@ -48,11 +49,15 @@ export const QuickSafetyActions = memo(function QuickSafetyActions({
 }: QuickSafetyActionsProps) {
   const { profile } = useAuth();
   const submitSafetyReport = useSafetyReport(targetUserId);
+  const feedMutes = useFeedMuteActions(targetUserId);
+  const savedMute = feedMutes.rows?.find(row => row.profileId === targetUserId || row.uid === targetUserId);
   const queryClient = useQueryClient();
   const [activeAction, setActiveAction] = useState<ActionType>(null);
   const [selectedReason, setSelectedReason] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  useEffect(() => { setActiveAction(null); setSelectedReason(null); setIsSubmitting(false); }, [submitSafetyReport.sessionKey, targetUserId]);
+  const [muteError, setMuteError] = useState('');
+  const mutePending = useRef(false);
+  useEffect(() => { setActiveAction(null); setSelectedReason(null); setIsSubmitting(false); setMuteError(''); mutePending.current = false; }, [submitSafetyReport.sessionKey, targetUserId]);
 
   const handleReport = async () => {
     if (!profile || !selectedReason || isSubmitting) return;
@@ -112,22 +117,35 @@ export const QuickSafetyActions = memo(function QuickSafetyActions({
   };
 
   const handleMute = async () => {
-    if (!profile) return;
-    
+    if (mutePending.current || !feedMutes.ready) return;
+    mutePending.current = true;
+    setMuteError('');
     setIsSubmitting(true);
     triggerHaptic('light');
 
     try {
-      // For now, mute uses blocked_users with a different flag
-      // This could be expanded to a separate muted_users table
-      toast.success(`@${targetUsername} has been muted`);
+      if (savedMute) {
+        await feedMutes.unmute(savedMute.profileId);
+        feedMutes.assertCurrent();
+        toast.success(`@${targetUsername} can appear in your feeds again.`);
+      } else {
+        const saved = await feedMutes.mute(targetUserId);
+        feedMutes.assertCurrent();
+        toast.success(`@${targetUsername} is muted in your feeds.`, {
+          action: { label: 'Undo', onClick: () => {
+            void feedMutes.undo(saved!.profileId).then(() => {
+              feedMutes.guard();
+              toast.success(`@${targetUsername} can appear in your feeds again.`);
+            }).catch(error => { if (!isReportSessionError(error)) toast.error('Could not undo the mute. Try Settings → Privacy → Muted in feeds.'); });
+          } },
+        });
+      }
       setActiveAction(null);
       onComplete?.();
     } catch (error) {
-      console.error('Failed to mute:', error);
-      toast.error('Failed to mute user');
+      if (!isReportSessionError(error) && feedMutes.isCurrent()) setMuteError('The feed mute was not saved. Keep this open and try again.');
     } finally {
-      setIsSubmitting(false);
+      if (feedMutes.isCurrent()) { mutePending.current = false; setIsSubmitting(false); }
     }
   };
 
@@ -166,12 +184,13 @@ export const QuickSafetyActions = memo(function QuickSafetyActions({
           size="sm"
           onClick={() => {
             triggerHaptic('light');
+            setMuteError('');
             setActiveAction('mute');
           }}
           className="text-muted-foreground"
         >
           <VolumeX className="h-4 w-4 mr-1" />
-          Mute
+          {!feedMutes.ready ? 'Feed mute settings' : savedMute ? 'Unmute feeds' : 'Mute in feeds'}
         </Button>
       </div>
 
@@ -251,25 +270,28 @@ export const QuickSafetyActions = memo(function QuickSafetyActions({
       </AlertDialog>
 
       {/* Mute confirmation - step 2 of 2 */}
-      <AlertDialog open={activeAction === 'mute'} onOpenChange={() => setActiveAction(null)}>
+      <AlertDialog open={activeAction === 'mute'} onOpenChange={next => { if (!next && !mutePending.current) setActiveAction(null); }}>
         <AlertDialogContent className="max-w-sm">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <VolumeX className="h-5 w-5" />
-              Mute @{targetUsername}?
+              {savedMute ? 'Unmute' : 'Mute'} @{targetUsername} in feeds?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              You won't see notifications from them, but you can still see their posts if you visit their profile.
+              {savedMute ? 'Their posts and clips can appear in your feeds again.' : 'Hide their posts and clips from your feeds. You can still visit their profile. Messages and notifications stay unchanged; this does not block or report them.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {!feedMutes.ready && !feedMutes.isError && <p role="status" className="text-sm text-muted-foreground">Loading your saved feed mutes…</p>}
+          {(muteError || feedMutes.isError) && <div role="alert" className="space-y-2 text-sm"><p>{muteError || (feedMutes.needsRepair ? 'Remove an invalid saved mute in Settings → Privacy → Muted in feeds, then try again.' : 'Your saved feed mutes could not be loaded.')}</p>{feedMutes.isError && <Button variant="outline" onClick={() => void feedMutes.refetch()}>Retry</Button>}</div>}
 
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
             <Button
               onClick={handleMute}
-              disabled={isSubmitting}
+              disabled={isSubmitting || !feedMutes.ready || feedMutes.isError}
             >
-              {isSubmitting ? 'Muting...' : 'Mute'}
+              {isSubmitting ? 'Saving…' : !feedMutes.ready ? 'Feed mute settings' : savedMute ? 'Unmute feeds' : 'Mute in feeds'}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
