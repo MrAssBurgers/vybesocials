@@ -1,4 +1,5 @@
 import { db } from '@/lib/firebase';
+import { isReportSessionError, reportAccountGuard, submitSafetyReport } from '@/lib/reportModerationService';
 
 export class BlockSafetyNotificationError extends Error {
   constructor() {
@@ -18,20 +19,23 @@ export async function blockUserAndNotifyModeration(opts: {
   blockerId: string;
   blockedId: string;
   context?: string;
-}): Promise<void> {
+}): Promise<{ blocked: true; reportSubmitted: boolean; guard: () => void }> {
+  const guard = reportAccountGuard();
+  guard();
   const { error: blockError } = await db.from('blocked_users').insert({
     blocker_id: opts.blockerId,
     blocked_id: opts.blockedId,
   });
   if (blockError && !blockError.message.includes('duplicate')) throw blockError;
-
-  const reason = opts.context
-    ? `User blocked — moderation review requested (${opts.context})`
-    : 'User blocked — moderation review requested';
-  const { error: reportError } = await db.from('reports').insert({
-    reporter_id: opts.blockerId,
-    reported_user_id: opts.blockedId,
-    reason,
-  } as Record<string, unknown>);
-  if (reportError) throw new BlockSafetyNotificationError();
+  guard();
+  try {
+    await submitSafetyReport({ targetType: 'profile', targetId: opts.blockedId, reason: 'blocked_user', details: opts.context }, guard);
+    return { blocked: true, reportSubmitted: true, guard };
+  } catch (error) {
+    if (isReportSessionError(error)) throw error;
+    // Blocking already committed. Callers must hide blocked content even if
+    // the separate moderation service cannot acknowledge its report yet.
+    guard();
+    return { blocked: true, reportSubmitted: false, guard };
+  }
 }

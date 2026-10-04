@@ -7,7 +7,8 @@ import {
   BarChart3, MessageSquareWarning, Settings, Menu, X, ArrowLeft, Bug
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { useUserRole, useReports, useContentFlags, useAllUserRoles } from '@/hooks/useModeration';
+import { useUserRole, useReportCount, useContentFlags, useAllUserRoles } from '@/hooks/useModeration';
+import { moderationCountDisplay } from '@/lib/moderationCountDisplay';
 import { useAllWarnings, useAllBans } from '@/hooks/useModerationActions';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
@@ -66,7 +67,7 @@ export default function AdminDashboard() {
   const profileId = useAuthProfileId();
   const staffQueriesEnabled = isStaffQueryEnabled(authReady, user, profileId);
   const { data: userRole, isLoading: roleLoading, isFetched: roleFetched } = useUserRole();
-  const { data: reports = [] } = useReports();
+  const reportCount = useReportCount();
   const { data: flags = [] } = useContentFlags();
   const { data: warnings = [] } = useAllWarnings();
   const { data: bans = [] } = useAllBans();
@@ -154,13 +155,13 @@ export default function AdminDashboard() {
   }
 
   // Calculate badges for nav items
-  const pendingReports = reports.filter(r => r.status === 'pending').length;
   const pendingFlags = flags.filter(f => f.status === 'pending').length;
+  const countDisplay = moderationCountDisplay(reportCount, pendingFlags);
   const pendingAppeals = appeals.filter((a) => a.status === 'pending').length;
 
-  const getNavBadge = (id: string): number | undefined => {
+  const getNavBadge = (id: string): number | 'Loading' | 'Unavailable' | undefined => {
     switch (id) {
-      case 'reports': return pendingReports || undefined;
+      case 'reports': return countDisplay.reports || undefined;
       case 'flags': return pendingFlags || undefined;
       case 'appeals': return pendingAppeals || undefined;
       case 'errors': return pendingBugs || undefined;
@@ -266,7 +267,7 @@ export default function AdminDashboard() {
                 <div className="p-4 border-b border-border/50">
                   <div className="grid grid-cols-2 gap-2">
                     <div className="p-2 rounded-lg bg-destructive/10 text-center">
-                      <p className="text-lg font-bold text-destructive">{pendingReports + pendingFlags}</p>
+                      <p className="text-lg font-bold text-destructive" aria-label={`Pending moderation: ${countDisplay.pending}`}>{countDisplay.pending}</p>
                       <p className="text-xs text-muted-foreground">Pending</p>
                     </div>
                     <div className="p-2 rounded-lg bg-primary/10 text-center">
@@ -302,7 +303,7 @@ export default function AdminDashboard() {
                         >
                           <Icon className="h-4 w-4 flex-shrink-0" />
                           <span className="flex-1 text-left truncate">{item.label}</span>
-                          {badge && badge > 0 && (
+                          {badge !== undefined && (
                             <Badge 
                               variant={isActive ? "secondary" : "destructive"} 
                               className="h-5 min-w-5 flex items-center justify-center text-xs"

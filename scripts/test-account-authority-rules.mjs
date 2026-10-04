@@ -13,6 +13,8 @@ const { doc, collection, query, where, getDoc, getDocs, setDoc, updateDoc, delet
 setLogLevel('silent');
 const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
 const rules = await readFile('firestore.rules', 'utf8');
+// Reports are callable-only. bug_reports retains the same staff-read predicate
+// and provides an unchanged surface for these existing role-authority probes.
 // Reconstruct only the pre-fix staff-role predicate in an isolated demo project.
 // This proves the late-alias read budget limitation existed before this change.
 const originalRules = rules
@@ -32,9 +34,9 @@ try {
         await setDoc(doc(database, 'user_auth_index', uid), { profile_id: profileId });
         const identity = alias === 'uid' ? uid : profileId;
         await setDoc(doc(database, 'user_roles_auth', `${identity}_${role}`), { user_id: identity, role });
-        await setDoc(doc(database, 'reports', 'staff-only'), { reporter_id: uid });
+        await setDoc(doc(database, 'bug_reports', 'staff-only'), { reporter_id: uid });
       });
-      await assertFails(getDoc(doc(baseline.authenticatedContext(uid, { admin: false }).firestore(), 'reports', 'staff-only')));
+      await assertFails(getDoc(doc(baseline.authenticatedContext(uid, { admin: false }).firestore(), 'bug_reports', 'staff-only')));
       baselineChecks++; console.log(`BASELINE LIMIT: migrated user_roles_auth-only ${alias}/${role} exceeds original role lookup budget`);
     }
   }
@@ -55,7 +57,7 @@ try {
   await seed('profiles', 'legacy-alice', { user_id: 'authority-alice' });
   await seed('spotify_connections', 'authority-alice', { user_id: 'authority-alice', access_token: 'FAKE_TEST_ACCESS', refresh_token: 'FAKE_TEST_REFRESH', display_name: 'Test account' });
   await seed('spotify_connections', 'legacy-connection', { user_id: 'legacy-alice', access_token: 'FAKE_LEGACY_ACCESS', refresh_token: 'FAKE_LEGACY_REFRESH' });
-  await seed('reports', 'staff-only', { reporter_id: 'authority-alice', reason: 'Synthetic rule test' });
+  await seed('bug_reports', 'staff-only', { reporter_id: 'authority-alice', reason: 'Synthetic rule test' });
 
   await allowed('Spotify owner can read existing connection', () => getDoc(doc(alice, 'spotify_connections', 'authority-alice')));
   await allowed('Spotify legacy profile owner can read migrated connection', () => getDoc(doc(alice, 'spotify_connections', 'legacy-connection')));
@@ -99,16 +101,16 @@ try {
         await seed(roleCollection, id, roleRow);
         const inheritedReadLimit = roleCollection === 'user_roles_auth' && role !== 'owner';
         const activeRead = inheritedReadLimit ? denied : allowed;
-        await activeRead(`${inheritedReadLimit ? 'documented baseline read limit' : 'legacy flagless staff access'}: ${roleCollection}/${alias} ${role}`, () => getDoc(doc(client, 'reports', 'staff-only')));
+        await activeRead(`${inheritedReadLimit ? 'documented baseline read limit' : 'legacy flagless staff access'}: ${roleCollection}/${alias} ${role}`, () => getDoc(doc(client, 'bug_reports', 'staff-only')));
         await seed(roleCollection, id, { ...roleRow, enabled: true });
-        await activeRead(`${inheritedReadLimit ? 'documented baseline read limit' : 'enabled staff access'}: ${roleCollection}/${alias} ${role}`, () => getDoc(doc(client, 'reports', 'staff-only')));
+        await activeRead(`${inheritedReadLimit ? 'documented baseline read limit' : 'enabled staff access'}: ${roleCollection}/${alias} ${role}`, () => getDoc(doc(client, 'bug_reports', 'staff-only')));
         if (role !== 'moderator') {
           await allowed(`enabled ${roleCollection}/${alias} ${role} may manage roles`, () => setDoc(doc(client, 'user_roles', `granted-${uid}_moderator`), { user_id: `granted-${uid}`, role: 'moderator' }));
         } else {
           await denied(`moderator ${roleCollection}/${alias} cannot grant admin`, () => setDoc(doc(client, 'user_roles', `granted-${uid}_admin`), { user_id: `granted-${uid}`, role: 'admin' }));
         }
         await seed(roleCollection, id, { ...roleRow, enabled: false });
-        await denied(`disabled ${roleCollection}/${alias} ${role} loses staff read`, () => getDoc(doc(client, 'reports', 'staff-only')));
+        await denied(`disabled ${roleCollection}/${alias} ${role} loses staff read`, () => getDoc(doc(client, 'bug_reports', 'staff-only')));
         await denied(`disabled ${roleCollection}/${alias} ${role} cannot restore own role`, () => updateDoc(doc(client, roleCollection, id), { enabled: true }));
         await denied(`disabled ${roleCollection}/${alias} ${role} cannot grant a new owner`, () => setDoc(doc(client, 'user_roles', `restored-${uid}_owner`), { user_id: uid, role: 'owner' }));
       }
@@ -117,15 +119,15 @@ try {
   for (const role of ['owner', 'admin', 'moderator']) {
     const uid = `native-auth-role-${role}`;
     await seed('user_roles_auth', `${uid}_${role}`, { user_id: uid, role });
-    await allowed(`non-migrated user_roles_auth-only ${role} retains staff read`, () => getDoc(doc(user(uid), 'reports', 'staff-only')));
+    await allowed(`non-migrated user_roles_auth-only ${role} retains staff read`, () => getDoc(doc(user(uid), 'bug_reports', 'staff-only')));
     await seed('user_roles_auth', `${uid}_${role}`, { user_id: uid, role, enabled: false });
-    await denied(`disabled non-migrated user_roles_auth-only ${role} loses staff read`, () => getDoc(doc(user(uid), 'reports', 'staff-only')));
+    await denied(`disabled non-migrated user_roles_auth-only ${role} loses staff read`, () => getDoc(doc(user(uid), 'bug_reports', 'staff-only')));
   }
   for (const enabled of [null, 'true', 'false', 1, 0]) {
     await seed('user_roles', 'authority-bob_admin', { user_id: 'authority-bob', role: 'admin', enabled });
-    await denied(`malformed enabled=${JSON.stringify(enabled)} does not grant authority`, () => getDoc(doc(bob, 'reports', 'staff-only')));
+    await denied(`malformed enabled=${JSON.stringify(enabled)} does not grant authority`, () => getDoc(doc(bob, 'bug_reports', 'staff-only')));
   }
-  await allowed('explicit admin custom claim still grants staff authority', () => getDoc(doc(admin, 'reports', 'staff-only')));
+  await allowed('explicit admin custom claim still grants staff authority', () => getDoc(doc(admin, 'bug_reports', 'staff-only')));
   await denied('ordinary account cannot self-grant a staff role', () => setDoc(doc(alice, 'user_roles', 'authority-alice_owner'), { user_id: 'authority-alice', role: 'owner', enabled: true }));
   console.log(`Account authority rules: ${checks} checks passed; ${baselineChecks} isolated inherited-limit probes confirmed (not fixed by this security change)`);
 } finally { await env.cleanup(); }

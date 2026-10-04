@@ -34,6 +34,7 @@ interface NavItemData {
   labelKey?: string;
   path: string;
   badge: number;
+  badgeUnavailable?: boolean;
   tutorialId?: string;
 }
 
@@ -82,9 +83,9 @@ const NavLinkContent = memo(forwardRef<
       
       <div className="relative z-10 flex-shrink-0">
         <Icon className="h-5 w-5" />
-        {item.badge > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold">
-            {item.badge > 9 ? '9+' : item.badge}
+        {(item.badgeUnavailable || item.badge > 0) && (
+          <span title={item.badgeUnavailable ? 'Moderation count unavailable' : undefined} aria-label={item.badgeUnavailable ? 'Moderation count unavailable' : undefined} role={item.badgeUnavailable ? 'status' : undefined} className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold">
+            {item.badgeUnavailable ? '?' : item.badge > 9 ? '9+' : item.badge}
           </span>
         )}
       </div>
@@ -109,7 +110,7 @@ export const DesktopLeftSidebar = memo(function DesktopLeftSidebar({ collapsed, 
   // Check if user is owner, admin, or moderator
   const showAdminLink = userRole === 'owner' || userRole === 'admin' || userRole === 'moderator';
 
-  const { data: pendingModCount = 0 } = usePendingModerationCount();
+  const { data: pendingModCount = 0, isError: moderationCountUnavailable } = usePendingModerationCount();
 
   const { isPremium } = usePremiumStatus();
   const { data: myServers = [] } = useMyServers();
@@ -158,7 +159,7 @@ export const DesktopLeftSidebar = memo(function DesktopLeftSidebar({ collapsed, 
           </TooltipTrigger>
           <TooltipContent side="right" className="font-medium">
             {label}
-            {item.badge > 0 && <span className="ml-2 text-destructive">({item.badge})</span>}
+            {item.badgeUnavailable ? <span className="ml-2 text-destructive">(count unavailable)</span> : item.badge > 0 && <span className="ml-2 text-destructive">({item.badge})</span>}
           </TooltipContent>
         </Tooltip>
       );
@@ -363,7 +364,7 @@ export const DesktopLeftSidebar = memo(function DesktopLeftSidebar({ collapsed, 
                   {t('sidebar.moderation')}
                 </p>
               )}
-              {renderNavItem({ icon: Shield, labelKey: 'sidebar.adminPanel', path: '/admin', badge: showAdminLink ? pendingModCount : 0 })}
+              {renderNavItem({ icon: Shield, labelKey: 'sidebar.adminPanel', path: '/admin', badge: pendingModCount, badgeUnavailable: moderationCountUnavailable })}
             </>
           )}
         </nav>

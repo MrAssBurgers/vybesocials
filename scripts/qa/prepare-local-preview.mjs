@@ -21,6 +21,7 @@ import { onCall } from 'firebase-functions/v2/https';
 import { premiumStatusForRequest } from ${JSON.stringify(moduleUrl('_shared/premiumAuthority.js'))};
 export const checkPremiumSubscription = onCall(premiumStatusForRequest);
 export { tokenMarketplace } from ${JSON.stringify(moduleUrl('tokenMarketplace.js'))};
+export { reportModeration } from ${JSON.stringify(moduleUrl('reportModeration.js'))};
 export { premiumGiftManage } from ${JSON.stringify(moduleUrl('premiumGifts.js'))};
 export { createGameCapture, getGameCapture, finishGameCapture, completeGameCapture, discardGameCapture } from ${JSON.stringify(moduleUrl('gameIntegration.js'))};
 export { getGamePartnerLink, approveGamePartnerLink, denyGamePartnerLink, listGamePartnerConnections, revokeGamePartnerConnection } from ${JSON.stringify(moduleUrl('gamePartnerAuth.js'))};

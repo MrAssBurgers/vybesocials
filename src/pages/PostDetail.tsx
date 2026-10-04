@@ -1,5 +1,5 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Ban, Trash2, X, Loader2, Send, Smile, Pencil, Check } from 'lucide-react';
 import { ReactionPicker } from '@/components/reactions/ReactionPicker';
@@ -12,6 +12,9 @@ import { EditPostDialog } from '@/components/posts/EditPostDialog';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { blockUserAndNotifyModeration } from '@/lib/blockUserSafety';
+import { useSafetyReport } from '@/hooks/useSafetyReport';
+import { ReportContentDialog } from '@/components/safety/ReportContentDialog';
+import { isReportSessionError } from '@/lib/reportModerationService';
 import { useAuth } from '@/lib/auth';
 import { useComments, useCreateComment, useDeleteComment, useEditComment } from '@/hooks/useComments';
 import { usePostReaction } from '@/hooks/usePostReaction';
@@ -115,12 +118,14 @@ function PostDetailMedia({ type, mediaUrl, caption }: { type: string; mediaUrl: 
   );
 }
 
-function CommentActions({ isOwn, commentId, postId, commentText }: {
+export function CommentActions({ isOwn, commentId, postId, commentText }: {
   isOwn: boolean;
   commentId: string;
   postId: string;
   commentText: string;
 }) {
+  const submitSafetyReport = useSafetyReport(commentId);
+  const [reportOpen, setReportOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -170,6 +175,7 @@ function CommentActions({ isOwn, commentId, postId, commentText }: {
           <Button
             variant="ghost"
             size="icon"
+            aria-label="Comment actions"
             className={cn(
               "h-7 w-7 flex-shrink-0 transition-opacity duration-150",
               menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
@@ -213,13 +219,15 @@ function CommentActions({ isOwn, commentId, postId, commentText }: {
               </DropdownMenuItem>
             </>
           ) : (
-            <DropdownMenuItem onClick={() => { toast.success('Comment reported. We will review it shortly.'); }}>
+            <DropdownMenuItem onClick={() => { setMenuOpen(false); setReportOpen(true); }}>
               <Flag className="h-4 w-4 mr-2" />
               Report
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <ReportContentDialog key={submitSafetyReport.sessionKey + ':' + commentId} open={reportOpen} onOpenChange={setReportOpen} title="Report comment" onSubmit={async reason => { await submitSafetyReport({ targetType: 'comment', targetId: commentId, reason }); toast.success('Comment report submitted.'); }} />
 
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent>
@@ -246,12 +254,16 @@ export default function PostDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { profile, user } = useAuth();
+  const submitSafetyReport = useSafetyReport(id);
   const [newComment, setNewComment] = useState('');
   const [commentGifUrl, setCommentGifUrl] = useState<string | null>(null);
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportFailed, setReportFailed] = useState(false);
+  useEffect(() => { setReportDialogOpen(false); setReportReason(''); setReportFailed(false); setReportSubmitting(false); }, [submitSafetyReport.sessionKey]);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [warnDialogOpen, setWarnDialogOpen] = useState(false);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
@@ -461,17 +473,21 @@ export default function PostDetailPage() {
   };
 
   const handleReport = async () => {
-    if (!profile || !post || !reportReason) return;
-    await db.from('reports').insert({ reporter_id: profile.id, post_id: post.id, reason: reportReason });
-    setReportDialogOpen(false);
-    setReportReason('');
-    toast.success('Report submitted');
+    if (!post || !reportReason || reportSubmitting) return;
+    setReportSubmitting(true); setReportFailed(false);
+    try {
+      await submitSafetyReport({ targetType: 'post', targetId: post.id, reason: reportReason });
+      setReportDialogOpen(false); setReportReason('');
+      toast.success('Report submitted');
+    } catch (error) {
+      if (!isReportSessionError(error)) setReportFailed(true);
+    } finally { if (submitSafetyReport.isCurrent()) setReportSubmitting(false); }
   };
 
   const handleBlockUser = async () => {
     if (!profile || !post) return;
     try {
-      await blockUserAndNotifyModeration({
+      const blockResult = await blockUserAndNotifyModeration({
         blockerId: profile.id,
         blockedId: post.author.id,
         context: `post ${post.id}`,
@@ -482,8 +498,11 @@ export default function PostDetailPage() {
         return Array.from(next);
       });
       await queryClient.invalidateQueries({ queryKey: ['blocked-user-ids', profile.id] });
-      toast.success(`@${post.author.username} blocked`);
+      blockResult.guard();
+      if (blockResult.reportSubmitted) toast.success(`@${post.author.username} blocked`);
+      else toast.error('User blocked, but the report was not confirmed. Please also submit a report.');
     } catch (error) {
+      if (isReportSessionError(error)) return;
       toast.error(error instanceof Error ? error.message : 'Could not block this user');
     }
   };
@@ -611,7 +630,8 @@ export default function PostDetailPage() {
                           <SelectItem value="other">Other</SelectItem>
                         </SelectContent>
                       </Select>
-                      <Button onClick={handleReport} disabled={!reportReason} className="w-full">
+                      {reportFailed && <p role="alert" className="text-sm text-destructive">Couldn’t submit your report. Your reason is still selected. Try again.</p>}
+                      <Button onClick={() => void handleReport()} disabled={!reportReason || reportSubmitting} className="w-full">
                         Submit Report
                       </Button>
                     </div>

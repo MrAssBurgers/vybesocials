@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Flag, 
@@ -16,13 +16,14 @@ import {
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { triggerHaptic } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { blockUserAndNotifyModeration } from '@/lib/blockUserSafety';
+import { useSafetyReport } from '@/hooks/useSafetyReport';
+import { isReportSessionError } from '@/lib/reportModerationService';
 
 interface QuickSafetyActionsProps {
   targetUserId: string;
@@ -46,36 +47,31 @@ export const QuickSafetyActions = memo(function QuickSafetyActions({
   onComplete,
 }: QuickSafetyActionsProps) {
   const { profile } = useAuth();
+  const submitSafetyReport = useSafetyReport(targetUserId);
   const queryClient = useQueryClient();
   const [activeAction, setActiveAction] = useState<ActionType>(null);
   const [selectedReason, setSelectedReason] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  useEffect(() => { setActiveAction(null); setSelectedReason(null); setIsSubmitting(false); }, [submitSafetyReport.sessionKey, targetUserId]);
 
   const handleReport = async () => {
-    if (!profile || !selectedReason) return;
+    if (!profile || !selectedReason || isSubmitting) return;
     
     setIsSubmitting(true);
     triggerHaptic('medium');
 
     try {
-      const { error } = await db
-        .from('reports')
-        .insert({
-          reporter_id: profile.id,
-          reported_user_id: targetUserId,
-          reason: selectedReason,
-        } as any);
-
-      if (error) throw error;
+      await submitSafetyReport({ targetType: 'profile', targetId: targetUserId, reason: selectedReason });
 
       toast.success('Report submitted. Thank you for keeping VYBE safe.');
       setActiveAction(null);
       onComplete?.();
     } catch (error) {
+      if (isReportSessionError(error)) return;
       console.error('Failed to report:', error);
       toast.error('Failed to submit report');
     } finally {
-      setIsSubmitting(false);
+      if (submitSafetyReport.isCurrent()) setIsSubmitting(false);
     }
   };
 
@@ -86,7 +82,7 @@ export const QuickSafetyActions = memo(function QuickSafetyActions({
     triggerHaptic('heavy');
 
     try {
-      await blockUserAndNotifyModeration({
+      const blockResult = await blockUserAndNotifyModeration({
         blockerId: profile.id,
         blockedId: targetUserId,
         context: 'profile safety action',
@@ -101,14 +97,17 @@ export const QuickSafetyActions = memo(function QuickSafetyActions({
         return Array.from(next);
       });
 
-      toast.success(`@${targetUsername} has been blocked`);
+      blockResult.guard();
+      if (blockResult.reportSubmitted) toast.success(`@${targetUsername} has been blocked`);
+      else toast.error('User blocked, but the report was not confirmed. Please also submit a report.');
       setActiveAction(null);
       onComplete?.();
     } catch (error) {
+      if (isReportSessionError(error)) return;
       console.error('Failed to block:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to block user');
     } finally {
-      setIsSubmitting(false);
+      if (submitSafetyReport.isCurrent()) setIsSubmitting(false);
     }
   };
 

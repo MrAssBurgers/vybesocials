@@ -29,6 +29,7 @@ import { cn } from '@/lib/utils';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { db } from '@/lib/firebase';
 import { ReportContentDialog } from '@/components/safety/ReportContentDialog';
+import { useSafetyReport } from '@/hooks/useSafetyReport';
 
 interface CommentItemProps {
   comment: {
@@ -149,6 +150,7 @@ function CommentDropdownMenu({ isOwn, onDelete, onEdit, onReport, isDeleting }: 
 }
 
 export const CommentItem = memo(function CommentItem({ comment, postId }: CommentItemProps) {
+  const submitSafetyReport = useSafetyReport();
   const { profile } = useAuth();
   const deleteComment = useDeleteComment();
   const editComment = useEditComment();
@@ -208,19 +210,8 @@ export const CommentItem = memo(function CommentItem({ comment, postId }: Commen
   };
 
   const submitCommentReport = async (reason: string) => {
-    if (!profile) return;
-    const { error } = await db.from('reports').insert({
-      reporter_id: profile.id,
-      reported_user_id: comment.user.id,
-      comment_id: comment.id,
-      post_id: postId,
-      reason,
-    } as Record<string, unknown>);
-    if (error) {
-      toast.error(`Failed to report comment: ${error.message}`);
-      throw error;
-    }
-    toast.success('Comment reported. We will review it shortly.');
+    await submitSafetyReport({ targetType: 'comment', targetId: comment.id, reason });
+    toast.success('Comment report submitted.');
   };
 
   const hasText = comment.text && comment.text.trim().length > 0;
@@ -379,6 +370,7 @@ export const CommentItem = memo(function CommentItem({ comment, postId }: Commen
       </div>
 
       <ReportContentDialog
+        key={submitSafetyReport.sessionKey + ':' + comment.id}
         open={reportOpen}
         onOpenChange={setReportOpen}
         title="Report comment"

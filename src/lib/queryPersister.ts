@@ -4,6 +4,11 @@ import { get, set, del } from 'idb-keyval';
 import { mustPersistAsArray, revivePersistedClient } from '@/lib/persistedCollections';
 import { isStoriesQueryKey, sanitizeStoriesCacheData } from '@/lib/storiesCacheSanitize';
 
+// Moderator notes, reporter identities and inspected source must be fetched
+// under current server authority, never restored from a previous disk snapshot.
+const PRIVATE_REPORT_KEYS = new Set(['admin-reports', 'report-inspection', 'pending-moderation-count', 'post-deletion-log']);
+const isPrivateReportKey = (key?: readonly unknown[]) => typeof key?.[0] === 'string' && PRIVATE_REPORT_KEYS.has(key[0]);
+
 /**
  * IndexedDB-backed storage adapter for react-query persistence.
  * Larger and faster than localStorage; survives across sessions.
@@ -48,7 +53,9 @@ function deserializePersistedClient(cached: string): PersistedClient {
     if (!parsed || typeof parsed !== 'object' || !parsed.clientState) {
       return emptyPersistedClient();
     }
-    return revivePersistedClient(parsed);
+    const restored = revivePersistedClient(parsed);
+    restored.clientState.queries = restored.clientState.queries.filter(entry => !isPrivateReportKey(entry?.queryKey));
+    return restored;
   } catch {
     // Corrupt persisted cache (truncated write, quota kill, bad JSON) must not
     // throw at boot — a stale-but-empty cache beats a white screen. Drop it so
@@ -68,7 +75,7 @@ function serializePersistedClient(client: PersistedClient): string {
     ...client,
     clientState: {
       ...client.clientState,
-      queries: queries.map((entry) => {
+      queries: queries.filter(entry => !isPrivateReportKey(entry?.queryKey)).map((entry) => {
         if (!entry?.queryKey || !isStoriesQueryKey(entry.queryKey)) return entry;
         const data = entry.state?.data;
         if (data == null) return entry;
@@ -144,6 +151,7 @@ function hasPersistableFeedPages(data: unknown): boolean {
 
 export function shouldPersistQueryKey(queryKey: readonly unknown[], data?: unknown): boolean {
   try {
+    if (isPrivateReportKey(queryKey)) return false;
     const flat = JSON.stringify(queryKey).toLowerCase();
     if (EPHEMERAL_KEY_FRAGMENTS.some((f) => flat.includes(f))) return false;
     if (NON_EMPTY_ONLY_FRAGMENTS.some((f) => flat.includes(f))) {

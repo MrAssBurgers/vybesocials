@@ -69,6 +69,7 @@ export * from './premiumGifts.js';
 export * from './community.js';
 export * from './badgeAuthority.js';
 export * from './tokenMarketplace.js';
+export * from './reportModeration.js';
 
 
 /**

@@ -39,6 +39,7 @@ import { playWithAudio } from '@/lib/videoPlayback';
 import { PausedMuteButton } from '@/components/video/PausedMuteButton';
 import { usePostReaction } from '@/hooks/usePostReaction';
 import { ReportContentDialog } from '@/components/safety/ReportContentDialog';
+import { useSafetyReport } from '@/hooks/useSafetyReport';
 import { DeleteContentDialog } from '@/components/posts/DeleteContentDialog';
 
 interface ShortCardProps {
@@ -68,6 +69,7 @@ interface ShortCardProps {
 // Memoized to prevent re-renders during scroll
 export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted = false, onToggleMute, isHolding: externalIsHolding = false }: ShortCardProps) {
   const { profile } = useAuth();
+  const submitSafetyReport = useSafetyReport();
   const queryClient = useQueryClient();
   const { data: userRole } = useUserRole();
   const { data: authorRole } = useUserRoleById(post.author?.id);
@@ -377,19 +379,8 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   };
 
   const submitClipReport = async (reason: string) => {
-    if (!profile) return;
-    const { error } = await db.from('reports').insert({
-      reporter_id: profile.id,
-      reported_user_id: (post as any).author?.id ?? null,
-      post_id: post.id,
-      reason,
-    });
-    if (error) {
-      console.error('[Report] insert failed', error);
-      toast.error(`Failed to report clip: ${error.message}`);
-      throw error;
-    }
-    toast.success('Clip reported. We will review it shortly.');
+    await submitSafetyReport({ targetType: 'post', targetId: post.id, reason });
+    toast.success('Clip report submitted.');
   };
 
   const handleShare = () => setShowShareSheet(true);
@@ -749,6 +740,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       )}
 
       <ReportContentDialog
+        key={submitSafetyReport.sessionKey + ':' + post.id}
         open={reportOpen}
         onOpenChange={setReportOpen}
         title="Report clip"

@@ -199,17 +199,12 @@ export function useReportMessage() {
     mutationFn: async ({ messageId, reason }: { messageId: string; reason: string }) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      // For now, just log the report - in production this would go to a moderation queue
-      console.log('Message reported:', { messageId, reason, reporterId: profile.id });
-      
-      // You could create a message_reports table and insert here
-      return { success: true };
-    },
-    onSuccess: () => {
-      toast.success('Message reported. Thank you for helping keep our community safe.');
+      // Private message evidence needs its own membership-verified contract.
+      // Do not log message details or acknowledge an unsubmitted report.
+      throw new Error('Message-specific reporting is not available yet. You can report or block the account from its profile.');
     },
     onError: (error: any) => {
-      toast.error('Failed to report message');
+      toast.error(error instanceof Error ? error.message : 'The message report was not submitted.');
     },
   });
 }

@@ -21,6 +21,27 @@ on:
       - 'scripts/test-premium-authority-backend.mjs'
       - 'scripts/test-token-marketplace-rules.mjs'
       - 'scripts/test-token-marketplace-backend.mjs'
+      - 'scripts/test-report-authority-rules.mjs'
+      - 'scripts/test-report-authority-backend.mjs'
+      - 'scripts/test-report-notification-backend.mjs'
+      - 'functions/src/reportModeration.ts'
+      - 'functions/src/reportNotify.ts'
+      - 'functions/src/_shared/report*.ts'
+      - 'src/lib/reportModeration*'
+      - 'src/lib/reportNotificationDelivery*'
+      - 'src/hooks/useSafetyReport*'
+      - 'src/hooks/useModeration*'
+      - 'src/hooks/usePendingModerationCount*'
+      - 'src/lib/blockUserSafety*'
+      - 'src/components/moderation/**'
+      - 'src/components/admin/sections/AdminReportsSection*'
+      - 'src/components/safety/**'
+      - 'src/components/comments/CommentItem.tsx'
+      - 'src/components/chat/ConversationOptionsSheet.tsx'
+      - 'src/components/posts/PostCard.tsx'
+      - 'src/components/posts/ShortCard.tsx'
+      - 'src/pages/PostDetail.tsx'
+      - 'src/pages/ProfileView.tsx'
       - 'functions/src/tokenMarketplace.ts'
       - 'functions/src/_shared/tokenMarketplaceAuthority.ts'
       - 'functions/src/_shared/tokenCreditAuthority.ts'
@@ -88,6 +109,27 @@ on:
       - 'scripts/test-premium-authority-backend.mjs'
       - 'scripts/test-token-marketplace-rules.mjs'
       - 'scripts/test-token-marketplace-backend.mjs'
+      - 'scripts/test-report-authority-rules.mjs'
+      - 'scripts/test-report-authority-backend.mjs'
+      - 'scripts/test-report-notification-backend.mjs'
+      - 'functions/src/reportModeration.ts'
+      - 'functions/src/reportNotify.ts'
+      - 'functions/src/_shared/report*.ts'
+      - 'src/lib/reportModeration*'
+      - 'src/lib/reportNotificationDelivery*'
+      - 'src/hooks/useSafetyReport*'
+      - 'src/hooks/useModeration*'
+      - 'src/hooks/usePendingModerationCount*'
+      - 'src/lib/blockUserSafety*'
+      - 'src/components/moderation/**'
+      - 'src/components/admin/sections/AdminReportsSection*'
+      - 'src/components/safety/**'
+      - 'src/components/comments/CommentItem.tsx'
+      - 'src/components/chat/ConversationOptionsSheet.tsx'
+      - 'src/components/posts/PostCard.tsx'
+      - 'src/components/posts/ShortCard.tsx'
+      - 'src/pages/PostDetail.tsx'
+      - 'src/pages/ProfileView.tsx'
       - 'functions/src/tokenMarketplace.ts'
       - 'functions/src/_shared/tokenMarketplaceAuthority.ts'
       - 'functions/src/_shared/tokenCreditAuthority.ts'
@@ -197,6 +239,9 @@ jobs:
           node --check scripts/test-premium-authority-backend.mjs
           node --check scripts/test-token-marketplace-rules.mjs
           node --check scripts/test-token-marketplace-backend.mjs
+          node --check scripts/test-report-authority-rules.mjs
+          node --check scripts/test-report-authority-backend.mjs
+          node --check scripts/test-report-notification-backend.mjs
 
       # Explicit demo project + QA-only config prevents the repository's
       # production default in .firebaserc from being selected.
@@ -214,10 +259,13 @@ jobs:
           node scripts/test-premium-authority-rules.mjs &&
           node scripts/test-reward-authority-rules.mjs &&
           node scripts/test-community-authority-rules.mjs &&
+          node scripts/test-report-authority-rules.mjs &&
           node scripts/test-reward-authority-backend.mjs &&
           node scripts/test-premium-authority-backend.mjs &&
           node scripts/test-token-marketplace-rules.mjs &&
-          node scripts/test-token-marketplace-backend.mjs"
+          node scripts/test-token-marketplace-backend.mjs &&
+          node scripts/test-report-authority-backend.mjs &&
+          node scripts/test-report-notification-backend.mjs"
 
       - name: Upload emulator diagnostics
         if: always()

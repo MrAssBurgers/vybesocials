@@ -1,7 +1,7 @@
 /**
  * Shared report reason picker — replaces window.prompt() for App Review discoverability.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -42,22 +42,28 @@ export function ReportContentDialog({
   const [selectedReason, setSelectedReason] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitFailed, setSubmitFailed] = useState(false);
+  const mounted = useRef(true);
+  const pending = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const handleSubmit = async () => {
-    if (!selectedReason) return;
+    if (!selectedReason || pending.current) return;
+    pending.current = true;
     setIsSubmitting(true);
     setSubmitFailed(false);
     triggerHaptic('medium');
     try {
       await onSubmit(selectedReason);
+      if (!mounted.current) return;
       setSelectedReason(null);
       onOpenChange(false);
     } catch {
       // A rejected write is retryable. Keep the selected reason and dialog open
       // instead of dropping the report or leaking an unhandled event promise.
-      setSubmitFailed(true);
+      if (mounted.current) setSubmitFailed(true);
     } finally {
-      setIsSubmitting(false);
+      pending.current = false;
+      if (mounted.current) setIsSubmitting(false);
     }
   };
 
@@ -65,6 +71,7 @@ export function ReportContentDialog({
     <AlertDialog
       open={open}
       onOpenChange={(next) => {
+        if (!next && pending.current) return;
         if (!next) { setSelectedReason(null); setSubmitFailed(false); }
         onOpenChange(next);
       }}
@@ -83,6 +90,7 @@ export function ReportContentDialog({
             <button
               key={reason.id}
               type="button"
+              disabled={isSubmitting}
               aria-pressed={selectedReason === reason.id}
               onClick={() => {
                 triggerHaptic('light');

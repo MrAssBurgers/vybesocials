@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ElementType } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ElementType } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Archive,
@@ -68,6 +68,8 @@ import { conversationActionState } from '@/lib/conversationActionModel';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { blockUserAndNotifyModeration } from '@/lib/blockUserSafety';
+import { useSafetyReport } from '@/hooks/useSafetyReport';
+import { isReportSessionError } from '@/lib/reportModerationService';
 
 const REPORT_REASONS = [
   ['spam', 'Spam'],
@@ -246,6 +248,7 @@ export function ConversationOptionsSheet({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { profile } = useAuth();
+  const submitSafetyReport = useSafetyReport(otherUserId || conversationId);
   const camera = useCameraOverlayOptional();
   const callStore = useCallStore();
   const trashConversation = useTrashConversation();
@@ -259,6 +262,7 @@ export function ConversationOptionsSheet({
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  useEffect(() => { setReportOpen(false); setReportReason(null); setBusy(false); }, [submitSafetyReport.sessionKey, otherUserId]);
 
   const displayName = otherDisplayName || otherUsername || (isGroup ? 'Group chat' : 'Friend');
   const canCall = Boolean(otherUserId && !isGroup && callStore.state.phase === 'idle');
@@ -357,7 +361,7 @@ export function ConversationOptionsSheet({
     if (!profile?.id || !otherUserId) return;
     setBusy(true);
     try {
-      await blockUserAndNotifyModeration({
+      const blockResult = await blockUserAndNotifyModeration({
         blockerId: profile.id,
         blockedId: otherUserId,
         context: 'direct message',
@@ -369,34 +373,33 @@ export function ConversationOptionsSheet({
         return Array.from(next);
       });
       await queryClient.invalidateQueries({ queryKey: ['blocked-user-ids', profile.id] });
-      toast.success(`${displayName} blocked`);
+      blockResult.guard();
+      if (blockResult.reportSubmitted) toast.success(`${displayName} blocked`);
+      else toast.error('User blocked, but the report was not confirmed. Please also submit a report.');
       setBlockOpen(false);
       close();
     } catch (error) {
+      if (isReportSessionError(error)) return;
       toast.error(error instanceof Error ? error.message : 'Could not block this user');
     } finally {
-      setBusy(false);
+      if (submitSafetyReport.isCurrent()) setBusy(false);
     }
   };
 
   const handleReport = async () => {
-    if (!profile?.id || !otherUserId || !reportReason) return;
+    if (!profile?.id || !otherUserId || !reportReason || busy) return;
     setBusy(true);
     try {
-      const { error } = await db.from('reports').insert({
-        reporter_id: profile.id,
-        reported_user_id: otherUserId,
-        reason: reportReason,
-      } as never);
-      if (error) throw error;
+      await submitSafetyReport({ targetType: 'profile', targetId: otherUserId, reason: reportReason });
       toast.success('Report submitted');
       setReportOpen(false);
       setReportReason(null);
       close();
-    } catch {
+    } catch (error) {
+      if (isReportSessionError(error)) return;
       toast.error('Could not submit report');
     } finally {
-      setBusy(false);
+      if (submitSafetyReport.isCurrent()) setBusy(false);
     }
   };
 

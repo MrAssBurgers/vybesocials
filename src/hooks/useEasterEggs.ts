@@ -5,9 +5,6 @@ import { db } from '@/lib/firebase';
 // Konami Code: ↑ ↑ ↓ ↓ ← → ← → B A
 const KONAMI_CODE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'KeyB', 'KeyA'];
 
-// Secret codes
-const SECRET_CODES: Record<string, { name: string; action: () => void }> = {};
-
 export interface EasterEgg {
   id: string;
   name: string;
@@ -49,70 +46,89 @@ export function useEasterEggs() {
   const [unlockedEggs, setUnlockedEggs] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem('xd_easter_eggs');
-      return stored ? new Set(JSON.parse(stored)) : new Set();
+      const values: unknown = stored ? JSON.parse(stored) : [];
+      return new Set(Array.isArray(values) ? values.filter((id): id is string => EASTER_EGGS.some(egg => egg.id === id)) : []);
     } catch {
       // Corrupt localStorage must not crash the provider at mount.
       return new Set();
     }
   });
+  // Effects and gestures can arrive before React commits the next render.
+  // Claim synchronously; neither state updater replay nor an old callback can
+  // award the same discovery twice.
+  const unlockedRef = useRef(unlockedEggs);
   const [rainbowMode, setRainbowMode] = useState(false);
   const [confetti, setConfetti] = useState(false);
+  const [confettiUntil, setConfettiUntil] = useState(0);
+  const [rainbowUntil, setRainbowUntil] = useState(0);
+
+  useEffect(() => {
+    if (!confettiUntil) return;
+    const timer = setTimeout(() => setConfetti(false), Math.max(0, confettiUntil - Date.now()));
+    return () => clearTimeout(timer);
+  }, [confettiUntil]);
+  useEffect(() => {
+    if (!rainbowUntil) return;
+    const timer = setTimeout(() => setRainbowMode(false), Math.max(0, rainbowUntil - Date.now()));
+    return () => clearTimeout(timer);
+  }, [rainbowUntil]);
 
   // Sync from DB on mount
   useEffect(() => {
+    let active = true;
     db.auth.getUser().then(({ data: { user } }) => {
-      if (!user?.id) return;
-      db
+      if (!active || !user?.id) return;
+      return db
         .from('user_preferences' as any)
         .select('unlocked_easter_eggs')
         .eq('user_id', user.id)
         .maybeSingle()
         .then(({ data }) => {
           const dbEggs = (data as any)?.unlocked_easter_eggs;
-          if (dbEggs && Array.isArray(dbEggs) && dbEggs.length > 0) {
-            setUnlockedEggs(prev => {
-              const merged = new Set([...prev, ...dbEggs]);
-              localStorage.setItem('xd_easter_eggs', JSON.stringify([...merged]));
-              return merged;
-            });
+          if (active && Array.isArray(dbEggs) && dbEggs.length > 0) {
+            const known = dbEggs.filter((id): id is string => EASTER_EGGS.some(egg => egg.id === id));
+            const merged = new Set([...unlockedRef.current, ...known]);
+            unlockedRef.current = merged;
+            setUnlockedEggs(merged);
+            try { localStorage.setItem('xd_easter_eggs', JSON.stringify([...merged])); } catch { /* Device storage is optional. */ }
           }
         });
-    });
+    }).catch(() => { /* Offline preferences do not block local discoveries. */ });
+    return () => { active = false; };
   }, []);
 
   const saveUnlocked = useCallback((eggs: Set<string>) => {
     const arr = [...eggs];
-    localStorage.setItem('xd_easter_eggs', JSON.stringify(arr));
+    try { localStorage.setItem('xd_easter_eggs', JSON.stringify(arr)); } catch { /* Keep the in-memory discovery when storage is unavailable. */ }
     // Persist to DB (fire-and-forget)
     db.auth.getUser().then(({ data: { user } }) => {
       if (!user?.id) return;
-      db
+      return db
         .from('user_preferences' as any)
         .upsert({
           user_id: user.id,
-          unlocked_easter_eggs: arr,
+          unlocked_easter_eggs: [...unlockedRef.current],
           updated_at: new Date().toISOString(),
         } as any, { onConflict: 'user_id' })
         .then(() => {});
-    });
+    }).catch(() => { /* Preference sync can retry on a later discovery. */ });
   }, []);
 
   const unlockEgg = useCallback((eggId: string) => {
-    if (unlockedEggs.has(eggId)) return false;
+    if (unlockedRef.current.has(eggId)) return false;
     
     const egg = EASTER_EGGS.find(e => e.id === eggId);
     if (!egg) return false;
 
-    setUnlockedEggs(prev => {
-      const next = new Set(prev);
-      next.add(eggId);
-      saveUnlocked(next);
-      return next;
-    });
+    const next = new Set(unlockedRef.current);
+    next.add(eggId);
+    unlockedRef.current = next;
+    setUnlockedEggs(next);
+    saveUnlocked(next);
 
     // Show celebration
     setConfetti(true);
-    setTimeout(() => setConfetti(false), 3000);
+    setConfettiUntil(Date.now() + 3000);
     
     toast.success(`🎉 Easter Egg Unlocked: ${egg.name}!`, {
       description: egg.description,
@@ -120,19 +136,22 @@ export function useEasterEggs() {
     });
 
     return true;
-  }, [unlockedEggs, saveUnlocked]);
+  }, [saveUnlocked]);
 
   const triggerRainbow = useCallback(() => {
     setRainbowMode(true);
     unlockEgg('rainbow');
     toast.success('🌈 Rainbow Mode Activated!', { duration: 3000 });
-    setTimeout(() => setRainbowMode(false), 10000);
+    setRainbowUntil(Date.now() + 10000);
   }, [unlockEgg]);
 
   const eggs = EASTER_EGGS.map(egg => ({
     ...egg,
     unlocked: unlockedEggs.has(egg.id),
-    unlockedAt: unlockedEggs.has(egg.id) ? localStorage.getItem(`xd_egg_${egg.id}_at`) : undefined,
+    unlockedAt: (() => {
+      try { return unlockedEggs.has(egg.id) ? localStorage.getItem(`xd_egg_${egg.id}_at`) || undefined : undefined; }
+      catch { return undefined; }
+    })(),
   }));
 
   return {
@@ -149,6 +168,7 @@ export function useEasterEggs() {
 
 export function useKonamiCode(onActivate: () => void) {
   const [inputSequence, setInputSequence] = useState<string[]>([]);
+  const sequenceRef = useRef<string[]>([]);
   const timeoutRef = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
@@ -156,21 +176,14 @@ export function useKonamiCode(onActivate: () => void) {
       // Clear previous timeout
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       
-      setInputSequence(prev => {
-        const next = [...prev, e.code].slice(-KONAMI_CODE.length);
-        
-        // Check if matches Konami code
-        if (next.length === KONAMI_CODE.length && 
-            next.every((key, i) => key === KONAMI_CODE[i])) {
-          onActivate();
-          return [];
-        }
-        
-        return next;
-      });
+      const next = [...sequenceRef.current, e.code].slice(-KONAMI_CODE.length);
+      const matched = next.length === KONAMI_CODE.length && next.every((key, i) => key === KONAMI_CODE[i]);
+      sequenceRef.current = matched ? [] : next;
+      setInputSequence(sequenceRef.current);
+      if (matched) onActivate();
 
       // Reset after 2 seconds of no input
-      timeoutRef.current = setTimeout(() => setInputSequence([]), 2000);
+      timeoutRef.current = setTimeout(() => { sequenceRef.current = []; setInputSequence([]); }, 2000);
     };
 
     window.addEventListener('keydown', handleKeyDown);

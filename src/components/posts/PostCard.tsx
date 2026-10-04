@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ProfileLink } from '@/components/profile/ProfileLink';
 import { WhyAmISeeingThisDialog } from './WhyAmISeeingThisDialog';
 import { ReportContentDialog } from '@/components/safety/ReportContentDialog';
+import { useSafetyReport } from '@/hooks/useSafetyReport';
 import { ReactionPicker, ReactionSummary } from '@/components/reactions/ReactionPicker';
 import { ReactionType } from '@/lib/reactions';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -400,6 +401,7 @@ export const PostCard = memo(function PostCard({
   disableEnterMotion = false,
 }: PostCardProps) {
   const { profile } = useAuth();
+  const submitSafetyReport = useSafetyReport();
   const { isGuest } = useIsGuest();
   const queryClient = useQueryClient();
   const togglePin = useTogglePin();
@@ -483,20 +485,9 @@ export const PostCard = memo(function PostCard({
   }, [profile]);
 
   const submitPostReport = useCallback(async (reason: string) => {
-    if (!profile) return;
-    const { error } = await db.from('reports').insert({
-      reporter_id: profile.id,
-      reported_user_id: post.author?.id ?? null,
-      post_id: post.id,
-      reason,
-    });
-    if (error) {
-      console.error('[Report] insert failed', error);
-      toast.error(`Failed to report post: ${error.message}`);
-      throw error;
-    }
-    toast.success('Post reported. We will review it shortly.');
-  }, [profile, post.id, post.author?.id]);
+    await submitSafetyReport({ targetType: 'post', targetId: post.id, reason });
+    toast.success('Post report submitted.');
+  }, [post.id, submitSafetyReport]);
 
   const handleTogglePin = useCallback(() => {
     togglePin.mutate({ postId: post.id, isPinned: !post.is_pinned });
@@ -1137,6 +1128,7 @@ export const PostCard = memo(function PostCard({
       />
 
       <ReportContentDialog
+        key={submitSafetyReport.sessionKey + ':' + post.id}
         open={reportOpen}
         onOpenChange={setReportOpen}
         title="Report post"

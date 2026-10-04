@@ -30,6 +30,8 @@ import { ProfileFriendshipSheet } from '@/features/profile/sheets/ProfileFriends
 import { ProfileMoreMenuSheet } from '@/features/profile/sheets/ProfileMoreMenuSheet';
 import { FriendsListSheet } from '@/features/profile/sheets/FriendsListSheet';
 import { ReportContentDialog } from '@/components/safety/ReportContentDialog';
+import { useSafetyReport } from '@/hooks/useSafetyReport';
+import { isReportSessionError } from '@/lib/reportModerationService';
 import '@/features/profile/profile-chrome.css';
 
 function ProfileSkeleton() {
@@ -47,6 +49,7 @@ function ProfileSkeleton() {
 }
 
 export default function ProfileViewPage() {
+  const submitSafetyReport = useSafetyReport();
   const { username } = useParams<{ username: string }>();
   const vm = useProfileViewModel(username);
   const myProfileId = useAuthProfileId();
@@ -138,7 +141,7 @@ export default function ProfileViewPage() {
   const handleBlock = async () => {
     if (!myProfileId) return;
     try {
-      await blockUserAndNotifyModeration({
+      const blockResult = await blockUserAndNotifyModeration({
         blockerId: myProfileId,
         blockedId: profile.id,
         context: 'profile view',
@@ -149,25 +152,19 @@ export default function ProfileViewPage() {
         return Array.from(next);
       });
       await queryClient.invalidateQueries({ queryKey: ['blocked-user-ids', myProfileId] });
-      toast.success('User blocked');
+      blockResult.guard();
+      if (blockResult.reportSubmitted) toast.success('User blocked');
+      else toast.error('User blocked, but the report was not confirmed. Please also submit a report.');
       vm.refetch();
     } catch (err) {
+      if (isReportSessionError(err)) return;
       toast.error(err instanceof Error ? err.message : 'Could not block user');
     }
   };
 
   const handleReport = async (reason: string) => {
-    if (!myProfileId) return;
-    const { error } = await db.from('reports').insert({
-      reporter_id: myProfileId,
-      reported_user_id: profile.id,
-      reason,
-    } as Record<string, unknown>);
-    if (error) {
-      toast.error(error.message || 'Could not submit report');
-      throw error;
-    }
-    toast.success('Report submitted. We will review it shortly.');
+    await submitSafetyReport({ targetType: 'profile', targetId: profile.id, reason });
+    toast.success('Report submitted.');
   };
 
   return (
@@ -301,6 +298,7 @@ export default function ProfileViewPage() {
       />
 
       <ReportContentDialog
+        key={submitSafetyReport.sessionKey + ':' + profile.id}
         open={reportOpen}
         onOpenChange={setReportOpen}
         title={`Report @${profile.username}`}

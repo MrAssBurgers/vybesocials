@@ -67,6 +67,7 @@ export * from './premiumGifts.js';
 export * from './community.js';
 export * from './badgeAuthority.js';
 export * from './tokenMarketplace.js';
+export * from './reportModeration.js';
 /**
  * Promote a user to admin via custom claim. Bootstrap the first admin
  * manually in Firebase Console → Authentication → User → Custom Claims:

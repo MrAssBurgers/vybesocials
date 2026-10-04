@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MINI_APP_CODE_LIMIT, validateMiniApp } from './model';
+import { MINI_APP_CODE_LIMIT, miniAppError, validateMiniApp } from './model';
 import { MINI_APP_TEMPLATES } from './templates';
 
 describe('mini app persistence boundary', () => {
@@ -19,5 +19,12 @@ describe('mini app persistence boundary', () => {
   });
   it('allows the exact combined character limit', () => {
     expect(validateMiniApp({ ...source, html: 'x'.repeat(MINI_APP_CODE_LIMIT), css: '', javascript: '' }).html.length).toBe(MINI_APP_CODE_LIMIT);
+  });
+  it('distinguishes blocked publication from an account-wide unavailable draft library', () => {
+    const denied = { code: 'permission-denied' };
+    expect(miniAppError(denied, 'publish')).toContain('Publishing is blocked for this app');
+    expect(miniAppError(denied, 'publish')).toContain('keep saving and previewing your private draft');
+    expect(miniAppError(denied)).toContain('not available for your account');
+    expect(miniAppError(new Error('Connection lost'), 'publish')).toBe('Connection lost');
   });
 });

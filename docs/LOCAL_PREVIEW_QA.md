@@ -38,7 +38,16 @@ $env:FIRESTORE_EMULATOR_HOST = '127.0.0.1:8280'
 $env:FIREBASE_STORAGE_EMULATOR_HOST = '127.0.0.1:9399'
 $env:FUNCTIONS_EMULATOR_HOST = '127.0.0.1:5101'
 
-npx --yes firebase-tools@15.28.2 emulators:start --project demo-vybe-preview --config work/local-preview/firebase.json --only "auth,firestore,storage,functions"
+Push-Location work/local-preview
+try {
+  New-Item -ItemType Directory -Force -Path tmp | Out-Null
+  $env:TEMP = Join-Path (Get-Location) 'tmp'
+  $env:TMP = $env:TEMP
+  $env:TMPDIR = $env:TEMP
+  npx --yes firebase-tools@15.28.2 emulators:start --project demo-vybe-preview --config firebase.json --only "auth,firestore,storage,functions" --debug
+} finally {
+  Pop-Location
+}
 ```
 
 Wait for all four emulators to report ready before continuing. Keep this terminal running. The helper generates a narrow Functions entry point, runtime guard, copied rules/indexes, and `firebase.json` under ignored `work/local-preview/`. Its dependency link points to the repository's installed Functions dependencies. It does not copy production credentials, invoke a deployment, or export every Function.
@@ -66,6 +75,10 @@ node scripts/qa/test-game-capture-preview.mjs
 | `bob@vybe.test` | `preview-bob` | `preview-profile-bob` |
 
 Both use **`Vybe-local-preview-only-2026!`**, an intentionally public emulator-only password. Never create these credentials in production. The seed creates email-verified demo users, profiles/auth mappings, 1,000 test tokens per new wallet, local 2FA preferences, and the `preview-game` registration. Rerunning it preserves existing demo wallets and authored content; it refreshes the synthetic auth index mapping. It grants no staff roles or premium membership. Existing-user passwords are not reset by the seed.
+
+For a moderation walkthrough, run `node scripts/qa/seed-local-preview.mjs --with-moderator` with the same guarded demo environment. This explicit option adds `moderator@vybe.test` (UID `preview-moderator`, profile `preview-profile-moderator`, same emulator-only password) and its current moderator role. It never changes a pre-existing grant, including a revoked grant. The default seed still creates no staff role. Keep the moderator in its own tab because the preview uses tab-session authentication.
+
+Report a synthetic mini app as Alice or Bob, then inspect it through the moderator's Admin → Reports screen. Inspection shows the source without running it. Removal requires a note and confirmation, archives the actual publication and prevents that same app ID from being published while its hold is active. The creator's private draft remains available. A moderator can explicitly release the inspected hold; this does not publish the draft. The creator must choose Publish again. Never use an ordinary production tab for these test actions.
 
 The game fixture compiles the actual source Firebase adapter into ignored `work/local-preview/game-sdk/`, signs in through the real Auth emulator, and checks:
 
@@ -98,7 +111,7 @@ Demo authentication uses tab-session persistence and skips the normal auth recov
 
 ## What is available, and what a passing result means
 
-The generated entry point runs the actual source-built marketplace, premium gift/status, first-party game capture, game consent management, challenge progress/claims, and community create/join/invite/manage/message callables. Client Firestore and Storage operations still run through the copied rules. Synthetic Admin seeding supplies initial fixtures; mutations made through the UI or game script use the real SDK/service paths.
+The generated entry point runs 22 actual source-built marketplace, reporting/moderation, premium gift/status, first-party game capture, game consent management, challenge progress/claims, and community create/join/invite/manage/message callables. Client Firestore and Storage operations still run through the copied rules. Synthetic Admin seeding supplies initial fixtures; mutations made through the UI or game script use the real SDK/service paths.
 
 The preview intentionally excludes billing, email, push delivery, provider-backed AI/moderation, live audio/video token issuance, broad auth exports and scheduled cleanup jobs. `gamePartnerApi` is not currently exported in this preview, and the seed is a first-party registration, not a verified partner registration. Consent UI alone does not demonstrate a partner device/token/upload round trip. A missing callable or denied provider request is a truthful unavailable result, not permission to add a fake successful response.
 
@@ -111,11 +124,11 @@ Emulators do not certify deployed indexes, IAM, App Check enforcement, GCS gener
 ## Stop and troubleshoot
 
 - Stop Vite and emulators with `Ctrl+C` in their own terminals, then close the dedicated QA terminals so their environment variables cannot affect a later build. Keep the ordinary production tab and its storage intact.
-- Keep concurrent Firebase CLI sessions in separate working directories as well as separate projects/ports. CLI 15.28.2 can reuse and remove the same `firebase-debug.log` on successful exit. During diagnosis, use `--debug` and capture terminal output to a dedicated log so an unexpected exit does not lose its stack. An orphaned emulator process is not proof that all services are still running: verify Auth, Firestore, Storage and Functions before continuing a walkthrough.
+- Keep concurrent Firebase CLI sessions in separate working directories, **separate process temporary directories**, and separate projects/ports. CLI 15.28.2 uses `os.tmpdir()/firebase/storage/blobs` for Storage bytes, without a project namespace, and removes that directory when Storage stops. A parallel test run sharing that directory can erase preview uploads and crash the preview with `ENOENT`. Set `TEMP`, `TMP` and `TMPDIR` to each session's own existing directory **before** starting its CLI process, as above; never reuse another running session's temporary directory. A later CLI export of that preview needs the same temporary directory because the emulator hub locator also lives there. The CLI can also reuse/remove a same-working-directory `firebase-debug.log`. Use `--debug` and capture output to a dedicated log. An orphaned Firestore process is not proof that Auth, Storage and Functions still run; verify all four before continuing.
 - This startup does not import/export emulator state. A stopped emulator session may lose its demo data. Restart all services, reseed, and create a new capture link; an old browser session or saved receipt is not proof that the new instance still has that record.
 - A project/port/origin guard failure is intentional. Correct the exact launch settings; do not remove the guard or point it at a real Firebase project.
 - If Functions fail to load, confirm the Functions build succeeded and rerun preparation. The generated entry point imports source-built `functions/lib`; source edits alone do not rebuild it.
 - The local browser previously left cross-port Functions fetches pending until the SDK's 70-second deadline while direct authenticated Node SDK calls succeeded. The same-origin Vite route is a narrow transport workaround against those real services, not a mocked response or authentication bypass. The browser then received HTTP 200 from capture metadata, marketplace state, challenge sync and premium status; capture metadata loaded in the review UI. Media download and publication are separate checks. After changing this configuration, wait for Vite to restart and hard reload the QA tab. Optional debug-level console tracing requires `VITE_LOCAL_PREVIEW_DIAGNOSTICS=true` in Terminal 3 before starting Vite, plus the existing development/demo guards. It is off by default and never runs in production. It shows only callable name, endpoint, normalized failure code and fetch entry/response status; never tokens, headers, request data or response bodies. A configured endpoint/start log alone does not prove a successful response. Restart without that optional variable and hard reload when finished tracing.
-- Storage media subsequently remained loading while the emulator parent process crashed; that does not prove a browser cross-port defect for Storage. Its exact-bucket proxy keeps the QA transport consistent, but do not describe it as an independently established browser fix. After service recovery, the real Storage fixture passed all ten direct/proxy checks including private-access denials, byte-identical multipart/resumable round trips, session origin preservation and cleanup. Separately, bounded Firebase `getBlob` clears the Blob MIME during slicing; capture review now accepts that empty MIME using the server-verified ready receipt, while retaining exact byte-size and conflicting MIME rejection.
+- Storage media subsequently remained loading while the emulator parent process crashed; that does not prove a browser cross-port defect for Storage. A retained stack in the following pass identified shared temporary Storage bytes being removed when another emulator stopped, as described above. The exact-bucket proxy keeps QA transport consistent but is not independently established as a browser Storage fix. After recovery, the real Storage fixture passed ten direct/proxy checks including private-access denials, byte-identical uploads, session origin preservation and cleanup. Separately, bounded Firebase `getBlob` clears the Blob MIME during slicing; capture review accepts that empty MIME using the server-verified ready receipt, while retaining exact byte-size and conflicting MIME rejection.
 - A normal application action may invoke a Function outside the narrow preview list. Preserve the unavailable state, record the missing integration, and expand the local export list only after reviewing its external effects.
 - Do not run the broad `npm run debug`/production probes as part of this guide. Do not deploy `work/local-preview/firebase.json`, alter production `auth2faRequest`, or publish a `local-qa` build.

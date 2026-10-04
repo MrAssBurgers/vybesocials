@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { addDoc, collection } from 'firebase/firestore';
 import { ArrowLeft, Code2, Copy, Flag, Gamepad2, Globe, Loader2, Palette, Play, Plus, Search, Wrench } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -10,8 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ReportContentDialog } from '@/components/safety/ReportContentDialog';
+import { useSafetyReport } from '@/hooks/useSafetyReport';
 import { useAuth } from '@/lib/auth';
-import { getFirestoreDb } from '@/lib/firebase/firestoreDb';
 import { MiniAppRunner } from '@/features/mini-apps/MiniAppRunner';
 import { MiniAppStudio } from '@/features/mini-apps/MiniAppStudio';
 import { miniAppError, type MiniAppRecord } from '@/features/mini-apps/model';
@@ -26,6 +25,7 @@ export default function MiniApps() {
 }
 
 function MiniAppsForUser() {
+  const submitSafetyReport = useSafetyReport();
   const { user, profile } = useAuth();
   const { appId } = useParams<{ appId: string }>();
   const navigate = useNavigate();
@@ -62,20 +62,14 @@ function MiniAppsForUser() {
 
   const report = async (reason: string) => {
     if (!detail.data || !profile || !ownerId) throw new Error('Sign in again to report this app.');
-    // Let the dialog retain the selection and offer retry on a failed write.
-    await addDoc(collection(getFirestoreDb(), 'reports'), {
-        reporter_id: profile.id, reported_user_id: null, post_id: null,
-        reason: `Mini app ${detail.data.title} (/mini-apps/${detail.data.id}): ${reason}`,
-        description: `Mini app /mini-apps/${detail.data.id}; creator auth ID ${detail.data.owner_id}`,
-        content_type: 'mini_app', content_id: detail.data.id, status: 'pending', created_at: new Date().toISOString(),
-    });
+    await submitSafetyReport({ targetType: 'mini_app', targetId: detail.data.id, reason });
     if (mounted.current) toast.success('Report submitted for review.');
   };
 
   const content = appId ? (
     <div className="space-y-5">
       <Button variant="ghost" onClick={() => navigate('/mini-apps')}><ArrowLeft />All mini apps</Button>
-      {detail.isLoading ? <Loading /> : detail.isError ? <ErrorNotice error={detail.error} onRetry={() => void detail.refetch()} /> : !detail.data ? <div className="rounded-2xl border border-border p-8 text-center"><h1 className="text-xl font-bold">App unavailable</h1><p className="mt-2 text-muted-foreground">This app may have been unpublished by its creator.</p></div> : <>
+      {detail.isLoading || (detail.isFetching && !detail.data) ? <Loading /> : detail.isError ? <ErrorNotice error={detail.error} onRetry={() => void detail.refetch()} /> : !detail.data ? <div className="rounded-2xl border border-border p-8 text-center"><h1 className="text-xl font-bold">App unavailable</h1><p className="mt-2 text-muted-foreground">This app is no longer published.</p></div> : <>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0"><span className="text-xs uppercase tracking-wider text-primary">Community {detail.data.category}</span><h1 className="mt-1 break-words text-3xl font-bold">{detail.data.title}</h1><p className="mt-2 break-words text-muted-foreground">{detail.data.description}</p></div>
           <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => { void navigator.clipboard.writeText(`${window.location.origin}/mini-apps/${detail.data!.id}`).then(() => toast.success('App link copied.'), () => toast.error('Could not copy. Copy this page URL from your browser.')); }}><Copy />Copy link</Button><Button size="sm" variant="ghost" onClick={() => setReportOpen(true)}><Flag />Report</Button>{detail.data.owner_id === ownerId && <Button size="sm" variant="ghost" onClick={() => setUnpublishTarget(detail.data!)}>Unpublish</Button>}</div>
@@ -112,7 +106,7 @@ function MiniAppsForUser() {
 
   return <AppLayout hideRightSidebar><div className="mx-auto w-full max-w-4xl px-2 pb-8 pt-2 sm:px-4">{content}</div>
     <AlertDialog open={Boolean(unpublishTarget)} onOpenChange={open => { if (!open && !unpublishing) setUnpublishTarget(null); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Unpublish this mini app?</AlertDialogTitle><AlertDialogDescription>Its public page will become unavailable. Your private draft is kept so you can publish again later.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={unpublishing}>Keep published</AlertDialogCancel><AlertDialogAction disabled={unpublishing} onClick={event => { event.preventDefault(); void unpublish(); }}>{unpublishing ? 'Unpublishing…' : 'Unpublish'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
-    <ReportContentDialog open={reportOpen} onOpenChange={setReportOpen} title="Report mini app" onSubmit={report} />
+    <ReportContentDialog key={submitSafetyReport.sessionKey + ':' + appId} open={reportOpen} onOpenChange={setReportOpen} title="Report mini app" onSubmit={report} />
   </AppLayout>;
 }
 

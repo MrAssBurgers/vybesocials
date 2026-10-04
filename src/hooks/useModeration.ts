@@ -5,6 +5,7 @@ import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { isStaffQueryEnabled } from '@/lib/adminAccess';
 import { invokeEdgeFeature } from '@/lib/edgeFeature';
 import { isPreviewFounderUser, isFounderAuthId } from '@/lib/previewSandbox';
+import { getPendingReportCount, getReportPage, performReportAction, reportAccountGuard, reportAccountSnapshot, type ReportStatus, type ReportSummary } from '@/lib/reportModerationService';
 
 export type AdminUserRole = 'admin' | 'moderator';
 
@@ -69,21 +70,7 @@ export interface ContentFlag {
   created_at: string;
 }
 
-export interface Report {
-  id: string;
-  post_id: string | null;
-  reported_user_id: string | null;
-  reporter_id: string;
-  reason: string;
-  status: string;
-  reviewed_by: string | null;
-  reviewed_at: string | null;
-  admin_notes: string | null;
-  created_at: string;
-  reporter?: { username: string; avatar_url: string | null };
-  reported_user?: { username: string; avatar_url: string | null } | null;
-  post?: { caption: string | null; media_url: string } | null;
-}
+export type Report = ReportSummary;
 
 export function useContentFlags() {
   const { user, authReady } = useAuth();
@@ -105,29 +92,26 @@ export function useContentFlags() {
   });
 }
 
-export function useReports() {
+export function useReports(input: { cursor?: string; status?: Exclude<ReportStatus, 'unknown'> } = {}) {
   const { user, authReady } = useAuth();
   const profileId = useAuthProfileId();
-
-  return useQuery({
-    queryKey: ['admin-reports'],
-    queryFn: async () => {
-      const { data, error } = await db
-        .from('reports')
-        .select(`
-          *,
-          reporter:profiles!reports_reporter_id_fkey(username, avatar_url),
-          reported_user:profiles!reports_reported_user_id_fkey(username, avatar_url),
-          post:posts!reports_post_id_fkey(caption, media_url)
-        `)
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      return data as Report[];
-    },
+  const session = reportAccountSnapshot();
+  const guard = reportAccountGuard(user?.id || '');
+  const query = useQuery({
+    queryKey: ['admin-reports', user?.id, session.epoch, input.status, input.cursor],
+    queryFn: () => getReportPage(input, guard),
     enabled: isStaffQueryEnabled(authReady, user, profileId),
-    networkMode: 'always',
+    gcTime: 0, retry: false,
   });
+  return { ...query, data: query.data?.reports, nextCursor: query.data?.nextCursor ?? null };
+}
+
+export function useReportCount() {
+  const { user, authReady } = useAuth();
+  const profileId = useAuthProfileId();
+  const session = reportAccountSnapshot();
+  const guard = reportAccountGuard(user?.id || '');
+  return useQuery({ queryKey: ['pending-moderation-count', user?.id, session.epoch, 'reports'], queryFn: () => getPendingReportCount(guard), enabled: isStaffQueryEnabled(authReady, user, profileId), gcTime: 0, retry: false, refetchInterval: 60_000 });
 }
 
 export function useUpdateFlag() {
@@ -162,33 +146,15 @@ export function useUpdateFlag() {
 
 export function useUpdateReport() {
   const queryClient = useQueryClient();
-  
+  const { user } = useAuth();
+  const session = reportAccountSnapshot();
+  const guard = reportAccountGuard(user?.id || '');
   return useMutation({
-    mutationFn: async ({ 
-      id, 
-      status, 
-      reviewed_by,
-      admin_notes 
-    }: { 
-      id: string; 
-      status: 'reviewed' | 'dismissed' | 'actioned'; 
-      reviewed_by: string;
-      admin_notes?: string;
-    }) => {
-      const { error } = await db
-        .from('reports')
-        .update({ 
-          status, 
-          reviewed_by, 
-          reviewed_at: new Date().toISOString(),
-          admin_notes 
-        })
-        .eq('id', id);
-      
-      if (error) throw error;
-    },
+    mutationFn: ({ id, status, admin_notes }: { id: string; status: 'reviewed' | 'dismissed'; admin_notes?: string }) => performReportAction({ action: 'review', reportId: id, status, ...(admin_notes ? { note: admin_notes } : {}) }, guard),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-reports'] });
+      try { guard(); } catch { return; }
+      queryClient.invalidateQueries({ queryKey: ['admin-reports', user?.id, session.epoch] });
+      queryClient.invalidateQueries({ queryKey: ['pending-moderation-count', user?.id, session.epoch] });
     },
   });
 }

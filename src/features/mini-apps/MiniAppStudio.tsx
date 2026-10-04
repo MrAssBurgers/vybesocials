@@ -95,7 +95,7 @@ export function MiniAppStudio({ ownerId, draft, onClose, onSaved }: {
       } else toast.success('Private draft saved.');
     } catch (error) {
       if (mounted.current) {
-        const message = draftSaved && publish ? `Your private draft was saved, but publishing failed. ${miniAppError(error)}` : miniAppError(error);
+        const message = draftSaved && publish ? `Your private draft was saved, but publishing failed. ${miniAppError(error, 'publish')}` : miniAppError(error);
         setFailure({ message, publish }); toast.error(message);
       }
     } finally {

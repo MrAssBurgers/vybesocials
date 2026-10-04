@@ -87,7 +87,8 @@ try {
   await allowed('saving draft leaves public snapshot alone', () => updateDoc(privateRef, { html: '<p>Unreleased</p>', updated_at: serverTimestamp() }));
   assert.equal((await getDoc(publicRef)).data().html, '<button>Play</button>'); checks++;
   await denied('another user cannot unpublish', () => deleteDoc(doc(bobDb, publicRef.path)));
-  await allowed('staff can remove a published app', () => deleteDoc(doc(staff.firestore(), publicRef.path)));
+  await denied('staff browser cannot bypass audited mini-app removal', () => deleteDoc(doc(staff.firestore(), publicRef.path)));
+  await allowed('owner can unpublish without a moderation action', () => deleteDoc(publicRef));
   await denied('another user cannot take over an unpublished app link', () => setDoc(doc(bobDb, publicRef.path), { ...app(), owner_id: 'creator-bob', status: 'published' }));
   await denied('publishing without an owned draft is rejected', () => setDoc(doc(aliceDb, 'mini_apps', 'no-draft'), { ...app(), status: 'published' }));
   await allowed('owner can republish with a fresh creation time', () => setDoc(publicRef, { ...app(), status: 'published' }));

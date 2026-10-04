@@ -12,7 +12,7 @@ const repository = vi.hoisted(() => ({ list: vi.fn(), save: vi.fn(), publish: vi
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: state.uid }, profile: { id: `${state.uid}-profile` } }) }));
 vi.mock('@/lib/theme', () => ({ useTheme: () => ({ reducedMotion: state.reducedMotion }) }));
 vi.mock('@/lib/firebase/firestoreDb', () => ({ getFirestoreDb: vi.fn() }));
-vi.mock('firebase/firestore', () => ({ collection: (_db: unknown, path: string) => path, addDoc: state.report }));
+vi.mock('@/hooks/useSafetyReport', () => ({ useSafetyReport: () => Object.assign(state.report, { sessionKey: state.uid }) }));
 vi.mock('framer-motion', () => ({ useReducedMotion: () => state.systemReducedMotion }));
 vi.mock('@/components/layout/AppLayout', () => ({ AppLayout: ({ children }: { children: ReactNode }) => <div>{children}</div> }));
 vi.mock('@/lib/haptics', () => ({ triggerHaptic: vi.fn() }));
@@ -137,13 +137,14 @@ describe('mini apps studio flow', () => {
     expect(repository.save.mock.calls[1][3]).toBe(pendingId);
   });
   it('keeps a successfully saved draft when publishing fails and offers an explicit retry', async () => {
-    repository.publish.mockRejectedValueOnce(new Error('Publishing unavailable'));
+    repository.publish.mockRejectedValueOnce({ code: 'permission-denied' });
     mount();
     fireEvent.click(screen.getByRole('button', { name: 'Build a mini app' }));
     fireEvent.change(screen.getByLabelText('App name'), { target: { value: 'My retained app' } });
     fireEvent.click(screen.getByRole('button', { name: 'Publish to Hub' }));
     fireEvent.click(screen.getByRole('button', { name: 'Publish app' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Your private draft was saved, but publishing failed.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Publishing is blocked for this app. A moderation hold or account permissions may need review.');
     expect(screen.getByText('Private draft saved')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Open published app' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('App name')).toHaveValue('My retained app');
@@ -207,10 +208,9 @@ describe('mini apps studio flow', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Submit Report' }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
     expect(state.report).toHaveBeenCalledTimes(2);
-    const first = state.report.mock.calls[0][1];
-    const second = state.report.mock.calls[1][1];
-    expect(first).toMatchObject({ content_type: 'mini_app', content_id: 'app-1', reporter_id: 'alice-profile', status: 'pending' });
-    expect(first.reason).toMatch(/: spam$/);
+    const first = state.report.mock.calls[0][0];
+    const second = state.report.mock.calls[1][0];
+    expect(first).toEqual({ targetType: 'mini_app', targetId: 'app-1', reason: 'spam' });
     expect(second.reason).toBe(first.reason);
     expect(state.success).toHaveBeenCalledExactlyOnceWith('Report submitted for review.');
   });

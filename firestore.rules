@@ -737,9 +737,19 @@ service cloud.firestore {
       allow delete: if ownsUserField('user_id') || isAdmin();
     }
     match /reports/{docId} {
-      allow create: if signedIn();
-      allow read, update, delete: if isStaffModerator();
+      // Submission, staff reads/review and mini-app removal use the verified
+      // callable. Retained browser-authored reports remain untrusted leads.
+      allow read, write: if false;
     }
+    // Report attribution, review actions, delivery and mini-app holds are
+    // maintained by authenticated server APIs. Browser staff have no bypass.
+    match /_report_authority/{id}             { allow read, write: if false; }
+    match /_report_requests/{id}              { allow read, write: if false; }
+    match /_report_audit/{id}                 { allow read, write: if false; }
+    match /_report_quotas/{id}                { allow read, write: if false; }
+    match /_mini_app_moderation/{id}          { allow read, write: if false; }
+    match /report_notification_deliveries/{id} { allow read, write: if false; }
+    match /admin_alerts/{id}                 { allow read, write: if false; }
 
     // ---------- social: follows / blocks / friend requests ----------
     match /follows/{docId} {
@@ -1642,6 +1652,17 @@ service cloud.firestore {
         && data.created_at is timestamp && data.updated_at == request.time
         && (!published || data.status == 'published');
     }
+    function miniAppMayPublish(id) {
+      let holdPath = /databases/$(database)/documents/_mini_app_moderation/$(id);
+      // A released hold must retain the server-bound app and owner. Missing or
+      // malformed flags cannot turn an active/unknown hold into permission.
+      return !exists(holdPath) || (
+        get(holdPath).data.get('version', null) == 1
+        && get(holdPath).data.get('app_id', null) == id
+        && get(holdPath).data.get('owner_uid', null) == uid()
+        && get(holdPath).data.get('active', null) == false
+      );
+    }
     match /mini_app_drafts/{id} {
       allow read, delete: if signedIn() && resource.data.owner_id == uid();
       allow create: if signedIn() && validMiniApp(request.resource.data, false)
@@ -1656,12 +1677,16 @@ service cloud.firestore {
       allow list: if signedIn()
         && (resource.data.status == 'published' || resource.data.owner_id == uid());
       allow create: if signedIn() && validMiniApp(request.resource.data, true)
+        && miniAppMayPublish(id)
         && get(/databases/$(database)/documents/mini_app_drafts/$(id)).data.owner_id == uid()
         && request.resource.data.created_at == request.time;
       allow update: if signedIn() && resource.data.owner_id == uid()
+        && miniAppMayPublish(id)
         && validMiniApp(request.resource.data, true)
         && request.resource.data.created_at == resource.data.created_at;
-      allow delete: if signedIn() && (resource.data.owner_id == uid() || isStaffModerator());
+      // Owner unpublishing never releases a server hold. Staff removals must
+      // use the audited callable, which removes the snapshot and sets its hold.
+      allow delete: if signedIn() && resource.data.owner_id == uid();
     }
 
     // Partner credentials, device approvals, and upload manifests are server-only.
