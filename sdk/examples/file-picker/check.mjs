@@ -12,7 +12,7 @@ test('built example serves only its fixed local files', { timeout: 15_000 }, asy
       child.once('exit', () => reject(new Error('The example could not start; port 4176 must be free.')));
       child.stdout.once('data', bytes => String(bytes).includes('http://127.0.0.1:4176') ? resolve() : reject(new Error('Unexpected example server response.')));
     });
-    for (const path of ['/', '/app.js', '/config.js', '/sdk/universal/index.js', '/sdk/universal/gallery.js', '/sdk/game/http.js', '/sdk/game/index.js']) {
+    for (const path of ['/', '/app.js', '/config.js', '/sdk/universal/index.js', '/sdk/universal/gallery.js', '/sdk/game/http.js', '/sdk/game/publicFeed.js', '/sdk/game/index.js']) {
       const response = await fetch(`http://127.0.0.1:4176${path}`);
       assert.equal(response.status, 200, path);
       assert.equal(response.headers.get('cache-control'), 'no-store');

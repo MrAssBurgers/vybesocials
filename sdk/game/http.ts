@@ -1,3 +1,5 @@
+import { parsePublicFeed, type PublicFeedOptions, type PublicFeedPage } from './publicFeed.js';
+export type { PublicFeedOptions, PublicFeedPage, PublicFeedPost } from './publicFeed.js';
 import type { CaptureMime, CaptureReceipt, CaptureRequest } from './index.js';
 
 export const PARTNER_CHUNK_BYTES = 8 * 1024 * 1024;
@@ -14,6 +16,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_token: 'Your connection expired or was revoked. Link VYBE again.',
   insufficient_scope: 'This connection does not have the required permission.',
   not_found: 'This capture is unavailable to this connection.',
+  feed_changed: 'The feed changed. Clear this page and start browsing again.',
   conflict: 'This capture changed or the upload key was reused for different content.',
   expired_capture: 'This capture has expired.',
   payload_too_large: 'Captures must be no larger than 48 MiB.',
@@ -56,6 +59,8 @@ export interface PartnerClientOptions {
   fetch?: typeof globalThis.fetch;
   /** Request explicit consent to read this connection's own private capture media. */
   previewCaptures?: boolean;
+  /** Request separately approved public browsing; registry capability is also required. */
+  browsePublicFeed?: boolean;
 }
 export interface PartnerCapturePage { captures: PartnerCaptureReceipt[]; nextCursor: string | null }
 export type PartnerCaptureRequest = Omit<CaptureRequest, 'gameId'>;
@@ -63,7 +68,7 @@ export type PartnerCaptureRequest = Omit<CaptureRequest, 'gameId'>;
 export type PartnerCaptureReceipt = Omit<CaptureReceipt, 'storagePath'>;
 type Session = PartnerAuthorization & { accessToken: string };
 type DeviceRequest = PartnerDeviceLink & { deviceCode: string };
-type RequestOptions = { signal?: AbortSignal; session?: Session; body?: unknown; chunk?: Uint8Array; checksum?: string; retry?: boolean; preview?: { contentType: CaptureMime; total: number; offset: number } };
+type RequestOptions = { signal?: AbortSignal; session?: Session; body?: unknown; chunk?: Uint8Array; checksum?: string; retry?: boolean; jsonLimit?: number; preview?: { contentType: CaptureMime; total: number; offset: number } };
 
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new VybePartnerError('invalid_response');
@@ -137,7 +142,7 @@ async function sha256(bytes: Uint8Array): Promise<string> {
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
-/** Capture-only partner client. Tokens remain in memory; no Firebase SDK or credentials. */
+/** Explicitly scoped partner client. Tokens remain in memory; no Firebase SDK or credentials. */
 export class VybePartnerClient {
   #base: string;
   #clientId: string;
@@ -159,7 +164,8 @@ export class VybePartnerClient {
     this.#clientId = options.clientId;
     this.#fetch = options.fetch || globalThis.fetch.bind(globalThis);
     if (options.previewCaptures !== undefined && typeof options.previewCaptures !== 'boolean') throw new VybePartnerError('invalid_request');
-    this.#scopes = options.previewCaptures ? [...SCOPES, 'capture:preview'] : [...SCOPES];
+    if (options.browsePublicFeed !== undefined && typeof options.browsePublicFeed !== 'boolean') throw new VybePartnerError('invalid_request');
+    this.#scopes = [...SCOPES, ...(options.previewCaptures ? ['capture:preview'] : []), ...(options.browsePublicFeed ? ['feed:read_public'] : [])];
   }
 
   get authorization(): PartnerAuthorization | null {
@@ -309,6 +315,22 @@ export class VybePartnerClient {
     }
   }
 
+  /** Returns public metadata only. Never fetches media automatically; hosts clear pages on disconnect/expiry. */
+  async browsePublicFeed(options: PublicFeedOptions = {}): Promise<PublicFeedPage> {
+    const session = this.#requireSession();
+    if (!session.scopes.includes('feed:read_public')) throw new VybePartnerError('insufficient_scope');
+    if (options.contentType !== undefined && !['post', 'short', 'video'].includes(options.contentType)) throw new VybePartnerError('invalid_request');
+    const query = new URLSearchParams();
+    if (options.cursor !== undefined) query.set('cursor', captureId(options.cursor));
+    if (options.contentType !== undefined) query.set('contentType', options.contentType);
+    const data = await this.#request(`/v1/feed${query.size ? `?${query}` : ''}`, 'GET', {
+      session, signal: options.signal, retry: true, jsonLimit: 8 * 1024 * 1024,
+    });
+    this.#checkSession(session); checkAbort(options.signal);
+    try { return parsePublicFeed(data, session, options); }
+    catch { throw new VybePartnerError('invalid_response'); }
+  }
+
   async listCaptures(options: { cursor?: string; signal?: AbortSignal } = {}): Promise<PartnerCapturePage> {
     const suffix = options.cursor === undefined ? '' : `?cursor=${captureId(options.cursor)}`;
     const data = object(await this.#request(`/v1/captures${suffix}`, 'GET', { signal: options.signal, session: this.#requireSession(), retry: true }));
@@ -414,12 +436,12 @@ export class VybePartnerClient {
           if (bytes.byteLength !== length) throw new VybePartnerError('invalid_response');
           return { blob: new Blob([bytes as Uint8Array<ArrayBuffer>], { type: contentType! }), sha256: checksum };
         }
-        const text = new TextDecoder().decode(await boundedBody(response, 256 * 1024, controller.signal));
+        const text = new TextDecoder().decode(await boundedBody(response, options.jsonLimit ?? 256 * 1024, controller.signal));
         checkAbort(options.signal);
         if (options.session) this.#checkSession(options.session);
         if (response.status === 401 && options.session === this.#session) this.#session = null;
         let data: Record<string, unknown>;
-        try { if (text.length > 256 * 1024) throw new Error(); data = object(JSON.parse(text)); }
+        try { if (text.length > (options.jsonLimit ?? 256 * 1024)) throw new Error(); data = object(JSON.parse(text)); }
         catch { throw new VybePartnerError(responseErrorCode(response.status), response.status, responseRetryAfter(response)); }
         if (!response.ok) {
           const code = typeof data.error === 'string' && Object.prototype.hasOwnProperty.call(ERROR_MESSAGES, data.error) ? data.error

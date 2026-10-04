@@ -2,7 +2,7 @@ import { VybePartnerClient, VybePartnerError, type PartnerAuthorization, type Pa
 import { CAPTURE_LIMIT_BYTES, type CaptureMime, type CapturePhase } from '../game/index.js';
 
 export { VybePartnerError } from '../game/http.js';
-export type { PartnerAuthorization, PartnerCaptureReceipt, PartnerDeviceLink, PartnerCapturePage } from '../game/http.js';
+export type { PartnerAuthorization, PartnerCaptureReceipt, PartnerDeviceLink, PartnerCapturePage, PublicFeedPage, PublicFeedPost, PublicFeedOptions } from '../game/http.js';
 export type { CaptureMime, CapturePhase } from '../game/index.js';
 
 export interface HostCapture {
@@ -145,6 +145,9 @@ export class VybeIntegration {
   }
   getCapture(captureId: string, options: { signal?: AbortSignal } = {}): Promise<PartnerCaptureReceipt> {
     return this.#run(options.signal, operation => this.#client.getCapture(captureId, { signal: operation.signal }));
+  }
+  browsePublicFeed(options: import('../game/http.js').PublicFeedOptions = {}) {
+    return this.#run(options.signal, operation => this.#client.browsePublicFeed({ ...options, signal: operation.signal }));
   }
   listCaptures(options: { cursor?: string; signal?: AbortSignal } = {}) {
     return this.#run(options.signal, operation => this.#client.listCaptures({ ...options, signal: operation.signal }));

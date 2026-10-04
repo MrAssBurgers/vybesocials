@@ -11,7 +11,7 @@ const media = (): HostCapture => ({ media: new Uint8Array(12).fill(7), contentTy
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
 type Call = { path: string; init: RequestInit };
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
-function harness(options: { host?: Partial<VybeHostAdapter>; handle?: (call: Call) => Promise<Response> | Response | undefined } = {}) {
+function harness(options: { browsePublicFeed?: boolean; host?: Partial<VybeHostAdapter>; handle?: (call: Call) => Promise<Response> | Response | undefined } = {}) {
   const calls: Call[] = [];
   let onDispose = () => {};
   const unsubscribe = vi.fn();
@@ -22,14 +22,14 @@ function harness(options: { host?: Partial<VybeHostAdapter>; handle?: (call: Cal
     const call = { path: String(url).slice(BASE.length), init }; calls.push(call);
     const intercepted = options.handle?.(call); if (intercepted) return intercepted;
     if (call.path === '/v1/device/code') return json({ deviceCode: DEVICE, userCode: 'ABCD-2345', verificationUri: 'https://vybehub.app/connect/game', verificationUriComplete: `https://evil.example/${DEVICE}`, expiresIn: 600, interval: 5 });
-    if (call.path === '/v1/device/token') return json({ accessToken: TOKEN, tokenType: 'Bearer', connectionId: connection, expiresIn: 600, expiresAt: Date.now() + 600_000, scopes: ['capture:write', 'capture:status'] });
+    if (call.path === '/v1/device/token') return json({ accessToken: TOKEN, tokenType: 'Bearer', connectionId: connection, expiresIn: 600, expiresAt: Date.now() + 600_000, scopes: ['capture:write', 'capture:status', ...(options.browsePublicFeed ? ['feed:read_public'] : [])] });
     if (call.path === '/v1/captures' && init.method === 'POST') { const input = JSON.parse(String(init.body)); receipt = { ...receipt, caption: input.caption, tags: input.tags, contentType: input.contentType, byteSize: input.byteSize }; return json(receipt); }
     if (call.path.includes('/chunks/')) { const bytes = new Uint8Array(init.body as ArrayBuffer); return json({ index: 0, byteSize: bytes.byteLength, sha256: createHash('sha256').update(bytes).digest('hex') }); }
     if (call.path.endsWith('/finish')) return json({ ...receipt, status: 'ready' });
     if (call.path.endsWith('/revoke') || init.method === 'DELETE') return json({ ok: true });
     return json(receipt);
   });
-  const client = new VybeIntegration({ clientId: 'test-mod', apiBaseUrl: BASE, fetch: fetcher, host: { openExternal, capture: async () => media(), onDispose: callback => { onDispose = callback; return unsubscribe; }, ...options.host } });
+  const client = new VybeIntegration({ clientId: 'test-mod', apiBaseUrl: BASE, browsePublicFeed: options.browsePublicFeed, fetch: fetcher, host: { openExternal, capture: async () => media(), onDispose: callback => { onDispose = callback; return unsubscribe; }, ...options.host } });
   return { client, calls, fetcher, openExternal, unsubscribe, unload: () => onDispose(), relinkAs: (id: string) => { connection = id; } };
 }
 async function link(client: VybeIntegration) {
@@ -129,4 +129,13 @@ describe('unload, cancellation and stale host operations', () => {
   it('explicit revoke makes the server request and removes local draft/session access', async () => {
     const h = harness(); await link(h.client); const draft = await h.client.prepareCapture(media()); await h.client.revokeConnection(); expect(h.calls.filter(call => call.path.endsWith('/revoke'))).toHaveLength(1); expect(h.client.authorization).toBeNull(); expect(() => h.client.stageCapture(draft)).toThrow();
   });
+});
+
+it('cancels public feed delivery when the host unloads', async () => {
+  const response = deferred<Response>();
+  const h = harness({ browsePublicFeed: true, handle: call => call.path === '/v1/feed' ? response.promise : undefined });
+  await link(h.client);
+  const pending = h.client.browsePublicFeed(); h.unload();
+  response.resolve(json({ connectionId: 'b'.repeat(32), expiresAt: Date.now() + 500000, contentType: null, nextCursor: null, posts: [] }));
+  await expect(pending).rejects.toMatchObject({ code: 'disposed' }); expect(h.client.authorization).toBeNull();
 });

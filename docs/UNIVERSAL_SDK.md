@@ -125,3 +125,22 @@ Supported payloads remain PNG/JPEG/WebP/MP4/WebM, 12 bytes through 48 MiB. Hashi
 Focused facade tests use the real partner client with controlled HTTP responses: explicit official navigation, secret-free links, original-byte retry, rejection of foreign/released/old-account drafts, malformed media, unavailable service recovery, callback-triggered unload, stale host results, polling replacement, explicit revoke and disposal. These are protocol/lifecycle regressions, not claims of live partner deployment. Existing partner protocol tests continue to cover checksums, endpoint/redirect guards, backoff and consent errors.
 
 The local package is built and its compiled exports/TypeScript declarations checked. A registered staging endpoint, current backend rollout and actual host integration still need end-to-end certification. The capture gallery now has its own explicit media-read permission. General social-feed embedding and native/mod-specific adapters remain separate work; full VYBE browsing opens externally without exposing the user's Firebase session.
+
+## Optional public browsing (JavaScript pilot)
+
+Register the integration with `public_feed_enabled: true`, and construct `VybeIntegration` (or `VybePartnerClient`) with `browsePublicFeed: true`. This requests separate `feed:read_public` consent. Capture-only defaults do not change; an unexpected grant is rejected.
+
+```ts
+// After beginLink / waitForLink with explicit player approval:
+const page = await vybe.browsePublicFeed({ contentType: 'post', signal });
+// Render page.posts as plain text. Load media only after a player action.
+if (page.nextCursor) {
+  const next = await vybe.browsePublicFeed({
+    contentType: 'post', cursor: page.nextCursor, signal,
+  });
+}
+```
+
+Pages contain public, safe-labelled metadata only, validated against the current connection, expiry and selected type. The SDK rejects unknown/private fields, unsafe URL schemes, duplicate post IDs, excessive collections and responses over 8 MiB; other JSON operations retain their 256 KiB limit. It never fetches feed media automatically. Captions are untrusted text, never HTML. Keep media credentials separate: never attach the partner bearer to a returned media URL.
+
+On `feed_changed`, clear the cursor and reload the first page. On disconnect, account changes, expiry or host unload, clear all rendered posts/media and abort pending actions. The universal wrapper aborts operations on disposal/relink; it cannot erase copies retained by host code. Already delivered content cannot be recalled. Safe labels are metadata, not independent safety verification. .NET parity and a ready-made host browsing panel remain pending; the file-picker example still focuses on capture upload/gallery.

@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - JavaScript public browsing SDK
+
+### What changed
+- JavaScript partner/universal SDK 0.2.0-pilot adds explicit browsePublicFeed opt-in and browsePublicFeed({contentType, cursor, signal}). Capture defaults and exact consent scope matching remain unchanged.
+- Typed receipt parser checks exact fields, public safe shape, HTTPS URLs, bounded strings/collections, duplicate IDs, connection/filter/expiry and cursor progression. Feed streams are limited to 8 MiB; other JSON operations retain 256 KiB. No automatic media fetch. Late results after account changes fail; universal unload/relink cancels pending operations. Hosts must clear already-rendered copies.
+- Safe feed_changed recovery message, exported types, docs and example-server module allowlist updated. Packaged local pilot archive. .NET parity and host browsing panel remain pending.
+
+### Verification
+- App 307 files / 2,908 tests passed; SDK compiler, app build and scoped lint passed. Entry unchanged 1068.1 KiB raw / 321.8 KiB gzip.
+- Compiled universal SDK against retained demo HTTP functions: synthetic Alice exact consent, three public posts, revoke acknowledged and local authorization cleared. Real test caught whole-second token expiry rounding versus millisecond page expiry; permits only the rounding discrepancy and caps delivery at earlier local deadline. Regression added. Initial test cleanup used a nonexistent disconnect method; corrected to revokeConnection and revoked the synthetic leftover grant before successful rerun.
+- Tests cover opt-in, exact grants, query/filter, no media fetch, malformed/private fields, unsafe URLs, expiry/foreign connection, duplicates, oversized streams, abort, account change, revocation, feed_changed, host unload and expiry rounding. Previous cb4eed8e CI 37209439232 / 37209439117 succeeded. No production changes.
+
+### Next 3 tasks and limits
+1. Build the actual host browsing panel/example with explicit media selection, paging, cancellation and revocation cleanup; verify visually and with real engine/mod hosts.
+2. Add .NET parity; continue mini-app isolation/quotas and remaining audience/media migrations.
+3. Investigate transient connect navigation; physical devices and coordinated selective rollout remain pending. Broad goal active and incomplete.
+
+---
+
 ## ACTIVE (2026-10-04) - Explicit partner public feed consent and HTTP pilot
 
 ### What changed
