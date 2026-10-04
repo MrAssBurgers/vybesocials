@@ -3,7 +3,8 @@ import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Ban, Trash2, X, Loader2, Send, Smile, Pencil, Check } from 'lucide-react';
 import { ReactionPicker } from '@/components/reactions/ReactionPicker';
-import { ReactionType } from '@/lib/reactions';
+import { SharedPostPreviewProvider, useActivePostPreview } from '@/components/chat/SharedPostPreviews';
+import { useProfileAccount } from '@/hooks/useProfileAccount';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
 import { PremiumMemeBanMenuItem, PremiumMemeBanDialog } from '@/components/premium/PremiumMemeBanItems';
 import { useUserRole } from '@/hooks/useModeration';
@@ -60,7 +61,6 @@ import {
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
-import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
 import { isValidMediaUrl } from '@/components/ui/SafeMedia';
 import { StyledUsername } from '@/components/ui/StyledUsername';
@@ -68,7 +68,6 @@ import { DeleteContentDialog } from '@/components/posts/DeleteContentDialog';
 
 // Safe media component for post detail
 function PostDetailMedia({ type, mediaUrl, caption }: { type: string; mediaUrl: string; caption?: string }) {
-  const signedUrl = useSignedUrl(mediaUrl);
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
 
@@ -89,7 +88,7 @@ function PostDetailMedia({ type, mediaUrl, caption }: { type: string; mediaUrl: 
         <div 
           className="absolute inset-0 blur-3xl scale-125 opacity-30"
           style={{ 
-            backgroundImage: `url(${signedUrl || mediaUrl})`,
+            backgroundImage: `url(${mediaUrl})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
           }}
@@ -98,7 +97,7 @@ function PostDetailMedia({ type, mediaUrl, caption }: { type: string; mediaUrl: 
       {!isLoaded && <MediaSkeleton className="absolute inset-0" />}
       {isVideo ? (
         <video
-          src={signedUrl || mediaUrl}
+          src={mediaUrl}
           controls
           className={cn("relative w-full max-h-[70vh] object-contain transition-opacity z-10", isLoaded ? "opacity-100" : "opacity-0")}
           onLoadedData={() => setIsLoaded(true)}
@@ -107,7 +106,7 @@ function PostDetailMedia({ type, mediaUrl, caption }: { type: string; mediaUrl: 
         />
       ) : (
         <img
-          src={signedUrl || mediaUrl}
+          src={mediaUrl}
           alt={caption || ''}
           className={cn("relative w-full max-h-[70vh] object-contain transition-opacity z-10", isLoaded ? "opacity-100" : "opacity-0")}
           onLoad={() => setIsLoaded(true)}
@@ -251,6 +250,11 @@ export function CommentActions({ isOwn, commentId, postId, commentText }: {
 }
 
 export default function PostDetailPage() {
+  const { id = '' } = useParams<{ id: string }>();
+  return <SharedPostPreviewProvider conversationId={`post-detail:${id}`}><PostDetailContent /></SharedPostPreviewProvider>;
+}
+
+function PostDetailContent() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { profile, user } = useAuth();
@@ -277,79 +281,35 @@ export default function PostDetailPage() {
   const isModOrAdmin = useIsModOrAdmin();
   const commentInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: post, isLoading: postLoading } = useQuery({
-    queryKey: ['post', id, profile?.id],
-    queryFn: async () => {
-      if (!id) return null;
-
-      let postRow: Record<string, unknown> | null = null;
-
-      const { data, error } = await db
-        .from('posts')
-        .select('id, type, media_url, caption, tags, created_at, author_id')
-        .eq('id', id)
-        .maybeSingle();
-
-      if (!error && data) {
-        postRow = data as Record<string, unknown>;
-      } else {
-        const { data: fallback } = await db
-          .from('posts')
-          .select('*')
-          .eq('id', id)
-          .maybeSingle();
-        postRow = (fallback as Record<string, unknown> | null) ?? null;
-      }
-
-      if (!postRow) return null;
-
-      const authorId = String(postRow.author_id || '');
-      let author: { id: string; username: string; avatar_url: string | null; display_name: string | null } | null = null;
-      if (authorId) {
-        const { data: authorRow } = await db
-          .from('profiles')
-          .select('id, username, avatar_url, display_name')
-          .eq('id', authorId)
-          .maybeSingle();
-        if (authorRow) author = authorRow as typeof author;
-      }
-
-      const [likesResult, commentsResult] = await Promise.all([
-        db.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', id),
-        db.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', id),
+  const account = useProfileAccount();
+  const { entry, retry: retryPost } = useActivePostPreview(id || '');
+  const checked = entry.post;
+  const postLoading = entry.status === 'queued' || entry.status === 'loading';
+  const { data: interaction } = useQuery({
+    queryKey: ['post-detail-interaction', account.session.uid, account.session.epoch, profile?.id, id, entry.expires],
+    enabled: !!checked && account.ready,
+    queryFn: async ({ signal }) => {
+      account.guard();
+      const [reaction, bookmark] = await Promise.all([
+        getViewerPostReaction(id!, profile!.id, user?.id),
+        db.from('bookmarks').select('id').eq('user_id', profile!.id).eq('post_id', id!).maybeSingle(),
       ]);
-
-      let userLiked = false;
-      let userBookmarked = false;
-      let userReactionType: ReactionType | null = null;
-      if (profile) {
-        const [viewerReaction, bookmarkCheck] = await Promise.all([
-          getViewerPostReaction(id, profile.id, user?.id),
-          db.from('bookmarks').select('id').eq('user_id', profile.id).eq('post_id', id!).maybeSingle(),
-        ]);
-        userLiked = viewerReaction.is_liked;
-        userReactionType = viewerReaction.reaction_type;
-        userBookmarked = !!bookmarkCheck.data;
-      }
-
-      setIsBookmarked(userBookmarked);
-
-      return {
-        ...postRow,
-        author: author || {
-          id: authorId,
-          username: 'user',
-          avatar_url: null,
-          display_name: null,
-        },
-        comment_count: commentsResult.count || 0,
-        like_count: likesResult.count || 0,
-        is_liked: userLiked,
-        reaction_type: userReactionType,
-      } as any;
+      account.guard();
+      if (signal.aborted) throw new Error('Post session changed.');
+      if (bookmark.error) throw bookmark.error;
+      return { reaction, bookmarked: !!bookmark.data };
     },
-    enabled: !!id,
+    gcTime: 0, staleTime: 0, retry: false,
   });
+  useEffect(() => { setIsBookmarked(!!interaction?.bookmarked); }, [interaction]);
+  const post = checked ? {
+    id: checked.id, type: checked.type, caption: checked.caption, tags: checked.tags,
+    created_at: checked.createdAt, media_url: checked.mediaUrl || '',
+    like_count: checked.likeCount, comment_count: checked.commentCount,
+    is_liked: interaction?.reaction.is_liked || false,
+    reaction_type: interaction?.reaction.reaction_type || null,
+    author: { id: checked.author.id, username: checked.author.username, avatar_url: checked.author.avatarUrl, display_name: checked.author.displayName },
+  } : null;
 
   const reactionSource = post
     ? {
@@ -369,7 +329,7 @@ export default function PostDetailPage() {
 
   const { currentReaction, likeCount, handleReaction } = usePostReaction(reactionSource);
 
-  const { data: comments, isLoading: commentsLoading } = useComments(id!);
+  const { data: comments, isLoading: commentsLoading } = useComments(post ? id! : '', { scope: `${account.session.uid}:${account.session.epoch}:${profile?.id}:${entry.expires}` });
   const createComment = useCreateComment();
   const deleteComment = useDeleteComment();
 
@@ -527,8 +487,12 @@ export default function PostDetailPage() {
     return (
       <AppLayout>
         <div className="flex flex-col items-center justify-center h-96">
-          <p className="text-4xl mb-4">😕</p>
-          <p className="text-muted-foreground">Post not found</p>
+          <div className="rounded-3xl bg-gradient-to-br from-primary/10 via-card to-accent/10 p-8 text-center space-y-4">
+            <p className="font-semibold">{entry.status === 'error' ? 'Could not refresh this post' : 'This post is unavailable'}</p>
+            <p className="text-sm text-muted-foreground">{entry.status === 'error' ? 'Please try again to check access.' : 'It may have been removed or its audience changed.'}</p>
+            {entry.status === 'error' && <Button className="rounded-full" onClick={retryPost}>Try again</Button>}
+            <Button variant="secondary" className="rounded-full" onClick={() => navigate('/home')}>Back to Home</Button>
+          </div>
         </div>
       </AppLayout>
     );
@@ -695,11 +659,12 @@ export default function PostDetailPage() {
 
         {/* Post card */}
         <div className="mx-3 mt-3 overflow-hidden rounded-3xl liquid-glass-card shadow-xl">
-          <PostDetailMedia
+          {post.media_url && <PostDetailMedia
+            key={`${post.id}:${post.media_url}`}
             type={post.type}
             mediaUrl={post.media_url}
             caption={post.caption || undefined}
-          />
+          />}
 
           <div className="border-t border-border/40">
             {/* Action bar */}

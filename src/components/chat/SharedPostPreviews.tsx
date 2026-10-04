@@ -59,12 +59,17 @@ export class SharedPostPreviewStore {
     }
     if (expired) this.emit();
     if (this.running || now < this.nextRequest) return;
-    const ids = [...this.counts.keys()].filter(id => this.entries.get(id)?.status === 'queued').slice(0, 20);
+    const ids = [...this.counts.keys()].filter(id => {
+      const entry = this.entries.get(id);
+      return entry?.status === 'queued' || ((entry?.status === 'ready' || entry?.status === 'unavailable') && entry.expires <= now + 5000);
+    }).slice(0, 20);
     if (!ids.length) return;
     this.running = true; this.nextRequest = now + 2500;
     const generation = this.generation;
     const guard = () => { if (!this.active || !this.visible || generation !== this.generation) throw new Error('Preview session changed.'); };
-    for (const id of ids) this.entries.set(id, { status: 'loading', expires: 0 });
+    // Renew before expiry without unmounting playing media. The expiry sweep
+    // above still removes content on time if renewal is slow or never settles.
+    for (const id of ids) if (this.entries.get(id)?.status === 'queued') this.entries.set(id, { status: 'loading', expires: 0 });
     this.emit();
     try {
       const posts = await this.load(ids, guard); guard();
@@ -116,4 +121,12 @@ export function useSharedPostPreview(id: string) {
     return () => { observer.disconnect(); release?.(); };
   }, [id, store]);
   return { ref, entry: store?.get(id) || unavailable, retry: () => store?.retry(id) };
+}
+
+/** Detail pages retain their checked post while mounted, including when scrolled. */
+export function useActivePostPreview(id: string) {
+  const store = useContext(Context);
+  useSyncExternalStore(store?.subscribe || noopSubscribe, store?.snapshot || emptySnapshot);
+  useEffect(() => store?.observe(id), [id, store]);
+  return { entry: store?.get(id) || unavailable, retry: () => store?.retry(id) };
 }

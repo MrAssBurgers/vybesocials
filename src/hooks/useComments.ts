@@ -29,11 +29,12 @@ interface Comment {
   };
 }
 
-export function useComments(postId: string) {
+export function useComments(postId: string, access?: { scope: string }) {
   const { profile } = useAuth();
   
   return useQuery({
-    queryKey: ['comments', postId],
+    queryKey: access ? ['comments', postId, access.scope] : ['comments', postId],
+    ...(access ? { gcTime: 0, staleTime: 0 } : {}),
     queryFn: async (): Promise<Comment[]> => {
       const { data, error } = await db
         .from('comments')

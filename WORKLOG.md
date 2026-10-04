@@ -2,6 +2,26 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Audience-checked post detail and smooth renewal
+
+### What changed
+- Replaced PostDetail raw post/profile reads and permissive fallback with the checked preview reader. Page subscription survives scrolling; account/profile/epoch/post changes replace its session. Missing and denied posts share a rounded unavailable screen, errors offer retry, and authority loss removes content and metadata.
+- Comments and viewer reaction/bookmark reads begin only after post admission. Detail query lifetimes include account and access lease; comment mutation invalidation remains compatible. Legacy post, comment and detail interaction disk snapshots are excluded from write/restore. Comments retain their existing server reader, so transactional comment authority remains a follow-up.
+- Text-only posts omit the broken-media placeholder. Changed media resets its error/loading state. Checked HTTPS media is used directly without raw path signing fallback.
+- Store renews five seconds before its 30-second deadline, retaining currently admitted media during successful renewal. Slow, failed, denied or hidden sessions still clear content without extending an unverified lease. Existing expiry/hung-read tests remain green.
+
+### Verification
+- Local 8082 direct private-post URL showed unavailable. The public synthetic text post rendered its caption, comments and actions without a media placeholder. After final build/restore and a fresh page load, changed only that synthetic post to owner-only; without navigation/reload the caption, composer and specific page title disappeared by the next check 30 seconds later. Screenshots outputs/vybe-text-post-detail.png and outputs/vybe-post-unavailable.png. No comment was sent and no production data changed.
+- All 316 files / 2,990 tests, typecheck, scoped lint and production build passed. New coverage checks detail denied/error/text states, disk cache exclusion and early renewal preserving content while respecting expiry. The first renewal assertion assumed an epoch-zero fake clock; corrected it to compare relative expiry. Logs work/post-detail-*-final.log. Generated version/offline churn restored.
+- Prior fd88398d, 853ee899 and d7a4d56d GitHub runs completed successfully.
+
+### Next 3 tasks and limits
+1. Continue remaining profile/explore/clips and comment server admission migration. Check real video playback through renewal and native devices. This is not a global raw-Firestore privacy closure or recall of delivered bytes.
+2. Continue concrete native game/mod integrations and mini-app isolation/operation retention. Prior engine automation restriction remains; full native upload walkthrough remains unverified.
+3. Stage the named preview callable before the client and complete Lovable publication. Broad goal active/incomplete; this checkpoint is source and local preview only.
+
+---
+
 ## ACTIVE (2026-10-04) - Close shared-post menu media bypass
 
 ### What changed

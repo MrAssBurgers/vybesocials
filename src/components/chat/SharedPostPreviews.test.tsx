@@ -7,6 +7,18 @@ const post = (id: string) => ({ id, caption: 'Checked caption' }) as SocialPostP
 afterEach(() => { vi.useRealTimers(); });
 
 describe('visible shared-post preview lifetime', () => {
+  it('renews before expiry without removing still-admitted content', async () => {
+    vi.useFakeTimers(); let resolve!: (posts: SocialPostPreview[]) => void;
+    const load = vi.fn().mockResolvedValueOnce([post('one')]).mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+    const store = new SharedPostPreviewStore(load); const stop = store.start(); store.observe('one');
+    await vi.advanceTimersByTimeAsync(500);
+    const original = store.get('one').post; const originalExpiry = store.get('one').expires;
+    await vi.advanceTimersByTimeAsync(25000);
+    expect(load).toHaveBeenCalledTimes(2); expect(store.get('one').post).toBe(original);
+    resolve([post('one')]); await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(store.get('one').post).toBeDefined(); expect(store.get('one').expires).toBe(originalExpiry + 25000); stop();
+  });
   it('shows malformed IDs as unavailable without requesting them', async () => {
     vi.useFakeTimers(); const load = vi.fn(async () => []);
     const store = new SharedPostPreviewStore(load); const stop = store.start();

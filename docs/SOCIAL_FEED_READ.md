@@ -28,7 +28,20 @@ from it, or copy/edit the stored post ID as ordinary text. Reply, reactions and
 keeping the message reference remain available; keeping a reference grants no
 new post access.
 
-Detail pages and other legacy readers still require migration. Browser timer
+The `/p/:id` detail page now uses the same checked store with a mounted-page
+subscription (scrolling within the page does not drop its post). It projects
+only checked post/author fields, delays comments and viewer interaction reads
+until admission, and scopes their memory queries by account and access lease.
+Historical `post`, `comments` and detail interaction disk snapshots are excluded
+on both persistence and restoration. Text-only posts omit the media container;
+media changes remount their loading/error state. Failed authority reads offer
+retry; missing and inaccessible posts share an unavailable state.
+
+Other legacy readers still require migration. Comments still use their existing
+backend read path after page admission; this is not transactional comment
+admission or a global rule migration. The store renews five seconds before expiry, retaining currently admitted media
+through a successful renewal. A failed or delayed renewal still clears content
+by the old deadline; it never extends a lease while waiting. Browser timer
 throttling can delay rechecks, and multiple tabs can hit the account rate limit;
 this is not instantaneous revocation or a global raw-read privacy closure.
 Deploy this named function before the compatible client; do not deploy all
