@@ -1,29 +1,50 @@
 import { db, getFirebaseAuth } from '@/lib/firebase';
 
 let observedAuth: ReturnType<typeof getFirebaseAuth>;
-let observedUid: string | undefined;
-let accountEpoch = 0;
+export interface CommunityAccountSession { readonly uid: string | undefined; readonly epoch: number }
+let session: CommunityAccountSession = Object.freeze({ uid: undefined, epoch: 0 });
+const listeners = new Set<() => void>();
+let queued = false;
 let stopObserving: (() => void) | undefined;
-function observeAccount() {
+function updateSession(uid: string | undefined, force = false, immediate = false) {
+  if (!force && session.uid === uid) return;
+  session = Object.freeze({ uid, epoch: session.epoch + 1 });
+  if (immediate) for (const listener of [...listeners]) listener();
+  else if (!queued && listeners.size) {
+    queued = true;
+    queueMicrotask(() => { queued = false; for (const listener of [...listeners]) listener(); });
+  }
+}
+export function communityAccountSnapshot() {
   const auth = getFirebaseAuth();
   if (auth !== observedAuth) {
     stopObserving?.();
     observedAuth = auth;
-    observedUid = auth?.currentUser?.uid;
-    accountEpoch++;
+    updateSession(auth?.currentUser?.uid, true);
     stopObserving = auth?.onAuthStateChanged(user => {
-      if (observedUid !== user?.uid) { observedUid = user?.uid; accountEpoch++; }
+      if (observedAuth === auth) updateSession(user?.uid, false, true);
     });
   }
-  if (observedUid !== auth?.currentUser?.uid) { observedUid = auth?.currentUser?.uid; accountEpoch++; }
-  return { uid: observedUid, epoch: accountEpoch };
+  updateSession(auth?.currentUser?.uid);
+  return session;
+}
+export function communityAccountSubscribe(listener: () => void) {
+  listeners.add(listener); communityAccountSnapshot();
+  return () => { listeners.delete(listener); };
+}
+/** Leaving/deleting a community also invalidates work admitted before that action. */
+export function communityAccessChanged() {
+  updateSession(communityAccountSnapshot().uid, true, true);
+}
+export function isCommunitySessionCurrent(started: CommunityAccountSession) {
+  const current = communityAccountSnapshot();
+  return !!started.uid && current.uid === started.uid && current.epoch === started.epoch;
 }
 
 export type CommunityAccountLease = () => void;
-export function communityAccountLease(expectedUid: string | undefined): CommunityAccountLease {
-  const started = observeAccount();
+export function communityAccountLease(expectedUid: string | undefined, started = communityAccountSnapshot()): CommunityAccountLease {
   return () => {
-    const current = observeAccount();
+    const current = communityAccountSnapshot();
     if (!expectedUid || current.uid !== expectedUid || current.epoch !== started.epoch) {
       throw Object.assign(new Error('Your account changed. Please try again.'), { code: 'account-changed' });
     }

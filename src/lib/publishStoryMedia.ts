@@ -1,98 +1,83 @@
 import { db } from '@/lib/firebase';
 import { firebaseStorage } from '@/lib/firebase/storageService';
-import { withTimeout } from '@/lib/withTimeout';
-import {
-  compressImage,
-  generateStoryFileName,
-  generateStoryThumbnailFileName,
-  storyUploadContentType,
-} from '@/lib/storyUtils';
+import { reportAccountGuard } from '@/lib/reportModerationService';
+import { compressImage, generateStoryFileName, generateStoryThumbnailFileName, storyUploadContentType } from '@/lib/storyUtils';
 
+type UploadResult = Awaited<ReturnType<ReturnType<typeof db.storage.from>['upload']>>;
+export interface StoryMediaCheckpoint {
+  owner?: string;
+  file?: File | Blob;
+  isVideo?: boolean;
+  fileName?: string;
+  thumbnailName?: string;
+  thumbnail?: Blob | null;
+  compressed?: Promise<File | Blob>;
+  mainUpload?: Promise<UploadResult>;
+  coverUpload?: Promise<UploadResult>;
+  mediaUrl?: string;
+  thumbnailUrl?: string;
+}
+export const createStoryMediaCheckpoint = (): StoryMediaCheckpoint => ({});
 export interface PublishStoryMediaParams {
   file: File | Blob;
   isVideo: boolean;
   thumbnailBlob?: Blob | null;
+  expectedOwnerUid: string;
+  accountGuard?: () => void;
+  checkpoint?: StoryMediaCheckpoint;
   onProgress?: (progress: number) => void;
 }
+export interface PublishStoryMediaResult { mediaUrl: string; thumbnailUrl?: string }
 
-export interface PublishStoryMediaResult {
-  mediaUrl: string;
-  thumbnailUrl?: string;
-}
-
-/** Upload story media (+ optional cover) to stories bucket. */
-export async function publishStoryMedia({
-  file,
-  isVideo,
-  thumbnailBlob,
-  onProgress,
-}: PublishStoryMediaParams): Promise<PublishStoryMediaResult> {
-  const { data: { user } } = await db.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-  let fileToUpload: File | Blob = file;
-  if (!isVideo && file instanceof File) {
-    try {
-      fileToUpload = await compressImage(file);
-      onProgress?.(30);
-    } catch {
-      /* use original */
+/** Each stage is retained separately, including work still pending at a UI timeout. */
+export async function publishStoryMedia({ file, isVideo, thumbnailBlob, expectedOwnerUid, accountGuard,
+  checkpoint = createStoryMediaCheckpoint(), onProgress }: PublishStoryMediaParams): Promise<PublishStoryMediaResult> {
+  const ownerGuard = reportAccountGuard(expectedOwnerUid);
+  const guard = () => { ownerGuard(); accountGuard?.(); };
+  const progress = (value: number) => { guard(); onProgress?.(value); };
+  guard();
+  if (checkpoint.owner && (checkpoint.owner !== expectedOwnerUid || checkpoint.file !== file || checkpoint.isVideo !== isVideo)) {
+    throw new Error('Start a new story before changing this upload.');
+  }
+  if (!checkpoint.owner) {
+    Object.assign(checkpoint, { owner: expectedOwnerUid, file, isVideo, thumbnail: thumbnailBlob,
+      fileName: generateStoryFileName(expectedOwnerUid, isVideo ? 'video' : 'image'),
+      thumbnailName: generateStoryThumbnailFileName(expectedOwnerUid) });
+  }
+  checkpoint.compressed ??= !isVideo && file instanceof File ? compressImage(file).catch(() => file) : Promise.resolve(file);
+  const uploadFile = await checkpoint.compressed;
+  progress(40);
+  if (!checkpoint.mainUpload) {
+    checkpoint.mainUpload = db.storage.from('stories').upload(checkpoint.fileName!, uploadFile,
+      { cacheControl: '3600', contentType: storyUploadContentType(uploadFile, isVideo ? 'video' : 'image') });
+  }
+  const main = await checkpoint.mainUpload;
+  guard();
+  if (main.error) {
+    checkpoint.mainUpload = undefined;
+    throw new Error(`Upload failed: ${main.error.message || 'Please try again.'}`);
+  }
+  progress(70);
+  if (checkpoint.thumbnail) {
+    checkpoint.coverUpload ??= db.storage.from('stories').upload(checkpoint.thumbnailName!, checkpoint.thumbnail,
+      { cacheControl: '3600', contentType: 'image/jpeg' });
+    const cover = await checkpoint.coverUpload;
+    guard();
+    if (cover.error) {
+      checkpoint.coverUpload = undefined;
+      throw new Error('The cover could not upload. Retry to keep your chosen cover.');
+    }
+    if (!checkpoint.thumbnailUrl) {
+      checkpoint.thumbnailUrl = (await firebaseStorage.resolveDownloadUrl('stories', checkpoint.thumbnailName!)) || undefined;
+      guard();
+      if (!checkpoint.thumbnailUrl) throw new Error('Could not load the uploaded cover. Retry to finish.');
     }
   }
-
-  onProgress?.(40);
-
-  const fileName = generateStoryFileName(user.id, isVideo ? 'video' : 'image');
-  const mainContentType = storyUploadContentType(fileToUpload, isVideo ? 'video' : 'image');
-
-  const { error: uploadError } = await withTimeout(
-    db.storage.from('stories').upload(fileName, fileToUpload, {
-      cacheControl: '3600',
-      upsert: false,
-      contentType: mainContentType,
-    }),
-    120000,
-    'Upload timed out. Check your connection and try again.',
-  );
-
-  if (uploadError) {
-    const msg = uploadError.message || 'Upload failed';
-    if (/mime|content.?type|invalid file type/i.test(msg)) {
-      throw new Error('This file type is not supported for stories. Try JPG or MP4.');
-    }
-    if (/row-level security|policy|403|401|Unauthorized/i.test(msg)) {
-      throw new Error('Upload blocked by permissions. Sign out and back in, then try again.');
-    }
-    throw new Error(`Upload failed: ${msg}`);
+  if (!checkpoint.mediaUrl) {
+    checkpoint.mediaUrl = (await firebaseStorage.resolveDownloadUrl('stories', checkpoint.fileName!)) || undefined;
+    guard();
+    if (!checkpoint.mediaUrl || checkpoint.mediaUrl.startsWith('gs://')) throw new Error('Could not load the uploaded story. Retry to finish.');
   }
-
-  onProgress?.(70);
-
-  let thumbnailUrl: string | undefined;
-  if (thumbnailBlob) {
-    const thumbFileName = generateStoryThumbnailFileName(user.id);
-    const { error: thumbUploadError } = await withTimeout(
-      db.storage.from('stories').upload(thumbFileName, thumbnailBlob, {
-        cacheControl: '3600',
-        upsert: false,
-        contentType: 'image/jpeg',
-      }),
-      60000,
-      'Cover upload timed out',
-    );
-
-    if (!thumbUploadError) {
-      thumbnailUrl =
-        (await firebaseStorage.resolveDownloadUrl('stories', thumbFileName)) || undefined;
-    }
-  }
-
-  const mediaUrl =
-    (await firebaseStorage.resolveDownloadUrl('stories', fileName)) ||
-    (await firebaseStorage.resolveMediaUrl(`gs://stories/${fileName}`));
-  if (!mediaUrl || mediaUrl.startsWith('gs://')) {
-    throw new Error('Failed to get story media URL after upload');
-  }
-
-  onProgress?.(85);
-  return { mediaUrl, thumbnailUrl };
+  progress(85);
+  return { mediaUrl: checkpoint.mediaUrl, thumbnailUrl: checkpoint.thumbnailUrl };
 }

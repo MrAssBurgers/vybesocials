@@ -37,6 +37,8 @@ type UploadLocationState = {
   prefillMedia?: PrefillMedia;
   captureTarget?: string;
   selectedSoundId?: string;
+  soundStartTime?: number;
+  prefillCaption?: string;
 };
 
 async function resolvePrefillMedia(media: PrefillMedia): Promise<{ file: File; url: string } | null> {
@@ -106,7 +108,8 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const [searchParams, setSearchParams] = useSearchParams();
   const { openCamera } = useCameraOverlay();
   const locationState = (location.state || {}) as UploadLocationState;
-  const soundIdFromNav = locationState.selectedSoundId || '';
+  const [soundIdFromNav] = useState(locationState.selectedSoundId || '');
+  const [prefillCaption] = useState(locationState.prefillCaption || '');
   const { data: soundFromNav } = useSound(soundIdFromNav);
 
   const initialPhase =
@@ -128,7 +131,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const prefillAppliedRef = useRef(false);
   const [selectedTrack, setSelectedTrack] = useState<any>(null);
   const [showMusicGallery, setShowMusicGallery] = useState(false);
-  const [soundStartTime, setSoundStartTime] = useState(0);
+  const [soundStartTime, setSoundStartTime] = useState(Math.max(0, locationState.soundStartTime || 0));
   const [currentFilter, setCurrentFilter] = useState('snap');
   const [timer, setTimer] = useState(0);
   const [timerCountdown, setTimerCountdown] = useState<number | null>(null);
@@ -600,6 +603,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   if (phase === 'compose') {
     return (
       <MobilePostComposer
+        initialCaption={prefillCaption}
         files={capturedFiles}
         previews={capturedPreviews}
         contentType={mode === 'text' ? 'text' : composeContentType}

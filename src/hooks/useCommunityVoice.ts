@@ -12,6 +12,8 @@ import {
   type Participant,
 } from 'livekit-client';
 import { db } from '@/lib/firebase';
+import { useCommunitySession } from './useCommunitySession';
+import { communityAccountLease, communityAccountSubscribe, communityRequest, isCommunitySessionCurrent, type CommunityAccountSession } from '@/lib/communityService';
 import { parseEdgeInvokeResult } from '@/lib/edgeFunctionResponse';
 import type { VybeAuthError } from '@/lib/firebase/types';
 
@@ -50,13 +52,17 @@ function isMissingVoiceFunction(error: VybeAuthError | null): boolean {
 async function fetchCommunityVoiceToken(
   serverId: string,
   channelId: string,
+  guard: () => void,
 ): Promise<VoiceTokenResponse> {
   const body = { serverId, channelId };
   let lastError = 'Could not join voice channel';
 
   for (const fnName of VOICE_TOKEN_FUNCTIONS) {
+    guard();
     const result = await db.functions.invoke<VoiceTokenResponse>(fnName, { body });
+    guard();
     const { payload, errorCode, errorMessage } = await parseEdgeInvokeResult(result);
+    guard();
     const typed = payload as unknown as VoiceTokenResponse | undefined;
 
     if (!result.error && !errorCode && typeof typed?.token === 'string' && typed.token.trim()
@@ -109,12 +115,28 @@ function collectParticipants(
   return list;
 }
 
-export function useCommunityVoice() {
-  const roomRef = useRef<Room | null>(null);
-  const audioElsRef = useRef(new Map<string, HTMLAudioElement>());
-  const connectionRef = useRef<ActiveConnection | null>(null);
-  const deafenedRef = useRef(false);
+interface VoiceAttempt {
+  id: number;
+  session: CommunityAccountSession;
+  guard: () => void;
+  connection: ActiveConnection;
+  room: Room | null;
+  stopWatching?: () => void;
+  checking?: Promise<boolean>;
+  joined?: boolean;
+}
+const CHECK_INTERVAL = 15_000;
+const CHECK_TIMEOUT = 10_000;
 
+export function useCommunityVoice() {
+  const { session, uid, ready } = useCommunitySession();
+  const attemptRef = useRef<VoiceAttempt | null>(null);
+  const serial = useRef(0);
+  const micRevision = useRef(0);
+  const mounted = useRef(true);
+  const audioElsRef = useRef(new Map<string, HTMLAudioElement>());
+  const deafenedRef = useRef(false);
+  const speakersRef = useRef(new Set<string>());
   const [state, setState] = useState<CommunityVoiceState>('idle');
   const [error, setError] = useState<string | null>(null);
   const [connection, setConnection] = useState<ActiveConnection | null>(null);
@@ -123,241 +145,177 @@ export function useCommunityVoice() {
   const [micEnabled, setMicEnabled] = useState(false);
   const [deafened, setDeafenedState] = useState(false);
 
-  const syncParticipants = useCallback((room: Room, speakers: Set<string>) => {
-    setParticipants(collectParticipants(room, speakers));
-  }, []);
-
+  const current = useCallback((attempt: VoiceAttempt) => mounted.current && attemptRef.current === attempt && isCommunitySessionCurrent(attempt.session), []);
   const detachAudio = useCallback((participantId: string) => {
     const el = audioElsRef.current.get(participantId);
-    if (el) {
-      try {
-        el.pause();
-        el.srcObject = null;
-        el.remove();
-      } catch {
-        /* ignore */
-      }
-      audioElsRef.current.delete(participantId);
-    }
+    if (el) { el.pause(); el.srcObject = null; el.remove(); audioElsRef.current.delete(participantId); }
   }, []);
-
-  const setAllAudioVolume = useCallback((muted: boolean) => {
-    audioElsRef.current.forEach((el) => {
-      el.muted = muted;
-    });
-  }, []);
-
   const disconnect = useCallback(async () => {
-    const room = roomRef.current;
-    roomRef.current = null;
-    connectionRef.current = null;
-    deafenedRef.current = false;
-
-    audioElsRef.current.forEach((el) => {
-      try {
-        el.pause();
-        el.srcObject = null;
-        el.remove();
-      } catch {
-        /* ignore */
-      }
-    });
+    serial.current++;
+    micRevision.current++;
+    const old = attemptRef.current;
+    attemptRef.current = null;
+    old?.stopWatching?.();
+    old?.room?.removeAllListeners();
+    audioElsRef.current.forEach(el => { el.pause(); el.srcObject = null; el.remove(); });
     audioElsRef.current.clear();
-
-    setActiveSpeakerIds(new Set());
-    setParticipants([]);
-    setMicEnabled(false);
-    setDeafenedState(false);
-    setConnection(null);
-    setState('idle');
-
-    if (room) {
-      try {
-        await room.disconnect();
-      } catch {
-        /* ignore */
-      }
+    deafenedRef.current = false;
+    speakersRef.current = new Set();
+    if (mounted.current) {
+      setActiveSpeakerIds(speakersRef.current); setParticipants([]); setMicEnabled(false);
+      setDeafenedState(false); setConnection(null); setState('idle'); setError(null);
     }
+    if (old?.room) { try { await old.room.disconnect(); } catch { /* Already detached locally. */ } }
   }, []);
-
-  const connect = useCallback(
-    async (serverId: string, channelId: string, channelName: string) => {
-      const current = connectionRef.current;
-      if (
-        roomRef.current &&
-        current?.serverId === serverId &&
-        current?.channelId === channelId
-      ) {
-        return;
-      }
-
-      if (roomRef.current) {
-        await disconnect();
-      }
-
-      setState('connecting');
-      setError(null);
-
+  const fail = useCallback(async (attempt: VoiceAttempt, message: string) => {
+    if (!current(attempt)) return;
+    // Teardown is synchronous before disconnect's network work completes.
+    const stopped = disconnect();
+    if (mounted.current) { setError(message); setState('error'); }
+    await stopped;
+  }, [current, disconnect]);
+  const refresh = useCallback((attempt: VoiceAttempt) => {
+    if (current(attempt) && attempt.room) setParticipants(collectParticipants(attempt.room, speakersRef.current));
+  }, [current]);
+  const checkAccess = useCallback((attempt: VoiceAttempt): Promise<boolean> => {
+    if (!current(attempt)) return Promise.resolve(false);
+    if (attempt.checking) return attempt.checking;
+    attempt.checking = (async () => {
+      let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
-        const data = await fetchCommunityVoiceToken(serverId, channelId);
+        const response = await Promise.race([
+          communityRequest<{ permissions: { can_view: boolean; can_send: boolean } }>('community-manage', { action: 'permissions', channelId: attempt.connection.channelId }, attempt.guard),
+          new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error('Voice access could not be confirmed. Join again when you are online.')), CHECK_TIMEOUT); }),
+        ]);
+        if (!current(attempt)) return false;
+        if (response.permissions?.can_view !== true) throw new Error('You no longer have access to this voice channel.');
+        if (response.permissions.can_send !== true && attempt.room) {
+          micRevision.current++;
+          await attempt.room.localParticipant.setMicrophoneEnabled(false);
+          if (!current(attempt)) return false;
+          setMicEnabled(false); refresh(attempt);
+        }
+        return response.permissions.can_send === true;
+      } catch (reason) {
+        await fail(attempt, reason instanceof Error ? reason.message : 'Voice access could not be confirmed. Join again.');
+        return false;
+      } finally { if (timeout) clearTimeout(timeout); attempt.checking = undefined; }
+    })();
+    return attempt.checking;
+  }, [current, fail, refresh]);
 
-        const room = new Room({ adaptiveStream: true, dynacast: true });
-        let speakers = new Set<string>();
-
-        const refresh = () => syncParticipants(room, speakers);
-
-        room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant: RemoteParticipant) => {
-          if (track.kind !== Track.Kind.Audio) return;
-          detachAudio(participant.identity);
-          const el = track.attach() as HTMLAudioElement;
-          el.autoplay = true;
-          el.setAttribute('playsinline', 'true');
-          el.muted = deafenedRef.current;
-          document.body.appendChild(el);
-          el.play().catch(() => {
-            /* resumes on gesture */
-          });
-          audioElsRef.current.set(participant.identity, el);
-        });
-
-        room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack, _pub, participant: RemoteParticipant) => {
-          if (track.kind !== Track.Kind.Audio) return;
-          try {
-            track.detach().forEach((el) => el.remove());
-          } catch {
-            /* ignore */
-          }
-          detachAudio(participant.identity);
-        });
-
-        room.on(RoomEvent.ParticipantConnected, refresh);
-        room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
-          detachAudio(participant.identity);
-          refresh();
-        });
-        room.on(RoomEvent.TrackMuted, refresh);
-        room.on(RoomEvent.TrackUnmuted, refresh);
-        room.on(RoomEvent.LocalTrackPublished, refresh);
-        room.on(RoomEvent.LocalTrackUnpublished, refresh);
-
-        room.on(RoomEvent.ActiveSpeakersChanged, (active: Participant[]) => {
-          speakers = new Set(active.map((s) => s.identity));
-          setActiveSpeakerIds(speakers);
-          syncParticipants(room, speakers);
-        });
-
-        room.on(RoomEvent.ConnectionStateChanged, (cs: ConnectionState) => {
-          if (cs === ConnectionState.Connected) setState('connected');
-          else if (cs === ConnectionState.Reconnecting) setState('connecting');
-          else if (cs === ConnectionState.Disconnected && roomRef.current === room) setState('idle');
-        });
-
-        await room.connect(data.url, data.token);
-
-        roomRef.current = room;
-        const active: ActiveConnection = { serverId, channelId, channelName };
-        connectionRef.current = active;
-        setConnection(active);
-        setState('connected');
-        syncParticipants(room, speakers);
-
-        // Discord-style: join muted, user unmutes when ready
-        await room.localParticipant.setMicrophoneEnabled(false);
-        setMicEnabled(false);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Voice connection failed';
-        console.warn('[CommunityVoice] connect failed:', msg);
-        await disconnect();
-        setError(msg);
-        setState('error');
-      }
-    },
-    [detachAudio, disconnect, syncParticipants],
-  );
+  const connect = useCallback(async (serverId: string, channelId: string, channelName: string) => {
+    if (!ready) return;
+    const lease = communityAccountLease(uid, session);
+    try { lease(); } catch { return; }
+    const existing = attemptRef.current;
+    if (existing && current(existing) && existing.connection.serverId === serverId && existing.connection.channelId === channelId) return;
+    // Never wait for an old network disconnect before capturing the new attempt.
+    void disconnect();
+    const id = ++serial.current;
+    const attempt: VoiceAttempt = { id, session, connection: { serverId, channelId, channelName }, room: null,
+      guard: () => { lease(); if (!current(attempt)) throw new Error('Voice connection changed.'); } };
+    attemptRef.current = attempt;
+    setState('connecting'); setError(null);
+    try {
+      const data = await fetchCommunityVoiceToken(serverId, channelId, attempt.guard);
+      attempt.guard();
+      const room = new Room({ adaptiveStream: true, dynacast: true });
+      attempt.room = room; // A pending room.connect must be cancellable too.
+      const update = () => refresh(attempt);
+      room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant: RemoteParticipant) => {
+        if (!current(attempt) || track.kind !== Track.Kind.Audio) return;
+        detachAudio(participant.identity);
+        const el = track.attach() as HTMLAudioElement;
+        el.autoplay = true; el.setAttribute('playsinline', 'true'); el.muted = deafenedRef.current;
+        document.body.appendChild(el); audioElsRef.current.set(participant.identity, el);
+        void el.play().catch(() => {});
+      });
+      room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack, _pub, participant: RemoteParticipant) => {
+        if (!current(attempt) || track.kind !== Track.Kind.Audio) return;
+        track.detach().forEach(el => el.remove()); detachAudio(participant.identity);
+      });
+      room.on(RoomEvent.ParticipantConnected, update);
+      room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => { if (current(attempt)) { detachAudio(participant.identity); update(); } });
+      for (const event of [RoomEvent.TrackMuted, RoomEvent.TrackUnmuted, RoomEvent.LocalTrackPublished, RoomEvent.LocalTrackUnpublished]) room.on(event, update);
+      room.on(RoomEvent.ActiveSpeakersChanged, (active: Participant[]) => {
+        if (!current(attempt)) return;
+        speakersRef.current = new Set(active.map(s => s.identity)); setActiveSpeakerIds(speakersRef.current); update();
+      });
+      room.on(RoomEvent.ConnectionStateChanged, (cs: ConnectionState) => {
+        if (!current(attempt)) return;
+        if (cs === ConnectionState.Reconnecting) setState('connecting');
+        else if (cs === ConnectionState.Connected && attempt.joined) {
+          void checkAccess(attempt).then(() => { if (current(attempt)) setState('connected'); });
+        }
+        else if (cs === ConnectionState.Disconnected) void fail(attempt, 'Voice disconnected. Join again to continue.');
+      });
+      await room.connect(data.url, data.token);
+      if (!current(attempt)) { await room.disconnect(); return; }
+      await room.localParticipant.setMicrophoneEnabled(false);
+      attempt.guard();
+      await checkAccess(attempt);
+      attempt.guard();
+      attempt.joined = true;
+      setMicEnabled(false); setConnection(attempt.connection); setState('connected'); update();
+      const timer = setInterval(() => { void checkAccess(attempt); }, CHECK_INTERVAL);
+      attempt.stopWatching = () => clearInterval(timer);
+    } catch (reason) {
+      if (current(attempt)) await fail(attempt, reason instanceof Error ? reason.message : 'Voice connection failed');
+    }
+  }, [ready, uid, session, current, disconnect, detachAudio, refresh, checkAccess, fail]);
 
   const setMic = useCallback(async (enabled: boolean): Promise<boolean> => {
-    const room = roomRef.current;
-    if (!room || deafenedRef.current) return false;
+    const revision = ++micRevision.current;
+    const attempt = attemptRef.current;
+    if (!attempt?.room || attempt.session !== session || !current(attempt) || deafenedRef.current) return false;
     try {
-      await room.localParticipant.setMicrophoneEnabled(enabled);
-      setMicEnabled(enabled);
-      syncParticipants(room, activeSpeakerIds);
-      return true;
-    } catch (err) {
-      console.warn('[CommunityVoice] mic toggle failed:', err);
-      return false;
+      if (enabled && !await checkAccess(attempt)) return false;
+      if (!current(attempt) || revision !== micRevision.current || deafenedRef.current) return false;
+      await attempt.room.localParticipant.setMicrophoneEnabled(enabled);
+      if (!current(attempt) || revision !== micRevision.current || deafenedRef.current) { await attempt.room.localParticipant.setMicrophoneEnabled(false); return false; }
+      setMicEnabled(enabled); refresh(attempt); return true;
+    } catch { return false; }
+  }, [current, checkAccess, refresh, session]);
+  const setDeafened = useCallback(async (enabled: boolean): Promise<boolean> => {
+    const attempt = attemptRef.current;
+    if (!attempt?.room || attempt.session !== session || !current(attempt)) return false;
+    deafenedRef.current = enabled; setDeafenedState(enabled);
+    audioElsRef.current.forEach(el => { el.muted = enabled; });
+    if (enabled) {
+      micRevision.current++;
+      try { await attempt.room.localParticipant.setMicrophoneEnabled(false); } catch { /* Room may already be closing. */ }
+      if (!current(attempt)) return false;
+      setMicEnabled(false);
     }
-  }, [activeSpeakerIds, syncParticipants]);
-
-  const setDeafened = useCallback(
-    async (enabled: boolean): Promise<boolean> => {
-      const room = roomRef.current;
-      if (!room) return false;
-
-      deafenedRef.current = enabled;
-      setDeafenedState(enabled);
-      setAllAudioVolume(enabled);
-
-      if (enabled) {
-        try {
-          await room.localParticipant.setMicrophoneEnabled(false);
-          setMicEnabled(false);
-        } catch {
-          /* ignore */
-        }
-      }
-
-      syncParticipants(room, activeSpeakerIds);
-      return true;
-    },
-    [activeSpeakerIds, setAllAudioVolume, syncParticipants],
-  );
-
+    refresh(attempt); return true;
+  }, [current, refresh, session]);
   const toggleMic = useCallback(async () => {
-    if (deafenedRef.current) {
-      await setDeafened(false);
-      return setMic(true);
-    }
+    if (deafenedRef.current) { await setDeafened(false); return setMic(true); }
     return setMic(!micEnabled);
   }, [micEnabled, setDeafened, setMic]);
 
   useEffect(() => {
-    const resume = () => {
-      if (deafenedRef.current) return;
-      audioElsRef.current.forEach((el) => el.play().catch(() => { /* ignore */ }));
-      const room = roomRef.current;
-      if (room && micEnabled) {
-        room.localParticipant.setMicrophoneEnabled(true).catch(() => { /* ignore */ });
-      }
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') resume();
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-    window.addEventListener('app-resumed', resume);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('app-resumed', resume);
-    };
-  }, [micEnabled]);
-
-  useEffect(() => () => {
-    void disconnect();
+    const changed = () => { const attempt = attemptRef.current; if (attempt && !isCommunitySessionCurrent(attempt.session)) void disconnect(); };
+    return communityAccountSubscribe(changed);
   }, [disconnect]);
-
-  return {
-    state,
-    error,
-    connection,
-    participants,
-    activeSpeakerIds,
-    micEnabled,
-    deafened,
-    isConnected: state === 'connected' && !!connection,
-    connect,
-    disconnect,
-    setMic,
-    setDeafened,
-    toggleMic,
-  };
+  useEffect(() => { if (!ready) void disconnect(); }, [ready, disconnect]);
+  useEffect(() => {
+    const resume = async () => {
+      const attempt = attemptRef.current;
+      if (!attempt || !current(attempt)) return;
+      await checkAccess(attempt);
+      if (!current(attempt) || deafenedRef.current) return;
+      audioElsRef.current.forEach(el => { void el.play().catch(() => {}); });
+    };
+    const visible = () => { if (document.visibilityState === 'visible') void resume(); };
+    document.addEventListener('visibilitychange', visible); window.addEventListener('app-resumed', resume);
+    return () => { document.removeEventListener('visibilitychange', visible); window.removeEventListener('app-resumed', resume); };
+  }, [current, checkAccess]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; void disconnect(); };
+  }, [disconnect]);
+  return { state, error, connection, participants, activeSpeakerIds, micEnabled, deafened,
+    isConnected: state === 'connected' && !!connection && ready, connect, disconnect, setMic, setDeafened, toggleMic };
 }

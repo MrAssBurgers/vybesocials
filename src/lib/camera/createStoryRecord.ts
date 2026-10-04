@@ -3,13 +3,15 @@
  * useCreateStory mutation so a story destination can be delivered from the
  * background send service. Callers invalidate the ['stories'] query afterwards.
  */
-import { db } from '@/lib/firebase';
+import { publishStory } from '@/lib/storyPublishService';
 import { resolveStoryAuthorProfileId } from '@/lib/resolveSessionProfileId';
 import { recordChallengeActivity } from '@/lib/challengeProgressClient';
 import type { StoryDestinationId } from '@/lib/camera/recipientSelection';
 import { reportAccountGuard } from '@/lib/reportModerationService';
 
 export interface CreateStoryRecordParams {
+  requestId: string;
+  expectedOwnerUid: string;
   mediaUrl: string;
   mediaType: 'photo' | 'video';
   thumbnailUrl?: string | null;
@@ -31,6 +33,8 @@ export function storyDestinationSupported(destination: StoryDestinationId): bool
 }
 
 export async function createStoryRecord({
+  requestId,
+  expectedOwnerUid,
   mediaUrl,
   mediaType,
   thumbnailUrl,
@@ -38,7 +42,7 @@ export async function createStoryRecord({
   durationSec,
   destination,
   authorId: boundAuthorId,
-  accountGuard = reportAccountGuard(),
+  accountGuard = reportAccountGuard(expectedOwnerUid),
 }: CreateStoryRecordParams): Promise<void> {
   accountGuard();
   if (!storyDestinationSupported(destination)) {
@@ -48,29 +52,11 @@ export async function createStoryRecord({
   const authorId = boundAuthorId || await resolveStoryAuthorProfileId();
   accountGuard();
 
-  const payload = {
-    author_id: authorId,
-    media_url: mediaUrl,
-    media_type: mediaType === 'video' ? 'video' : 'image',
-    thumbnail_url: thumbnailUrl || null,
-    caption: caption || null,
-    is_close_friends_only: destination === 'close_friends',
-    aspect_ratio: 0.5625,
-    duration: durationSec ?? null,
-    poll_data: null,
-    view_count: 0,
-    expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-  };
-
-  const { error } = await (db.from('stories') as any).insert(payload);
+  const result = await publishStory({
+    requestId, expectedOwnerUid, authorId, accountGuard,
+    mediaUrl, mediaType: mediaType === 'video' ? 'video' : 'image', thumbnailUrl,
+    caption, isCloseFriendsOnly: destination === 'close_friends', aspectRatio: 0.5625, duration: durationSec ?? null,
+  });
   accountGuard();
-  if (error) {
-    const msg = error.message || '';
-    if (/row-level security|policy|42501/i.test(msg)) {
-      throw new Error('Story blocked by permissions. Sign out and back in, then try again.');
-    }
-    throw new Error(msg || 'Failed to post story');
-  }
-
-  recordChallengeActivity(authorId, 'story');
+  if (result.created) recordChallengeActivity(authorId, 'story');
 }

@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
+import { communityAccessChanged } from '@/lib/communityService';
 
 /**
  * Update server settings (name, description, visibility, icon)
@@ -93,6 +94,7 @@ export function useDeleteServer() {
       await communityRequest('community-manage', { action: 'deleteServer', serverId });
     },
     onSuccess: () => {
+      communityAccessChanged();
       queryClient.invalidateQueries({ queryKey: ['my-servers'] });
       queryClient.invalidateQueries({ queryKey: ['my-communities'] });
       queryClient.invalidateQueries({ queryKey: ['public-communities'] });

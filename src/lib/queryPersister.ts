@@ -16,8 +16,18 @@ const PRIVATE_DM_KEYS = new Set([
   'conversation-offers', 'scheduled-messages', 'vanish-messages', 'vanish-threads',
   'trashed-conversations', 'dm-reminders', 'word-reactions',
 ]);
+// Community metadata can include private names, invitations, members and media.
+// Disk snapshots cannot prove today's admission or channel permission.
+const PRIVATE_COMMUNITY_KEYS = new Set([
+  'my-servers', 'my-communities', 'server', 'community', 'channels', 'rooms',
+  'server-members', 'community-members', 'channel-messages', 'channel-permissions',
+  'my-channel-permissions', 'my-server-role', 'my-community-role', 'live-activity',
+  'server-member-count', 'all-server-member-counts', 'unread-per-server', 'unread-per-channel',
+  'unread-server-notifications-count',
+]);
+const PRIVATE_STORY_KEYS = new Set(['stories', 'visible-story', 'story-author', 'friend-profile-stories', 'story-highlights', 'close-friends', 'close-friend-ids', 'story-likes', 'story-views', 'story-polls', 'story-poll-votes']);
 const isPrivatePersistedKey = (key?: readonly unknown[]) => typeof key?.[0] === 'string'
-  && (PRIVATE_REPORT_KEYS.has(key[0]) || PRIVATE_DM_KEYS.has(key[0]));
+  && (PRIVATE_REPORT_KEYS.has(key[0]) || PRIVATE_DM_KEYS.has(key[0]) || PRIVATE_COMMUNITY_KEYS.has(key[0]) || PRIVATE_STORY_KEYS.has(key[0]));
 
 /**
  * IndexedDB-backed storage adapter for react-query persistence.

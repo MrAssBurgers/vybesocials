@@ -99,7 +99,7 @@ export function useProfileViewModel(username: string | undefined): ProfileViewMo
   const { data: lockerData } = useLockerItems(targetId);
   const scoreQuery = useVybeScore(permissions.score || isSelf ? targetId : undefined);
   const badgesQuery = useUserBadges(targetId);
-  const { data: storyGroups } = useStories();
+  const { data: storyGroups } = useStories(targetId);
   const pairQuery = useFriendshipPair(mode === 'friend' ? targetId : undefined);
   const streak = useStreakWithUser(mode === 'friend' ? targetId : undefined);
   const mutualsQuery = useMutualFriends(

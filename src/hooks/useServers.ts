@@ -1,9 +1,13 @@
+import { useCommunityQuery } from './useCommunityQuery';
 import { useCommunityRequest } from '@/hooks/useCommunityRequest';
 import { useCommunityMutation } from '@/hooks/useCommunityMutation';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
-import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
+import { getDocumentFromServer } from '@/lib/firebase/firestoreDb';
+import { loadCommunityMessages, watchCommunityChannel } from '@/lib/communityMessages';
+import { communityAccessChanged, communityAccountLease, isCommunitySessionCurrent } from '@/lib/communityService';
+import { useCommunitySession } from './useCommunitySession';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { communityJoinBody, type CommunityJoinInput } from '@/lib/communityService';
@@ -80,7 +84,7 @@ export function useMyServers() {
   const communityRequest = useCommunityRequest();
   const profileId = useAuth().user?.id;
 
-  return useQuery({
+  return useCommunityQuery({
     queryKey: ['my-servers', profileId],
     queryFn: async () => {
       if (!profileId) return [];
@@ -96,19 +100,12 @@ export function useMyServers() {
 // Fetch a single server
 export function useServer(serverId: string | undefined) {
   const accountId = useAuth().user?.id;
-  return useQuery({
+  return useCommunityQuery({
     queryKey: ['server', serverId, accountId],
     queryFn: async () => {
       if (!serverId) return null;
 
-      const { data, error } = await db
-        .from('servers')
-        .select('*')
-        .eq('id', serverId)
-        .single();
-
-      if (error) throw error;
-      return data as Server;
+      return getDocumentFromServer<Server>('servers', serverId);
     },
     enabled: !!serverId && !!accountId,
   });
@@ -118,7 +115,7 @@ export function useServer(serverId: string | undefined) {
 export function useServerMembers(serverId: string | undefined) {
   const communityRequest = useCommunityRequest();
   const accountId = useAuth().user?.id;
-  return useQuery({
+  return useCommunityQuery({
     queryKey: ['server-members', serverId, accountId],
     queryFn: async () => {
       if (!serverId) return [];
@@ -135,7 +132,7 @@ export function useChannels(serverId: string | undefined) {
   const communityRequest = useCommunityRequest();
   const accountId = useAuth().user?.id;
 
-  return useQuery({
+  return useCommunityQuery({
     queryKey: ['channels', serverId, accountId],
     queryFn: async () => {
       if (!serverId) return [];
@@ -150,51 +147,36 @@ export function useChannels(serverId: string | undefined) {
 
 // Fetch messages for a channel
 export function useChannelMessages(channelId: string | undefined) {
-  const accountId = useAuth().user?.id;
+  const { uid: accountId, session, ready } = useCommunitySession();
   const queryClient = useQueryClient();
+  const scope = `${session.epoch}:${accountId}:${channelId}`;
+  const [listenerError, setListenerError] = useState<{ scope: string; error: Error; at: number } | null>(null);
 
-  const query = useQuery({
+  const query = useCommunityQuery({
     queryKey: ['channel-messages', channelId, accountId],
     queryFn: async () => {
       if (!channelId) return [];
 
-      const { data, error } = await db
-        .from('channel_messages')
-        .select(`
-          *,
-          sender:profiles!channel_messages_sender_id_fkey(id, username, display_name, avatar_url)
-        `)
-        .eq('channel_id', channelId)
-        .eq('is_deleted', false)
-        .order('created_at', { ascending: true })
-        .limit(100);
-
-      if (error) throw error;
-      return (data || []) as unknown as ChannelMessage[];
+      return loadCommunityMessages(channelId, communityAccountLease(accountId, session));
     },
     enabled: !!channelId && !!accountId,
   });
 
   useEffect(() => {
-    if (!channelId) return;
+    if (!channelId || !ready) return;
+    let active = true;
+    const current = () => active && isCommunitySessionCurrent(session);
+    const invalidate = () => { if (current()) void queryClient.invalidateQueries({ queryKey: ['channel-messages', channelId, accountId, session.uid, session.epoch], exact: true }); };
+    const stop = watchCommunityChannel(channelId, invalidate, error => {
+      if (!current()) return;
+      setListenerError({ scope, error, at: Date.now() });
+      invalidate();
+    });
+    return () => { active = false; stop(); };
+  }, [channelId, queryClient, session, accountId, ready, scope]);
 
-    const channel = subscribePostgresChannel(`channel-messages:${channelId}`, [
-      {
-        event: '*',
-        table: 'channel_messages',
-        filter: `channel_id=eq.${channelId}`,
-        callback: () => {
-          queryClient.invalidateQueries({ queryKey: ['channel-messages', channelId] });
-        },
-      },
-    ]);
-
-    return () => {
-      removeRealtimeChannel(channel);
-    };
-  }, [channelId, queryClient]);
-
-  return query;
+  const denied = listenerError?.scope === scope && query.dataUpdatedAt <= listenerError.at;
+  return { ...query, data: denied ? undefined : query.data, error: denied ? listenerError.error : query.error, isError: denied || query.isError };
 }
 
 // Create a server
@@ -262,6 +244,7 @@ export function useLeaveServer() {
       await communityRequest('community-manage', { action: 'leave', serverId });
     },
     onSuccess: () => {
+      communityAccessChanged();
       queryClient.invalidateQueries({ queryKey: ['my-servers'] });
       queryClient.invalidateQueries({ queryKey: ['my-communities'] });
       toast.success('Left server');
@@ -378,7 +361,7 @@ export function useMyServerRole(serverId: string | undefined) {
   const communityRequest = useCommunityRequest();
   const profileId = useAuth().user?.id;
 
-  return useQuery({
+  return useCommunityQuery({
     queryKey: ['my-server-role', serverId, profileId],
     queryFn: async () => {
       if (!serverId || !profileId) return null;

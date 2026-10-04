@@ -1,3 +1,5 @@
+import { reportAccountSnapshot, type ReportAccountSession } from '@/lib/reportModerationService';
+import { storiesQueryKey, isStorySessionCurrent } from './storiesQueryKey';
 import type { QueryClient } from '@tanstack/react-query';
 import type { StoryGroup } from '@/hooks/useStories';
 import { ensureArray } from '@/lib/persistedCollections';
@@ -73,18 +75,18 @@ export function sanitizeStoriesCacheData(data: unknown): unknown {
   return stripped ?? [];
 }
 
-export function purgeStuckStoryUploads(queryClient: QueryClient, profileId?: string | null): void {
-  const keys = profileId
-    ? [['stories', profileId] as const]
-    : queryClient
-        .getQueryCache()
-        .findAll({ predicate: (q) => isStoriesQueryKey(q.queryKey) })
-        .map((q) => q.queryKey);
-
+export function purgeStuckStoryUploads(queryClient: QueryClient, profileId?: string | null, session: ReportAccountSession = reportAccountSnapshot()): void {
+  if (!isStorySessionCurrent(session)) return;
+  const keys = profileId ? [storiesQueryKey(profileId, session)] : queryClient.getQueryCache()
+    .findAll({ predicate: q => isStoriesQueryKey(q.queryKey) && q.queryKey[2] === session.uid && q.queryKey[3] === session.epoch }).map(q => q.queryKey);
   for (const key of keys) {
-    queryClient.setQueryData<StoryGroup[] | undefined>(key, (old) => {
-      const next = stripUploadingStories(old);
-      return next?.length ? next : undefined;
+    queryClient.setQueryData<{ pages: { stories: { isOptimistic?: boolean; isUploading?: boolean; created_at?: string }[]; nextCursor: string | null }[]; pageParams: unknown[] }>(key, old => {
+      if (!old || !Array.isArray(old.pages)) return old;
+      // A separate StoriesBar mutation observer cannot determine whether the
+      // actual composer is saving. Only remove genuinely stale optimistic rows.
+      const cutoff = Date.now() - 5 * 60_000;
+      return { ...old, pages: old.pages.map(page => ({ ...page, stories: page.stories.filter(story =>
+        !(story.isOptimistic || story.isUploading) || Date.parse(story.created_at || '') > cutoff) })) };
     });
   }
 }

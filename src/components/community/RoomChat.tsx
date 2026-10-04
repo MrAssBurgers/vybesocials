@@ -35,7 +35,7 @@ export const RoomChat = memo(function RoomChat({
   communityId 
 }: RoomChatProps) {
   const { profile, user } = useAuth();
-  const { data: messages = [], isLoading } = useChannelMessages(roomId);
+  const { data: messages = [], isLoading, isError, refetch } = useChannelMessages(roomId);
   const sendMessage = useSendChannelMessage();
   const { data: myRole } = useMyServerRole(communityId);
   const [messageText, setMessageText] = useState('');
@@ -105,6 +105,13 @@ export const RoomChat = memo(function RoomChat({
     if (isYesterday(date)) return 'Yesterday';
     return format(date, 'MMMM d, yyyy');
   };
+
+  if (isError) {
+    return <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" role="alert">
+      <p>This channel is unavailable. Your access may have changed.</p>
+      <Button variant="outline" onClick={() => { void refetch(); }}>Check access again</Button>
+    </div>;
+  }
 
   if (isLoading) {
     return (
@@ -183,11 +190,13 @@ export const RoomChat = memo(function RoomChat({
               onFocus={handleInputFocus}
               onBlur={handleInputBlur}
               placeholder={`Message ${roomName}...`}
+              aria-label={`Message ${roomName}`}
               className="flex-1 h-11 rounded-full bg-foreground/5 border-border px-4"
             />
             <Button
               size="icon"
               onClick={handleSend}
+              aria-label="Send message"
               disabled={!messageText.trim() || sendMessage.isPending}
               className="h-11 w-11 rounded-full shrink-0"
             >

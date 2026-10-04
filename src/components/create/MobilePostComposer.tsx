@@ -25,6 +25,7 @@ const visibilityOptions = [
 ];
 
 interface MobilePostComposerProps {
+  initialCaption?: string;
   files: File[];
   previews: string[];
   contentType: 'text' | 'post' | 'short' | 'video';
@@ -35,6 +36,7 @@ interface MobilePostComposerProps {
 }
 
 export function MobilePostComposer({
+  initialCaption = '',
   files: propFiles,
   previews: propPreviews,
   contentType,
@@ -50,7 +52,7 @@ export function MobilePostComposer({
   const [localFiles, setLocalFiles] = useState<File[]>(propFiles);
   const [localPreviews, setLocalPreviews] = useState<string[]>(propPreviews);
 
-  const [caption, setCaption] = useState('');
+  const [caption, setCaption] = useState(initialCaption.slice(0, 2200));
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [visibility, setVisibility] = useState<'public' | 'followers' | 'private'>('public');

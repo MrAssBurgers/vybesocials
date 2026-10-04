@@ -1,15 +1,12 @@
+import { CloseFriendsManager } from '@/components/stories/CloseFriendsManager';
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, X, Camera as CameraIcon, Image as ImageIcon, Star, Send, Loader2, AlertCircle, RotateCcw, BarChart3, ImagePlus } from 'lucide-react';
 import { StoryPollEditor, PollData } from './StoryPollEditor';
-import { useCreateStory } from '@/hooks/useStories';
-import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { useStoryComposer } from '@/hooks/useStoryComposer';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
+import { reportAccountSnapshot } from '@/lib/reportModerationService';
 import { useAuth } from '@/lib/auth';
-import { withTimeout } from '@/lib/withTimeout';
-import { publishStoryMedia } from '@/lib/publishStoryMedia';
-import { runPublishVybeCheck } from '@/lib/vybeCheck';
-import { resolveStoryAuthorProfileId } from '@/lib/resolveSessionProfileId';
-import { refreshFirebaseSession } from '@/lib/firebaseAuthRefresh';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -21,7 +18,6 @@ import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
 import { openSnapCamera } from '@/contexts/cameraOverlayActions';
 import { useCameraOverlay } from '@/contexts/cameraOverlaySafe';
 import { useTranslation } from 'react-i18next';
-import { useQueryClient } from '@tanstack/react-query';
 
 interface StoryCreatorProps {
   onClose: () => void;
@@ -52,13 +48,22 @@ function StoryGalleryInput({
 
 type UploadState = 'idle' | 'validating' | 'compressing' | 'uploading' | 'saving' | 'error';
 
-export function StoryCreator({ onClose }: StoryCreatorProps) {
+export function StoryCreator(props: StoryCreatorProps) {
+  const session = useReportAccountSession();
+  return <StoryCreatorSession key={`${session.uid}:${session.epoch}`} {...props} />;
+}
+
+function StoryCreatorSession({ onClose }: StoryCreatorProps) {
   const { t } = useTranslation();
-  const { profile, user, loading: authLoading } = useAuth();
-  const profileId = useAuthProfileId();
-  const effectiveProfileId = profile?.id ?? profileId;
-  const createStory = useCreateStory();
-  const queryClient = useQueryClient();
+  const session = useReportAccountSession();
+  const { user, loading: authLoading } = useAuth();
+  const composer = useStoryComposer();
+  const selectionEpoch = useRef(0);
+  const alive = useRef(false);
+  const isCurrent = useCallback(() => {
+    const current = reportAccountSnapshot();
+    return alive.current && current.uid === session.uid && current.epoch === session.epoch;
+  }, [session.uid, session.epoch]);
   const { openCamera } = useCameraOverlay();
   const coverInputRef = useRef<HTMLInputElement>(null);
   const coverVideoRef = useRef<HTMLVideoElement>(null);
@@ -83,9 +88,16 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
     isVideo: boolean;
   } | null>(null);
 
-  useEffect(() => {  }, [effectiveProfileId, user, profile?.id]);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; selectionEpoch.current++; }; }, []);
+  useEffect(() => () => { if (preview?.startsWith('blob:')) URL.revokeObjectURL(preview); }, [preview]);
+  useEffect(() => () => { if (thumbnailPreview?.startsWith('blob:')) URL.revokeObjectURL(thumbnailPreview); }, [thumbnailPreview]);
 
-  const resetState = useCallback(() => {
+  const resetState = () => {
+    composer.reset();
+    selectionEpoch.current++;
+    setPollData(null);
+    setShowPollEditor(false);
+    setIsGeneratingCover(false);
     setSelectedFile(null);
     setPreview(null);
     setThumbnailBlob(null);
@@ -98,20 +110,21 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
     setUploadProgress(0);
     setErrorMessage(null);
     setMediaInfo(null);
-  }, []);
+  };
 
-  const applyAutoThumbnail = useCallback(async (file: File, isVideo: boolean) => {
+  const applyAutoThumbnail = useCallback(async (file: File, isVideo: boolean, epoch: number) => {
     setIsGeneratingCover(true);
     try {
       const thumb = await generateStoryThumbnail(file, isVideo, 0.5);
+      if (!isCurrent() || selectionEpoch.current !== epoch) return;
       setThumbnailBlob(thumb);
       setThumbnailPreview(URL.createObjectURL(thumb));
     } catch (err) {
       console.warn('Auto thumbnail failed:', err);
     } finally {
-      setIsGeneratingCover(false);
+      if (isCurrent() && selectionEpoch.current === epoch) setIsGeneratingCover(false);
     }
-  }, []);
+  }, [isCurrent]);
 
   const handleStoryCamera = useCallback(() => {
     // Snap flow: capture → edit (story audience chip: My Story / Close
@@ -128,12 +141,21 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
     });
   }, [onClose, openCamera]);
 
-  const processGalleryFile = useCallback(async (file: File) => {
+  const processGalleryFile = async (file: File) => {
+    if (composer.busy || composer.locked) return;
+    composer.reset();
+    const epoch = ++selectionEpoch.current;
+    setSelectedFile(null);
+    setPreview(null);
+    setMediaInfo(null);
+    setThumbnailBlob(null);
+    setThumbnailPreview(null);
     setUploadState('validating');
     setErrorMessage(null);
 
     try {
       const validation = await validateStoryMedia(file);
+      if (!isCurrent() || selectionEpoch.current !== epoch) return;
 
       if (!validation.valid) {
         setErrorMessage(validation.error || 'Invalid media file');
@@ -143,7 +165,6 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
       }
 
       const isVideo = inferStoryMediaKind(file) === 'video';
-      if (preview?.startsWith('blob:')) URL.revokeObjectURL(preview);
 
       setMediaInfo({
         aspectRatio: validation.aspectRatio || 0.5625,
@@ -154,15 +175,17 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
       setSelectedFile(file);
       setPreview(URL.createObjectURL(file));
       setUploadState('idle');
-      void applyAutoThumbnail(file, isVideo);      toast.success(isVideo ? 'Video selected' : 'Photo selected', { duration: 1500 });
+      void applyAutoThumbnail(file, isVideo, epoch);
+      toast.success(isVideo ? 'Video selected' : 'Photo selected', { duration: 1500 });
     } catch (err) {
+      if (!isCurrent() || selectionEpoch.current !== epoch) return;
       console.error('File validation error:', err);
       const msg = err instanceof Error ? err.message : 'Failed to process media file';
       setErrorMessage(msg);
       setUploadState('error');
       toast.error(msg);
     }
-  }, [applyAutoThumbnail, preview]);
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.target;
@@ -173,6 +196,8 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
   };
 
   const handleSubmit = async () => {
+    if (composer.busy || !isCurrent()) return;
+    if (isGeneratingCover) { toast.error('Your cover is still processing. Try again in a moment.'); return; }
     if (!selectedFile || !mediaInfo) {
       toast.error('Media is still loading. Wait a moment and try again.');
       return;
@@ -186,62 +211,25 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
       return;
     }
 
+    selectionEpoch.current++;
+    setIsGeneratingCover(false);
     setUploadState('validating');
     setUploadProgress(5);
     setErrorMessage(null);
 
     try {
-      const vybe = await runPublishVybeCheck({
-        caption: caption.trim(),
-        mediaFile: selectedFile,
-        contentType: 'story',
-      });
-      if (vybe.blocked || !vybe.allowed) {
-        setUploadState('error');
-        setErrorMessage(vybe.message || 'Story did not pass Vybe Check');
-        toast.error(vybe.message || 'Story blocked — Vybe Check did not pass');
-        return;
-      }
-
-      await refreshFirebaseSession(8000);
-      const authorProfileId = await resolveStoryAuthorProfileId(effectiveProfileId);
-      setUploadState('uploading');
-
-      const { mediaUrl, thumbnailUrl } = await publishStoryMedia({
-        file: selectedFile,
-        isVideo: mediaInfo.isVideo,
-        thumbnailBlob,
-        onProgress: (p) => setUploadProgress(Math.max(40, p)),
-      });
-
-      setUploadState('saving');
-      setUploadProgress(85);
-
-      await withTimeout(
-        createStory.mutateAsync({
-          mediaUrl,
-          mediaType: mediaInfo.isVideo ? 'video' : 'image',
-          thumbnailUrl,
-          caption: caption.trim() || undefined,
-          isCloseFriendsOnly,
-          aspectRatio: mediaInfo.aspectRatio,
-          duration: mediaInfo.duration,
-          pollData: pollData || undefined,
-        }),
-        60000,
-        'Saving story timed out. Please try again.',
-      );
+      const story = await composer.submit({ file: selectedFile, isVideo: mediaInfo.isVideo,
+        thumbnailBlob, caption, isCloseFriendsOnly, pollData }, (phase, progress) => {
+          if (isCurrent()) { setUploadState(phase); setUploadProgress(progress); }
+        });
+      if (!story || !isCurrent()) return;
       setUploadProgress(100);
-      setUploadState('idle');
       toast.success('Story posted!');
-      void queryClient.invalidateQueries({ queryKey: ['stories'], refetchType: 'all' });
-
-      setTimeout(() => {
-        onClose();
-      }, 300);
+      onClose();
     } catch (error) {
-      console.error('Failed to create story:', error);
-      const message = error instanceof Error ? error.message : 'Failed to create story';      setErrorMessage(message);
+      if (!isCurrent()) return;
+      const message = error instanceof Error ? error.message : 'Failed to create story';
+      setErrorMessage(message);
       setUploadState('error');
       toast.error(message);
     }
@@ -257,34 +245,44 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
     const file = e.target.files?.[0];
     if (!file || !file.type.startsWith('image/')) return;
     e.target.value = '';
+    if (composer.busy || composer.locked) return;
+    const epoch = ++selectionEpoch.current;
+    setIsGeneratingCover(true);
     try {
       const thumb = await compressImage(file, 360, 0.82);
+      if (!isCurrent() || selectionEpoch.current !== epoch) return;
       setThumbnailBlob(thumb);
       setThumbnailPreview(URL.createObjectURL(thumb));
       setShowCoverEditor(false);
     } catch (err) {
+      if (!isCurrent() || selectionEpoch.current !== epoch) return;
       console.error('Cover image failed:', err);
       toast.error('Could not set cover image');
+    } finally {
+      if (isCurrent() && selectionEpoch.current === epoch) setIsGeneratingCover(false);
     }
   };
 
   const handleApplyVideoFrame = async () => {
-    if (!selectedFile || !mediaInfo?.isVideo) return;
+    if (!selectedFile || !mediaInfo?.isVideo || composer.busy || composer.locked) return;
+    const epoch = ++selectionEpoch.current;
     setIsGeneratingCover(true);
     try {
       const thumb = await generateStoryThumbnail(selectedFile, true, coverSeekTime);
+      if (!isCurrent() || selectionEpoch.current !== epoch) return;
       setThumbnailBlob(thumb);
       setThumbnailPreview(URL.createObjectURL(thumb));
       setShowCoverEditor(false);
     } catch (err) {
+      if (!isCurrent() || selectionEpoch.current !== epoch) return;
       console.error('Video frame capture failed:', err);
       toast.error('Could not capture frame');
     } finally {
-      setIsGeneratingCover(false);
+      if (isCurrent() && selectionEpoch.current === epoch) setIsGeneratingCover(false);
     }
   };
 
-  const isProcessing = uploadState !== 'idle' && uploadState !== 'error';
+  const isProcessing = composer.busy || isGeneratingCover || (uploadState !== 'idle' && uploadState !== 'error');
   const canShare = !!selectedFile && !!mediaInfo && !isProcessing;
 
   function getStatusText() {
@@ -293,7 +291,7 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
       case 'compressing': return 'Optimizing...';
       case 'uploading': return 'Uploading...';
       case 'saving': return 'Saving...';
-      default: return '';
+      default: return isGeneratingCover ? 'Preparing cover...' : '';
     }
   }
 
@@ -326,7 +324,8 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
         <Button 
           variant="ghost"
           size="icon" 
-          onClick={onClose} 
+          onClick={onClose}
+          aria-label="Close story editor"
           className="text-white"
           disabled={isProcessing}
         >
@@ -354,7 +353,7 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
             )}
 
             {/* Action buttons - only when not processing */}
-            {!isProcessing && uploadState !== 'error' && !showPollEditor && !showCoverEditor && (
+            {!isProcessing && !composer.locked && uploadState !== 'error' && !showPollEditor && !showCoverEditor && (
               <div className="absolute top-3 right-3 flex flex-wrap justify-end gap-2 max-w-[70%]">
                 <Button
                   variant="secondary"
@@ -512,12 +511,13 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
                   <div className="flex items-center gap-2 bg-primary/20 backdrop-blur-sm rounded-full px-3 py-1.5 w-fit">
                     <BarChart3 className="h-3.5 w-3.5 text-primary" />
                     <span className="text-xs text-primary font-medium">{pollData.type === 'poll' ? 'Poll' : 'Question'} added</span>
-                    <button onClick={() => setPollData(null)} className="ml-1">
+                    <button disabled={composer.locked} aria-label="Remove story poll" onClick={() => setPollData(null)} className="ml-1">
                       <X className="h-3 w-3 text-primary/60" />
                     </button>
                   </div>
                 )}
                 <Input
+                  disabled={composer.locked}
                   value={caption}
                   onChange={(e) => setCaption(e.target.value)}
                   placeholder="Add a caption..."
@@ -592,6 +592,12 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
         )}
       </div>
 
+      {composer.locked && !composer.busy && (
+        <div className="px-4 pb-2 text-center text-sm text-white/70">
+          <p>Retry keeps the same story, cover and audience.</p>
+          <Button variant="ghost" className="text-white" onClick={resetState}>Start a new story</Button>
+        </div>
+      )}
       {/* Footer */}
       {preview && uploadState !== 'error' && (
         <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-4 flex-shrink-0">
@@ -607,9 +613,11 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
               id="close-friends"
               checked={isCloseFriendsOnly}
               onCheckedChange={setIsCloseFriendsOnly}
-              disabled={isProcessing}
+              disabled={isProcessing || composer.locked}
             />
           </div>
+
+          <CloseFriendsManager disabled={isProcessing || composer.locked} className="w-full" />
 
           {/* Submit button — only disable during active upload, not while profile hydrates */}
           <Button

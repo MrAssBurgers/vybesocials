@@ -804,7 +804,18 @@ service cloud.firestore {
       );
     }
     match /close_friends/{docId} {
-      allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
+      function ownsCloseFriendList(identity) {
+        let profile = /databases/$(database)/documents/profiles/$(identity);
+        // A UID that also names somebody else's profile is never an alias.
+        return signedIn() && identity is string && (
+          (exists(profile) && get(profile).data.user_id == uid())
+          || (identity == uid() && !exists(profile))
+        );
+      }
+      allow read: if ownsCloseFriendList(resource.data.user_id);
+      // Historical rows are reference-only, never a private-story grant.
+      // New selections use server-owned _close_friend_authority proofs.
+      allow create, update, delete: if false;
     }
     match /dismissed_profiles/{docId} {
       allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
@@ -1209,10 +1220,27 @@ service cloud.firestore {
 
     // ---------- stories ----------
     match /stories/{id} {
-      allow read: if signedIn();
-      allow create: if willOwnProfile('author_id');
-      allow update, delete: if isOwnerProfile('author_id') || isStaffModerator();
+      // The callable evaluates current friendship and Close Friends membership.
+      allow read: if false;
+      // Publishing and immutable identity belong to the authenticated callable.
+      // Keeping the receipt after deletion prevents a lost-ack retry reposting.
+      allow create, update: if false;
+      function ownsPublishedStory() {
+        let receiptId = resource.data.get('publish_receipt_id', null);
+        let receipt = /databases/$(database)/documents/_story_publish_receipts/$(receiptId);
+        return signedIn() && receiptId is string && exists(receipt)
+          && get(receipt).data.version == 1
+          && get(receipt).data.owner_uid == uid()
+          && get(receipt).data.profile_id == resource.data.author_id
+          && get(receipt).data.story_id == id;
+      }
+      allow delete: if ownsPublishedStory()
+        || (resource.data.get('publish_receipt_id', null) == null && isOwnerProfile('author_id'))
+        || isStaffModerator();
     }
+    match /_story_publish_receipts/{id} { allow read, write: if false; }
+    match /_story_publish_limits/{id} { allow read, write: if false; }
+    match /_close_friend_authority/{id} { allow read, write: if false; }
     match /story_views/{id} {
       allow read: if signedIn() && (ownsProfileId(resource.data.viewer_id) || isAdmin());
       allow create: if willOwnProfile('viewer_id');
@@ -1220,10 +1248,21 @@ service cloud.firestore {
 
     // ---------- story highlights (saved story collections) ----------
     match /story_highlights/{id} {
-      allow read: if signedIn();
-      allow create: if signedIn() && willOwnProfile('owner_id');
+      function ownsHighlightOwner(identity) {
+        let profile = /databases/$(database)/documents/profiles/$(identity);
+        return signedIn() && identity is string && (
+          (exists(profile) && get(profile).data.user_id == uid())
+          || (identity == uid() && !exists(profile))
+        );
+      }
+      // Legacy covers can include private story URLs. They are owner-only
+      // until a server reader can evaluate the audience of every saved story.
+      allow read: if ownsHighlightOwner(resource.data.owner_id);
+      allow create: if ownsHighlightOwner(request.resource.data.owner_id);
       allow update, delete: if signedIn() && (
-        isOwnerProfile('owner_id') || isStaffModerator()
+        (ownsHighlightOwner(resource.data.owner_id)
+          && (request.method == 'delete' || request.resource.data.owner_id == resource.data.owner_id))
+        || isStaffModerator()
       );
     }
 

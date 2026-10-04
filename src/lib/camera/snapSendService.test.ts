@@ -36,7 +36,7 @@ function params(id = 'draft') { return { draft: createSnapDraft({ mediaId: id, l
   file: new File(['private snap'], 'snap.jpg', { type: 'image/jpeg' }), senderId: 'alice-profile', authUserId: 'alice' }; }
 function queued(id: string, ownerUid?: string): QueuedSnapJob { return { jobId: id, draft: params(id).draft, mediaBlob: params(id).file, mediaMimeType: 'image/jpeg',
   remainingConversationIds: ['chat'], remainingStoryDestinationIds: [], senderId: `${ownerUid || 'alice'}-profile`,
-  ...(ownerUid ? { schemaVersion: 2, ownerUid } as const : {}), revision: `fixture-${id}`, queuedAt: Date.now(), attempts: 0, status: 'pending' }; }
+  ...(ownerUid ? { schemaVersion: 2, ownerUid } as const : {}), storyPublishVersion: 1, revision: `fixture-${id}`, queuedAt: Date.now(), attempts: 0, status: 'pending' }; }
 
 beforeEach(() => {
   vi.resetModules(); state.uid = 'alice'; state.epoch = 1; state.online = true; state.rows = []; state.storageError = false; state.listeners.clear(); state.onlineListeners.clear();
@@ -184,14 +184,25 @@ describe('snap account isolation', () => {
     expect(state.chat).toHaveBeenCalledTimes(2); expect(state.send).toHaveBeenCalledTimes(1);
   });
 
-  it('does not automatically repeat a story whose response failed as the connection went offline', async () => {
+  it('reuses the same server receipt identity when a story response fails as the connection goes offline', async () => {
     const row = queued('uncertain-story', 'alice'); row.remainingStoryDestinationIds = ['my_story']; state.rows = [row];
     state.story.mockImplementationOnce(async () => { state.online = false; throw new Error('Response lost'); });
     const service = await import('./snapSendService'); service.startSnapSendQueue();
-    await waitFor(() => expect(state.rows[0]).toMatchObject({ status: 'failed', remainingStoryDestinationIds: ['my_story'], lastError: expect.stringContaining('avoid a duplicate') }));
+    await waitFor(() => expect(state.rows[0]).toMatchObject({ status: 'pending', remainingStoryDestinationIds: ['my_story'], delivery: undefined }));
     state.online = true; switchTo('bob'); switchTo('alice');
-    await waitFor(() => expect(service.getSnapJobSnapshots()[0]).toMatchObject({ phase: 'failed', error: expect.stringContaining('avoid a duplicate') }));
-    expect(state.story).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(state.rows).toEqual([]));
+    expect(state.story).toHaveBeenCalledTimes(2);
+    expect(state.story.mock.calls[0][0].requestId).toBe(state.story.mock.calls[1][0].requestId);
+    expect(state.story.mock.calls[1][0].expectedOwnerUid).toBe('alice');
+  });
+
+  it('does not invent a trusted receipt for a historical queued story', async () => {
+    const row = queued('historical-story', 'alice'); delete row.storyPublishVersion; row.remainingStoryDestinationIds = ['my_story']; state.rows = [row];
+    const service = await import('./snapSendService'); service.startSnapSendQueue();
+    await waitFor(() => expect(state.rows[0]).toMatchObject({ status: 'failed', lastError: expect.stringContaining('no verified retry receipt') }));
+    service.retrySnapJob('historical-story');
+    await waitFor(() => expect(service.getSnapJobSnapshots()[0]?.phase).toBe('failed'));
+    expect(state.story).not.toHaveBeenCalled(); expect(state.upload).not.toHaveBeenCalled();
   });
 
   it('restores the original owner’s saved job after A→B→A with fresh guards rather than reviving the old live job', async () => {

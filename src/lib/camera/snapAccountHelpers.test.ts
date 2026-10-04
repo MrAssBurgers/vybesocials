@@ -9,15 +9,16 @@ vi.mock('@/lib/firebase/storageService', () => ({ firebaseStorage: { resolveDown
 vi.mock('@/lib/storyUtils', () => ({ compressImage: state.compress, generateStoryThumbnail: state.thumbnail }));
 vi.mock('@/lib/resolveSessionProfileId', () => ({ resolveStoryAuthorProfileId: state.author }));
 vi.mock('@/lib/challengeProgressClient', () => ({ recordChallengeActivity: state.activity }));
+vi.mock('@/lib/storyPublishService', () => ({ publishStory: state.insert }));
 import { uploadSnapMedia } from './uploadSnapMedia';
 import { createStoryRecord } from './createStoryRecord';
 
 const deferred = <T,>() => { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; };
 const file = () => new File(['private'], 'snap.jpg', { type: 'image/jpeg' });
-const story = { mediaUrl: 'https://media.invalid/alice/snap.jpg', mediaType: 'photo' as const, destination: 'my_story' as const };
+const story = { requestId: 'snap-one', expectedOwnerUid: 'alice', mediaUrl: 'https://media.invalid/alice/snap.jpg', mediaType: 'photo' as const, destination: 'my_story' as const };
 beforeEach(() => { state.uid = 'alice'; state.epoch = 1; for (const fn of [state.compress, state.thumbnail, state.upload, state.url, state.insert, state.author, state.activity]) fn.mockReset();
   state.compress.mockImplementation(async value => value); state.upload.mockResolvedValue({ error: null }); state.url.mockResolvedValue('https://media.invalid/alice/snap.jpg');
-  state.thumbnail.mockResolvedValue(new Blob(['thumb'], { type: 'image/jpeg' })); state.author.mockResolvedValue('alice-profile'); state.insert.mockResolvedValue({ error: null });
+  state.thumbnail.mockResolvedValue(new Blob(['thumb'], { type: 'image/jpeg' })); state.author.mockResolvedValue('alice-profile'); state.insert.mockResolvedValue({ created: true });
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -42,7 +43,7 @@ describe('camera helper account boundaries', () => {
   });
   it('publishes only the job’s verified profile without resolving another current profile', async () => {
     await createStoryRecord({ ...story, authorId: 'alice-profile' });
-    expect(state.author).not.toHaveBeenCalled(); expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ author_id: 'alice-profile' }));
+    expect(state.author).not.toHaveBeenCalled(); expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ authorId: 'alice-profile', requestId: 'snap-one', expectedOwnerUid: 'alice' }));
     expect(state.activity).toHaveBeenCalledWith('alice-profile', 'story');
   });
   it('stops a legacy unbound story after its profile lookup changes accounts', async () => {
@@ -54,5 +55,8 @@ describe('camera helper account boundaries', () => {
     const insert = deferred<{ error: null }>(); state.insert.mockReturnValue(insert.promise);
     const pending = createStoryRecord({ ...story, authorId: 'alice-profile' }); state.uid = 'bob'; state.epoch++; insert.resolve({ error: null });
     await expect(pending).rejects.toMatchObject({ code: 'account-changed' }); expect(state.activity).not.toHaveBeenCalled();
+  });
+  it('does not count a replayed receipt as another story', async () => {
+    state.insert.mockResolvedValue({ created: false }); await createStoryRecord({ ...story, authorId: 'alice-profile' }); expect(state.activity).not.toHaveBeenCalled();
   });
 });

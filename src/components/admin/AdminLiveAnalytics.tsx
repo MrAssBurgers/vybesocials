@@ -64,7 +64,6 @@ export function AdminLiveAnalytics() {
         commentsTodayResult,
         followsTodayResult,
         bookmarksTodayResult,
-        storiesTodayResult,
         // Live metrics
         callsResult,
         profilesTotalResult,
@@ -91,7 +90,6 @@ export function AdminLiveAnalytics() {
         db.from('comments').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
         db.from('follows').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
         db.from('bookmarks').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
-        db.from('stories').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
         // --- Live ---
         db.from('calls').select('id', { count: 'exact', head: true }).eq('status', 'active'),
         db.from('profiles').select('id', { count: 'exact', head: true }),
@@ -126,7 +124,7 @@ export function AdminLiveAnalytics() {
         commentsToday: commentsTodayResult.count || 0,
         followsToday: followsTodayResult.count || 0,
         bookmarksToday: bookmarksTodayResult.count || 0,
-        storiesToday: storiesTodayResult.count || 0,
+        storiesToday: 'Unavailable',
         // Live
         inCalls: callsResult.count || 0,
         totalUsers:
@@ -173,12 +171,7 @@ export function AdminLiveAnalytics() {
               created_at: p.created_at, user_id: p.author_id,
               detail: `${p.type || 'post'}: ${p.caption?.substring(0, 40) || 'new post'}`,
             }))),
-          Promise.resolve(db.from('stories').select('id, author_id, created_at')
-            .gte('created_at', thirtyMinAgo).order('created_at', { ascending: false }).limit(5))
-            .then(r => (r.data || []).map((s: any) => ({
-              id: `story-${s.id}`, type: 'content', event_name: 'story_created',
-              created_at: s.created_at, user_id: s.user_id,
-            }))),
+
         );
       }
       
@@ -395,7 +388,7 @@ export function AdminLiveAnalytics() {
           { label: 'Messages Today', value: stats?.messagesToday, icon: MessageCircle, color: 'text-blue-400' },
           { label: 'Likes Today', value: stats?.likesToday, icon: Heart, color: 'text-pink-400' },
           { label: 'Follows Today', value: stats?.followsToday, icon: UserPlus, color: 'text-green-400' },
-          { label: 'Stories Today', value: stats?.storiesToday, icon: Video, color: 'text-purple-400' },
+          { label: 'Stories Today', value: 'Unavailable', icon: Video, color: 'text-purple-400' },
         ].map((item, i) => (
           <GlassCard key={i} className="p-3">
             <div className="flex items-center justify-between">
@@ -407,6 +400,7 @@ export function AdminLiveAnalytics() {
         ))}
       </div>
 
+      <p className="text-xs text-muted-foreground">Story counts and story activity are unavailable while private audience analytics are being added.</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* ── Online Users ── */}
         <GlassCard className="p-4">

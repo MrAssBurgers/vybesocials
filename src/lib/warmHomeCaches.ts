@@ -30,33 +30,6 @@ function mapFeedRow(row: Record<string, unknown>) {
   };
 }
 
-function processStoriesIntoGroups(stories: any[], profileId: string) {
-  const groupedMap = new Map<string, any>();
-  for (const story of stories) {
-    const authorId = story.author_id || story.author?.id;
-    if (!groupedMap.has(authorId)) {
-      groupedMap.set(authorId, {
-        user: story.author || {
-          id: story.author_id,
-          username: story.author?.username || 'Unknown',
-          avatar_url: story.author?.avatar_url || null,
-          display_name: story.author?.display_name || null,
-        },
-        stories: [],
-        hasUnviewed: false,
-      });
-    }
-    groupedMap.get(authorId)!.stories.push(story);
-  }
-  const groups = Array.from(groupedMap.values());
-  groups.sort((a, b) => {
-    if (a.user.id === profileId) return -1;
-    if (b.user.id === profileId) return 1;
-    return 0;
-  });
-  return groups;
-}
-
 function warmPersonalizedFeed(queryClient: QueryClient, profileId: string) {
   const feedKey = ['personalized-feed-v2', undefined, profileId, 0] as const;
   if (queryClient.getQueryData(feedKey)) return;
@@ -120,28 +93,8 @@ function warmFollowingFeed(queryClient: QueryClient, profileId: string) {
     });
 }
 
-function warmStories(queryClient: QueryClient, profileId: string) {
-  const key = ['stories', profileId] as const;
-  if (queryClient.getQueryData(key)) return;
-
-  void db
-    .from('stories')
-    .select(`*, author:profiles!stories_author_id_fkey(id, username, avatar_url, display_name)`)
-    .gt('expires_at', new Date().toISOString())
-    .order('created_at', { ascending: false })
-    .limit(30)
-    .then(({ data }) => {
-      if (!data?.length) return;
-      const storyGroups = processStoriesIntoGroups(data, profileId);
-      queryClient.setQueryData(key, storyGroups);
-      const storyPosts = data.map((s: any) => ({
-        media_url: s.media_url,
-        thumbnail_url: s.thumbnail_url,
-        author: { avatar_url: s.author?.avatar_url },
-      }));
-      void signAndPreloadFeedPosts(storyPosts, 6);
-    });
-}
+// Private story media is loaded by the mounted, account-scoped story reader.
+// Boot warming cannot infer current friendship/close-friend authority.
 
 function warmNotifications(queryClient: QueryClient, profileId: string) {
   const key = ['notifications', profileId] as const;
@@ -261,7 +214,6 @@ export function warmHomeCachesForProfile(
   warmPersonalizedFeed(queryClient, profileId);
   warmFollowingFeed(queryClient, profileId);
   void prefetchDMConversations(queryClient, profileId, uid);
-  warmStories(queryClient, profileId);
   warmNotifications(queryClient, profileId);
   warmUserMeta(queryClient, uid, profileId);
 }

@@ -1,6 +1,7 @@
+import { useCommunityQuery } from './useCommunityQuery';
 import { useCommunityRequest } from '@/hooks/useCommunityRequest';
 import { useCommunityMutation } from '@/hooks/useCommunityMutation';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
@@ -18,7 +19,7 @@ export interface ChannelPermission {
 export function useChannelPermissions(channelId: string | undefined) {
   const communityRequest = useCommunityRequest();
   const profileId = useAuth().user?.id;
-  return useQuery({
+  return useCommunityQuery({
     queryKey: ['channel-permissions', channelId, profileId],
     queryFn: async () => {
       if (!channelId) return [];
@@ -34,7 +35,7 @@ export function useMyChannelPermissions(channelId: string | undefined, serverId:
   const communityRequest = useCommunityRequest();
   const profileId = useAuth().user?.id;
 
-  return useQuery({
+  return useCommunityQuery({
     queryKey: ['my-channel-permissions', channelId, profileId],
     queryFn: async () => {
       if (!channelId || !profileId) return null;

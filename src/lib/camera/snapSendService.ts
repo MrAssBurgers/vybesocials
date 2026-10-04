@@ -342,6 +342,8 @@ async function deliverStory(
     await job.queueDelivery?.beginStory(destination);
     job.guard();
     await createStoryRecord({
+      requestId: job.draft.clientMessageId,
+      expectedOwnerUid: job.authUserId,
       mediaUrl: job.uploaded!.mediaUrl,
       mediaType: job.draft.mediaType,
       thumbnailUrl: job.uploaded!.thumbnailUrl,
@@ -433,6 +435,7 @@ async function enqueueOffline(job: SnapSendJob): Promise<void> {
   }
   await offlineQueue.enqueue({
     schemaVersion: 2,
+    storyPublishVersion: 1,
     ownerUid: job.authUserId,
     jobId: job.jobId,
     draft: job.draft,
@@ -611,6 +614,10 @@ async function flushQueuedJob(queued: QueuedSnapJob, queueDelivery: SnapQueueDel
 
   if (queued.schemaVersion !== 2 || !queued.ownerUid || !queued.senderId) {
     queued.lastError = 'This older queued snap cannot be verified. Capture it again before sending.';
+    return 'failed';
+  }
+  if (queued.remainingStoryDestinationIds.length && queued.storyPublishVersion !== 1) {
+    queued.lastError = 'This older queued story has no verified retry receipt. Check your stories and create a new draft to share again.';
     return 'failed';
   }
   const session = reportAccountSnapshot();

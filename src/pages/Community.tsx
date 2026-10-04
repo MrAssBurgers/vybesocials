@@ -1,3 +1,4 @@
+import { useCommunitySession } from '@/hooks/useCommunitySession';
 import { useCommunityRequest } from '@/hooks/useCommunityRequest';
 import { useAuth } from '@/lib/auth';
 import { useCommunityMutation } from '@/hooks/useCommunityMutation';
@@ -36,8 +37,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 export default function Community() {
-  const accountId = useAuth().user?.id;
-  return <CommunityAccountView key={accountId || 'signed-out'} />;
+  const { session, ready } = useCommunitySession();
+  return <CommunityAccountView key={`${ready ? session.uid : 'signed-out'}:${session.epoch}`} />;
 }
 
 function CommunityAccountView() {

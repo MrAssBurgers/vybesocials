@@ -28,7 +28,7 @@ interface ChannelChatProps {
 
 export const ChannelChat = memo(function ChannelChat({ channelId, channelName, serverId }: ChannelChatProps) {
   const { profile, user } = useAuth();
-  const { data: messages = [], isLoading } = useChannelMessages(channelId);
+  const { data: messages = [], isLoading, isError, refetch } = useChannelMessages(channelId);
   const sendMessage = useSendChannelMessage();
   const { data: myRole } = useMyServerRole(serverId);
   const { data: myPerms } = useMyChannelPermissions(channelId, serverId);
@@ -84,6 +84,13 @@ export const ChannelChat = memo(function ChannelChat({ channelId, channelName, s
     if (isYesterday(date)) return 'Yesterday';
     return format(date, 'MMMM d, yyyy');
   };
+
+  if (isError) {
+    return <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" role="alert">
+      <p>This channel is unavailable. Your access may have changed.</p>
+      <Button variant="outline" onClick={() => { void refetch(); }}>Check access again</Button>
+    </div>;
+  }
 
   if (isLoading) {
     return (
@@ -165,6 +172,7 @@ export const ChannelChat = memo(function ChannelChat({ channelId, channelName, s
               onChange={(e) => setMessageText(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder={`Message #${channelName}`}
+              aria-label={`Message ${channelName}`}
               className="flex-1 h-10 sm:h-10 text-[15px] sm:text-sm"
             />
             <EmojiPicker
@@ -174,7 +182,8 @@ export const ChannelChat = memo(function ChannelChat({ channelId, channelName, s
             />
             <Button
               size="icon"
-              onClick={handleSend}
+                onClick={handleSend}
+                aria-label="Send message"
               disabled={!messageText.trim() || sendMessage.isPending}
               className="h-10 w-10 flex-shrink-0"
             >

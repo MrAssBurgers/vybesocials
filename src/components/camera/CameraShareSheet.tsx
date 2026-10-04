@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Film, Clock, MessageCircle, Download, Send, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,17 +8,18 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { runPublishVybeCheck } from '@/lib/vybeCheck/runPublishVybeCheck';
 import { VybeCheckFailed } from '@/components/safety/VybeCheckFailed';
-import { getRecentMessageUsers } from '@/lib/recentMessageUsers';
-import { getShareRankedUserIds, recordShareTo } from '@/lib/shareRecency';
-import { useCreateStory } from '@/hooks/useStories';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useAuth } from '@/lib/auth';
-import { useQueryClient } from '@tanstack/react-query';
-import { publishStoryMedia } from '@/lib/publishStoryMedia';
-import { resolveStoryAuthorProfileId } from '@/lib/resolveSessionProfileId';
-import { refreshFirebaseSession } from '@/lib/firebaseAuthRefresh';
 import { withTimeout } from '@/lib/withTimeout';
-import { generateStoryThumbnail, validateStoryMedia } from '@/lib/storyUtils';
+
+import { useStoryComposer } from '@/hooks/useStoryComposer';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
+import { useConversations } from '@/hooks/useMessages';
+import { reportAccountGuard, reportAccountSnapshot, type ReportAccountSession } from '@/lib/reportModerationService';
+import { resolveCaptureFile } from '@/lib/camera/resolveCaptureFile';
+import { createSnapDraft } from '@/lib/camera/snapDraft';
+import { startSnapSend } from '@/lib/camera/snapSendService';
+import { useNavigate } from 'react-router-dom';
 
 interface CameraShareSheetProps {
   mediaUrl: string;
@@ -32,20 +33,19 @@ interface CameraShareSheetProps {
 
 type ShareDestination = 'clip' | 'story' | 'dm' | 'save';
 
-async function resolveCaptureFile(
-  mediaUrl: string,
-  mediaType: 'photo' | 'video',
-  mediaFile?: File,
-): Promise<File> {
-  if (mediaFile) return mediaFile;
-  const response = await fetch(mediaUrl);
-  const blob = await response.blob();
-  const ext = mediaType === 'video' ? 'mp4' : 'jpg';
-  const type = blob.type || (mediaType === 'video' ? 'video/mp4' : 'image/jpeg');
-  return new File([blob], `capture.${ext}`, { type });
+export function CameraShareSheet(props: CameraShareSheetProps) {
+  const session = useReportAccountSession();
+  const capturedSession = useRef(session).current;
+  if (session.uid !== capturedSession.uid || session.epoch !== capturedSession.epoch) {
+    return <div role="dialog" aria-modal="true" aria-label="Capture expired" className="fixed inset-0 z-[200] bg-black text-white flex flex-col items-center justify-center gap-4 p-6 text-center">
+      <p>Your account changed. Close this capture and open the camera again.</p>
+      <Button onClick={props.onClose}>Close capture</Button>
+    </div>;
+  }
+  return <CameraShareSession key={props.mediaUrl} {...props} capturedSession={capturedSession} />;
 }
 
-export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soundStartTime, onClose, onComplete }: CameraShareSheetProps) {
+function CameraShareSession({ mediaUrl, mediaType, mediaFile, soundId, soundStartTime, onClose, onComplete, capturedSession }: CameraShareSheetProps & { capturedSession: ReportAccountSession }) {
   const [selectedDestinations, setSelectedDestinations] = useState<ShareDestination[]>([]);
   const [caption, setCaption] = useState('');
   const [isSharing, setIsSharing] = useState(false);
@@ -57,8 +57,14 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
   const { profile, user } = useAuth();
   const profileId = useAuthProfileId();
   const effectiveProfileId = profile?.id ?? profileId;
-  const createStory = useCreateStory();
-  const queryClient = useQueryClient();
+  const composer = useStoryComposer();
+  const navigate = useNavigate();
+  const { data: conversations, isError: conversationsFailed } = useConversations();
+  const sending = useRef(false);
+  const alive = useRef(false);
+  const fileRef = useRef<Promise<File>>();
+  const completed = useRef(new Set<ShareDestination>());
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
   useEffect(() => {
     if (isSharing) {
@@ -69,32 +75,27 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
     return () => document.body.removeAttribute('data-story-upload-active');
   }, [isSharing]);
 
-  const rankedPeople = useMemo(() => {
-    const recent = getRecentMessageUsers();
-    const shareRanked = getShareRankedUserIds();
-    
-    // Sort recent users by share frequency ranking
-    const sorted = [...recent].sort((a, b) => {
-      const aIdx = shareRanked.indexOf(a.id);
-      const bIdx = shareRanked.indexOf(b.id);
-      // Users in share ranking come first, ordered by rank
-      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
-      if (aIdx !== -1) return -1;
-      if (bIdx !== -1) return 1;
-      return 0;
-    });
-    return sorted;
-  }, []);
+  // Offer only conversations returned for the current account; old shared
+  // recent-user caches are not a recipient directory.
+  const rankedPeople = useMemo(() => conversationsFailed ? [] : (conversations || []).map(conversation => {
+    const other = conversation.members?.find(member => member.profile?.id !== effectiveProfileId)?.profile;
+    return { id: conversation.id, username: other?.username || 'Chat',
+      display_name: conversation.is_group ? conversation.name || 'Group' : other?.display_name || other?.username || 'Chat',
+      avatar_url: conversation.is_group ? conversation.avatar_url : other?.avatar_url };
+  }), [conversations, conversationsFailed, effectiveProfileId]);
 
   const toggleDestination = (dest: ShareDestination) => {
+    if (sending.current || composer.locked) return;
+    if (dest === 'clip') { setSelectedDestinations(prev => prev.includes('clip') ? [] : ['clip']); return; }
     setSelectedDestinations(prev => 
       prev.includes(dest) 
         ? prev.filter(d => d !== dest)
-        : [...prev, dest]
+        : [...prev.filter(item => item !== 'clip'), dest]
     );
   };
 
   const toggleRecipient = (userId: string) => {
+    if (sending.current || composer.locked) return;
     setSelectedRecipients(prev =>
       prev.includes(userId)
         ? prev.filter(id => id !== userId)
@@ -103,125 +104,94 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
   };
 
   const handleShare = async () => {
-    if (selectedDestinations.length === 0) {
-      toast({ title: "Select a destination", description: "Choose where you want to share this", variant: "destructive" });
+    if (sending.current) return;
+    if (!selectedDestinations.length) return;
+    if (selectedDestinations.includes('dm') && (!selectedRecipients.length || conversationsFailed)) {
+      toast({ title: 'Choose an available chat', description: 'Select who should receive this capture.', variant: 'destructive' });
       return;
     }
-
-    if (selectedDestinations.includes('dm') && selectedRecipients.length === 0) {
-      toast({ title: "Select recipients", description: "Choose who to send this to", variant: "destructive" });
-      return;
+    const needsAccount = selectedDestinations.some(destination => destination !== 'save');
+    if (needsAccount && (!user || !effectiveProfileId)) {
+      toast({ title: 'Sign in required', description: 'Sign in to share this capture.', variant: 'destructive' }); return;
     }
-
-    if (selectedDestinations.includes('story') && !user) {      toast({
-        title: 'Sign in required',
-        description: 'Log in to post stories.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
+    // Even a local download belongs to the capture's original account epoch.
+    // A native Auth change can arrive before React remounts the sheet.
+    const ownerGuard = needsAccount ? reportAccountGuard(user!.id) : () => {};
+    const guard = () => {
+      const current = reportAccountSnapshot();
+      if (current.uid !== capturedSession.uid || current.epoch !== capturedSession.epoch) throw new Error('Your account changed. Open the camera again.');
+      ownerGuard();
+      if (!alive.current) throw new Error('This camera has closed.');
+    };
+    const selected = [...selectedDestinations];
+    const recipients = [...selectedRecipients];
+    const capturedCaption = caption.trim();
+    sending.current = true;
     setIsSharing(true);
-
-    const file = await resolveCaptureFile(mediaUrl, mediaType, mediaFile);
-
-    if (selectedDestinations.some((d) => d === 'clip' || d === 'story' || d === 'dm')) {
-      const vybe = await withTimeout(
-        runPublishVybeCheck({
-          caption: caption.trim(),
-          mediaFile: file,
-          contentType: selectedDestinations.includes('story') ? 'story' : 'post',
-        }),
-        180_000,
-        'Vybe Check timed out',
-      );
-      if (vybe.blocked || !vybe.allowed) {
-        setIsSharing(false);
-        setScanMessage(vybe.message || 'Content violates community guidelines');
-        setScanCategories(vybe.categories || []);
-        setVybeCheckFailed(true);
+    try {
+      guard();
+      fileRef.current ??= resolveCaptureFile(mediaUrl, mediaType, mediaFile).catch(error => { fileRef.current = undefined; throw error; });
+      const file = await fileRef.current;
+      guard();
+      if (selected.includes('clip')) {
+        // The composer owns the explicit final publish and moderation step.
+        const url = URL.createObjectURL(file);
+        onComplete();
+        navigate('/upload', { state: { prefillMedia: { file, url, type: mediaType }, captureTarget: 'clip',
+          prefillCaption: capturedCaption, selectedSoundId: soundId, soundStartTime } });
         return;
       }
-    }
-
-    const postedDestinations: string[] = [];
-
-    if (selectedDestinations.includes('story')) {
-      try {
-        const validation = await validateStoryMedia(file);
-        if (!validation.valid) {
-          throw new Error(validation.error || 'Invalid story media');
+      if (selected.includes('story') && !completed.current.has('story')) {
+        const story = await composer.submit({ file, isVideo: mediaType === 'video', caption: capturedCaption });
+        guard();
+        if (!story) return;
+        completed.current.add('story');
+      }
+      if (selected.includes('dm') && !completed.current.has('dm')) {
+        const check = await withTimeout(runPublishVybeCheck({ caption: capturedCaption, mediaFile: file, contentType: 'post' }), 180_000, 'Vybe Check timed out. Please try again.');
+        guard();
+        if (check.blocked || !check.allowed) {
+          setScanMessage(check.message || 'Content did not pass Vybe Check');
+          setScanCategories(check.categories || []);
+          setVybeCheckFailed(true);
+          return;
         }
-
-        await refreshFirebaseSession(8000);
-        const authorProfileId = await resolveStoryAuthorProfileId(effectiveProfileId);
-        const isVideo = mediaType === 'video';
-        const thumbnailBlob = isVideo ? await generateStoryThumbnail(file, true) : null;
-
-        const { mediaUrl: uploadedUrl, thumbnailUrl } = await publishStoryMedia({
-          file,
-          isVideo,
-          thumbnailBlob,
-        });
-
-        await withTimeout(
-          createStory.mutateAsync({
-            mediaUrl: uploadedUrl,
-            mediaType: isVideo ? 'video' : 'image',
-            thumbnailUrl,
-            caption: caption.trim() || undefined,
-            aspectRatio: validation.aspectRatio || 0.5625,
-            duration: validation.duration,
-          }),
-          60000,
-          'Saving story timed out. Please try again.',
-        );
-        void queryClient.invalidateQueries({ queryKey: ['stories'], refetchType: 'all' });
-        postedDestinations.push('Story');
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to post story';        setIsSharing(false);
-        toast({ title: 'Story failed', description: message, variant: 'destructive' });
-        return;
+        const url = URL.createObjectURL(file);
+        try {
+          startSnapSend({ draft: createSnapDraft({ localUri: url, mediaType, conversationIds: recipients, viewMode: 'permanent' }),
+            file, senderId: effectiveProfileId!, authUserId: user!.id, caption: capturedCaption });
+        } catch (error) { URL.revokeObjectURL(url); throw error; }
+        completed.current.add('dm');
       }
-    }
-
-    const stubDestinations = selectedDestinations.filter((d) => d !== 'story');
-    if (stubDestinations.length > 0) {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-    }
-
-    selectedRecipients.forEach((id) => recordShareTo(id));
-
-    for (const dest of stubDestinations) {
-      switch (dest) {
-        case 'clip':
-          postedDestinations.push('Clips');
-          break;
-        case 'dm':
-          postedDestinations.push('Messages');
-          break;
-        case 'save':
-          postedDestinations.push('Camera Roll');
-          break;
+      if (selected.includes('save') && !completed.current.has('save')) {
+        guard();
+        const url = URL.createObjectURL(file);
+        const link = document.createElement('a');
+        link.href = url; link.download = file.name;
+        document.body.appendChild(link);
+        try { link.click(); } finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60_000); }
+        completed.current.add('save');
       }
+      guard();
+      const notices = [completed.current.has('story') ? 'Story posted.' : '', completed.current.has('dm') ? 'Messages are sending; check delivery progress.' : '',
+        completed.current.has('save') ? 'Download started; check your device downloads.' : ''].filter(Boolean);
+      toast({ title: 'Capture ready', description: notices.join(' ') });
+      onComplete();
+    } catch (error) {
+      try { guard(); } catch { return; }
+      toast({ title: 'Sharing needs attention', description: `${completed.current.has('story') ? 'Your story is already posted. ' : ''}${error instanceof Error ? error.message : 'Please try again.'}`, variant: 'destructive' });
+    } finally {
+      sending.current = false;
+      if (alive.current) setIsSharing(false);
     }
-
-    toast({
-      title: postedDestinations.length === 1 && postedDestinations[0] === 'Story'
-        ? 'Story posted!'
-        : 'Shared successfully!',
-      description: `Posted to ${postedDestinations.join(', ')}`,
-    });
-    setIsSharing(false);
-    onComplete();
   };
 
   const destinations = [
-    { id: 'clip' as ShareDestination, icon: Film, label: 'Post as Clip', color: 'from-pink-500 to-rose-500' },
+    { id: 'clip' as ShareDestination, icon: Film, label: 'Continue to Clip', color: 'from-pink-500 to-rose-500' },
     { id: 'story' as ShareDestination, icon: Clock, label: 'Add to Story', color: 'from-violet-500 to-purple-500' },
     { id: 'dm' as ShareDestination, icon: MessageCircle, label: 'Send to DM', color: 'from-blue-500 to-cyan-500' },
     { id: 'save' as ShareDestination, icon: Download, label: 'Save to Device', color: 'from-emerald-500 to-green-500' },
-  ];
+  ].filter(destination => destination.id !== 'clip' || mediaType === 'video');
 
   if (vybeCheckFailed) {
     return (
@@ -241,7 +211,7 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
     <div className="fixed inset-0 z-[200] bg-black flex flex-col">
       {/* Header */}
       <div className="p-4 flex items-center justify-between border-b border-white/10">
-        <Button variant="ghost" size="icon" onClick={onClose} className="text-white">
+        <Button variant="ghost" size="icon" onClick={onClose} disabled={isSharing} aria-label="Close sharing" className="text-white">
           <X className="h-6 w-6" />
         </Button>
         <h2 className="text-lg font-semibold text-white">Share</h2>
@@ -260,6 +230,8 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
       {/* Caption */}
       <div className="p-4 border-b border-white/10">
         <Textarea
+          disabled={isSharing || composer.locked}
+          maxLength={2200}
           value={caption}
           onChange={(e) => setCaption(e.target.value)}
           placeholder="Write a caption..."
@@ -276,6 +248,8 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
           <motion.button
             key={dest.id}
             onClick={() => toggleDestination(dest.id)}
+            disabled={isSharing || composer.locked}
+            aria-pressed={selectedDestinations.includes(dest.id)}
             className={cn(
               "w-full p-4 rounded-2xl flex items-center gap-4 transition-all",
               selectedDestinations.includes(dest.id)
@@ -321,6 +295,8 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
                     <button
                       key={person.id}
                       onClick={() => toggleRecipient(person.id)}
+                      disabled={isSharing || composer.locked}
+                      aria-pressed={selectedRecipients.includes(person.id)}
                       className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
                     >
                       <div className="relative">
@@ -355,6 +331,8 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
         </AnimatePresence>
       </div>
 
+      {selectedDestinations.includes('dm') && !rankedPeople.length && <p className="px-4 pb-2 text-sm text-white/70">{conversationsFailed ? 'Chats could not be loaded. Reopen sharing to try again.' : 'Start a conversation in Messages to send this capture.'}</p>}
+      {composer.locked && !isSharing && <p className="px-4 pb-2 text-sm text-white/70">Retry keeps this story unchanged. Already completed destinations will be skipped.</p>}
       {/* Share Button */}
       <div className="p-4 pb-safe">
         <Button 
@@ -369,12 +347,12 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
                 transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
                 className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
               />
-              Checking & Sharing...
+              Preparing...
             </>
           ) : (
             <>
               <Send className="h-5 w-5" />
-              Share Now
+              {selectedDestinations.includes('clip') ? 'Continue to Clip' : 'Share Now'}
             </>
           )}
         </Button>

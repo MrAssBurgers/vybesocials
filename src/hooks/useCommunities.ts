@@ -1,12 +1,14 @@
+import { useCommunityQuery } from './useCommunityQuery';
 import { useCommunityRequest } from '@/hooks/useCommunityRequest';
 import { useCommunityMutation } from '@/hooks/useCommunityMutation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { db } from '@/lib/firebase';
+import { getDocumentFromServer } from '@/lib/firebase/firestoreDb';
 import { removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
-import { communityJoinBody, type CommunityJoinInput } from '@/lib/communityService';
+import { communityAccessChanged, communityJoinBody, type CommunityJoinInput } from '@/lib/communityService';
 
 export type CommunityRole = 'owner' | 'admin' | 'moderator' | 'member';
 export type RoomType = 'chat' | 'announcements' | 'media' | 'live' | 'qa';
@@ -60,7 +62,7 @@ export function useMyCommunities() {
   const communityRequest = useCommunityRequest();
   const profileId = useAuth().user?.id;
 
-  return useQuery({
+  return useCommunityQuery({
     queryKey: ['my-communities', profileId],
     queryFn: async () => {
       if (!profileId) return [];
@@ -77,19 +79,12 @@ export function useMyCommunities() {
 // Fetch a single community
 export function useCommunity(communityId: string | undefined) {
   const accountId = useAuth().user?.id;
-  return useQuery({
+  return useCommunityQuery({
     queryKey: ['community', communityId, accountId],
     queryFn: async () => {
       if (!communityId) return null;
 
-      const { data, error } = await db
-        .from('servers')
-        .select('id, name, description, icon_url, banner_url, cover_url, owner_id, invite_code, invite_expires_at, is_public, member_count, active_now_count, created_at')
-        .eq('id', communityId)
-        .single();
-
-      if (error) throw error;
-      return data as Community;
+      return getDocumentFromServer<Community>('servers', communityId);
     },
     enabled: !!communityId && !!accountId,
     staleTime: 1000 * 60 * 5,
@@ -100,7 +95,7 @@ export function useCommunity(communityId: string | undefined) {
 export function useRooms(communityId: string | undefined) {
   const communityRequest = useCommunityRequest();
   const accountId = useAuth().user?.id;
-  return useQuery({
+  return useCommunityQuery({
     queryKey: ['rooms', communityId, accountId],
     queryFn: async () => {
       if (!communityId) return [];
@@ -117,7 +112,7 @@ export function useRooms(communityId: string | undefined) {
 export function useCommunityMembers(communityId: string | undefined) {
   const communityRequest = useCommunityRequest();
   const accountId = useAuth().user?.id;
-  return useQuery({
+  return useCommunityQuery({
     queryKey: ['community-members', communityId, accountId],
     queryFn: async () => {
       if (!communityId) return [];
@@ -135,7 +130,7 @@ export function useLiveActivity(communityId: string | undefined) {
   const accountId = useAuth().user?.id;
   const queryClient = useQueryClient();
 
-  const query = useQuery({
+  const query = useCommunityQuery({
     queryKey: ['live-activity', communityId, accountId],
     queryFn: async () => {
       if (!communityId) return [];
@@ -243,6 +238,7 @@ export function useLeaveCommunity() {
       await communityRequest('community-manage', { action: 'leave', serverId: communityId });
     },
     onSuccess: () => {
+      communityAccessChanged();
       queryClient.invalidateQueries({ queryKey: ['my-communities'] });
       queryClient.invalidateQueries({ queryKey: ['my-servers'] });
       toast.success('Left community');
@@ -304,7 +300,7 @@ export function useMyCommunityRole(communityId: string | undefined) {
   const communityRequest = useCommunityRequest();
   const profileId = useAuth().user?.id;
 
-  return useQuery({
+  return useCommunityQuery({
     queryKey: ['my-community-role', communityId, profileId],
     queryFn: async () => {
       if (!communityId || !profileId) return null;

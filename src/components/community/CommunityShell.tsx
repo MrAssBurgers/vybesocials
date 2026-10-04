@@ -212,6 +212,7 @@ function CommunityShellInner({
       />
     ) : (
       <RoomChat
+        key={selectedRoom.id}
         roomId={selectedRoom.id}
         roomName={selectedRoom.name}
         roomType={(selectedRoom.room_type || 'chat') as RoomType}

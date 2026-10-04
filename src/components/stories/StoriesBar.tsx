@@ -1,3 +1,5 @@
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
+import { Button } from '@/components/ui/button';
 import { useState, memo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -11,8 +13,7 @@ import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avat
 import { StoryViewer } from './StoryViewer';
 import { StoryCreator } from './StoryCreator';
 import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
-import { batchSignUrls } from '@/lib/signedUrlCache';
-import { preloadImageUrl, signAndPreloadProfileAvatar } from '@/lib/imagePreload';
+import { signAndPreloadProfileAvatar } from '@/lib/imagePreload';
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { useIsGuest } from '@/components/auth/GuestAuthPrompt';
 import { StoryPoster } from './StoryPoster';
@@ -34,7 +35,9 @@ export const StoriesBar = memo(function StoriesBar({
   const { user, profile, loading: authLoading } = useAuth();
   const { isGuest } = useIsGuest();
   const canCreateStory = !authLoading && !!user;
-  const { data: storyGroups } = useStories();
+  const { data: storyGroups, isError, refetch, hasNextPage, fetchNextPage, isFetchingNextPage } = useStories();
+  const storySession = useReportAccountSession();
+  useEffect(() => { setSelectedGroupIndex(null); setShowCreator(false); }, [storySession.uid, storySession.epoch]);
   const createStory = useCreateStory();
   const queryClient = useQueryClient();
   const [selectedGroupIndex, setSelectedGroupIndex] = useState<number | null>(null);
@@ -67,25 +70,6 @@ export const StoriesBar = memo(function StoriesBar({
     if (avatar) void signAndPreloadProfileAvatar(avatar, 256);
   }, [profile?.id, profile?.avatar_url]);
 
-  useEffect(() => {
-    if (!storyGroups || storyGroups.length === 0) return;
-    const urls = storyGroups.flatMap((group) => {
-      const latest = group.stories[0];
-      const poster = latest ? getStoryPosterUrl(latest) : null;
-      return [poster, group.user.avatar_url].filter(Boolean) as string[];
-    });
-    if (urls.length > 0) {
-      void batchSignUrls(urls).then(() => {
-        urls.slice(0, 8).forEach((url, index) => {
-          preloadImageUrl(url, {
-            width: index === 0 ? 256 : 128,
-            quality: 80,
-            priority: index < 3 ? 'high' : 'auto',
-          });
-        });
-      });
-    }
-  }, [storyGroups]);
 
   const ownStoryGroup = storyGroups?.find((g) => g.user.id === profile?.id);
   const ownStoryUploading = ownStoryGroup?.stories.some((s) => s.isUploading || s.isOptimistic) ?? false;
@@ -166,6 +150,9 @@ export const StoriesBar = memo(function StoriesBar({
           }}
         />
 
+        {isError && <div role="alert" className="shrink-0 text-sm text-muted-foreground">
+          <p>Stories could not be loaded.</p><Button size="sm" variant="outline" onClick={() => { void refetch(); }}>Retry stories</Button>
+        </div>}
         {otherGroups.map((group, index) => {
           const posterUrl = group.stories[0] ? getStoryPosterUrl(group.stories[0]) : null;
           return (
@@ -185,10 +172,13 @@ export const StoriesBar = memo(function StoriesBar({
             />
           );
         })}
+        {!isError && hasNextPage && <Button variant="outline" className="shrink-0 self-center" disabled={isFetchingNextPage} onClick={() => { void fetchNextPage(); }}>
+          {isFetchingNextPage ? 'Loading stories…' : 'More stories'}
+        </Button>}
       </div>
 
       <AnimatePresence>
-        {selectedGroupIndex !== null && storyGroups && (
+        {selectedGroupIndex !== null && storyGroups.length > 0 && (
           <StoryViewer
             groups={storyGroups}
             initialGroupIndex={selectedGroupIndex}

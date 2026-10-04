@@ -1,6 +1,6 @@
 import { memo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { db } from '@/lib/firebase';
+import { useStories } from '@/hooks/useStories';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Circle } from 'lucide-react';
@@ -11,23 +11,13 @@ interface StoriesTabProps {
 }
 
 export const StoriesTab = memo(function StoriesTab({ profileId }: StoriesTabProps) {
-  const { data: stories, isLoading } = useQuery({
-    queryKey: ['friend-profile-stories', profileId],
-    queryFn: async () => {
-      const now = new Date().toISOString();
-      const { data, error } = await db
-        .from('stories')
-        .select('id, media_url, thumbnail_url, created_at, expires_at')
-        .eq('author_id', profileId)
-        .gt('expires_at', now)
-        .order('created_at', { ascending: false })
-        .limit(20);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!profileId,
-    staleTime: 30_000,
-  });
+  const { data: groups, isLoading, isError, refetch } = useStories(profileId);
+  const stories = groups.flatMap(group => group.stories);
+
+  if (isError) return <div role="alert" className="space-y-2 text-sm text-muted-foreground">
+    <p>Stories could not be loaded.</p>
+    <Button variant="outline" size="sm" onClick={() => { void refetch(); }}>Retry stories</Button>
+  </div>;
 
   if (isLoading) {
     return <Skeleton className="h-24 w-full rounded-xl" />;

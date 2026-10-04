@@ -23,7 +23,9 @@ service firebase.storage {
       allow delete: if isOwner(userId);
     }
     match /stories/{userId}/{allPaths=**} {
-      allow read: if signedIn();
+      // Viewers receive an existing download URL only after story admission.
+      // Do not let other signed-in accounts enumerate the uploader's media.
+      allow read: if isOwner(userId) || isAdmin();
       allow create, update: if isOwner(userId) && smallEnough() && isAv();
       allow delete: if isOwner(userId);
     }

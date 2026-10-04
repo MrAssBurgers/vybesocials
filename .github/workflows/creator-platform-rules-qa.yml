@@ -12,6 +12,18 @@ on:
       - 'scripts/test-game-capture-post-rules.mjs'
       - 'scripts/test-customization-rules.mjs'
       - 'scripts/test-custom-sound-rules.mjs'
+      - 'scripts/test-story-publish-rules.mjs'
+      - 'scripts/test-story-publish-backend.mjs'
+      - 'functions/src/storyPublish.ts'
+      - 'functions/src/_shared/storyPublishAuthority.ts'
+      - 'functions/src/_shared/storyReadAuthority.ts'
+      - 'functions/src/_shared/closeFriendAuthority.ts'
+      - 'src/lib/closeFriendsService*'
+      - 'src/components/stories/CloseFriendsManager*'
+      - 'src/lib/storyRead*'
+      - 'src/lib/storyPublish*'
+      - 'src/hooks/useStories*'
+      - 'src/hooks/useStoryComposer*'
       - 'src/hooks/useCustomSounds*'
       - 'src/components/settings/CustomRingtoneUploader*'
       - 'scripts/test-account-authority-rules.mjs'
@@ -110,6 +122,18 @@ on:
       - 'scripts/test-game-capture-post-rules.mjs'
       - 'scripts/test-customization-rules.mjs'
       - 'scripts/test-custom-sound-rules.mjs'
+      - 'scripts/test-story-publish-rules.mjs'
+      - 'scripts/test-story-publish-backend.mjs'
+      - 'functions/src/storyPublish.ts'
+      - 'functions/src/_shared/storyPublishAuthority.ts'
+      - 'functions/src/_shared/storyReadAuthority.ts'
+      - 'functions/src/_shared/closeFriendAuthority.ts'
+      - 'src/lib/closeFriendsService*'
+      - 'src/components/stories/CloseFriendsManager*'
+      - 'src/lib/storyRead*'
+      - 'src/lib/storyPublish*'
+      - 'src/hooks/useStories*'
+      - 'src/hooks/useStoryComposer*'
       - 'src/hooks/useCustomSounds*'
       - 'src/components/settings/CustomRingtoneUploader*'
       - 'scripts/test-account-authority-rules.mjs'
@@ -250,6 +274,8 @@ jobs:
           node --check scripts/test-game-capture-post-rules.mjs
           node --check scripts/test-customization-rules.mjs
           node --check scripts/test-custom-sound-rules.mjs
+          node --check scripts/test-story-publish-rules.mjs
+          node --check scripts/test-story-publish-backend.mjs
           node --check scripts/test-account-authority-rules.mjs
           node --check scripts/test-commerce-authority-rules.mjs
           node --check scripts/test-dm-membership-authority.mjs
@@ -277,6 +303,8 @@ jobs:
           node scripts/test-game-capture-post-rules.mjs &&
           node scripts/test-customization-rules.mjs &&
           node scripts/test-custom-sound-rules.mjs &&
+          node scripts/test-story-publish-rules.mjs &&
+          node scripts/test-story-publish-backend.mjs &&
           node scripts/test-account-authority-rules.mjs &&
           node scripts/test-commerce-authority-rules.mjs &&
           node scripts/test-dm-membership-authority.mjs &&

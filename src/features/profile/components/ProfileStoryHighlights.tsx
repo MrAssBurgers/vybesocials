@@ -30,7 +30,7 @@ export function ProfileStoryHighlights({
 }: ProfileStoryHighlightsProps) {
   const navigate = useNavigate();
   const camera = useCameraOverlayOptional();
-  const { data: storyGroups } = useStories();
+  const { data: storyGroups } = useStories(profileId);
   const { data: highlights = [] } = useStoryHighlights(canViewStories ? profileId : undefined);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 

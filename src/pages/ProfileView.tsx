@@ -75,7 +75,7 @@ export default function ProfileViewPage() {
 
   const onlineIds = vm.permissions.online && vm.profile?.id ? [vm.profile.id] : [];
   const { data: onlineMap } = useUsersOnlineStatus(onlineIds);
-  const { data: storyGroups } = useStories();
+  const { data: storyGroups } = useStories(vm.profile?.id);
 
   const [aboutOpen, setAboutOpen] = useState(false);
   const [scoreOpen, setScoreOpen] = useState(false);

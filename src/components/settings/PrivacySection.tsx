@@ -1,3 +1,4 @@
+import { CloseFriendsManager } from '@/components/stories/CloseFriendsManager';
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Eye, EyeOff, Shield, Users, KeyRound, Sparkles, Baby, Megaphone } from 'lucide-react';
@@ -307,6 +308,7 @@ export function PrivacySection({ onOpenParental }: { onOpenParental?: () => void
       </SettingsSectionCard>
 
         <BlockedUsersCard />
+        <CloseFriendsManager className="w-full" />
         <MutedUsersCard />
         <FriendProfileVisibilityCard />
     </div>

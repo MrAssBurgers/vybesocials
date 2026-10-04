@@ -1,5 +1,46 @@
 {
   "indexes": [
+    { "collectionGroup": "blocked_users", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "blocker_id", "order": "ASCENDING" },
+        { "fieldPath": "blocked_id", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "friend_requests", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sender_id", "order": "ASCENDING" },
+        { "fieldPath": "receiver_id", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "_close_friend_authority", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "owner_uid", "order": "ASCENDING" },
+        { "fieldPath": "enabled", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "_close_friend_authority", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "owner_uid", "order": "ASCENDING" },
+        { "fieldPath": "friend_profile_id", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "_close_friend_authority", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "owner_uid", "order": "ASCENDING" },
+        { "fieldPath": "friend_uid", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "story_highlights", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "owner_id", "order": "ASCENDING" },
+        { "fieldPath": "updated_at", "order": "DESCENDING" }
+      ] },
+    { "collectionGroup": "stories", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "author_id", "order": "ASCENDING" },
+        { "fieldPath": "expires_at", "order": "DESCENDING" }
+      ] },
+    { "collectionGroup": "close_friends", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "user_id", "order": "ASCENDING" },
+        { "fieldPath": "friend_id", "order": "ASCENDING" }
+      ] },
     { "collectionGroup": "token_events", "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "user_id", "order": "ASCENDING" },

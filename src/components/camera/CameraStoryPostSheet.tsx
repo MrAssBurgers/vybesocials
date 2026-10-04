@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { CloseFriendsManager } from '@/components/stories/CloseFriendsManager';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Send, Loader2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,17 +8,13 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
-import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useAuth } from '@/lib/auth';
-import { useCreateStory } from '@/hooks/useStories';
-import { useQueryClient } from '@tanstack/react-query';
 import { triggerHaptic } from '@/lib/haptics';
-import { publishStoryMedia } from '@/lib/publishStoryMedia';
-import { runPublishVybeCheck } from '@/lib/vybeCheck';
-import { refreshFirebaseSession } from '@/lib/firebaseAuthRefresh';
-import { withTimeout } from '@/lib/withTimeout';
-import { generateStoryThumbnail, validateStoryMedia } from '@/lib/storyUtils';
-import { resolveStoryAuthorProfileId } from '@/lib/resolveSessionProfileId';
+
+import { useStoryComposer } from '@/hooks/useStoryComposer';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
+import { resolveCaptureFile } from '@/lib/camera/resolveCaptureFile';
+import { reportAccountGuard, reportAccountSnapshot, type ReportAccountSession } from '@/lib/reportModerationService';
 
 interface CameraStoryPostSheetProps {
   mediaUrl: string;
@@ -27,96 +24,66 @@ interface CameraStoryPostSheetProps {
   onComplete: () => void;
 }
 
-async function resolveFile(
-  mediaUrl: string,
-  mediaType: 'photo' | 'video',
-  mediaFile?: File,
-): Promise<File> {
-  if (mediaFile) return mediaFile;
-  const response = await fetch(mediaUrl);
-  const blob = await response.blob();
-  const ext = mediaType === 'video' ? 'mp4' : 'jpg';
-  const type = blob.type || (mediaType === 'video' ? 'video/mp4' : 'image/jpeg');
-  return new File([blob], `story.${ext}`, { type });
+/** Streamlined story post — capture → edit → post in one flow (no extra screens). */
+export function CameraStoryPostSheet(props: CameraStoryPostSheetProps) {
+  const session = useReportAccountSession();
+  const capturedSession = useRef(session).current;
+  if (session.uid !== capturedSession.uid || session.epoch !== capturedSession.epoch) {
+    return <FullscreenPortal><div role="dialog" aria-modal="true" aria-label="Capture expired" className="fixed inset-0 z-[6100] bg-black text-white flex flex-col items-center justify-center gap-4 p-6 text-center">
+      <p>Your account changed. Close this capture and open the camera again.</p>
+      <Button onClick={props.onClose}>Close capture</Button>
+    </div></FullscreenPortal>;
+  }
+  return <CameraStoryPostSession key={props.mediaUrl} {...props} capturedSession={capturedSession} />;
 }
 
-/** Streamlined story post — capture → edit → post in one flow (no extra screens). */
-export function CameraStoryPostSheet({
+function CameraStoryPostSession({
   mediaUrl,
   mediaType,
   mediaFile,
   onClose,
   onComplete,
-}: CameraStoryPostSheetProps) {
-  const { user, profile } = useAuth();
-  const profileId = useAuthProfileId();
-  const effectiveProfileId = profile?.id ?? profileId;
-  const createStory = useCreateStory();
-  const queryClient = useQueryClient();
+  capturedSession,
+}: CameraStoryPostSheetProps & { capturedSession: ReportAccountSession }) {
+  const { user } = useAuth();
+  const composer = useStoryComposer();
+  const alive = useRef(false);
+  const sending = useRef(false);
+  const fileRef = useRef<Promise<File>>();
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const [caption, setCaption] = useState('');
   const [closeFriends, setCloseFriends] = useState(false);
   const [posting, setPosting] = useState(false);
 
   const handlePost = async () => {
-    if (!user) {
-      toast.error('Sign in to post stories');
-      return;
-    }
+    if (sending.current) return;
+    if (!user) { toast.error('Sign in to post stories'); return; }
+    const ownerGuard = reportAccountGuard(user.id);
+    const guard = () => {
+      const current = reportAccountSnapshot();
+      if (current.uid !== capturedSession.uid || current.epoch !== capturedSession.epoch) throw new Error('Your account changed. Open the camera again.');
+      ownerGuard();
+      if (!alive.current) throw new Error('This story editor has closed.');
+    };
+    sending.current = true;
     setPosting(true);
-    triggerHaptic('medium');
     try {
-      const file = await resolveFile(mediaUrl, mediaType, mediaFile);
-      const vybe = await withTimeout(
-        runPublishVybeCheck({
-          caption: caption.trim(),
-          mediaFile: file,
-          contentType: 'story',
-        }),
-        180_000,
-        'Vybe Check timed out',
-      );
-      if (vybe.blocked || !vybe.allowed) {
-        throw new Error(vybe.message || 'Content violates community guidelines');
-      }
-
-      const validation = await validateStoryMedia(file);
-      if (!validation.valid) {
-        throw new Error(validation.error || 'Invalid story media');
-      }
-
-      await refreshFirebaseSession(8000);
-      await resolveStoryAuthorProfileId(effectiveProfileId);
-      const isVideo = mediaType === 'video';
-      const thumbnailBlob = isVideo ? await generateStoryThumbnail(file, true) : null;
-
-      const { mediaUrl: uploadedUrl, thumbnailUrl } = await publishStoryMedia({
-        file,
-        isVideo,
-        thumbnailBlob,
-      });
-
-      await withTimeout(
-        createStory.mutateAsync({
-          mediaUrl: uploadedUrl,
-          mediaType: isVideo ? 'video' : 'image',
-          thumbnailUrl,
-          caption: caption.trim() || undefined,
-          isCloseFriendsOnly: closeFriends,
-          aspectRatio: validation.aspectRatio || 0.5625,
-          duration: validation.duration,
-        }),
-        60_000,
-        'Saving story timed out. Please try again.',
-      );
-
-      void queryClient.invalidateQueries({ queryKey: ['stories'], refetchType: 'all' });
+      guard();
+      triggerHaptic('medium');
+      fileRef.current ??= resolveCaptureFile(mediaUrl, mediaType, mediaFile).catch(error => { fileRef.current = undefined; throw error; });
+      const file = await fileRef.current;
+      guard();
+      const story = await composer.submit({ file, isVideo: mediaType === 'video', caption, isCloseFriendsOnly: closeFriends });
+      guard();
+      if (!story) return;
       toast.success('Story posted!');
       onComplete();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to post story';
-      toast.error(msg);
+      try { guard(); } catch { return; }
+      toast.error(err instanceof Error ? err.message : 'Failed to post story');
     } finally {
-      setPosting(false);
+      sending.current = false;
+      if (alive.current) setPosting(false);
     }
   };
 
@@ -132,7 +99,9 @@ export function CameraStoryPostSheet({
           <button
             type="button"
             onClick={onClose}
-            className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center"
+            disabled={posting}
+            aria-label="Close story editor"
+            className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center"
           >
             <X className="h-5 w-5 text-white" />
           </button>
@@ -151,6 +120,7 @@ export function CameraStoryPostSheet({
 
           <div className="w-full max-w-sm mt-4 space-y-3">
             <Input
+              disabled={posting || composer.locked}
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               placeholder="Add a caption…"
@@ -164,12 +134,17 @@ export function CameraStoryPostSheet({
                   Close Friends only
                 </Label>
               </div>
-              <Switch id="close-friends" checked={closeFriends} onCheckedChange={setCloseFriends} />
+              <Switch disabled={posting || composer.locked} id="close-friends" checked={closeFriends} onCheckedChange={setCloseFriends} />
             </div>
+            <CloseFriendsManager disabled={posting || composer.locked} className="w-full" />
           </div>
         </div>
 
         <div className="p-4 pb-safe">
+          {composer.locked && !posting && <div className="mb-3 text-center text-sm text-white/70">
+            <p>Retry keeps the same story and audience.</p>
+            <Button variant="ghost" className="text-white" onClick={() => { composer.reset(); }}>Start a new story</Button>
+          </div>}
           <Button
             className="w-full h-12 rounded-2xl text-base font-semibold gap-2"
             disabled={posting}

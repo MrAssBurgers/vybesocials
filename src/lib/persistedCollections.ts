@@ -234,7 +234,12 @@ function isPersistedArrayQueryKey(queryKey: readonly unknown[]): boolean {
 }
 
 /** List-shaped query keys must never be persisted as plain objects (IDB → `{}` crash on .map). */
+function isScopedStoryQuery(queryKey: readonly unknown[]): boolean {
+  return ['stories', 'story-author', 'visible-story', 'close-friends'].includes(String(queryKey[0]))
+    && typeof queryKey.at(-2) === 'string' && typeof queryKey.at(-1) === 'number';
+}
 export function mustPersistAsArray(queryKey: readonly unknown[]): boolean {
+  if (isScopedStoryQuery(queryKey)) return false;
   return (
     isPersistedArrayQueryKey(queryKey) ||
     queryKeyMatchesFragments(queryKey, PERSISTED_ARRAY_KEY_FRAGMENTS)
@@ -253,6 +258,9 @@ function queryKeyMatchesFragments(queryKey: readonly unknown[], fragments: strin
 /** Revive Set/Map query data based on query key patterns. */
 export function revivePersistedQueryData(queryKey: readonly unknown[], data: unknown): unknown {
   if (data == null) return data;
+  // Current story queries hold typed pages/receipts, not legacy group arrays.
+  // They are excluded from persistence; leave their live cache shape intact.
+  if (isScopedStoryQuery(queryKey)) return data;
   if (isStoriesQueryKey(queryKey)) {
     return sanitizeStoriesCacheData(data);
   }
@@ -348,6 +356,7 @@ export function safeMapGet<V>(map: unknown, key: string): V | undefined {
  * Subscribe once at app boot so consumers never see plain-object Maps/Sets/arrays.
  */
 function queryKeyNeedsRevive(queryKey: readonly unknown[]): boolean {
+  if (isScopedStoryQuery(queryKey)) return false;
   if (isStoriesQueryKey(queryKey)) return true;
   if (queryKeyMatchesFragments(queryKey, PERSISTED_SET_KEY_FRAGMENTS)) return true;
   if (queryKeyMatchesFragments(queryKey, PERSISTED_MAP_KEY_FRAGMENTS)) return true;
@@ -386,6 +395,7 @@ export function installQueryCacheNormalizer(queryClient: QueryClient): () => voi
 
 function queryDataNeedsRevive(queryKey: readonly unknown[], data: unknown): boolean {
   if (data == null) return false;
+  if (isScopedStoryQuery(queryKey)) return false;
   if (isStoriesQueryKey(queryKey)) return storyGroupsNeedRevive(data);
   if (queryKeyMatchesFragments(queryKey, PERSISTED_SET_KEY_FRAGMENTS)) {
     return !(data instanceof Set);

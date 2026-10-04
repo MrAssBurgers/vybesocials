@@ -70,6 +70,7 @@ export * from './community.js';
 export * from './badgeAuthority.js';
 export * from './tokenMarketplace.js';
 export * from './reportModeration.js';
+export { publishStory, listVisibleStories, manageCloseFriends } from './storyPublish.js';
 
 
 /**

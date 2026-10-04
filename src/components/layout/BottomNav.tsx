@@ -7,8 +7,7 @@ import { useUnreadMessagesCount } from '@/hooks/useMessages';
 import { useState, useCallback, useRef, memo, useEffect, forwardRef, useMemo, useSyncExternalStore } from 'react';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
-import { CreateMenuLayer } from '@/components/hub/CreateMenuLayer';
-import { VYBEHub } from '@/components/hub/VYBEHub';
+import { CreateMenuLayer, type CreateMenuView } from '@/components/hub/CreateMenuLayer';
 import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 import { useAuth } from '@/lib/auth';
 import { navVisibility } from '@/lib/navVisibility';
@@ -281,7 +280,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
   const onboardingComplete = profile?.onboarding_completed !== false;
 
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
-  const [isHubOpen, setIsHubOpen] = useState(false);
+  const [createMenuView, setCreateMenuView] = useState<CreateMenuView>('create');
   const [highlightedNav, setHighlightedNav] = useState<string | null>(null);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [authPromptAction, setAuthPromptAction] = useState('');
@@ -337,14 +336,13 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
 
   // Tutorial event listeners
   useEffect(() => {
-    const handleOpenCreateMenu = () => setIsCreateMenuOpen(true);
+    const handleOpenCreateMenu = () => { setCreateMenuView('create'); setIsCreateMenuOpen(true); };
     const handleOpenVYBEHub = () => {
-      setIsCreateMenuOpen(false);
-      setIsHubOpen(true);
+      setCreateMenuView('hub');
+      setIsCreateMenuOpen(true);
     };
     const handleCloseMenus = () => {
       setIsCreateMenuOpen(false);
-      setIsHubOpen(false);
     };
     const handleHighlightNav = (e: CustomEvent<{ navId: string | null }>) => {
       setHighlightedNav(e.detail.navId);
@@ -365,6 +363,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
 
   // Long press handlers for edit mode
   const handleCreateTouchStart = useCallback(() => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
     longPressTriggered.current = false;
     longPressTimer.current = setTimeout(() => {
       longPressTriggered.current = true;
@@ -373,6 +372,8 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
       setIsEditMode(true);
     }, 600);
   }, []);
+
+  useEffect(() => () => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }, []);
 
   const handleCreateTouchEnd = useCallback(() => {
     if (longPressTimer.current) {
@@ -411,11 +412,12 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
     playSound('pop');
     
     if (timeSinceLastTap < 300) {
-      setIsCreateMenuOpen(false);
-      setIsHubOpen(true);
+      setCreateMenuView('hub');
+      setIsCreateMenuOpen(true);
     } else if (isCreateMenuOpen) {
       setIsCreateMenuOpen(false);
     } else {
+      setCreateMenuView('create');
       setIsCreateMenuOpen(true);
     }
     
@@ -469,8 +471,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
 
   return (
     <>
-      <CreateMenuLayer open={isCreateMenuOpen} onOpenChange={setIsCreateMenuOpen} />
-      <VYBEHub isOpen={isHubOpen} onClose={() => setIsHubOpen(false)} />
+      <CreateMenuLayer id="vybe-create-menu" open={isCreateMenuOpen} initialView={createMenuView} onOpenChange={setIsCreateMenuOpen} />
       <GuestAuthPrompt 
         variant="modal"
         action={authPromptAction}
@@ -609,6 +610,8 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                       type="button"
                       aria-label={isEditMode ? 'Finish editing navigation' : isCreateMenuOpen ? 'Close create menu' : 'Create'}
                       aria-expanded={!isEditMode ? isCreateMenuOpen : undefined}
+                      aria-haspopup={!isEditMode ? 'dialog' : undefined}
+                      aria-controls={!isEditMode && isCreateMenuOpen ? 'vybe-create-menu' : undefined}
                       variant={isEditMode ? 'default' : 'vybeLiquid'}
                       size="icon-lg"
                       onClick={handleCreateClick}

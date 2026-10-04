@@ -26,6 +26,14 @@ function makeJob(jobId: string): Omit<QueuedSnapJob, 'queuedAt' | 'attempts' | '
 }
 
 describe('snap offline queue', () => {
+  it('retries a receipt-backed story after an uncertain acknowledgement while preserving its immutable intent', async () => {
+    const queue = createSnapOfflineQueue(createMemorySnapQueueStore());
+    await queue.enqueue({ ...makeJob('story-receipt'), storyPublishVersion: 1, remainingStoryDestinationIds: ['my_story'] });
+    await queue.flush(async (_job, delivery) => { await delivery.beginStory('my_story'); return 'retry_later'; });
+    const row = (await queue.list())[0]; expect(row).toMatchObject({ status: 'pending', storyPublishVersion: 1 });
+    const send = vi.fn().mockResolvedValue('sent'); await queue.flush(send); expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0][0].draft.clientMessageId).toBe(row.draft.clientMessageId); expect(await queue.list()).toEqual([]);
+  });
   it('enqueues with pending status and persists the draft', async () => {
     const queue = createSnapOfflineQueue(createMemorySnapQueueStore());
     await queue.enqueue(makeJob('j1'));

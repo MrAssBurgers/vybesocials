@@ -15,6 +15,8 @@ const KEY = 'vybe-snap-outbox-v1';
 export interface QueuedSnapJob {
   /** Older rows without a verifiable owner must never be adopted by the active account. */
   schemaVersion?: 2;
+  /** Only new drafts use the server's permanent story publish receipt. */
+  storyPublishVersion?: 1;
   ownerUid?: string;
   jobId: string;
   draft: SnapMediaDraft;
@@ -91,8 +93,8 @@ export const SNAP_QUEUE_DELIVERY_LEASE_MS = 10 * 60_000;
 type QueuePatch = Partial<Pick<QueuedSnapJob, 'status' | 'lastError' | 'attempts' | 'remainingConversationIds' | 'remainingStoryDestinationIds'>>;
 const newRevision = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const STORY_REVIEW_MESSAGE = 'A story may already be posted. Check your story before retrying to avoid a duplicate.';
-const immutableIdentity = (row: Pick<QueuedSnapJob, 'schemaVersion' | 'ownerUid' | 'senderId' | 'draft' | 'caption' | 'mediaMimeType' | 'mediaBlob'>) => JSON.stringify([
-  row.schemaVersion, row.ownerUid, row.senderId, row.draft.mediaId, row.draft.clientMessageId, row.draft.mediaType, row.draft.viewMode,
+const immutableIdentity = (row: Pick<QueuedSnapJob, 'schemaVersion' | 'storyPublishVersion' | 'ownerUid' | 'senderId' | 'draft' | 'caption' | 'mediaMimeType' | 'mediaBlob'>) => JSON.stringify([
+  row.schemaVersion, row.storyPublishVersion, row.ownerUid, row.senderId, row.draft.mediaId, row.draft.clientMessageId, row.draft.mediaType, row.draft.viewMode,
   row.draft.replyToMessageId, row.caption, row.mediaMimeType, row.mediaBlob?.size, row.mediaBlob?.type,
 ]);
 
@@ -209,7 +211,7 @@ export function createSnapOfflineQueue(store: SnapQueueStore): SnapOfflineQueue 
           await mutate(current => current.map(row => {
             if (!matches(row, snapshot.jobId, operation) || row.revision !== snapshot.revision || row.status !== 'pending') return row;
             if (row.delivery && row.delivery.expiresAt > Date.now()) return row;
-            if (row.attemptedStoryDestinationIds?.length || ((!row.revision || row.delivery) && row.remainingStoryDestinationIds.length)) {
+            if (row.storyPublishVersion !== 1 && (row.attemptedStoryDestinationIds?.length || ((!row.revision || row.delivery) && row.remainingStoryDestinationIds.length))) {
               return { ...row, delivery: undefined, status: 'failed', revision: newRevision(), lastError: STORY_REVIEW_MESSAGE };
             }
             const claimed = { ...row, revision: token, delivery: { token, expiresAt: Date.now() + SNAP_QUEUE_DELIVERY_LEASE_MS } };
@@ -250,7 +252,7 @@ export function createSnapOfflineQueue(store: SnapQueueStore): SnapOfflineQueue 
           await mutate(current => current.flatMap(row => {
             if (!matches(row, job!.jobId, operation) || row.delivery?.token !== token) return [row];
             if (result === 'sent') return [];
-            if (row.attemptedStoryDestinationIds?.length) return [{ ...row, delivery: undefined, revision: newRevision(), status: 'failed', attempts: row.attempts + 1, lastError: STORY_REVIEW_MESSAGE }];
+            if (row.storyPublishVersion !== 1 && row.attemptedStoryDestinationIds?.length) return [{ ...row, delivery: undefined, revision: newRevision(), status: 'failed', attempts: row.attempts + 1, lastError: STORY_REVIEW_MESSAGE }];
             if (result === 'skip_account' || result === 'retry_later') return [{ ...row, delivery: undefined }];
             return [{ ...row, delivery: undefined, revision: newRevision(), status: 'failed', attempts: row.attempts + 1, lastError: job!.lastError || row.lastError || 'Failed to send' }];
           }), operation);
