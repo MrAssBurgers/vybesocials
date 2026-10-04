@@ -15,8 +15,8 @@ const { db } = await import('../functions/lib/_shared/admin.js');
 const { Timestamp } = await import('../functions/node_modules/firebase-admin/lib/firestore/index.js');
 const { managePostLocalArea } = await import('../functions/lib/postLocalArea.js');
 const { managePostLocalAreaAuthority } = await import('../functions/lib/_shared/postLocalAreaAuthority.js');
-const { readSocialFeed } = await import('../functions/lib/socialFeed.js');
-const { readSocialFeedPage } = await import('../functions/lib/_shared/socialFeedAuthority.js');
+const { readSocialFeed, readSocialPostPreviews } = await import('../functions/lib/socialFeed.js');
+const { readSocialFeedPage, readSocialPostPreviewsPage } = await import('../functions/lib/_shared/socialFeedAuthority.js');
 const { closeFriendAuthorityId } = await import('../functions/lib/_shared/profileAudienceAuthority.js');
 const { manageFollowAuthority, followAuthorityId } = await import('../functions/lib/_shared/followAuthority.js');
 const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
@@ -310,6 +310,39 @@ try {
     for (const feed of ['following', 'personalized', 'local']) await assert.rejects(externalRead({ feed, ...(feed === 'local' ? { area: { lat: 0, lng: 0 } } : {}) }), { code: 'invalid-argument' });
     await assert.rejects(read(viewer, { external: { connectionId: externalConnection } }), { code: 'invalid-argument' });
     await assert.rejects(externalRead({}, external('malformed')), { code: 'invalid-argument' });
+  });
+  const preview = (patch = {}, who = viewer) => readSocialPostPreviewsPage(db, who.uid, request(who, { postIds: ['preview'], ...patch }));
+  await clearPosts(); await resetPolicy(); await seed('preview', { secret: 'preview-secret', visibility: 'public' });
+  await check('known-ID preview validates identity, bounds and duplicate IDs before reading', async () => {
+    await assert.rejects(readSocialPostPreviews.run({ data: {} }), { code: 'unauthenticated' });
+    await assert.rejects(preview({ expectedOwnerUid: author.uid }), { code: 'failed-precondition' });
+    await assert.rejects(preview({ expectedProfileId: author.profile }), { code: 'failed-precondition' });
+    for (const patch of [{ postIds: [] }, { postIds: ['preview', 'preview'] }, { postIds: ['bad/path'] }, { postIds: Array.from({ length: 21 }, (_, i) => `post-${i}`) }, { postIds: 'preview' }, { mediaUrl: 'https://example.test/copied.png' }, { admin: true }]) {
+      await assert.rejects(preview(patch), { code: 'invalid-argument' });
+    }
+  });
+  await check('known-ID previews expose only admitted projection and omit missing or hidden posts', async () => {
+    await seed('hidden-preview', { is_hidden: true });
+    const result = await readSocialPostPreviews.run({ auth: { uid: viewer.uid }, data: request(viewer, { postIds: ['missing', 'preview', 'hidden-preview'] }) });
+    assert.deepEqual(result.requestedPostIds, ['missing', 'preview', 'hidden-preview']);
+    assert.equal(result.ownerUid, viewer.uid); assert.equal(result.viewerProfileId, viewer.profile);
+    assert.deepEqual(result.posts.map(post => post.id), ['preview']);
+    assert.ok(!JSON.stringify(result).includes('preview-secret')); assert.ok(!JSON.stringify(result).includes('must-not-escape'));
+    assert.ok(!Object.hasOwn(result.posts[0], 'reactionType')); // Preview makes no claim about interaction state.
+  });
+  await check('known-ID previews recheck visibility, friendship and blocks on every request', async () => {
+    for (const fields of [{ posts: 'only_me' }, { posts: 'unknown' }, { posts: 'friends' }]) {
+      await preference.set({ fields }); assert.deepEqual((await preview()).posts, []);
+    }
+    await relationship.set({ sender_id: viewer.uid, receiver_id: author.profile, status: 'accepted' });
+    assert.equal((await preview()).posts.length, 1);
+    await block.set({ blocker_id: author.uid, blocked_id: viewer.profile }); assert.deepEqual((await preview()).posts, []);
+    await resetPolicy();
+    await seed('preview', { visibility: 'public', audience: 'only_me' }); assert.deepEqual((await preview()).posts, []);
+    assert.equal((await preview({}, author)).posts.length, 1);
+    await seed('preview', { user_id: viewer.uid }); assert.deepEqual((await preview()).posts, []);
+    await seed('preview', { status: 'draft' }); assert.deepEqual((await preview()).posts, []);
+    await db.doc('posts/preview').delete(); assert.deepEqual((await preview()).posts, []);
   });
   console.log(`Social feed backend: ${checks} grouped checks passed.`);
 } finally { await env.cleanup(); await db.terminate(); }

@@ -8,6 +8,20 @@ import { validPostLocalProof } from './postLocalAreaAuthority.js';
 import { rankSocialPosts } from './socialFeedRanking.js';
 const PAGE_SIZE = 20;
 const CURSOR_TTL = 10 * 60 * 1000;
+export function normalizeSocialPostPreviewsInput(raw, uid) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+        throw new HttpsError('invalid-argument', 'Post details are required.');
+    const row = raw;
+    if (row.expectedOwnerUid !== uid)
+        throw new HttpsError('failed-precondition', 'Your account changed. Reopen the post.');
+    if (!validAudienceId(row.expectedProfileId)
+        || Object.keys(row).some(key => !['expectedOwnerUid', 'expectedProfileId', 'postIds'].includes(key))
+        || !Array.isArray(row.postIds) || row.postIds.length < 1 || row.postIds.length > PAGE_SIZE
+        || row.postIds.some(id => !validAudienceId(id)) || new Set(row.postIds).size !== row.postIds.length) {
+        throw new HttpsError('invalid-argument', 'Choose between one and twenty distinct posts.');
+    }
+    return row;
+}
 export function normalizeSocialFeedInput(raw, uid) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw))
         throw new HttpsError('invalid-argument', 'Feed details are required.');
@@ -109,6 +123,35 @@ function projectPost(id, row, admission) {
         tags: Array.isArray(row.tags) ? row.tags.filter((tag) => typeof tag === 'string' && tag.length <= 100).slice(0, 30) : [],
         author: { id: author.profileId, username, displayName: text(author.row.display_name, 200), avatarUrl: httpsUrl(author.row.avatar_url) },
     };
+}
+/** Known-ID previews use exactly the feed's current audience/author projection.
+ * No stored message caption, thumbnail or media URL can grant access.
+ * Missing and inaccessible IDs both disappear from the admitted results.
+ */
+export async function readSocialPostPreviewsPage(db, uid, raw) {
+    const input = normalizeSocialPostPreviewsInput(raw, uid);
+    return db.runTransaction(async (tx) => {
+        const viewer = await resolveIdentity(db, tx, uid);
+        if (!viewer || viewer.uid !== uid || viewer.profileId !== input.expectedProfileId)
+            throw new HttpsError('failed-precondition', 'Your profile changed. Reopen the post.');
+        const candidates = await tx.getAll(...input.postIds.map(id => db.collection('posts').doc(id)));
+        const admissions = new Map();
+        const posts = [];
+        for (const candidate of candidates) {
+            const row = candidate.data();
+            if (!row || !validAudienceId(row.author_id))
+                continue;
+            if (!admissions.has(row.author_id))
+                admissions.set(row.author_id, authorAdmission(db, tx, viewer, row.author_id));
+            const admission = await admissions.get(row.author_id);
+            if (!admission || (row.user_id !== undefined && (typeof row.user_id !== 'string' || !admission.author.aliases.includes(row.user_id))))
+                continue;
+            const projected = projectPost(candidate.id, row, admission);
+            if (projected)
+                posts.push(projected);
+        }
+        return { ownerUid: uid, viewerProfileId: viewer.profileId, requestedPostIds: input.postIds, posts };
+    });
 }
 /** Account-bound reader with a separately authorized external public-feed boundary. */
 export async function readSocialFeedPage(db, uid, raw, nowMs = Date.now(), external) {

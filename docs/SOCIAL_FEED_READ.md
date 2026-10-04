@@ -1,5 +1,30 @@
 # Viewer-aware feed read foundation
 
+## Known-ID preview reader (staged)
+
+`readSocialPostPreviews` accepts `{ expectedOwnerUid, expectedProfileId, postIds }`
+with 1–20 distinct IDs and no extra fields. It resolves the viewer, requested
+posts and author permissions in one Firestore transaction, reusing the feed's
+profile/post audience intersection, private-account follow approval, block,
+friendship, Close Friends, moderation and owner-alias checks. Missing and
+inaccessible posts are both omitted. The receipt echoes the viewer and requested
+IDs and includes only the existing presentation projection, without reaction or
+bookmark state. It creates no cursors and is limited to 30 batches/minute/account.
+Integration tokens cannot call it.
+
+The client transport validates the exact receipt, requested identities, duplicate
+or unsolicited results, media URLs and current account before/after transport.
+It has no raw-document or copied-message fallback. **Message bubbles and detail
+pages are not yet migrated to this reader.** In particular, the existing
+`SharedPostBubble` still has legacy raw reads and media-prop fallbacks; this staged
+endpoint does not close that UI gap by itself. Next, batch visible shared IDs,
+bind results to account/visibility leases and remove those fallback paths.
+Deploy this named function before the compatible client; do not deploy all
+Functions or claim a production privacy migration from this source checkpoint.
+Already delivered media URLs/bytes cannot be recalled.
+
+## Feed reader
+
 `readSocialFeed` is a Firebase callable for a signed-in account. Home's Global
 tab uses it through `useSocialFeed` and strict `socialFeedService` parsing.
 Shared personalized and Following hooks now use the same reader for Home,

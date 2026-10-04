@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Staged audience-checked shared-post previews
+
+### What changed
+- Inspection found SharedPostBubble reads raw posts and can render stored media/caption props even after failed current reads. This checkpoint stages the replacement authority; the bubble itself is not yet migrated and that UI gap remains open.
+- Added readSocialPostPreviews callable: account/profile-bound 1–20 unique IDs, strict input, 30 batches/minute, one transaction for viewer/posts/author policies. Reuses existing feed admission/projection, omits missing/denied rows identically, emits no private author data or interaction claims. No cursors, partner-token access, new rules or production changes.
+- Added strict client transport parsing for exact account/selection receipts, subset membership, duplicates, safe URLs and current-account guards. No raw-read or message snapshot fallback in this transport. Updated SOCIAL_FEED_READ staged rollout and remaining UI migration explicitly.
+
+### Verification
+- Functions build succeeded, including tracked generated JS/maps. Isolated demo-vybe-social-qa Firestore at 8385/hub4585 completed all 25 backend groups and shut down cleanly. New cases cover guest/identity/shape/size/duplicate denial, safe projection, missing/hidden omission, current profile/friend/block/post policy, conflicting ownership, draft status and deletion. Retained preview data untouched.
+- App typecheck, scoped lint, 311 files / 2,963 tests and production build passed. Client tests cover malformed/mismatched receipts, unsolicited/duplicate IDs, unsafe media, failed transport and late-account denial. Logs work/post-previews-*.log. Generated app version/offline churn restored.
+- Prior 3d864dce CI 37216402968 and 37216402955, plus feca83ff CI 37216139172 all succeeded. No visible UI was changed in this staged checkpoint.
+
+### Next 3 tasks and limits
+1. Wire a batched visible-message preview hook/context into ChatView and SharedPostBubble. Remove legacy raw reads and all caption/media fallbacks; bind reads/cache to account epoch, conversation and visibility, expire/revalidate displayed content, and verify current access after revocation without flooding the batch rate limit.
+2. Migrate remaining detail/profile/explore readers, continue concrete game/mod integrations and mini-app runtime isolation/operation retention. Prior engine automation restriction remains in effect.
+3. Native-device checks and selective production rollout remain pending. Broad goal active/incomplete; staged reader does not by itself fix legacy UI privacy or recall delivered URLs/bytes.
+
+---
+
 ## ACTIVE (2026-10-04) - Reliable maximum-size draft recovery
 
 ### What changed

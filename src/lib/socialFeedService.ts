@@ -23,6 +23,31 @@ const page = z.object({ ownerUid: id, viewerProfileId: id, contentType: type.nul
 export type SocialFeedInput = { expectedOwnerUid: string; expectedProfileId: string; contentType?: z.infer<typeof type>; cursor?: string; feed?: z.infer<typeof feed>; area?: LocalArea };
 export type SocialFeedPage = { posts: Post[]; nextCursor: string | null };
 
+const previewPost = post.omit({ reactionType: true, isBookmarked: true });
+const previewInput = z.object({ expectedOwnerUid: id, expectedProfileId: id, postIds: z.array(id).min(1).max(20) }).strict();
+const previewPage = z.object({ ownerUid: id, viewerProfileId: id, requestedPostIds: z.array(id).min(1).max(20), posts: z.array(previewPost).max(20) }).strict();
+export type SocialPostPreview = z.infer<typeof previewPost>;
+export type SocialPostPreviewsInput = z.infer<typeof previewInput>;
+
+/** Batch known IDs; missing/inaccessible content never falls back to a stored message snapshot. */
+export async function readSocialPostPreviews(input: SocialPostPreviewsInput, guard: () => void): Promise<SocialPostPreview[]> {
+  guard();
+  if (!previewInput.safeParse(input).success || new Set(input.postIds).size !== input.postIds.length) throw new Error('Choose between one and twenty distinct posts.');
+  const response = await invokeFunction<unknown>('readSocialPostPreviews', input);
+  guard();
+  if (response.error) throw Object.assign(new Error(response.error.message || 'Shared posts could not be refreshed.'), { code: response.error.code });
+  const parsed = previewPage.safeParse(response.data);
+  if (!parsed.success) throw new Error('Shared post access could not be verified.');
+  const result = parsed.data;
+  if (result.ownerUid !== input.expectedOwnerUid || result.viewerProfileId !== input.expectedProfileId
+    || JSON.stringify(result.requestedPostIds) !== JSON.stringify(input.postIds)
+    || new Set(result.posts.map(row => row.id)).size !== result.posts.length
+    || result.posts.some(row => !input.postIds.includes(row.id) || (!row.mediaUrl && (row.type !== 'post' || !row.caption.trim())))) {
+    throw new Error('Shared post access could not be verified.');
+  }
+  return result.posts;
+}
+
 /** No legacy RPC or cached-data fallback: a failed current read must remain a failure. */
 export async function readSocialFeed(input: SocialFeedInput, guard: () => void): Promise<SocialFeedPage> {
   guard();

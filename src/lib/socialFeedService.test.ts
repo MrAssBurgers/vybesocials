@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock('@/lib/firebase/functionsService', () => ({ invokeFunction: state.invoke }));
-import { readSocialFeed } from './socialFeedService';
+import { readSocialFeed, readSocialPostPreviews } from './socialFeedService';
 
 const input = { expectedOwnerUid: 'alice', expectedProfileId: 'profile-alice', contentType: 'post' as const };
 const post = { id: 'post-one', type: 'post', caption: 'Hello', createdAt: '2026-10-04T12:00:00.000Z',
@@ -10,6 +10,37 @@ const post = { id: 'post-one', type: 'post', caption: 'Hello', createdAt: '2026-
   author: { id: 'profile-bob', username: 'bob', displayName: 'Bob', avatarUrl: null } };
 const response = () => ({ ownerUid: 'alice', viewerProfileId: 'profile-alice', contentType: 'post', feed: 'discover', posts: [structuredClone(post)], nextCursor: null as string | null });
 beforeEach(() => { state.invoke.mockReset(); state.invoke.mockResolvedValue({ data: response(), error: null }); });
+
+describe('known-ID social preview transport', () => {
+  const selection = { expectedOwnerUid: 'alice', expectedProfileId: 'profile-alice', postIds: ['post-one', 'missing'] };
+  const preview = () => { const { reactionType: _reaction, isBookmarked: _saved, ...row } = structuredClone(post); return row; };
+  const receipt = () => ({ ownerUid: 'alice', viewerProfileId: 'profile-alice', requestedPostIds: selection.postIds, posts: [preview()] });
+  it('accepts admitted subsets without inventing missing previews or interaction state', async () => {
+    state.invoke.mockResolvedValue({ data: receipt() }); const guard = vi.fn();
+    expect(await readSocialPostPreviews(selection, guard)).toEqual([preview()]);
+    expect(guard).toHaveBeenCalledTimes(2);
+    expect(state.invoke).toHaveBeenCalledWith('readSocialPostPreviews', selection);
+  });
+  it.each([
+    { ownerUid: 'bob' }, { viewerProfileId: 'old-profile' }, { requestedPostIds: ['missing', 'post-one'] },
+    { posts: [{ ...preview(), id: 'unsolicited' }] }, { posts: [preview(), preview()] },
+    { posts: [{ ...preview(), mediaUrl: 'javascript:alert(1)' }] }, { privateNotes: 'unexpected' },
+    { posts: [{ ...preview(), type: 'video', mediaUrl: null }] },
+  ])('rejects mismatched or malformed preview receipt %#', async patch => {
+    state.invoke.mockResolvedValue({ data: { ...receipt(), ...patch } });
+    await expect(readSocialPostPreviews(selection, () => {})).rejects.toThrow(/verified/);
+  });
+  it('rejects invalid selection before transport and late-account or failed responses without fallback', async () => {
+    for (const postIds of [[], ['same', 'same'], ['bad/path'], Array.from({ length: 21 }, (_, i) => `post-${i}`)]) {
+      await expect(readSocialPostPreviews({ ...selection, postIds }, () => {})).rejects.toThrow();
+    }
+    expect(state.invoke).not.toHaveBeenCalled();
+    state.invoke.mockResolvedValue({ data: receipt(), error: { code: 'unavailable', message: 'Offline' } });
+    await expect(readSocialPostPreviews(selection, () => {})).rejects.toThrow('Offline');
+    const guard = vi.fn().mockImplementationOnce(() => {}).mockImplementation(() => { throw new Error('Account changed'); });
+    await expect(readSocialPostPreviews(selection, guard)).rejects.toThrow('Account changed');
+  });
+});
 
 describe('current account social feed transport', () => {
   it('binds Local receipts to the selected coarse area before showing posts', async () => {
