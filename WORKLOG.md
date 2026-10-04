@@ -2,6 +2,29 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Stability first: broad audit and comment display fixes
+
+### User priority (supersedes feature sequencing)
+- User explicitly requested: before adding more features make sure everything already works. Defer all new category/Your Vybe experiences and other expansion until existing behavior is verified and failures fixed. Removed the sole unfinished new preference-service file; nothing from that feature attempt shipped. The larger goal remains active, not paused or complete.
+
+### Findings and fixes
+- Fixed existing Top comments control: now sorts by likes, then newest, then stable ID. Newest remains chronological; input arrays are never mutated and malformed metadata has deterministic fallbacks.
+- Browser walkthrough found stale 0 Comments above two loaded rows; InlineComments/CommentSheet now display loaded counts. Also fixed numeric safety_score=0 leaking stray 00 text through React conditional rendering in CommentThread/CommentItem.
+- Broad scanner found real missing backend targets (not yet fixed): updateTrackUsage/addUserXp, discoverUsersByPhone, getWinningAd/recordAdImpression, clearDnaAdaptationData, awardInviteBadge, getLandingTopCreators, getFriendsNotes, checkAndGrantOwnerBadges, findRouletteMatch, incrementThemeDownloads, incrementSpaceListeners/decrementSpaceListeners, isStripeEnabled, generateThemeCode/useThemeCode, grantPostXp. The invalidCallableName warning is a diagnostic placeholder false positive. Dynamic targets still require manual review.
+- Referenced pending implementations: checkRunwayStatus, generateRunwayVideo, syncMusicProviders, testMusicProvider, uploadSound. DEPLOY.md still contains obsolete Supabase instructions conflicting with authoritative Firebase-only AGENTS.md/current code; do not execute them.
+
+### Verification and limits
+- Full debug scan passed app build, full lint, CSS and boot checks. Functions build/typecheck passed. After fixes, full 324 files / 3,056 tests, production build, typecheck and scoped lint passed. Logs work/stability-audit-*.log and work/stability-sort-*.log.
+- Isolated demo-vybe-draft-qa emulator run: all seven suites passed: social feed (25 grouped checks), mini-app drafts (16), publication (13), creator rules (199), commerce rules (98), community rules (84), account rules (115). Account suite explicitly confirms four inherited staff role lookup-budget limitations for user_roles_auth-only admin/moderator records; passing suite does not fix those. Isolated emulators shut down cleanly; retained preview untouched.
+- Production sharePreview health returned 200; livekitToken and aiCatchUp returned 401 UNAUTHENTICATED. These prove endpoint/gate availability only, not calls, AI success, provider setup or deployment currency.
+- Real local browser signed in as synthetic Alice; Watch fixture qa-top-comments-20261004 changed from Newest comment first to Older popular comment first using Top comments, displayed 2 Comments and no stray zero text. Screenshot outputs/vybe-top-comments-verified.png. External video remains blocked by intentional local CSP, so playback is not certified. Closed only new audit tab 31; existing unsaved tabs preserved.
+
+### Next 3 tasks (fixes/tests only)
+1. Triage the missing targets by actual reachable flow, starting with privacy reset/account functions and theme sharing; implement correct Firebase authority or repair obsolete callers without faking success.
+2. Verify remaining existing flows end to end: DM/calls/media, onboarding/settings/customization, games/mods and mini apps; close known rule/runtime/provider gaps. No claim that everything works yet.
+3. Repair stale deployment guidance and track production/backend/client parity before Lovable publication. Do not add category features while this stability gate is open.
+
+---
 ## ACTIVE (2026-10-04) - Preserve comment drafts across async completion
 
 ### What changed
@@ -8888,6 +8911,7 @@ All eight migration phases complete. See `.lovable/plan.md` for per-phase detail
 1. Run the iOS manual checklist above on an iPhone build and collect screenshots/recording for each auth flow.
 2. If iOS deep-link takeover is still flaky on QR camera scans, verify associated domains/Universal Link entitlement for `vybehub.app` in the native shell.
 3. Push to `origin/main`, then run Lovable Publish and production smoke test on `vybehub.app`.
+
 
 
 

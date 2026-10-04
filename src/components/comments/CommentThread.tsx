@@ -67,7 +67,7 @@ export const CommentThread = memo(function CommentThread({
 
   // Safety tier logic
   const filterLevel = safetySettings?.content_filter_level || 'moderate';
-  const isFlagged = comment.is_flagged || (comment.safety_score && comment.safety_score > 0.5);
+  const isFlagged = comment.is_flagged === true || (comment.safety_score ?? 0) > 0.5;
 
   // Protected: hide flagged comments entirely
   if (isFlagged && filterLevel === 'protected' && !isOwn) {

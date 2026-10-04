@@ -1,3 +1,4 @@
+import { sortComments } from '@/lib/sortComments';
 import { useDraftContinuationGuard } from '@/hooks/useDraftContinuationGuard';
 import { CommentLoadError } from './CommentLoadError';
 import { useState, useRef, useCallback, useEffect, memo } from 'react';
@@ -164,14 +165,7 @@ export const InlineComments = memo(function InlineComments({
     setText('');
   }, []);
 
-  // Sort comments
-  const sortedComments = [...(comments || [])].sort((a, b) => {
-    if (sortBy === 'newest') {
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    }
-    // For 'top', would need like_count in data - default to newest for now
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  });
+  const sortedComments = sortComments(comments || [], sortBy);
 
   const visibleComments = sortedComments.slice(0, displayCount);
   const hasMore = sortedComments.length > displayCount;
@@ -183,7 +177,7 @@ export const InlineComments = memo(function InlineComments({
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <MessageCircle className="h-5 w-5" />
-          <h3 className="font-semibold">{commentCount} Comments</h3>
+          <h3 className="font-semibold">{comments?.length ?? commentCount} Comments</h3>
         </div>
 
         <DropdownMenu>

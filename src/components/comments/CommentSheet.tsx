@@ -226,7 +226,7 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
               </div>
               <div className="flex items-center justify-between px-4 pb-3 border-b border-border">
                 <h3 className="font-semibold text-lg">Comments</h3>
-                <span className="text-muted-foreground text-sm">{commentCount}</span>
+                <span className="text-muted-foreground text-sm">{comments?.length ?? commentCount}</span>
               </div>
             </div>
 
