@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -8,6 +8,8 @@ import { MINI_APP_TEMPLATES } from '@/features/mini-apps/templates';
 import type { MiniAppRecord, MiniAppSource } from '@/features/mini-apps/model';
 
 const state = vi.hoisted(() => ({ uid: 'alice', reducedMotion: false, systemReducedMotion: false, sound: vi.fn(), success: vi.fn(), report: vi.fn() }));
+const files = vi.hoisted(() => ({ read: vi.fn(), download: vi.fn() }));
+vi.mock('@/features/mini-apps/sourceFile', () => ({ readMiniAppFile: files.read, downloadMiniAppFile: files.download }));
 const repository = vi.hoisted(() => ({ list: vi.fn(), save: vi.fn(), publish: vi.fn(), unpublish: vi.fn(), remove: vi.fn(), get: vi.fn() }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: state.uid }, profile: { id: `${state.uid}-profile` } }) }));
 vi.mock('@/hooks/useReportAccountSession', () => ({ useReportAccountSession: () => ({ uid: state.uid, epoch: 1 }) }));
@@ -40,6 +42,52 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('mini apps studio flow', () => {
+  it('exports current edits and imports into a new identity only after confirmation', async () => {
+    const saved = record(MINI_APP_TEMPLATES[0].source);
+    const imported = { ...MINI_APP_TEMPLATES[0].source, title: 'Imported creation', html: '<p>Imported code</p>' };
+    files.read.mockResolvedValue(imported);
+    repository.list.mockResolvedValue({ apps: [saved], nextCursor: null });
+    mount(); fireEvent.mouseDown(screen.getByRole('tab', { name: 'My drafts' }), { button: 0 });
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit draft' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'App name' }), { target: { value: 'Unfinished edit' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Export code' }));
+    expect(files.download).toHaveBeenCalledWith(expect.objectContaining({ title: 'Unfinished edit' }));
+    const file = new File(['{}'], 'creation.json', { type: 'application/json' });
+    fireEvent.change(screen.getByLabelText('Import mini-app file'), { target: { files: [file] } });
+    await screen.findByRole('alertdialog');
+    expect(screen.getByRole('textbox', { name: 'App name', hidden: true })).toHaveValue('Unfinished edit');
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing', exact: true }));
+    expect(repository.save).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('Import mini-app file'), { target: { files: [file] } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Open as new draft' }));
+    expect(screen.getByRole('textbox', { name: 'App name' })).toHaveValue('Imported creation');
+    expect(document.querySelector('iframe')).toBeNull();
+    expect(repository.save).not.toHaveBeenCalled(); expect(repository.publish).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft', exact: true }));
+    await waitFor(() => expect(repository.save).toHaveBeenCalledWith('alice', expect.objectContaining({ title: 'Imported creation' }), null, expect.any(String)));
+    expect(repository.save.mock.calls[0][3]).not.toBe(saved.id);
+  });
+  it('ignores an imported file that finishes after the account changes', async () => {
+    let finish!: (source: MiniAppSource) => void;
+    files.read.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    const { client, rerender } = mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Build a mini app' }));
+    fireEvent.change(screen.getByLabelText('Import mini-app file'), { target: { files: [new File(['{}'], 'later.json')] } });
+    state.uid = 'bob'; rerender(view(client));
+    fireEvent.click(screen.getByRole('button', { name: 'Build a mini app' }));
+    await act(async () => finish({ ...MINI_APP_TEMPLATES[0].source, title: 'Private Alice file' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(screen.getByRole('textbox', { name: 'App name' })).not.toHaveValue('Private Alice file');
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+  it('leaves the current editor untouched when a file is rejected', async () => {
+    files.read.mockRejectedValueOnce(new Error('Unsupported format'));
+    mount(); fireEvent.click(screen.getByRole('button', { name: 'Build a mini app' }));
+    fireEvent.change(screen.getByLabelText('Import mini-app file'), { target: { files: [new File(['bad'], 'bad.json')] } });
+    await waitFor(() => expect(files.read).toHaveBeenCalledOnce());
+    expect(screen.getByRole('textbox', { name: 'App name' })).toHaveValue(MINI_APP_TEMPLATES[0].source.title);
+    expect(repository.save).not.toHaveBeenCalled(); expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
   it('requires explicit confirmation to delete a private draft and refreshes the library', async () => {
     const app = record(MINI_APP_TEMPLATES[0].source);
     repository.list.mockImplementation(async (_owner, view) => ({ apps: view === 'drafts' ? [app] : [], nextCursor: null }));

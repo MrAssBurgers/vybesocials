@@ -50,7 +50,7 @@ export default defineConfig(({ mode }) => {
       // This is not a general network sandbox for arbitrary user-authored code.
       ...(localQa ? { headers: { 'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; img-src 'self' data: blob: http://127.0.0.1:*; media-src 'self' blob: http://127.0.0.1:*; font-src 'self' data:; frame-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'" } } : {}),
       // Local QA profiles and scratch artifacts can contain OS-locked files.
-      watch: { ignored: [normalizePath(path.resolve(__dirname, 'work')) + '/**', '**/*.test.ts', '**/*.test.tsx'] },
+      watch: { ignored: [normalizePath(path.resolve(__dirname, 'work')) + '/**', '**/.godot/**', '**/bin/**', '**/obj/**', '**/*.test.ts', '**/*.test.tsx'] },
     },
     define: {
       ...firebaseDefine,

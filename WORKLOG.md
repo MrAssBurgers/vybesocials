@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Portable mini-app source files
+
+### What changed
+- Mini-app studio now imports/exports versioned UTF-8 JSON source files. Exports preserve unfinished code and omit server/account/publication metadata. Strict format/field/version/UTF-8/byte/code bounds reject unsupported files before replacing source.
+- Import confirmation offers exporting current edits or cancelling. Accepting uses a new private draft identity, closes any preview and replaces current unsaved recovery. No automatic run/save/publish. Async imports ignore results after account teardown; save/import controls share the in-flight guard.
+- Restored the stopped 8082 Vite preview after identifying an EBUSY watcher crash on Godot-generated assets. Excluded .godot/bin/obj build directories; retained Firebase processes/data were not reset. Corrected stale draft-retry/rules claims in MINI_APPS docs.
+
+### Verification
+- App typecheck, scoped lint, full 310 files / 2,945 tests and production build passed. Bundle budget passed (1068.2 KB raw / 321.9 KB gzip). Generated offline/version churn restored. Logs work/mini-file-*.log.
+- Actual retained demo preview: synthetic Alice exported Portable code QA to Downloads/vybe-portable-code-qa.json (2,124 bytes, verified format/version/source-only fields). Browser download-event observation timed out despite successful file creation; verified the exact file on disk and imported it through the normal chooser. Cancel preserved a newer editor title; importing again opened original source as a new private draft without runtime; explicit Save draft confirmed success. Screenshot outputs/vybe-mini-app-files.png. No production data changes.
+- Prior c4f39eb5 CI 37214818469 succeeded. Preview is now session 63930; Firebase remains retained. Browser tab 29 is the saved imported studio. Old tab 27 was stuck on a generated connection-error page; fresh tab recovered normally.
+
+### Next 3 tasks and limits
+1. Continue mini-app runtime isolation/receipt retention and remaining audience/media-reader migrations; source files do not change the known iframe CPU/WebRTC limits.
+2. Continue concrete engine/mod integrations. Full Godot consent/upload walkthrough remains unverified following the previously documented automatic-review rejection; do not bypass it. Independent rendering/SDK checks do not establish that combined flow.
+3. Validate physical devices and selective production rollout. Current file workflow verified in desktop local preview; native-shell file picker/download behavior remains unverified. Broad goal active/incomplete; no production deployment.
+
+---
+
 ## ACTIVE (2026-10-04) - Real Godot rendering and soft capture UI
 
 ### What changed
