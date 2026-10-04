@@ -2,6 +2,36 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-03) - Browser capture, verified shopping and creator runtime reliability
+
+### What changed
+- Game review accepts the empty Blob MIME produced by Firebase's bounded `getBlob` implementation, while retaining exact size and conflicting MIME checks and using the server-verified receipt type. Actual browser review now displays the private capture and caption. Missing moderation remains a failed publication with retryable controls; unavailable checks receive a useful message rather than a raw 404 and incorrect sign-out advice.
+- The isolated browser preview routes callables and the exact demo Storage bucket through its existing local Vite origin. Fixed targets, project/bucket/region/method constraints and real Auth/Rules remain intact. Storage resumable session URLs retain the local proxy origin. Optional diagnostics require an explicit development-only flag, omit request/response data and are quiet by default. Additional legacy-auth entry points cannot read or modify ordinary login backups from the demo preview.
+- Mini-app runtimes stop on hidden/pagehide and motion-preference changes, keep their source and width choice, and require an explicit restart. A failed report keeps its dialog and selected reason for retry; the detail page no longer claims success after a rejected write. This does not provide arbitrary-code CPU/network isolation.
+- Public tour, Features, FAQ, About, Safety and footer copy now describe actual product controls, link to Mini App Studio and the qualified game SDK preview, and remove unsupported encryption, moderation, payout, comparison and fabricated-member claims. FAQ search metadata matches its visible answers. Debug capture accepts URL/Request inputs and cannot turn a successful fetch into an error when a diagnostics subscriber throws.
+- Live shopping exposed a paid profile gradient ending partway through the Locker after scrolling. Its background now spans the entire profile content within a local stacking layer; desktop and phone checks confirm continuous coverage without changing wallpaper transparency or global scrolling styles.
+- The requested "VYBE has been upgraded" notification remains suppressed by the preceding checkpoint across banners, announcements, notifications, toasts and unread counts. No historical records were deleted.
+
+### Verification
+- Final full frontend checks: **196 files / 1,854 tests passed**, app and standalone SDK typechecks passed, full lint **0 errors / 5 inherited warnings**. Final production build passed: **app-Cq5toWKT.js**, **1032.5 KiB raw / 309.3 KiB gzip**, below 1125 / 335 KiB budgets. CSS, boot output, and static DM/inbox/camera enforcement checks passed. Functions source was unchanged; its preceding build and upcoming CI build remain the relevant backend checks.
+- Real first-party SDK fixture: **5 flows passed**. Additional actual Storage fixture: **10 checks passed**, covering identical direct/proxy private bytes and metadata, guest/other-account denial, multipart and resumable uploads, correct upload-session origins and authenticated fixture cleanup. No fake success provider or production calls were used.
+- Live demo account: shop balance **1,003 -> 803** after one 200-token Neon Nights purchase; owned inventory, equipment and profile gradient survived a reload. Browser game review displays its actual private PNG and caption; attempting publication with the excluded content-check service failed and restored its controls. A second attempt verified the final clear unavailable message, preserved caption and enabled retry/discard. No successful moderated publication is claimed. Screenshots are retained in workspace outputs as vybe-shop-equipped-test.png, vybe-profile-mobile-test.png and vybe-capture-unavailable-check.png.
+- Live mini-app detail retained published Tap Lab v2, Run/Stop and Phone/Fit controls. The in-app browser reports both tabs visible, so it did not exercise a real background event; lifecycle behavior is covered by the dedicated tests. The earlier nested-frame gameplay automation limitation remains. Features and Safety rendered; the Features page at 390px had no horizontal overflow.
+- The preceding checkpoint's GitHub CI and Creator Platform Rules QA both passed at `702dd1d0f7b742a5ca0dcb67041d14381b135e1e`. That rules suite covered **1,154 rules checks and 44 transaction checks**; no Firestore/Storage rules or Functions changed in this pass. These totals are previous-commit evidence until another rules run completes.
+
+### Release limits and remaining risks
+- **Source-only checkpoint; no production deployment or Lovable Publish. Never deploy all Functions or alter production auth2faRequest.** Production wallet, community, entitlement and provider migration requirements from prior entries still apply. The owner's production account was not used for test purchases, equipment, posts, messages or permissions.
+- The first local emulator parent exited unexpectedly while its Firestore process remained alive. The original stack was unavailable; concurrent Firebase CLI commands can reuse/delete the same working-directory debug log. Exported and restored the surviving demo database, restarted all four services with dedicated debug output, reseeded synthetic Auth, and created a new capture because Storage was not retained. The crash cause is unconfirmed. Do not attribute the media hang conclusively to cross-port transport; Functions transport improvement was observed separately.
+- Mini-app reports reach the existing report queue, but moderator "Action" currently marks report status without removing an app; a verified review/removal workflow and stronger report metadata validation remain. Treat report-supplied owner/status fields as untrusted. Quotas, retention, untrusted-code runtime limits and deployed moderation still need operational work.
+- Formal Terms and Child Safety pages retain unverified operational claims, including revenue splits/payouts, hash matching, 24/7 review and response-time promises. Those policy statements were not silently rewritten by this product-copy pass and need owner/operational review before publication. Native/partner/GCS certification, provider fulfilment, actual sound quality and wider device checks remain. This checkpoint does not certify perfection or release readiness; the goal stays active.
+
+### Next 3 tasks
+1. Complete verified mini-app moderation/removal, report metadata rules and runtime/retention controls; continue responsive, reduced-motion, keyboard and real-device audio testing.
+2. Continue native/partner capture and content-check provider certification, private community media/session revocation and production index/IAM checks in controlled staging.
+3. Reconcile historical wallet/XP/entitlement data with independent evidence, verify formal policy claims, and prepare a reviewed selective rollout before Lovable Publish.
+
+---
+
 ## ACTIVE (2026-10-03) - Creator recovery, interaction polish and isolated live QA
 
 ### What changed

@@ -41,15 +41,21 @@ export function ReportContentDialog({
 }: ReportContentDialogProps) {
   const [selectedReason, setSelectedReason] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitFailed, setSubmitFailed] = useState(false);
 
   const handleSubmit = async () => {
     if (!selectedReason) return;
     setIsSubmitting(true);
+    setSubmitFailed(false);
     triggerHaptic('medium');
     try {
       await onSubmit(selectedReason);
       setSelectedReason(null);
       onOpenChange(false);
+    } catch {
+      // A rejected write is retryable. Keep the selected reason and dialog open
+      // instead of dropping the report or leaking an unhandled event promise.
+      setSubmitFailed(true);
     } finally {
       setIsSubmitting(false);
     }
@@ -59,7 +65,7 @@ export function ReportContentDialog({
     <AlertDialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) setSelectedReason(null);
+        if (!next) { setSelectedReason(null); setSubmitFailed(false); }
         onOpenChange(next);
       }}
     >
@@ -77,9 +83,11 @@ export function ReportContentDialog({
             <button
               key={reason.id}
               type="button"
+              aria-pressed={selectedReason === reason.id}
               onClick={() => {
                 triggerHaptic('light');
                 setSelectedReason(reason.id);
+                setSubmitFailed(false);
               }}
               className={cn(
                 'rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-colors',
@@ -92,6 +100,8 @@ export function ReportContentDialog({
             </button>
           ))}
         </div>
+
+        {submitFailed && <p role="alert" className="text-sm text-destructive">Couldn’t submit your report. Your reason is still selected. Try again.</p>}
 
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>

@@ -25,6 +25,8 @@ export { isValidMediaUrl };
 // Mutation-only metadata; never part of a persisted post or its public JSON.
 const REUSED_GAME_POST = Symbol('reusedGamePost');
 const POST_ACTOR_GUARD = Symbol('postActorGuard');
+// The mutation already displayed the precise safety-check decision.
+class NotifiedPublishCheckError extends Error {}
 
 interface Post {
   id: string;
@@ -605,7 +607,7 @@ export function useCreatePost() {
             await db.storage.from('media').remove(uploadedPaths).catch(() => {});
           }
           toast.error(vybe.message || 'Vybe Check did not pass.');
-          throw new Error(vybe.message || 'Vybe Check blocked');
+          throw new NotifiedPublishCheckError(vybe.message || 'Vybe Check blocked');
         }
         const resolvedAgeRating = data.age_rating || vybe.ageRating;
 
@@ -714,13 +716,15 @@ export function useCreatePost() {
       console.error('[usePosts] Create post error:', error.message, error);
       const msg = error.message || '';
       if (
+        error instanceof NotifiedPublishCheckError ||
+        msg === 'Not authenticated' ||
         msg.includes('blocked content') ||
         msg.includes('Rate limited') ||
         msg.includes('Vybe Check')
       ) {
         return;
       }
-      toast.error('Failed to create post. Please sign out and back in, then try again.');
+      toast.error('Could not create your post. Please try again.');
     },
   });
 }

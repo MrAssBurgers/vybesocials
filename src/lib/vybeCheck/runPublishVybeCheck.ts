@@ -65,15 +65,14 @@ function mergeWorst(
 function resultFromVybe(
   vybe: VybeCheckInvokeResult,
   unavailable: boolean,
-  errorMessage?: string,
 ): PublishVybeCheckResult {
   if (unavailable) {
     return {
       allowed: false,
       blocked: true,
-      message:
-        errorMessage ||
-        'Vybe Check is unavailable. Publishing paused until safety scan can run.',
+      // Transport/provider details (for example a missing callable's 404) are
+      // not a content decision or evidence that signing out would help.
+      message: 'Vybe Check is unavailable right now. Your content has not been published. Please try again later.',
       categories: ['vybe_check_unavailable'],
       ageRating: 'safe',
     };
@@ -125,7 +124,7 @@ async function checkSingleFile(
     'Vybe Check frame prep timed out.',
   );
 
-  const { result, unavailable, errorMessage } = await withTimeout(
+  const { result, unavailable } = await withTimeout(
     invokeVybeCheck({
       content_type: isVideo ? 'video' : 'post',
       frames,
@@ -136,9 +135,9 @@ async function checkSingleFile(
   );
 
   if (!result) {
-    return resultFromVybe({} as VybeCheckInvokeResult, true, errorMessage);
+    return resultFromVybe({} as VybeCheckInvokeResult, true);
   }
-  return resultFromVybe(result, unavailable, errorMessage);
+  return resultFromVybe(result, unavailable);
 }
 
 /** Run full Vybe Check before any publish/upload. Fail-closed when server unavailable. */
@@ -178,13 +177,13 @@ export async function runPublishVybeCheck(
       : [];
 
   if (!files.length) {
-    const { result, unavailable, errorMessage } = await withTimeout(
+    const { result, unavailable } = await withTimeout(
       invokeVybeCheck({ content_type: 'text', text }),
       CHECK_TIMEOUT_MS,
       'Vybe Check timed out.',
     );
-    if (!result) return resultFromVybe({} as VybeCheckInvokeResult, true, errorMessage);
-    return resultFromVybe(result, unavailable, errorMessage);
+    if (!result) return resultFromVybe({} as VybeCheckInvokeResult, true);
+    return resultFromVybe(result, unavailable);
   }
 
   let merged: PublishVybeCheckResult | null = null;

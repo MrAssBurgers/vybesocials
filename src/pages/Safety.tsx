@@ -1,27 +1,27 @@
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Shield, Eye, Lock, AlertTriangle, Users, Baby, Camera, MessageSquareWarning } from 'lucide-react';
+import { ArrowLeft, Shield, Eye, Lock, AlertTriangle, Users, UserRound, Camera, MessageSquareWarning } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PublicFooter } from '@/components/marketing/PublicFooter';
 import { usePageMeta } from '@/hooks/usePageMeta';
 
 const pillars = [
-  { icon: Shield, title: 'Vybe Check on every upload', body: 'Photos, videos, and audio are scanned by Gemini Flash and Google SafeSearch before they ever go live. Explicit material is blocked at upload time, not after a complaint. AI-generated content is auto-detected and watermarked.' },
-  { icon: Baby, title: 'Strong protections for users under 13', body: 'Accounts under 13 cannot see explicit music, are excluded from personalized advertising, and have stricter AI content filters applied automatically. Parents can set a 4-digit PIN and screen-time intervals.' },
-  { icon: Lock, title: 'Encrypted private messages', body: 'All direct messages are AES-256 encrypted at rest. Plaintext only ever lives on your device. Voice notes and call media are isolated in a Content Lifecycle Stream so even our admins cannot browse them.' },
-  { icon: Eye, title: 'Anti-screenshot heuristics', body: 'When someone attempts to capture private content, our CaptureShield system detects it on supported devices and notifies the original poster. A 5-second cooldown prevents rapid-fire capture attempts.' },
-  { icon: MessageSquareWarning, title: 'Two-tap blocking and reporting', body: 'Block, mute, or report any user from any context — feed, DM, profile, comment thread — in two taps. Reports are reviewed within 24 hours. Repeat offenders are removed from the platform.' },
-  { icon: Camera, title: 'Hardware permissions are gestural', body: 'Camera, microphone, and location only activate after an explicit user gesture. The camera stream is always stopped before mode switches and incoming calls. No silent recording, ever.' },
-  { icon: Users, title: 'Community-led moderation', body: 'Communities can apply their own AI strictness, appoint admins, and override platform defaults with group consensus. Bad actors are surfaced to moderators with full context.' },
-  { icon: AlertTriangle, title: 'Self-healing bug reports', body: 'Crashes and errors are silently logged with consent so we can fix problems before users have to report them.' },
+  { icon: Shield, title: 'Content checks and their limits', body: 'Supported publishing flows include automated content checks. These are not a guarantee that every file or message has been scanned or that harmful content will always be caught. Reporting tools remain available when something needs attention.' },
+  { icon: UserRound, title: 'Profile privacy choices', body: 'Review your account privacy settings and choose who you connect with. Use a private community when you want people to join by invitation.' },
+  { icon: Lock, title: 'Who can access a conversation', body: 'Conversation membership controls access to direct and group messages. VYBE DMs are not end-to-end encrypted: messages are processed and stored by VYBE services. Read the Privacy Policy for data handling details.' },
+  { icon: Eye, title: 'Choose what you share', body: 'Check your audience before posting or sending a message. Disappearing content and privacy settings do not prevent a recipient from keeping a copy; screenshot detection is not guaranteed.' },
+  { icon: MessageSquareWarning, title: 'Blocking and reporting', body: 'Use profile controls to block unwanted contact, and report content or accounts that break the Community Guidelines. Report response times are not guaranteed.' },
+  { icon: Camera, title: 'Device permissions', body: 'Your device or browser controls access to the camera, microphone, and location. Review or revoke those permissions in its settings, and use Ghost Mode to turn off location sharing in VYBE.' },
+  { icon: Users, title: 'Community moderation', body: 'Community owners can manage roles, appoint moderators, and set channel permissions. Private communities use invitations; channel access also applies to community voice rooms.' },
+  { icon: AlertTriangle, title: 'Optional crash reports', body: 'VYBE asks before enabling optional crash reporting. You can decline and continue using the app, or review your choice in Settings.' },
 ];
 
 export default function SafetyPage() {
   const navigate = useNavigate();
 
   usePageMeta({
-    title: 'Safety on VYBE | How We Protect Our Community',
-    description: 'Learn how VYBE keeps users safe: AI content scanning, encrypted DMs, parental protections for users under 13, blocking and reporting, and community-led moderation.',
+    title: 'Safety and Privacy Controls | VYBE',
+    description: 'Explore VYBE privacy settings, blocking, reporting, device permissions, community moderation, and the limits of content checks and message privacy.',
     canonicalPath: '/safety',
   });
 
@@ -36,9 +36,9 @@ export default function SafetyPage() {
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 text-green-400 text-xs font-semibold mb-4">
             <Shield className="w-3 h-3" /> Safety by design
           </div>
-          <h1 className="text-4xl sm:text-5xl font-bold mb-4">Your safety isn't a feature. It's the foundation.</h1>
+          <h1 className="text-4xl sm:text-5xl font-bold mb-4">Know your controls. Choose how you connect.</h1>
           <p className="text-lg text-muted-foreground max-w-2xl">
-            VYBE was built from day one with safety, privacy, and protection for younger users baked into every layer. Here is exactly how we do it.
+            Learn how to manage privacy, report a problem, and look after your community — along with the limits of these tools.
           </p>
         </motion.header>
 
@@ -65,9 +65,9 @@ export default function SafetyPage() {
         <section className="rounded-2xl border border-border bg-card p-6 mb-10">
           <h2 className="text-xl font-bold mb-3">Reporting and emergencies</h2>
           <p className="text-sm text-muted-foreground mb-3">
-            See something dangerous? Report it inside the app from any post, message, or profile, or email{' '}
+            Use in-app reporting controls or email{' '}
             <a href="mailto:vybesocial.info@gmail.com" className="text-primary hover:underline">vybesocial.info@gmail.com</a>{' '}
-            for urgent matters. We aim to respond to safety reports within 24 hours.
+            with the content or account involved and what happened. This inbox is not an emergency service.
           </p>
           <p className="text-sm text-muted-foreground">
             For child safety concerns, please also see our{' '}

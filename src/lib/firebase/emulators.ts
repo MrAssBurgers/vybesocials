@@ -11,10 +11,13 @@ const connected = new WeakSet<FirebaseApp>();
 export function connectLocalPreview(app: FirebaseApp, region: string) {
   if (!isLocalPreview() || connected.has(app)) return;
   if (app.options.projectId !== LOCAL_PREVIEW_PROJECT) throw new Error('Refusing to connect a real Firebase project to local QA.');
+  if (region !== 'us-central1') throw new Error('Local QA Functions require the fixed us-central1 region.');
   const firestore = initializeFirestore(app, { ignoreUndefinedProperties: true, experimentalForceLongPolling: true });
   connectFirestoreEmulator(firestore, '127.0.0.1', LOCAL_PREVIEW_PORTS.firestore);
-  connectStorageEmulator(getStorage(app), '127.0.0.1', LOCAL_PREVIEW_PORTS.storage);
-  connectFunctionsEmulator(getFunctions(app, region), '127.0.0.1', LOCAL_PREVIEW_PORTS.functions);
+  connectStorageEmulator(getStorage(app), location.hostname, Number(location.port));
+  // isLocalPreview already requires loopback port 8082. Vite forwards this
+  // exact demo callable/bucket routes to unchanged emulators on 5101/9399.
+  connectFunctionsEmulator(getFunctions(app, region), location.hostname, Number(location.port));
   connected.add(app);
 }
 

@@ -7,7 +7,7 @@ import {
   Palette, Flame, Shuffle, Trophy, Camera, ShieldCheck, Heart, Users,
   Zap, Crown, Bell, PlayCircle, ArrowRight, Check, X, Home, Plus, User,
   Search, Send, Bookmark, Share2, MoreHorizontal, ArrowLeft, Lightbulb,
-  Globe, Mic, Smile, Phone, GripVertical, Layers, Image as ImageIcon,
+  Globe, Mic, Smile, Phone, GripVertical, Layers, Code2, Gamepad2, Image as ImageIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { VybeWordmark } from '@/components/ui/VybeWordmark';
@@ -724,43 +724,33 @@ const SnapPhone = () => (
 
 const features = [
   { icon: Dna, label: 'VYBE DNA', desc: 'Evolving personality engine' },
-  { icon: Sparkles, label: 'Aura', desc: 'Customize every pixel' },
+  { icon: Sparkles, label: 'Aura', desc: 'Colors, backgrounds & profile effects' },
   { icon: MapPin, label: 'Friend Map', desc: 'See who\'s nearby' },
   { icon: Camera, label: 'VYBE Snap', desc: 'Ephemeral moments' },
   { icon: Radio, label: 'Communities', desc: 'Your clubhouse' },
   { icon: PlayCircle, label: 'Clips', desc: '9:16 vertical video' },
-  { icon: ShoppingBag, label: 'Marketplace', desc: 'Shop from creators' },
-  { icon: Wallet, label: 'Wallet & Tips', desc: 'Real creator payouts' },
-  { icon: Bot, label: 'VYBE AI', desc: 'Multimodal assistant' },
+  { icon: Code2, label: 'Mini Apps', desc: 'Code, preview & share in the Hub' },
+  { icon: Gamepad2, label: 'Game SDK', desc: 'Partner developer preview', preview: true },
+  { icon: MessageCircle, label: 'Messages', desc: 'Direct & group conversations' },
   { icon: Palette, label: 'Themes', desc: 'Share your look' },
   { icon: Flame, label: 'Streaks', desc: '48h reaction chains' },
   { icon: Shuffle, label: 'Roulette', desc: 'Meet someone new' },
   { icon: Trophy, label: 'Challenges', desc: 'Daily & weekly XP quests' },
-  { icon: Crown, label: 'VYBE Pro', desc: 'Coming soon', soon: true },
-  { icon: ShieldCheck, label: 'Vybe Check', desc: 'Real-time safety AI' },
-  { icon: Bell, label: 'Smart Notifs', desc: 'Quiet by default' },
+  { icon: Layers, label: 'Motion', desc: 'Lively, calm or reduced' },
+  { icon: ShieldCheck, label: 'Privacy controls', desc: 'Blocking, reports & audience choices' },
+  { icon: Bell, label: 'Notifications', desc: 'Choose what reaches you' },
 ];
 
 const VybeHome = memo(function VybeHome() {
   const { data: liveUserCount, isLoading: countLoading, isError: countError } = usePublicUserCount();
   const { data: topCreators } = useLandingTopCreators(4);
-  // Fallback demo faces fill any empty slots so the row never looks empty.
-  const demoFallback = [PEOPLE.maya, PEOPLE.jordan, PEOPLE.leo, PEOPLE.sky];
-  const earlyMemberAvatars = (() => {
-    const real = (topCreators ?? [])
-      .filter((c) => !!c.avatar_url)
-      .slice(0, 4)
-      .map((c) => ({ key: c.id, src: c.avatar_url as string, alt: `${c.display_name || c.username || 'Featured'} — VYBE Creator Profile` }));
-    const filled = [...real];
-    for (let i = 0; filled.length < 4 && i < demoFallback.length; i++) {
-      const p = demoFallback[i];
-      filled.push({ key: `demo-${p.handle}`, src: p.img, alt: p.name });
-    }
-    return filled;
-  })();
+  const earlyMemberAvatars = (topCreators ?? [])
+    .filter((c) => !!c.avatar_url)
+    .slice(0, 4)
+    .map((c) => ({ key: c.id, src: c.avatar_url as string, alt: `${c.display_name || c.username || 'Featured'} — VYBE Creator Profile` }));
   usePageMeta({
     title: 'VYBE — The social app that becomes you',
-    description: 'Evolving DNA, custom Aura, real friends nearby, ephemeral snaps, and creator tools — VYBE is the social app that becomes you.',
+    description: 'Share posts and clips, make your profile yours, find your community, and build mini apps. Explore the VYBE game SDK developer preview.',
     canonicalPath: '/',
   });
   return (
@@ -775,7 +765,7 @@ const VybeHome = memo(function VybeHome() {
             <a href="#features" className="hover:text-white transition">Features</a>
             <a href="#why" className="hover:text-white transition">Why VYBE</a>
             <Link to="/safety" className="hover:text-white transition">Safety</Link>
-            <Link to="/blog" className="hover:text-white transition">Blog</Link>
+            <Link to="/developers" className="hover:text-white transition">Build with VYBE</Link>
           </nav>
           <div className="flex items-center gap-2">
             <Link to="/login" className="hidden sm:block px-4 py-2 text-sm text-white/80 hover:text-white transition">Sign in</Link>
@@ -798,11 +788,11 @@ const VybeHome = memo(function VybeHome() {
         <div className="max-w-7xl mx-auto relative grid lg:grid-cols-2 gap-12 items-center">
           <FadeIn immediate>
             <div className="inline-flex items-center gap-3 pl-1.5 pr-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/70 mb-6">
-              <div className="flex -space-x-2">
+              {earlyMemberAvatars.length > 0 && <div className="flex -space-x-2" aria-label="Featured community members">
                 {earlyMemberAvatars.map((a) => (
                   <Img key={a.key} src={a.src} alt={a.alt} className="w-6 h-6 rounded-full border-2 border-[#0B0B10]" />
                 ))}
-              </div>
+              </div>}
               <span className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 {countLoading || (countError && liveUserCount == null)
@@ -819,8 +809,8 @@ const VybeHome = memo(function VybeHome() {
               </span>
             </h1>
             <p className="mt-6 text-lg text-white/70 max-w-xl leading-relaxed">
-              VYBE has a living personality engine, a friend map, ephemeral snaps,
-              custom themes, creator tools, and AI — all wrapped in a UI that morphs to match your vibe.
+              Share a clip. Find your people. Make a profile that feels like yours.
+              Bring your next idea to life with themes, communities, and mini apps you can build yourself.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link to="/signup" className="px-6 py-3.5 rounded-full bg-gradient-to-r from-violet-500 to-cyan-500 text-white font-semibold flex items-center gap-2 hover:scale-105 transition shadow-lg shadow-violet-500/30">
@@ -830,10 +820,10 @@ const VybeHome = memo(function VybeHome() {
                 See what's inside
               </a>
             </div>
-            <div className="mt-8 flex items-center gap-6 text-xs text-white/50">
-              <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> End-to-end encrypted DMs</div>
-              <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> Built for Gen Z creators</div>
-              <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> AI-powered safety</div>
+            <div className="mt-8 flex flex-wrap items-center gap-6 text-xs text-white/50">
+              <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> Direct & group chats</div>
+              <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> Your choice of themes</div>
+              <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> Build your own mini apps</div>
             </div>
           </FadeIn>
 
@@ -847,7 +837,7 @@ const VybeHome = memo(function VybeHome() {
                 </motion.div>
                 <motion.div animate={{y:[0,12,0]}} transition={{duration:7,repeat:Infinity,ease:'easeInOut',delay:0.5}}
                   className="absolute right-0 top-0 z-20">
-                  <RealPhone src="/marketing/device/messages.png" alt="VYBE encrypted chat" />
+                  <RealPhone src="/marketing/device/messages.png" alt="VYBE conversations" />
                 </motion.div>
                 <motion.div animate={{y:[0,-8,0]}} transition={{duration:8,repeat:Infinity,ease:'easeInOut',delay:1}}
                   className="absolute left-1/2 -translate-x-1/2 bottom-0 z-30">
@@ -866,9 +856,9 @@ const VybeHome = memo(function VybeHome() {
       <section className="py-10 px-6 border-y border-white/5 bg-white/[0.02]">
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
           {[
-            {n: countLoading || countError ? '—' : (liveUserCount ?? 0).toLocaleString(), l: liveUserCount === 1 ? 'Early member' : 'Early members'},
-            {n:'24/7', l:'AI safety scanning'},
-            {n:'E2E', l:'Encrypted messages'},
+            {n: countLoading || countError || liveUserCount == null ? '—' : liveUserCount.toLocaleString(), l: liveUserCount === 1 ? 'Early member' : 'Early members'},
+            {n:'Make it yours', l:'Themes, motion & sound choices'},
+            {n:'Build together', l:'Communities & mini apps'},
           ].map(s => (
             <div key={s.l}>
               <div className="font-display font-black text-3xl bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">{s.n}</div>
@@ -883,9 +873,9 @@ const VybeHome = memo(function VybeHome() {
         <FadeIn>
           <FeatureRow
             tag="VYBE DNA"
-            title="An app that learns who you are."
-            desc="Every reaction, share, and second of attention shapes your personal DNA. Your feed, friend suggestions, and even the UI itself evolve to match. Nobody else has this."
-            bullets={['30-day evolving personality vector','Re-skins your feed automatically','Shareable DNA card you\'ll want to post']}
+            title="A little more of you in your profile."
+            desc="VYBE DNA gives your activity a visual identity, with colors and patterns you can explore on your profile. Add your interests and make space for the things you love."
+            bullets={['Activity-inspired colors and patterns','A place for your interests','Your DNA, alongside your posts']}
             phone={<RealPhone src="/marketing/device/dna.png" alt="VYBE DNA personality screen" priority />}
           />
         </FadeIn>
@@ -897,8 +887,8 @@ const VybeHome = memo(function VybeHome() {
             reverse
             tag="Aura"
             title="Make it look like you. Not like everyone else."
-            desc="Drag, drop, theme, animate. Your profile is a living canvas — Bento grid blocks, custom backgrounds, shareable themes, motion presets. Templates are dead."
-            bullets={['Framer Motion bento blocks','Share your theme with friends','Live aura backgrounds']}
+            desc="Pick a color palette, set a background, and choose how lively the app feels. Profile effects and theme sharing give you more ways to put your own stamp on VYBE."
+            bullets={['Colors, backgrounds and profile effects','Share your theme with friends','Motion and optional sound controls']}
             phone={<RealPhone src="/marketing/device/profile.png" alt="VYBE profile aura customization" />}
           />
         </FadeIn>
@@ -907,11 +897,11 @@ const VybeHome = memo(function VybeHome() {
       <SectionWrap>
         <FadeIn>
           <FeatureRow
-            tag="Friend Link · QR"
-            title="Add friends in one scan."
-            desc="A sleek Friend Link sheet with an instant QR code and camera scanner. Show your code or scan theirs — no usernames, no typing, no friction."
-            bullets={['Instant local QR with your avatar inset','Camera scan in under a second','Realtime sync — both phones celebrate together']}
-            phone={<PhoneFrame><FriendLinkPhone /></PhoneFrame>}
+            tag="Communities"
+            title="Give your people a place to gather."
+            desc="Start a community around the game, hobby, or project you care about. Keep discussions organized in channels and choose a public community or a private space joined by invitation."
+            bullets={['Public and invite-only communities','Text and voice channels','Roles and channel permissions']}
+            phone={<RealPhone src="/marketing/device/communities.png" alt="VYBE community channels" />}
           />
         </FadeIn>
       </SectionWrap>
@@ -922,8 +912,8 @@ const VybeHome = memo(function VybeHome() {
             reverse
             tag="Snap · Notes · Calls"
             title="The closest thing to actually being there."
-            desc="Disappearing snaps. GIF notes that float on the chat. Crystal-clear calls that connect in under a second. Multi-emoji reactions, swipe-replies, and reaction streaks that keep the vibe alive."
-            bullets={['48-hour reaction streaks','End-to-end encrypted messages','GIF notes that float on the chat']}
+            desc="Send a message, share a snap, or pick up a voice or video call. Reactions, replies, and GIF notes add a little more expression to your conversations."
+            bullets={['Direct and group conversations','Replies and emoji reactions','Voice and video calls']}
             phone={<RealPhone src="/marketing/device/clips.png" alt="VYBE clips and snaps" />}
           />
         </FadeIn>
@@ -936,15 +926,15 @@ const VybeHome = memo(function VybeHome() {
           <div className="text-center mb-14">
             <div className="text-xs uppercase tracking-widest text-violet-400 mb-3 font-semibold">Everything you need</div>
             <h2 className="font-display font-black text-4xl sm:text-5xl">One app. All the vibes.</h2>
-            <p className="text-white/60 mt-4 max-w-2xl mx-auto">Stop juggling six apps. VYBE bundles social, chat, video, commerce, and creator tools into a single coherent experience.</p>
+            <p className="text-white/60 mt-4 max-w-2xl mx-auto">Posts, chat, clips, communities, and things you create yourself — with choices for how it all looks and feels.</p>
           </div>
         </FadeIn>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {features.map((f, i) => (
             <FadeIn key={f.label} delay={i * 0.03}>
               <div className="group relative h-full p-5 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-violet-400/40 hover:bg-white/[0.06] transition-all hover:-translate-y-1">
-                {(f as any).soon && (
-                  <span className="absolute top-2 right-2 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-gradient-to-r from-violet-500/30 to-cyan-500/30 border border-white/15 text-white/80 font-semibold">Soon</span>
+                {f.preview && (
+                  <span className="absolute top-2 right-2 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-gradient-to-r from-violet-500/30 to-cyan-500/30 border border-white/15 text-white/80 font-semibold">Preview</span>
                 )}
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-cyan-500/20 border border-white/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                   <f.icon className="w-5 h-5 text-violet-300" />
@@ -957,55 +947,31 @@ const VybeHome = memo(function VybeHome() {
         </div>
       </SectionWrap>
 
-      {/* WHY NOT JUST USE COMPARISON */}
+      {/* CREATOR PATHS */}
       <SectionWrap className="bg-white/[0.02] border-y border-white/5">
         <div id="why" />
         <FadeIn>
           <div className="text-center mb-12">
             <div className="text-xs uppercase tracking-widest text-cyan-400 mb-3 font-semibold">Why VYBE</div>
-            <h2 className="font-display font-black text-4xl sm:text-5xl">"Why not just use ___?"</h2>
-            <p className="text-white/60 mt-4">Because none of them do this:</p>
+            <h2 className="font-display font-black text-4xl sm:text-5xl">Your next idea belongs here.</h2>
+            <p className="text-white/60 mt-4">Make something your friends can play, use, or talk about.</p>
           </div>
         </FadeIn>
-        <div className="overflow-x-auto">
-          <table className="w-full max-w-4xl mx-auto text-sm">
-            <thead>
-              <tr className="text-white/70 text-xs uppercase tracking-wider">
-                <th className="text-left p-4">Feature</th>
-                <th className="p-4">Instagram</th>
-                <th className="p-4">Snap</th>
-                <th className="p-4">Discord</th>
-                <th className="p-4 bg-gradient-to-br from-violet-500/20 to-cyan-500/20 rounded-t-xl">
-                  <div className="flex justify-center">
-                    <VybeWordmark size="xs" />
-                  </div>
-                </th>
-              </tr>
-            </thead>
-            <tbody className="text-white/80">
-              {[
-                ['Evolving personality engine', false, false, false],
-                ['QR friend add', false, false, false],
-                ['Customizable everything', false, false, false],
-                ['Disappearing snaps', false, true, false],
-                ['Communities & spaces', false, false, true],
-                ['Creator payouts (60-70%)', false, false, false],
-                ['AI assistant trained on your DNA', false, false, false],
-              ].map((row, i) => (
-                <tr key={i} className="border-t border-white/5">
-                  <td className="text-left p-4 font-medium">{row[0]}</td>
-                  {row.slice(1).map((v, j) => (
-                    <td key={j} className="p-4 text-center">
-                      {v ? <Check className="w-4 h-4 text-white/70 inline" /> : <X className="w-4 h-4 text-white/30 inline" />}
-                    </td>
-                  ))}
-                  <td className="p-4 text-center bg-gradient-to-br from-violet-500/10 to-cyan-500/10">
-                    <Check className="w-5 h-5 text-emerald-400 inline" />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="grid md:grid-cols-2 gap-5 max-w-4xl mx-auto">
+          <article className="rounded-3xl border border-violet-400/25 bg-violet-500/5 p-7">
+            <Code2 className="w-8 h-8 text-violet-300 mb-5" />
+            <h3 className="text-xl font-bold">Build a mini app</h3>
+            <p className="mt-3 text-white/65 leading-relaxed">Start with a game, tool, or art template. Edit HTML, CSS, and JavaScript, try your idea in the preview, then publish a version to the Hub.</p>
+            <p className="mt-3 text-sm text-white/50">Sign in to save drafts and publish.</p>
+            <Link to="/mini-apps" className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-full bg-violet-500/20 px-5 font-semibold hover:bg-violet-500/30">Open Mini App Studio <ArrowRight className="w-4 h-4" /></Link>
+          </article>
+          <article className="rounded-3xl border border-cyan-400/25 bg-cyan-500/5 p-7">
+            <Gamepad2 className="w-8 h-8 text-cyan-300 mb-5" />
+            <h3 className="text-xl font-bold">Bring your game to VYBE</h3>
+            <p className="mt-3 text-white/65 leading-relaxed">Explore the SDK for sending screenshots and short clips from a game to a private VYBE draft. The player reviews the capture and decides when to post.</p>
+            <p className="mt-3 text-sm text-white/50">Developer preview. Requires a reviewed game registration and deployed capture services.</p>
+            <Link to="/developers#game-capture" className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-full bg-cyan-500/20 px-5 font-semibold hover:bg-cyan-500/30">Explore the Game SDK <ArrowRight className="w-4 h-4" /></Link>
+          </article>
         </div>
       </SectionWrap>
 
@@ -1017,12 +983,12 @@ const VybeHome = memo(function VybeHome() {
               <ShieldCheck className="w-10 h-10 text-emerald-400" />
             </div>
             <div>
-              <h3 className="font-display font-bold text-2xl mb-2">Safe by default. Always.</h3>
+              <h3 className="font-display font-bold text-2xl mb-2">Choose how you connect.</h3>
               <p className="text-white/70 leading-relaxed">
-                Every photo, video, and message is scanned by VYBE Check before it lands.
-                Real parental controls, age-aware filters, and a 2-tap block flow.
-                Built for the next generation, not the last one.
+                Set your profile privacy, block unwanted contact, and report content that breaks the rules.
+                Community roles and channel permissions help you look after the spaces you create.
               </p>
+              <Link to="/safety" className="mt-4 inline-flex min-h-11 items-center gap-2 font-semibold text-emerald-300 hover:underline">Explore safety controls <ArrowRight className="w-4 h-4" /></Link>
             </div>
           </div>
         </FadeIn>
@@ -1068,6 +1034,7 @@ const VybeHome = memo(function VybeHome() {
           <div className="flex flex-wrap gap-5">
             <Link to="/about" className="hover:text-white">About</Link>
             <Link to="/features" className="hover:text-white">Features</Link>
+            <Link to="/developers" className="hover:text-white">Developers</Link>
             <Link to="/safety" className="hover:text-white">Safety</Link>
             <Link to="/privacy" className="hover:text-white">Privacy</Link>
             <Link to="/terms" className="hover:text-white">Terms</Link>

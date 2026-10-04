@@ -1,24 +1,24 @@
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Map as MapIcon, Shield, Music, Users, Zap, Heart, MessageCircle, Camera, Trophy, Bot, Globe } from 'lucide-react';
+import { ArrowLeft, Sparkles, Map as MapIcon, Shield, Users, Heart, MessageCircle, Camera, Trophy, Palette, Code2, Gamepad2, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PublicFooter } from '@/components/marketing/PublicFooter';
 import { useAppScreenshots } from '@/hooks/useAppScreenshots';
 import { usePageMeta } from '@/hooks/usePageMeta';
 
 const features = [
-  { icon: Bot, title: 'VYBE AI Assistant', body: 'A real-time, multi-modal AI built into the app. Ask it anything, generate images, get personalized recommendations, or have it summarize your day. Powered by Gemini and GPT-5 through a unified gateway, with auto-switching for cost and speed.' },
-  { icon: Sparkles, title: 'VYBE DNA — your living personality', body: 'Every reaction, comment, save, and watch shapes a 30-day rolling vector that evolves how the feed ranks content for you. Your DNA visualizes the tags, moods, and creators you actually care about — not what an ad network thinks you do.' },
-  { icon: MapIcon, title: 'Friend Map with Ghost Mode', body: 'See where your friends are vibing in real time. Built-in Ghost Mode lets you go invisible at any moment with one tap. Includes weather overlays so you can plan a hangout based on whether it is sunny on their side of town.' },
-  { icon: Camera, title: 'Stories, Clips, and VYBE Snaps', body: 'Vertical 9:16 capture with screen flash, pinch-to-zoom, tap-to-text, on-device filters, AI stickers, and music sync. Share permanent posts, 24-hour stories, ephemeral snaps, or live VYBE Spaces — all from one composer.' },
-  { icon: MessageCircle, title: 'Encrypted DMs and group chats', body: 'AES-256 at rest, plaintext on your device. Reactions, swipe-to-reply, voice notes, video calls, GIFs, group admin tools, @mentions, and Discord-style multi-emoji reactions. Notes (ephemeral GIF status updates) live above your inbox.' },
-  { icon: Music, title: 'Music and sound trends', body: 'Browse trending sounds, attach them to clips, take the music personality quiz, and discover creators on the same wavelength. Explicit tracks are gated for users under 13.' },
-  { icon: Trophy, title: 'XP, badges, levels, and streaks', body: 'Every meaningful action earns XP. Climb 100 levels, unlock badges in your Locker, run 48-hour reaction streaks, and compete on weekly leaderboards. Gamified — but in a way that rewards actually being kind and consistent.' },
-  { icon: Users, title: 'Communities and Spaces', body: 'Public or private communities with their own feeds, events, and moderators. Live audio Spaces let you host real-time conversations with up to hundreds of listeners.' },
-  { icon: Heart, title: 'Multi-reaction system', body: 'Pick from a wide palette of emoji reactions instead of a single like. Long-press any post or message to react with multiple emojis at once. Reactions count toward your DNA and the creator\'s engagement score.' },
-  { icon: Shield, title: 'Vybe Check safety scanning', body: 'Every uploaded photo, video, and audio file is scanned by Gemini Flash + SafeSearch before it goes live. Explicit content is blocked, AI-generated media is auto-watermarked, and users get a clear progress UI showing exactly what is being checked.' },
-  { icon: Zap, title: 'Real-time everything', body: 'Posts, reactions, presence, typing indicators, calls, location, and notifications stay in sync as they happen. No refreshing required.' },
-  { icon: Globe, title: 'Built-in commerce', body: 'Tip creators, sell digital and physical goods, accept payouts via Stripe Connect, run sponsored posts, and subscribe to VYBE Pro for premium customization, AI safety bypass on your own profile, and gifted entitlements.' },
+  { icon: Palette, title: 'A profile that feels like yours', body: 'Choose colors, backgrounds, and profile effects. Save a theme or share your look with friends, then change it when you feel like something new.' },
+  { icon: Sparkles, title: 'VYBE DNA', body: 'Explore an activity-inspired visual identity on your profile, with colors, patterns, and interests. Your profile brings your DNA and the things you share together.' },
+  { icon: MapIcon, title: 'Friend Map with Ghost Mode', body: 'Explore the Friend Map and choose whether to share your location. Ghost Mode gives you a way to turn sharing off; location features depend on your device permissions.' },
+  { icon: Camera, title: 'Posts, stories, clips, and snaps', body: 'Share photos and videos in a post, add a story, or send a snap to a friend. The camera includes filters and text tools so you can put your own spin on a moment.' },
+  { icon: MessageCircle, title: 'Direct and group chats', body: 'Keep a conversation going with replies, reactions, GIFs, and voice or video calls. Conversation membership controls access to messages; VYBE DMs are not end-to-end encrypted.' },
+  { icon: SlidersHorizontal, title: 'Motion and sound, your way', body: 'Choose a livelier or calmer feel, use reduced motion, and turn optional interface sounds on or off. Your experience settings let you decide how much animation and feedback you want.' },
+  { icon: Trophy, title: 'Challenges and profile rewards', body: 'Complete eligible challenges and claim verified XP rewards. Explore levels, badges, and profile items in your Locker; each reward has its own requirements.' },
+  { icon: Users, title: 'Communities and channels', body: 'Create a public community or a private one joined by invitation. Organize text and voice channels, appoint moderators, and manage channel permissions.' },
+  { icon: Heart, title: 'More ways to react', body: 'Respond to posts and messages with emoji reactions, add a reply, or share something with a friend. Small interactions help make a conversation feel personal.' },
+  { icon: Shield, title: 'Privacy and reporting controls', body: 'Choose your profile privacy, block unwanted contact, and report content or accounts. Community owners and moderators can manage their own spaces.' },
+  { icon: Code2, title: 'Mini App Studio', body: 'Start with a game, tool, or art template. Edit HTML, CSS, and JavaScript, test a preview, save a private draft, and publish a version to the Hub. Sign in to build and publish.', href: '/mini-apps', linkLabel: 'Open Mini App Studio' },
+  { icon: Gamepad2, title: 'Game SDK · developer preview', body: 'Integrate screenshots and short clips from your game. Players approve a connection, receive a private draft, and decide when to post. The partner preview requires a reviewed registration and deployed capture services.', href: '/developers#game-capture', linkLabel: 'Explore the Game SDK' },
 ];
 
 export default function FeaturesPage() {
@@ -26,8 +26,8 @@ export default function FeaturesPage() {
   const { shots } = useAppScreenshots('features');
 
   usePageMeta({
-    title: 'Features | VYBE — The Social App That Actually Knows You',
-    description: 'Explore VYBE features: VYBE DNA personality engine, Friend Map, encrypted DMs, AI assistant, communities, music trends, XP and badges, and more.',
+    title: 'Features | VYBE',
+    description: 'Explore VYBE posts, clips, conversations, communities, profile customization, Mini App Studio, and the game SDK developer preview.',
     canonicalPath: '/features',
   });
 
@@ -40,10 +40,10 @@ export default function FeaturesPage() {
 
         <motion.header initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mb-10">
           <h1 className="text-4xl sm:text-5xl font-bold mb-4 bg-gradient-to-r from-primary via-purple-400 to-cyan-400 bg-clip-text text-transparent">
-            Everything VYBE can do
+            Find your kind of VYBE
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl">
-            VYBE is a next-generation social app built around your personality, not your engagement metrics. Here is the full feature set.
+            Share a moment, gather your people, or build something of your own. Explore the social and creative tools in VYBE.
           </p>
         </motion.header>
 
@@ -63,6 +63,7 @@ export default function FeaturesPage() {
                 <h2 className="font-semibold text-foreground">{f.title}</h2>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">{f.body}</p>
+              {f.href && <Link to={f.href} className="mt-3 inline-flex min-h-11 items-center font-medium text-sm text-primary hover:underline">{f.linkLabel} →</Link>}
             </motion.article>
           ))}
         </section>
@@ -105,9 +106,14 @@ export default function FeaturesPage() {
           </section>
         )}
 
+        <section className="rounded-2xl border border-border bg-card p-6 mb-6" aria-labelledby="feature-availability">
+          <h2 id="feature-availability" className="text-xl font-semibold mb-2">A note on earning and paid features</h2>
+          <p className="text-sm text-muted-foreground leading-relaxed">Cash tips, creator payouts, paid subscriptions, and rewarded ads are not currently available. In-app tokens are for supported profile items, not cash payouts. The Game SDK is a developer preview; its setup requirements are in the <Link to="/developers" className="text-primary hover:underline">developer guide</Link>.</p>
+        </section>
+
         <section className="rounded-2xl border border-border bg-card p-6 mb-10 text-center">
           <h2 className="text-2xl font-bold mb-2">Ready to find your tribe?</h2>
-          <p className="text-muted-foreground mb-4">Join the founders shaping VYBE before public launch.</p>
+          <p className="text-muted-foreground mb-4">Create your profile and start exploring.</p>
           <Button asChild size="lg">
             <Link to="/?signup=true">Create your free account</Link>
           </Button>

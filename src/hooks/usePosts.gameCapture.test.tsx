@@ -1,9 +1,9 @@
 import { renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   find: vi.fn(), save: vi.fn(), capture: vi.fn(), check: vi.fn(), activity: vi.fn(), invalidate: vi.fn(),
-  insert: vi.fn(), remove: vi.fn(), detect: vi.fn(), credit: vi.fn(), accountEpoch: 0,
+  insert: vi.fn(), remove: vi.fn(), detect: vi.fn(), credit: vi.fn(), toastError: vi.fn(), accountEpoch: 0,
 }));
 vi.mock('@tanstack/react-query', () => ({
   useMutation: (options: unknown) => options,
@@ -29,7 +29,7 @@ vi.mock('@/lib/gameCaptureService', () => ({ getGameCapture: mocks.capture }));
 vi.mock('@/lib/gameCapturePost', () => ({ findGameCapturePost: mocks.find, saveGameCapturePost: mocks.save }));
 vi.mock('@/lib/rateLimit', () => ({ RATE_LIMITS: { createPost: () => true } }));
 vi.mock('@/lib/aiDetection', () => ({ detectAIContent: mocks.detect }));
-vi.mock('sonner', () => ({ toast: { error: vi.fn(), message: vi.fn() } }));
+vi.mock('sonner', () => ({ toast: { error: mocks.toastError, message: vi.fn() } }));
 
 import { useCreatePost } from './usePosts';
 
@@ -38,6 +38,7 @@ const post = { id: `game_${variables.gameCaptureId}`, author_id: 'profile', game
 type Mutation = {
   mutationFn: (data: typeof variables | Omit<typeof variables, 'gameCaptureId'>) => Promise<typeof post>;
   onSuccess: (data: typeof post, variables: typeof variables | Omit<typeof variables, 'gameCaptureId'>) => void;
+  onError: (error: Error) => void;
 };
 
 beforeEach(() => {
@@ -51,6 +52,7 @@ beforeEach(() => {
   mocks.detect.mockResolvedValue({ is_ai: false });
   mocks.insert.mockReturnValue({ select: () => ({ single: async () => ({ data: { id: 'ordinary-post' }, error: null }) }) });
 });
+afterEach(() => vi.restoreAllMocks());
 
 describe('game capture publish challenge credit', () => {
   it('repeated recovery returns the existing post without awarding activity or republishing', async () => {
@@ -111,5 +113,30 @@ describe('game capture publish challenge credit', () => {
     const { result } = renderHook(useCreatePost);
     await expect((result.current as unknown as Mutation).mutationFn(variables)).rejects.toThrow('Account changed');
     expect(mocks.save).not.toHaveBeenCalled(); expect(mocks.credit).not.toHaveBeenCalled();
+  });
+  it.each([
+    'Vybe Check is unavailable right now. Your content has not been published. Please try again later.',
+    'Revise the prohibited content.',
+  ])('preserves a blocked check message without posting or a contradictory second toast', async message => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.check.mockResolvedValue({ allowed: false, blocked: true, ageRating: 'safe', message });
+    const { result } = renderHook(useCreatePost); const mutation = result.current as unknown as Mutation;
+    const error = await mutation.mutationFn(variables).catch(cause => cause);
+    expect(error).toBeInstanceOf(Error); expect(error.message).toBe(message);
+    mutation.onError(error);
+    expect(mocks.toastError).toHaveBeenCalledExactlyOnceWith(message);
+    expect(mocks.save).not.toHaveBeenCalled(); expect(mocks.insert).not.toHaveBeenCalled(); expect(mocks.activity).not.toHaveBeenCalled();
+  });
+  it('gives neutral retry guidance for unrelated write failures instead of assuming sign-in is broken', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { result } = renderHook(useCreatePost);
+    (result.current as unknown as Mutation).onError(new Error('Storage temporarily unavailable'));
+    expect(mocks.toastError).toHaveBeenCalledExactlyOnceWith('Could not create your post. Please try again.');
+  });
+  it('does not replace the mutation\'s explicit missing-auth guidance with another toast', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { result } = renderHook(useCreatePost);
+    (result.current as unknown as Mutation).onError(new Error('Not authenticated'));
+    expect(mocks.toastError).not.toHaveBeenCalled();
   });
 });

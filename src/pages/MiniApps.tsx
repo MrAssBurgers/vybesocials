@@ -61,16 +61,15 @@ function MiniAppsForUser() {
   };
 
   const report = async (reason: string) => {
-    if (!detail.data || !profile) return;
-    try {
-      await addDoc(collection(getFirestoreDb(), 'reports'), {
+    if (!detail.data || !profile || !ownerId) throw new Error('Sign in again to report this app.');
+    // Let the dialog retain the selection and offer retry on a failed write.
+    await addDoc(collection(getFirestoreDb(), 'reports'), {
         reporter_id: profile.id, reported_user_id: null, post_id: null,
         reason: `Mini app ${detail.data.title} (/mini-apps/${detail.data.id}): ${reason}`,
         description: `Mini app /mini-apps/${detail.data.id}; creator auth ID ${detail.data.owner_id}`,
         content_type: 'mini_app', content_id: detail.data.id, status: 'pending', created_at: new Date().toISOString(),
-      });
-      if (mounted.current) toast.success('Report submitted for review.');
-    } catch (error) { if (mounted.current) toast.error(miniAppError(error)); }
+    });
+    if (mounted.current) toast.success('Report submitted for review.');
   };
 
   const content = appId ? (

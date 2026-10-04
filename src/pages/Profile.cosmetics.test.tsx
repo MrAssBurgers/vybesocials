@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
@@ -16,10 +16,10 @@ vi.mock('@/hooks/useBadges', () => ({ useUserBadges: () => ({ data: [] }), useUs
 vi.mock('@/hooks/useLockerItems', () => ({ useLockerItems: () => ({ data: { equippedProfileTheme: mock.theme, equippedFrame: mock.frame } }) }));
 vi.mock('@/hooks/usePremiumStatus', () => ({ usePremiumStatus: () => ({ isPremium: false }) }));
 vi.mock('@/hooks/useLiveMusicPresence', () => ({ useLiveMusicPresence: () => ({ presence: null }) }));
-vi.mock('@/components/layout/AppLayout', () => ({ AppLayout: ({ children }: { children: ReactNode }) => <main>{children}</main> }));
+vi.mock('@/components/layout/AppLayout', () => ({ AppLayout: ({ children }: { children: ReactNode }) => <main style={{ transform: 'translateZ(0)', overflowY: 'auto', height: '720px' }}>{children}</main> }));
 vi.mock('@/components/layout/AppBackground', () => ({ useAppBackground: () => ({ setBackgroundImage: mock.setBackground, refreshBackground: mock.refreshBackground, hasUserWallpaper: mock.hasWallpaper }) }));
 vi.mock('@/components/profile/ProfileHeroCard', () => ({ ProfileHeroCard: ({ frameClass }: { frameClass: string }) => <div data-testid="profile-avatar" className={frameClass} /> }));
-vi.mock('@/components/profile/ProfileLocker', () => ({ ProfileLocker: () => null }));
+vi.mock('@/components/profile/ProfileLocker', () => ({ ProfileLocker: () => <section aria-label="Purchased profile items" style={{ minHeight: '1500px' }}>Owned profile effects</section> }));
 vi.mock('@/components/profile/ProfileAboutMe', () => ({ ProfileAboutMe: () => null }));
 vi.mock('@/components/profile/ProfileAboutDetails', () => ({ ProfileAboutDetails: () => null }));
 vi.mock('@/components/profile/ProfileVibeBoard', () => ({ ProfileVibeBoard: () => null }));
@@ -39,7 +39,7 @@ describe('profile renders purchased cosmetics', () => {
     const gradient = Array.from(view.container.querySelectorAll<HTMLElement>('[style]')).find(node => node.style.background.includes('linear-gradient'));
     expect(gradient).toHaveStyle({ background: THEME_GRADIENTS[theme] });
     expect(gradient).toHaveStyle({ opacity: '0.35' });
-    expect(gradient?.parentElement).toHaveClass('fixed', 'pointer-events-none');
+    expect(gradient?.parentElement).toHaveClass('absolute', 'inset-0', 'pointer-events-none');
     expect(screen.getByTestId('profile-avatar').className).toBe(FRAME_CLASS_MAP[frame]);
     // Profile colors do not set, delete, or replace the user's global wallpaper.
     expect(mock.setBackground).not.toHaveBeenCalled();
@@ -58,5 +58,24 @@ describe('profile renders purchased cosmetics', () => {
     const gradient = Array.from(view.container.querySelectorAll<HTMLElement>('[style]')).find(node => node.style.background.includes('linear-gradient'));
     expect(gradient).toHaveStyle({ background: THEME_GRADIENTS.Obsidian });
     expect(gradient?.style.opacity).toBe('');
+  });
+  it('anchors the effect to the growing profile content inside a transformed scroller', () => {
+    mock.theme = 'theme_neon';
+    const { container } = render(<MemoryRouter><Profile /></MemoryRouter>);
+    const surface = container.querySelector('.profile-effect-surface')!;
+    const background = surface.querySelector('[aria-hidden="true"].pointer-events-none')!;
+    expect(surface).toHaveClass('relative', 'isolate', 'min-h-[100dvh]');
+    expect(background.parentElement).toBe(surface);
+    expect(background).toHaveClass('absolute', 'inset-0');
+    expect(background).not.toHaveClass('fixed');
+    expect(surface).toContainElement(screen.getByTestId('profile-avatar'));
+    fireEvent.click(screen.getByRole('button', { name: 'Locker' }));
+    // The long tab must determine the same containing block's height. A sibling
+    // viewport-sized fixed layer would end partway through this content.
+    expect(surface).toContainElement(screen.getByRole('region', { name: 'Purchased profile items' }));
+    expect(surface.querySelector('[aria-hidden="true"].pointer-events-none')).toBe(background);
+    expect(background).toHaveStyle({ zIndex: '0' });
+    expect(surface.querySelector('.profile-page-shell')).toHaveStyle({ zIndex: '1' });
+    expect(mock.setBackground).not.toHaveBeenCalled();
   });
 });

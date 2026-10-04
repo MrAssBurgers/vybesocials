@@ -78,7 +78,11 @@ export async function downloadGameCapture(capture: CaptureReceipt): Promise<File
   // Authenticated download, not a public bearer-token URL. Storage rules check
   // account ownership and expiry again, including after a user switches accounts.
   const blob = await getBlob(ref(getStorage(getFirebaseApp()), capture.storagePath), 48 * 1024 * 1024);
-  if (blob.size !== capture.byteSize || blob.type !== capture.contentType) throw new Error('Capture details changed. Please try again.');
+  // Firebase bounds getBlob by calling blob.slice without a MIME argument,
+  // which clears Blob.type. The ready receipt's MIME was verified server-side
+  // against immutable Storage metadata and file signature. Still reject any
+  // conflicting MIME that the SDK does supply, and always verify exact size.
+  if (blob.size !== capture.byteSize || (blob.type !== '' && blob.type !== capture.contentType)) throw new Error('Capture details changed. Please try again.');
   const extension = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'video/mp4': 'mp4', 'video/webm': 'webm' }[capture.contentType];
   return new File([blob], `game-capture.${extension}`, { type: capture.contentType });
 }

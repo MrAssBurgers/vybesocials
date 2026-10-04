@@ -2,6 +2,7 @@ import { defineConfig, loadEnv, normalizePath } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 import path from 'path';
 import { componentTagger } from 'lovable-tagger';
+import { localPreviewFunctionsProxy, localPreviewStorageProxy } from './scripts/qa/local-preview-proxy';
 // @ts-expect-error despia-local ships without TypeScript declarations
 import { despiaLocalPlugin } from '@despia/local/vite';
 
@@ -42,6 +43,9 @@ export default defineConfig(({ mode }) => {
       port: 8080,
       strictPort: false,
       open: false,
+      // Keep browser callable transport on the QA origin; the real emulator
+      // still handles authentication, validation and all data operations.
+      proxy: localQa ? { ...localPreviewFunctionsProxy(true), ...localPreviewStorageProxy(true) } : undefined,
       // Block ordinary HTTP/resource/WebSocket calls to live providers in QA.
       // This is not a general network sandbox for arbitrary user-authored code.
       ...(localQa ? { headers: { 'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; img-src 'self' data: blob: http://127.0.0.1:*; media-src 'self' blob: http://127.0.0.1:*; font-src 'self' data:; frame-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'" } } : {}),

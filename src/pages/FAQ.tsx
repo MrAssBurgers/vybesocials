@@ -9,23 +9,23 @@ import { usePageMeta } from '@/hooks/usePageMeta';
 const faqs = [
   {
     q: 'What is VYBE?',
-    a: 'VYBE is a next-generation social app that combines a personality-driven feed (VYBE DNA), a real-time Friend Map, encrypted DMs, vertical clips, communities, and a built-in AI assistant. It is designed to feel less like a content firehose and more like a place that actually knows you.',
+    a: 'VYBE brings posts, stories, clips, conversations, and communities together. Make your profile your own with themes and backgrounds, or build a small game, tool, or art experience in Mini App Studio.',
   },
   {
     q: 'Is VYBE free?',
-    a: 'Yes. Creating an account, posting, messaging, and using all core social features are completely free. We also offer VYBE+ (Premium) for people who want extra customization, ad-free browsing, and creator-tier perks.',
+    a: 'Creating an account and using core posting, messaging, and community features is free. Paid subscriptions are not currently available. Some profile items have in-app token or level requirements, shown when you select them.',
   },
   {
-    q: 'How is VYBE different from Instagram, Snapchat, or TikTok?',
-    a: 'Three big differences. (1) Your feed is ranked by a personality vector you can actually see and edit, not by a hidden engagement model. (2) Friends-first geo-features like the Friend Map and live VYBE Spaces are built in, not bolted on. (3) Safety is enforced before content is published, not after — every upload is AI-scanned in real time.',
+    q: 'What can I make on VYBE?',
+    a: 'Share a post, clip, or story; start a community around an interest; or customize your profile. Mini App Studio also lets you edit HTML, CSS, and JavaScript, preview your idea, and publish a version to the Hub.',
   },
   {
     q: 'Who can use VYBE?',
-    a: 'VYBE is open to anyone 13 or older. Users under 13 are not permitted. Users 13–17 get stricter AI safety filters, no personalized advertising, and limited access to age-restricted music and content.',
+    a: 'VYBE is for people 13 or older. Users under 13 are not permitted. See the Terms and Community Guidelines for account and content requirements.',
   },
   {
     q: 'Is my data private? What about my DMs?',
-    a: 'Direct messages are encrypted at rest using AES-256, and plaintext only exists on your device. We do not sell your personal information. You can read the full details in our Privacy Policy.',
+    a: 'Conversation membership controls access to direct and group messages, but VYBE DMs are not end-to-end encrypted. Messages are processed and stored by VYBE services. You can manage profile privacy and block accounts in the app; see the Privacy Policy for data handling details.',
   },
   {
     q: 'Can I delete my account?',
@@ -33,23 +33,27 @@ const faqs = [
   },
   {
     q: 'How does the Friend Map work? Can I hide?',
-    a: 'The Friend Map shows nearby friends with weather overlays so you can plan hangouts. Location is only shared with people you have approved as friends, refreshes once an hour, and you can turn on Ghost Mode at any moment to disappear from everyone\'s map until you choose to reappear.',
+    a: 'The Friend Map lets you explore shared friend locations. Location sharing depends on your device permissions and settings. Use Ghost Mode to turn sharing off, and review those settings before sharing your location.',
   },
   {
     q: 'What is VYBE DNA?',
-    a: 'VYBE DNA is a 30-day rolling personality vector built from your reactions, saves, comments, and watch time. It powers your feed and recommendations, and you can see and edit it directly. As your taste changes, your DNA evolves with you.',
+    a: 'VYBE DNA is an activity-inspired visual identity on your profile, with colors, patterns, and interests. It gives you another way to explore and show your interests alongside your posts.',
   },
   {
     q: 'How does VYBE moderate content?',
-    a: 'Every photo, video, and audio upload is scanned by AI (Gemini Flash + Google SafeSearch) before it is published. Explicit content is blocked at the source. AI-generated media is auto-watermarked. Communities can layer on their own moderation rules. Reports from users are reviewed within 24 hours.',
+    a: 'Community Guidelines apply to posts, messages, and communities. Use reporting and blocking controls when you encounter unwanted content or contact. Automated checks in supported publishing flows do not guarantee that every file or message has been scanned, and there is no guaranteed report response time.',
   },
   {
     q: 'Are there ads on VYBE?',
-    a: 'Not yet. When advertising rolls out it will be Google AdSense-based, clearly labeled, and sensitive categories (health, race, religion, sexual orientation, political affiliation) will not be used for targeting. Premium subscribers see no ads at all. Users under 13 are excluded from personalized advertising entirely.',
+    a: 'Paid ad campaigns are not currently available, and rewarded ads cannot currently be used to earn VYBE tokens.',
   },
   {
-    q: 'How do creators make money on VYBE?',
-    a: 'Creators can receive tips (85% goes to the creator), sell digital and physical goods through Stripe Connect, accept sponsored posts, and unlock revenue-share tiers based on engagement. Creator payouts run through Stripe.',
+    q: 'Can creators earn cash on VYBE?',
+    a: 'Cash tips, creator payouts, and paid subscriptions are not currently available. In-app tokens can be used for supported profile items; they are not a cash balance or a promise of future income.',
+  },
+  {
+    q: 'Can I connect a game to VYBE?',
+    a: 'The Game SDK is a developer preview for screenshots and short clips. It requires a reviewed game registration and deployed capture services. A player approves the connection, receives a private capture draft, and decides whether to publish it. The developer guide covers the setup and API.',
   },
   {
     q: 'Is VYBE on iOS and Android?',
@@ -57,7 +61,7 @@ const faqs = [
   },
   {
     q: 'How do I contact support?',
-    a: 'Email us at vybesocial.info@gmail.com or use the in-app feedback button. We answer most messages within 1–2 business days.',
+    a: 'Email vybesocial.info@gmail.com or use the in-app feedback tools. Include the problem and the steps that led to it so it can be investigated.',
   },
 ];
 
@@ -108,6 +112,11 @@ export default function FAQPage() {
             </AccordionItem>
           ))}
         </Accordion>
+
+        <div className="mt-6 flex flex-wrap justify-center gap-4">
+          <Link to="/mini-apps" className="inline-flex min-h-11 items-center text-primary hover:underline">Open Mini App Studio</Link>
+          <Link to="/developers" className="inline-flex min-h-11 items-center text-primary hover:underline">Read the developer guide</Link>
+        </div>
 
         <p className="text-sm text-muted-foreground mt-6 text-center">
           Still stuck? <Link to="/contact" className="text-primary hover:underline">Contact us →</Link>

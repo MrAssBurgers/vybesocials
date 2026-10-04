@@ -1,17 +1,18 @@
 import type { ReactNode } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MiniApps from './MiniApps';
 import { MINI_APP_TEMPLATES } from '@/features/mini-apps/templates';
 import type { MiniAppRecord, MiniAppSource } from '@/features/mini-apps/model';
 
-const state = vi.hoisted(() => ({ uid: 'alice', reducedMotion: false, systemReducedMotion: false, sound: vi.fn(), success: vi.fn() }));
+const state = vi.hoisted(() => ({ uid: 'alice', reducedMotion: false, systemReducedMotion: false, sound: vi.fn(), success: vi.fn(), report: vi.fn() }));
 const repository = vi.hoisted(() => ({ list: vi.fn(), save: vi.fn(), publish: vi.fn(), unpublish: vi.fn(), get: vi.fn() }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: state.uid }, profile: { id: `${state.uid}-profile` } }) }));
 vi.mock('@/lib/theme', () => ({ useTheme: () => ({ reducedMotion: state.reducedMotion }) }));
 vi.mock('@/lib/firebase/firestoreDb', () => ({ getFirestoreDb: vi.fn() }));
+vi.mock('firebase/firestore', () => ({ collection: (_db: unknown, path: string) => path, addDoc: state.report }));
 vi.mock('framer-motion', () => ({ useReducedMotion: () => state.systemReducedMotion }));
 vi.mock('@/components/layout/AppLayout', () => ({ AppLayout: ({ children }: { children: ReactNode }) => <div>{children}</div> }));
 vi.mock('@/lib/haptics', () => ({ triggerHaptic: vi.fn() }));
@@ -30,6 +31,7 @@ function mount() {
 beforeEach(() => {
   state.uid = 'alice'; state.reducedMotion = false; state.systemReducedMotion = false;
   vi.clearAllMocks();
+  state.report.mockReset();
   repository.list.mockResolvedValue([]);
   repository.save.mockImplementation(async (owner: string, source: MiniAppSource) => record(source, owner));
   repository.publish.mockResolvedValue(undefined);
@@ -101,7 +103,7 @@ describe('mini apps studio flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Build a mini app' }));
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
     fireEvent.click(screen.getByRole('button', { name: 'Run app' }));
-    expect(container.querySelector('iframe')?.srcdoc).toContain('animation: none !important');
+    expect(container.querySelector('iframe')?.srcdoc).toContain('document.head.appendChild(motion)');
     fireEvent.click(screen.getByRole('button', { name: 'Phone', exact: true }));
     expect(container.querySelector('iframe')?.parentElement).toHaveStyle({ transition: 'none' });
   });
@@ -188,5 +190,28 @@ describe('mini apps studio flow', () => {
     state.uid = 'bob'; rerender(view(client)); finish();
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
     expect(state.success).not.toHaveBeenCalled();
+  });
+  it('keeps a failed report open with its selected reason and submits the same reason on retry', async () => {
+    repository.get.mockResolvedValue({ ...record(MINI_APP_TEMPLATES[0].source, 'bob'), status: 'published' });
+    state.report.mockRejectedValueOnce(new Error('Network unavailable')).mockResolvedValueOnce({ id: 'report-1' });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/mini-apps/app-1']}><Routes><Route path="/mini-apps/:appId" element={<MiniApps />} /></Routes></MemoryRouter></QueryClientProvider>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Report', exact: true }));
+    const dialog = screen.getByRole('alertdialog', { name: 'Report mini app' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Spam', exact: true }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Submit Report' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Couldn’t submit your report');
+    expect(within(dialog).getByRole('button', { name: 'Spam', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(dialog).getByRole('button', { name: 'Submit Report' })).toBeEnabled();
+    expect(state.success).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Submit Report' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(state.report).toHaveBeenCalledTimes(2);
+    const first = state.report.mock.calls[0][1];
+    const second = state.report.mock.calls[1][1];
+    expect(first).toMatchObject({ content_type: 'mini_app', content_id: 'app-1', reporter_id: 'alice-profile', status: 'pending' });
+    expect(first.reason).toMatch(/: spam$/);
+    expect(second.reason).toBe(first.reason);
+    expect(state.success).toHaveBeenCalledExactlyOnceWith('Report submitted for review.');
   });
 });

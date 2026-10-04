@@ -6,6 +6,8 @@ Open **Create → Hub → Mini Apps**, or `/mini-apps`. Signed-in members can st
 
 - **Preview** loads a validated code snapshot and brings its controls into view. **Update preview** stops the previous runtime, loads the latest editor content, and waits for another explicit **Run app**. Editing source never silently replaces a running app.
 - **Phone** constrains the preview to 320px (or the available width on smaller screens); **Fit** restores the container width without restarting runtime state. The host's width transition and scroll behavior respect reduced motion. Code wrapping is optional; Ctrl/Command+S saves and Ctrl/Command+Enter prepares a preview while editing.
+- Switching tabs, backgrounding VYBE, or leaving the page closes the running iframe. Returning shows why it stopped and requires **Run again**; runtime state starts fresh. Authored source and the Phone/Fit choice remain intact while the studio stays mounted. The teardown is synchronous during `visibilitychange`/`pagehide`, including a page retained in the browser's back/forward cache; it does not rely on creator code cooperating.
+- Changing the effective reduced-motion preference stops the current runtime with an explanation. **Run again** starts the unchanged source with the new preference; the code is not silently reloaded. Both system and VYBE preferences are honored on initial launch.
 - **Save draft** confirms the private write. **Publish** separately confirms the community snapshot and then provides **Open published app**. If publishing fails after saving, the studio says that the private draft is safe and offers an explicit publishing retry. Failure leaves authored source in the editor.
 - Draft retries reuse a pending document identity, including recovery after navigation/reload when local storage is available. An owner-filtered `owner_id` + document-ID query finds a previously committed draft before retrying a lost acknowledgement, preserving its creation time. A confirmed save does not depend on a second read succeeding. Blocked browser storage still preserves source and retry identity while the studio remains mounted, but cannot provide reload recovery.
 
@@ -18,7 +20,8 @@ Open **Create → Hub → Mini Apps**, or `/mini-apps`. Signed-in members can st
 - Public metadata and code are readable by signed-in members. Do not put API keys, credentials, personal data, or secrets in code.
 - Discovery and draft queries each load at most 60 records. This version has no ranked discovery, full-text search, pagination, per-creator publication quota, or server-side code review. Firestore rules constrain document shape and combined source length to 100,000 characters, but do not provide a per-account count or rate limit.
 - A separate local recovery copy is scoped by account UID and draft ID, retained for up to 30 days, and removed after successful save or explicit discard. A recovery copy is never published automatically. It protects ordinary route changes when browser storage is available; Save draft is the cloud backup.
-- Reports go to the existing moderation queue with the mini-app ID and link. Moderators can remove published apps through the rules; a dedicated mini-app review/removal screen is a follow-up.
+- Reports go to the existing moderation queue with the mini-app ID and path in the reason. Its current Review/Action buttons only change report status: they do not remove a published app. The detail page currently exposes Unpublish only to the creator. Rules permit moderator deletion, but a dedicated review/removal control remains a follow-up. Any future privileged operation must validate the actual app document and staff authority independently of report metadata; the existing generic report-create rule does not authenticate reporter/status fields.
+- A failed report write keeps its dialog open and its reason selected, with an inline retry message. Success is announced only after the write completes.
 
 ## Runtime boundary
 
@@ -30,12 +33,14 @@ The outer frame is static and enforces `frame-src 'none'`; nested `srcdoc` is su
 
 The runtime is for small, self-contained apps. It is not a container, a general browser, or a hard CPU/memory boundary. An infinite loop or allocation can stall the browser tab, including its Stop control. Large hostile-code deployments need a separately hosted runner, abuse controls, resource isolation, and moderation before expansion. Code may still create distracting or deceptive content inside its own frame; the frame's host controls and Report action remain outside it. Re-test sandbox behavior on native WKWebView/Android WebView before store release.
 
+Background teardown is an operational control, not a resource limit: it needs the host event loop to process the browser's visibility/page lifecycle event. It cannot rescue an already blocked event loop, undo network activity, or guarantee lifecycle events on a force-killed process. No runtime error telemetry or automatic restart is added.
+
 Reduced-motion preferences from both the device and VYBE are propagated into preview styling. Templates use plain browser JavaScript, accessible labels, keyboard controls, and no external dependencies. Runtime state resets on Stop or Restart.
 
 ## Verification
 
 `npm exec vitest -- run src/features/mini-apps src/pages/MiniApps.test.tsx`
 
-Covers schema/size checks, ownership/session checks (including switching away and back), published-only queries, draft/snapshot isolation, lost-acknowledgement retries, unpublish preservation, explicit-run and stale-preview behavior, phone width without runtime restart, outer/inner sandbox attributes, hostile delimiter containment, reduced motion, account-switch teardown, stale save completion, partial publishing failure, confirmation before publishing, keyboard shortcuts, and local recovery boundaries. Firestore emulator enforcement tests are maintained separately with the rules.
+Covers schema/size checks, ownership/session checks (including switching away and back), published-only queries, draft/snapshot isolation, lost-acknowledgement retries, unpublish preservation, explicit-run and stale-preview behavior, phone width without runtime restart, synchronous hidden/pagehide teardown with no automatic resume, hidden Run refusal, lifecycle cleanup, outer/inner sandbox attributes, hostile delimiter containment, reduced motion, account-switch teardown, stale save completion, partial publishing failure, confirmation before publishing, keyboard shortcuts, and local recovery boundaries. Firestore emulator enforcement tests are maintained separately with the rules.
 
 Browser checks should verify a template's controls, Stop/Restart, a 320px viewport, denied fetch and storage access, denied parent access, disabled WebRTC entry points, and attempted self-navigation being blocked by the outer CSP. Unit tests cannot establish browser sandbox enforcement on their own.

@@ -39,6 +39,19 @@ describe('game capture review service boundary', () => {
     mocks.blob.mockResolvedValueOnce(new Blob([new Uint8Array(12)], { type: 'image/jpeg' }));
     await expect(downloadGameCapture(capture())).rejects.toThrow('details changed');
   });
+  it('restores the verified receipt MIME after the real bounded-Blob slice behavior', async () => {
+    const original = new Blob([new Uint8Array(12)], { type: 'image/png' });
+    const bounded = original.slice(0, 48 * 1024 * 1024);
+    expect(bounded.type).toBe(''); // The installed Firebase getBlob implementation.
+    mocks.blob.mockResolvedValueOnce(bounded);
+    const file = await downloadGameCapture(capture());
+    expect(file).toBeInstanceOf(File); expect(file.type).toBe('image/png'); expect(file.size).toBe(12);
+    expect(file.name).toBe('game-capture.png');
+  });
+  it.each(['', 'image/png'])('rejects incorrect media size even when MIME is %j', async type => {
+    mocks.blob.mockResolvedValueOnce(new Blob([new Uint8Array(13)], { type }));
+    await expect(downloadGameCapture(capture())).rejects.toThrow('details changed');
+  });
   it('refuses expired or uploading media before storage access', async () => {
     await expect(downloadGameCapture({ ...capture(), expiresAt: Date.now() - 1 })).rejects.toMatchObject({ code: 'failed-precondition' });
     await expect(downloadGameCapture({ ...capture(), status: 'uploading' })).rejects.toMatchObject({ code: 'failed-precondition' }); expect(mocks.blob).not.toHaveBeenCalled();

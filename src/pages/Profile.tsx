@@ -255,8 +255,12 @@ export default function ProfilePage() {
 
   return (
     <AppLayout>
+      <div className="relative isolate min-h-screen min-h-[100dvh] profile-effect-surface">
       {(themeImage || themeGradient) && (
-        <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
+        // AppLayout promotes its scroller with a transform. A fixed child would
+        // cover only that scroller's initial viewport and scroll off the page.
+        // Size this layer to the content instead so every tab stays covered.
+        <div aria-hidden="true" className="absolute inset-0 pointer-events-none" style={{ zIndex: 0 }}>
           {!themeImage && themeGradient && (
             <div className="absolute inset-0" style={{ background: themeGradient, opacity: paidProfileEffect && hasUserWallpaper ? 0.35 : undefined }} />
           )}
@@ -476,6 +480,7 @@ export default function ProfilePage() {
             onOpenChange={setPremiumMemeBanOpen}
           />
         )}
+      </div>
       </div>
       <GuestJoinBanner context="profile" username={profile?.username} />
     </AppLayout>

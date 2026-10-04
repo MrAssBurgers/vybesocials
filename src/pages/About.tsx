@@ -7,7 +7,7 @@ const features = [
   {
     icon: Camera,
     title: 'Stories & Snaps',
-    description: 'Share ephemeral moments with friends through stories that disappear in 24 hours. Add filters, stickers, and AR effects to make every snap unique.',
+    description: 'Share a story or send a snap to a friend. Add camera filters and text to put your own spin on a moment.',
   },
   {
     icon: Video,
@@ -17,7 +17,7 @@ const features = [
   {
     icon: MessageCircle,
     title: 'Real-Time Messaging',
-    description: 'Stay connected with encrypted direct messages, group chats, voice and video calls, and expressive reactions that bring conversations to life.',
+    description: 'Stay connected with direct messages, group chats, voice and video calls, and expressive reactions that bring conversations to life.',
   },
   {
     icon: Users,
@@ -31,8 +31,8 @@ const features = [
   },
   {
     icon: Sparkles,
-    title: 'AI-Powered Features',
-    description: 'Get personalized content recommendations, AI-assisted content creation, smart search, and an AI companion that understands your vibe.',
+    title: 'Make It Yours',
+    description: 'Choose themes, backgrounds, profile effects, motion preferences, and optional sounds to make VYBE feel more like you.',
   },
   {
     icon: Globe,
@@ -42,12 +42,12 @@ const features = [
   {
     icon: Shield,
     title: 'Safety First',
-    description: 'Advanced content moderation, customizable privacy controls, and community guidelines enforcement keep VYBE a positive space for everyone.',
+    description: 'Review your privacy settings, block unwanted contact, and report content or accounts that break the Community Guidelines.',
   },
   {
     icon: Zap,
     title: 'Creator Tools',
-    description: 'Monetize your content, track analytics, build your brand, and connect with your audience through creator-focused features.',
+    description: 'Share posts and clips, build a community, or make a small game, tool, or art experience in Mini App Studio.',
   },
   {
     icon: Heart,
@@ -59,7 +59,7 @@ const features = [
 export default function About() {
   usePageMeta({
     title: 'About VYBE — The Next Generation Social Platform',
-    description: 'Learn about VYBE — who we are, what we build, and why a more human social app is possible. Stories, clips, encrypted DMs, and AI that knows you.',
+    description: 'Get to know VYBE: posts, stories, clips, conversations, communities, profile customization, and mini apps you can build yourself.',
     canonicalPath: '/about',
   });
   return (
@@ -128,7 +128,7 @@ export default function About() {
               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">1</div>
               <div>
                 <h3 className="font-semibold text-foreground">Create Your Profile</h3>
-                <p className="text-sm text-muted-foreground mt-1">Sign up, choose your username, and customize your profile with a unique bento grid layout, VYBE DNA music identity, and personalized theme.</p>
+                <p className="text-sm text-muted-foreground mt-1">Sign up, choose your username, add your interests, and choose a theme and background for your profile.</p>
               </div>
             </div>
             <div className="flex gap-4">
@@ -142,14 +142,14 @@ export default function About() {
               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">3</div>
               <div>
                 <h3 className="font-semibold text-foreground">Share & Create</h3>
-                <p className="text-sm text-muted-foreground mt-1">Post photos, stories, clips, and text updates. Use the built-in camera, add music, collaborate with other creators, and engage with your audience. AR filters coming soon.</p>
+                <p className="text-sm text-muted-foreground mt-1">Post photos, stories, clips, and text updates. Use the built-in camera and start a conversation around what you share.</p>
               </div>
             </div>
             <div className="flex gap-4">
               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">4</div>
               <div>
-                <h3 className="font-semibold text-foreground">Grow & Earn</h3>
-                <p className="text-sm text-muted-foreground mt-1">Level up through engagement, earn badges and rewards, join the creator program, and monetize your content through the VYBE marketplace and business tools.</p>
+                <h3 className="font-semibold text-foreground">Build Something Together</h3>
+                <p className="text-sm text-muted-foreground mt-1">Make a game, tool, or art experiment in <Link to="/mini-apps" className="text-primary hover:underline">Mini App Studio</Link>. Game developers can also explore the <Link to="/developers" className="text-primary hover:underline">Game SDK developer preview</Link>, which requires a reviewed registration and deployed capture services.</p>
               </div>
             </div>
           </div>
@@ -162,6 +162,8 @@ export default function About() {
           <div className="flex flex-wrap justify-center gap-4 text-sm text-muted-foreground">
             <Link to="/about" className="hover:text-foreground transition-colors">About</Link>
             <Link to="/contact" className="hover:text-foreground transition-colors">Contact</Link>
+            <Link to="/features" className="hover:text-foreground transition-colors">Features & availability</Link>
+            <Link to="/developers" className="hover:text-foreground transition-colors">Developers</Link>
             <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
             <Link to="/terms" className="hover:text-foreground transition-colors">Terms of Use</Link>
             <Link to="/guidelines" className="hover:text-foreground transition-colors">Community Guidelines</Link>

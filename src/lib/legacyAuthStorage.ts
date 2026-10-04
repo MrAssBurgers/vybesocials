@@ -1,4 +1,14 @@
 import { getFirebaseConfig, isFirebaseConfigured } from '@/lib/firebase/config';
+import { isLocalPreview, LOCAL_PREVIEW_API_KEY } from './firebase/localPreview';
+
+/** Demo login hints must never read the normal account's persisted identity. */
+function previewUserId(): string | null {
+  try {
+    const raw = sessionStorage.getItem(`firebase:authUser:${LOCAL_PREVIEW_API_KEY}:[DEFAULT]`);
+    const value = raw ? JSON.parse(raw) : null;
+    return value?.apiKey === LOCAL_PREVIEW_API_KEY && typeof value.uid === 'string' && value.uid ? value.uid : null;
+  } catch { return null; }
+}
 
 /**
  * Legacy Supabase project refs — old auth sessions and media URLs may still reference these.
@@ -100,6 +110,7 @@ function readValidSessionForKey(key: string): string | null {
 }
 
 export function migrateLegacyAuthStorage(): boolean {
+  if (isLocalPreview()) return false;
   try {
     const canonicalKey = getLegacyAuthStorageKey();
     const canonical = readValidSessionForKey(canonicalKey);
@@ -129,6 +140,7 @@ export function migrateLegacyAuthStorage(): boolean {
 
 /** True when Firebase Auth or a legacy Supabase session exists in localStorage. */
 export function hasStoredAuthSession(): boolean {
+  if (isLocalPreview()) return Boolean(previewUserId());
   try {
     if (localStorage.getItem('vybe.auth.user')) return true;
     if (Object.keys(localStorage).some((k) => k.startsWith('firebase:authUser:'))) {
@@ -146,6 +158,7 @@ export function hasStoredAuthSession(): boolean {
 
 /** Read auth user id from persisted Firebase or legacy Supabase session (sync). */
 export function getStoredAuthUserId(): string | null {
+  if (isLocalPreview()) return previewUserId();
   try {
     for (const key of Object.keys(localStorage)) {
       if (!key.startsWith('firebase:authUser:')) continue;
@@ -176,6 +189,7 @@ export function getStoredAuthUserId(): string | null {
 
 /** Drop obsolete project auth keys after migration to Firebase. */
 export function clearObsoleteAuthStorage(): void {
+  if (isLocalPreview()) return;
   try {
     for (const ref of KNOWN_LEGACY_SUPABASE_REFS) {
       if (ref === getProjectRef()) continue;
@@ -209,6 +223,7 @@ function purgeWrongProjectAuthSessions(): void {
 
 /** Repair primary/backup pair and migrate legacy keys before auth client reads storage. */
 export function repairLegacyAuthStorage(): void {
+  if (isLocalPreview()) return;
   try {
     purgeWrongProjectAuthSessions();
     migrateLegacyAuthStorage();

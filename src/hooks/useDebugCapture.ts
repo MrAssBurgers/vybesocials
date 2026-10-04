@@ -17,28 +17,26 @@ export function useDebugCapture() {
     const originalFetch = window.fetch;
     window.fetch = async function patchedFetch(input: RequestInfo | URL, init?: RequestInit) {
       const start = performance.now();
-      const url = typeof input === 'string' ? input : (input as Request).url;
-      const method = (init?.method || 'GET').toUpperCase();
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      const method = (init?.method || (typeof input === 'object' && 'method' in input ? input.method : '') || 'GET').toUpperCase();
+      const record = (status: number, error?: string) => {
+        // Diagnostics must never turn a successful request into an app failure,
+        // or replace the original rejection if a debug subscriber throws.
+        try {
+          logNetwork({
+            url: url.length > 120 ? url.slice(0, 120) + '…' : url,
+            method, status, duration: Math.round(performance.now() - start),
+            timestamp: Date.now(), ...(error ? { error } : {}),
+          });
+        } catch { /* The request outcome takes priority over diagnostics. */ }
+      };
 
       try {
         const res = await originalFetch.call(window, input, init);
-        logNetwork({
-          url: url.length > 120 ? url.slice(0, 120) + '…' : url,
-          method,
-          status: res.status,
-          duration: Math.round(performance.now() - start),
-          timestamp: Date.now(),
-        });
+        record(res.status);
         return res;
       } catch (err: any) {
-        logNetwork({
-          url: url.length > 120 ? url.slice(0, 120) + '…' : url,
-          method,
-          status: 0,
-          duration: Math.round(performance.now() - start),
-          timestamp: Date.now(),
-          error: err.message,
-        });
+        record(0, err?.message);
         throw err;
       }
     };

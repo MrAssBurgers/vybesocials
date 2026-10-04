@@ -2,8 +2,11 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getFirebaseApp } from './app';
 import { getFirebaseConfig } from './config';
 import { firebaseAuth } from './authService';
-import { isLocalPreview, LOCAL_PREVIEW_PORTS } from './localPreview';
+import { isLocalPreview } from './localPreview';
+import { installLocalPreviewFetchDiagnostics } from './localPreviewFetchDiagnostics';
 import type { FunctionInvokeResult, VybeAuthError } from './types';
+
+installLocalPreviewFetchDiagnostics();
 
 /**
  * Map legacy Supabase edge function names → Firebase callable export names.
@@ -56,6 +59,26 @@ function toError(err: unknown): VybeAuthError {
   return { message: 'Function error' };
 }
 
+const DIAGNOSTIC_ERROR_CODES = new Set([
+  'cancelled', 'unknown', 'invalid-argument', 'deadline-exceeded', 'not-found',
+  'already-exists', 'permission-denied', 'resource-exhausted', 'failed-precondition',
+  'aborted', 'out-of-range', 'unimplemented', 'internal', 'unavailable', 'data-loss',
+  'unauthenticated',
+]);
+
+/** Local QA transport evidence only: never log request data or SDK error objects. */
+function logLocalCallable(phase: 'start' | 'failure', name: string, code?: string) {
+  if (!import.meta.env.DEV || import.meta.env.VITE_LOCAL_PREVIEW_DIAGNOSTICS !== 'true' || !isLocalPreview()) return;
+  // A caller-supplied name or error code must not become an arbitrary log channel.
+  const safeName = /^[A-Za-z][A-Za-z0-9]{0,127}$/.test(name) ? name : 'invalidCallableName';
+  const safeCode = code && DIAGNOSTIC_ERROR_CODES.has(code) ? code : 'unknown';
+  try {
+    console.debug(`[VYBE local callable] ${phase} name=${safeName} endpoint=${getFunctionUrl(safeName)}${phase === 'failure' ? ` code=${safeCode}` : ''}`);
+  } catch {
+    // Diagnostics must not alter request delivery or its original failure.
+  }
+}
+
 /** Unwrap Supabase-style `{ body: payload }` passed by legacy call sites. */
 function normalizeInvokePayload(
   body?: Record<string, unknown>,
@@ -93,6 +116,7 @@ export function invokeFunction<T = any>(
   const payload = normalizeInvokePayload(body);
   const promise = (async () => {
     try {
+      logLocalCallable('start', callableName);
       const fn = httpsCallable<Record<string, unknown> | undefined, T>(
         getFunctionsInstance(),
         callableName,
@@ -106,7 +130,9 @@ export function invokeFunction<T = any>(
       }
       return { data: result.data, error: null } as FunctionInvokeResult<T>;
     } catch (err) {
-      return { data: null, error: toError(err) } as FunctionInvokeResult<T>;
+      const error = toError(err);
+      logLocalCallable('failure', callableName, error.name);
+      return { data: null, error } as FunctionInvokeResult<T>;
     }
   })();
   const enriched = promise as Promise<FunctionInvokeResult<T>> & {
@@ -120,7 +146,7 @@ export function invokeFunction<T = any>(
 
 export function getFunctionUrl(functionName: string): string {
   const { projectId, functionsRegion } = getFirebaseConfig();
-  if (isLocalPreview()) return `http://127.0.0.1:${LOCAL_PREVIEW_PORTS.functions}/${projectId}/${functionsRegion}/${functionName}`;
+  if (isLocalPreview()) return `${location.origin}/${projectId}/${functionsRegion}/${functionName}`;
   return `https://${functionsRegion}-${projectId}.cloudfunctions.net/${functionName}`;
 }
 
