@@ -1,3 +1,4 @@
+import { CommentLoadError } from './CommentLoadError';
 import { useState, useRef, useCallback, useEffect, memo, forwardRef, useImperativeHandle } from 'react';
 import { motion, AnimatePresence, PanInfo, useDragControls } from 'framer-motion';
 import { Send, Smile, Loader2, X } from 'lucide-react';
@@ -44,7 +45,7 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
   onOpenChange,
 }, ref) {
   const { profile } = useAuth();
-  const { data: comments, isLoading } = useComments(postId);
+  const { data: comments, isLoading, isError, isFetching, refetch, queryKey } = useComments(isOpen ? postId : '');
   const createComment = useCreateComment();
   const deleteComment = useDeleteComment();
   const queryClient = useQueryClient();
@@ -61,7 +62,7 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
     if (!profile) return;
     
     // Optimistic update
-    queryClient.setQueryData(['comments', postId], (old: any) => {
+    queryClient.setQueryData(queryKey, (old: any) => {
       if (!old) return old;
       return old.map((c: any) => {
         if (c.id === commentId) {
@@ -95,7 +96,7 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
     } catch (err) {
       queryClient.invalidateQueries({ queryKey: ['comments', postId] });
     }
-  }, [profile, postId, queryClient]);
+  }, [profile, postId, queryClient, queryKey]);
 
   // Delete a comment
   const handleDeleteComment = useCallback(async (commentId: string) => {
@@ -225,7 +226,9 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
 
             {/* Comments list - scrollable */}
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 overscroll-contain">
-              {isLoading ? (
+              {isError ? (
+          <CommentLoadError retry={() => void refetch()} pending={isFetching} />
+        ) : isLoading ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <div key={i} className="flex gap-3">
                     <Skeleton className="h-10 w-10 rounded-full flex-shrink-0" />

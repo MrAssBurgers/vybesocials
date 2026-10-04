@@ -1,3 +1,4 @@
+import { CommentLoadError } from './CommentLoadError';
 import { useState, useRef, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Image, Send, Loader2, X, SortAsc, MessageCircle } from 'lucide-react';
@@ -39,7 +40,7 @@ export const InlineComments = memo(function InlineComments({
   accessScope,
 }: InlineCommentsProps) {
   const { profile } = useAuth();
-  const { data: comments, isLoading } = useComments(postId, accessScope ? { scope: accessScope } : undefined);
+  const { data: comments, isLoading, isError, isFetching, refetch } = useComments(postId, accessScope ? { scope: accessScope } : undefined);
   const createComment = useCreateComment();
 
   const [text, setText] = useState('');
@@ -326,7 +327,9 @@ export const InlineComments = memo(function InlineComments({
 
       {/* Comments list */}
       <div className="space-y-4">
-        {isLoading ? (
+        {isError ? (
+          <CommentLoadError retry={() => void refetch()} pending={isFetching} />
+        ) : isLoading ? (
           Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="flex gap-3">
               <Skeleton className="h-10 w-10 rounded-full" />

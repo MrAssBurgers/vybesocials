@@ -1,5 +1,11 @@
 # VYBE Integration SDK — local pilot package
 
+JavaScript pilot **0.3.1** prevents overlapping uploads of the same prepared draft
+(`upload_in_progress`). Cancel with an AbortController to retain the draft for a
+retry. `draft.dispose()` now also aborts its active local upload; keep the draft
+alive until upload completion when upgrading from 0.3.0. Disposal never deletes
+a server capture or revokes consent.
+
 Native .NET 8 hosts can use the separate compiled [C# partner client](https://github.com/MrAssBurgers/vybesocials/blob/main/sdk/dotnet/README.md) for device consent, private capture upload, retry/status, discard, revocation and an opt-in capture gallery. It has no Firebase dependency. Engine/mod-loader certification and older Unity/Mono compatibility remain outstanding.
 
 This package supplies account consent, private image/video upload and explicit VYBE browser entry points for apps, games, mods and tools. It has no Firebase runtime dependency and never publishes a post on behalf of the user. The user reviews and publishes inside VYBE.

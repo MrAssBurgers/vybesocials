@@ -27,7 +27,7 @@ export interface PreparedCapture {
   readonly idempotencyKey: string;
   readonly byteSize: number;
   readonly contentType: CaptureMime;
-  /** Release the retained bytes. Does not discard a server capture. */
+  /** Cancel this draft's local upload and release retained bytes. Does not discard a server capture. */
   dispose(): void;
 }
 export interface UploadOptions {
@@ -46,6 +46,7 @@ const MESSAGES = {
   open_failed: 'The host could not open VYBE. Try again from its browser control.',
   invalid_capture: 'Choose a supported image or video between 12 bytes and 48 MiB.',
   draft_unavailable: 'This capture draft was released or belongs to a different integration.',
+  upload_in_progress: 'This capture is already uploading. Wait for it to finish or cancel it before retrying.',
 } as const;
 export class VybeIntegrationError extends Error {
   constructor(public readonly code: keyof typeof MESSAGES) { super(MESSAGES[code]); this.name = 'VybeIntegrationError'; }
@@ -58,6 +59,7 @@ export class VybeIntegration {
   #closed = false;
   #operations = new Set<AbortController>();
   #drafts = new WeakMap<PreparedCapture, Draft>();
+  #uploads = new WeakMap<PreparedCapture, AbortController>();
   #link: PartnerDeviceLink | null = null;
   #waitingLink: PartnerDeviceLink | null = null;
   #unsubscribe: (() => void) | undefined;
@@ -132,7 +134,14 @@ export class VybeIntegration {
     const data = this.#drafts.get(draft);
     if (!data) throw new VybeIntegrationError('draft_unavailable');
     this.#assertConnection(data.connectionId);
-    return this.#run(options.signal, async operation => {
+    if (this.#uploads.has(draft)) throw new VybeIntegrationError('upload_in_progress');
+    const upload = new AbortController();
+    const signal = options.signal;
+    const abort = () => upload.abort();
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) abort();
+    this.#uploads.set(draft, upload);
+    return this.#run(upload.signal, async operation => {
       const check = () => { operation.check(); this.#assertConnection(data.connectionId); };
       return this.#client.stageCapture({
         idempotencyKey: draft.idempotencyKey, media: data.media, contentType: draft.contentType,
@@ -141,6 +150,9 @@ export class VybeIntegration {
         onPhase: value => { check(); options.onPhase?.(value); check(); },
         onCaptureReserved: value => { check(); options.onCaptureReserved?.(value); check(); },
       });
+    }).finally(() => {
+      signal?.removeEventListener('abort', abort);
+      if (this.#uploads.get(draft) === upload) this.#uploads.delete(draft);
     });
   }
   getCapture(captureId: string, options: { signal?: AbortSignal } = {}): Promise<PartnerCaptureReceipt> {
@@ -201,7 +213,7 @@ export class VybeIntegration {
     if (!globalThis.crypto?.randomUUID) throw new VybePartnerError('crypto_unavailable');
     const draft: PreparedCapture = Object.freeze({
       idempotencyKey: globalThis.crypto.randomUUID(), byteSize: size, contentType,
-      dispose: () => { this.#drafts.delete(draft); },
+      dispose: () => { this.#drafts.delete(draft); this.#uploads.get(draft)?.abort(); },
     });
     this.#drafts.set(draft, { connectionId, media: bytes, caption, tags });
     return draft;

@@ -11,7 +11,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - On Android, including the Fold WebView that has no `; wv`, the Firebase user is copied into the unlocked Despia vault and restored before auth starts if the WebView wiped localStorage. Sign-out clears that copy. iOS splash timing is unchanged.
 
 ### Verification
-- `npm run test`: 320 files, 3031 passed.
+- `npm run test` after merging the newer main: 323 files, 3051 passed.
 - `tsc --noEmit -p tsconfig.app.json` passed. ESLint on the edited files passed. `npm run build` passed.
 - Firebase CLI has no authorized account, so `reportModeration` and `readSocialFeed` were not deployed. The client paths above do not need that deploy.
 
@@ -23,6 +23,75 @@ Use this file as the Lovable -> Cursor handoff each session.
 1. Lovable → Share → Publish, then force-close VYBE on the phone so this bundle replaces the Play Store web view.
 2. After `npx firebase login`, deploy only `functions:reportModeration` if staff should use the new report queue.
 3. Leave `auth2faRequest` undeployed. Password sign-in stays open while production returns no challenge id.
+
+## ACTIVE (2026-10-04) - Account-scoped comment reads and explicit retry
+
+### What changed
+- Comment cache keys now include auth UID/epoch/profile and optional visibility scope. Reads require a matching signed-in profile, check the initiating session after awaited requests, and discard late account results. Unobserved entries have zero retention; closed CommentSheet no longer starts a read.
+- Likes-query errors propagate instead of becoming incorrect zero counts. Added a shared rounded retry state to PostDetail, InlineComments and CommentSheet so read failures no longer say No comments yet; existing draft inputs stay mounted. CommentSheet optimistic updates target the new exact scoped key.
+- This is client cache/read UX work. Existing broad Firestore comment-read rules, comment likes write authority and draft/account lifecycle still need further review.
+
+### Verification
+- Full 322 files / 3,047 tests, production build, typecheck and scoped lint passed. Six new hook cases cover account isolation, away-and-back late responses, likes errors/retry, signed-out/stale profile and closed reads. Corrected test scheduling expectations to observe the new account query rather than the retired query error. Logs work/comment-reads-*.log.
+- Retained local PostDetail reloaded and displayed the previously saved synthetic comment. Separately rendered the actual error component in an ignored local fixture; clicked Retry and verified its disabled Loading comments state with draft unchanged. Screenshot outputs/vybe-comment-retry-preview.png is that component fixture, not an induced backend outage. No production changes.
+
+### Next 3 tasks and limits
+1. Continue server-side comment visibility and likes authority.
+2. Continue game/mod adapter verification and mini-app runtime isolation.
+3. Publish completed client through Lovable and stage named backend/rules separately. Broad goal remains active.
+
+---
+## ACTIVE (2026-10-04) - Atomic comment editing and deletion
+
+### What changed
+- Replaced comment edit/delete legacy adapter writes with a Firestore transaction that reads existence, owner and post identity before writing. Editing a missing/mismatched comment now fails instead of reporting success on zero affected rows; deletion no longer separates the ownership read from the write.
+- Captured the initiating account guard at dispatch, checked it during transaction retries/after reads, and suppressed late toasts/cache updates/caller callbacks after account changes, including away-and-back. Committed writes remain successful even if the account changes afterward. Failed edits retain the caller's editor text.
+- Firebase rules remain authoritative; this does not close broad comment read access, add source-version conflict UI, or change comment creation idempotency.
+
+### Verification
+- Full 321 files / 3,041 tests, production build, typecheck and scoped lint passed. Ten new cases cover edit/delete success, missing/foreign/mismatched rows, account change before delete, late UI callbacks, stale profile and failed edit. Logs work/comment-changes-*.log.
+- Retained local emulator/browser: created named synthetic post/comment qa-comment-edit-20261004 for preview Alice; edited through PostDetail and confirmed displayed saved text. No UI deletion or production data changes. Screenshot outputs/vybe-comment-edit-verified.png. Preserved unsaved mini-app recovery tab.
+
+### Next 3 tasks and limits
+1. Continue comment read visibility/session scoping and server authority.
+2. Continue game/mod adapter verification and mini-app runtime isolation.
+3. Publish completed client through Lovable and stage named backend/rules separately. Broad goal remains active.
+
+---
+## ACTIVE (2026-10-04) - More visible soft loading background
+
+### What changed
+- Responded to the black loading-screen screenshot. The existing replacement boot layout already hides estimated percentages and provides the VYBE mark, status and slow cloud motion; increased its ambient color strength and status contrast.
+- Added a soft purple/cyan base wash that stays visible when a saved theme has neutral accents. Preserved existing reduced-motion/performance gates and native handoff timing; no added boot delay.
+
+### Verification
+- Production build, boot entry/distribution checks and all 319 files / 3,031 tests passed. Logs work/boot-wash-build.log and work/boot-wash-tests.log.
+- Visually inspected a local fixture extracted from the actual inline boot CSS/markup, without boot timers removing it. Confirmed cloud animation active, percentage hidden and no horizontal overflow. Screenshot outputs/vybe-soft-loading.png. This is a held visual fixture, not a measurement of startup speed. No production deployment.
+
+### Next 3 tasks and limits
+1. Continue remaining comment/account authority review.
+2. Continue universal game/mod integrations and mini-app runtime isolation.
+3. Publish the completed main client through Lovable; named backend/rule rollout still separate. Broad goal remains active.
+
+---
+## ACTIVE (2026-10-04) - JavaScript game/mod SDK upload lifecycle, pilot 0.3.1
+
+### What changed
+- A prepared capture now permits only one active stageCapture attempt. Duplicate calls synchronously throw upload_in_progress before another reservation/upload copy; settling an attempt releases its guard, including cancellation/failure, so the same immutable draft/key remains retryable.
+- PreparedCapture.dispose now cancels its own active local upload and drops the retained draft reference. It suppresses later callbacks/chunks without cancelling another draft, revoking consent or deleting remote captures. Callers should use AbortController when they want to retain a retryable draft. Requests already accepted by the server are not undone; uncooperative transports may retain their own copies.
+- Bumped the private JavaScript package to 0.3.1-pilot and documented the behavior change: hosts must keep the draft alive until upload completion instead of disposing immediately after starting it. Native .NET/Godot adapters were not changed.
+
+### Verification and artifact
+- Full 319 files / 3,031 tests, app and SDK builds, typecheck and scoped lint passed. New cases cover duplicate admission, cancel-and-retry using the same key, draft release during a delayed chunk, late callback suppression, callback-triggered release before chunks and independent draft cancellation. Logs work/sdk-upload-lifecycle-*.log.
+- Created outputs/vybe-integration-sdk-0.3.1-pilot.tgz (14 package entries). Installed the actual archive offline with scripts disabled into ignored work/sdk-lifecycle-consumer; verified root/partner/feed/gallery imports and construction/disposal without network/window effects. No registry publication or production changes. The archive contains compiled ESM/declarations and README, not test credentials or example configuration.
+- No new native engine walkthrough; prior native automation restriction and engine certification limits remain. Generated app version/offline churn restored.
+
+### Next 3 tasks and limits
+1. Continue concrete game/mod adapters and native capture-upload verification on permitted environments. Keep per-host lifecycle cleanup explicit.
+2. Continue remaining social profile/explore/comment authority and mini-app runtime isolation; no hard iframe resource isolation yet.
+3. Stage named backend/client/rules changes and publish through Lovable. Broad goal remains active/incomplete.
+
+---
 
 ## ACTIVE (2026-10-04) - Validate direct mini-app links before rendering
 
@@ -8824,3 +8893,6 @@ All eight migration phases complete. See `.lovable/plan.md` for per-phase detail
 1. Run the iOS manual checklist above on an iPhone build and collect screenshots/recording for each auth flow.
 2. If iOS deep-link takeover is still flaky on QR camera scans, verify associated domains/Universal Link entitlement for `vybehub.app` in the native shell.
 3. Push to `origin/main`, then run Lovable Publish and production smoke test on `vybehub.app`.
+
+
+

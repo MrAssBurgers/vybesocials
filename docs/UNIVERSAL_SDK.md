@@ -31,10 +31,10 @@ New-Item -ItemType Directory -Force work | Out-Null
 npm pack ./sdk --pack-destination ./work
 
 # Run in your separate app or mod host project, using the actual archive path:
-npm install C:/path/to/vybe-integration-sdk-0.1.0-pilot.tgz
+npm install C:/path/to/vybe-integration-sdk-0.3.1-pilot.tgz
 ```
 
-The private package is `@vybe/integration-sdk`, version `0.1.0-pilot`. It includes dependency-free ESM JavaScript and TypeScript declarations; no CommonJS export is supplied. `prepack` uses this repository's pinned TypeScript compiler and does not download tools. The archive includes compiled SDK files and its README, not the example configuration, Firebase adapter or any credentials. No package is published by these commands.
+The private package is `@vybe/integration-sdk`, version `0.3.1-pilot`. It includes dependency-free ESM JavaScript and TypeScript declarations; no CommonJS export is supplied. `prepack` uses this repository's pinned TypeScript compiler and does not download tools. The archive includes compiled SDK files and its README, not the example configuration, Firebase adapter or any credentials. No package is published by these commands.
 
 Exports:
 
@@ -106,7 +106,11 @@ await vybe.openReview(receipt.captureId);
 
 The separate button/UI functions are host code. The runnable example wires these steps to actual controls. `beginLink()` cancels this instance's previous pending operations, forgets its previous local authorization and releases its old drafts. It does not revoke the old connection on the server. Never automatically open consent or review pages on a timer, receipt callback or mount.
 
-`captureFromHost` requires current consent before invoking the host. Preparation snapshots media and metadata, generates one random key and binds the draft to the current connection. The draft exposes only its key, byte size, MIME type and `dispose()`. Changing the original bytes/caption cannot change a retry. A new link, expired authorization, released draft or another integration instance cannot reuse the draft. Call `draft.dispose()` when no longer needed; that only releases local media and does not cancel an already running upload or delete remote content. Use an AbortController for active work and `discardCapture(id)` for explicit remote discard.
+`captureFromHost` requires current consent before invoking the host. Preparation snapshots media and metadata, generates one random key and binds the draft to the current connection. The draft exposes only its key, byte size, MIME type and `dispose()`. Changing the original bytes/caption cannot change a retry. A new link, expired authorization, released draft or another integration instance cannot reuse the draft.
+
+From JavaScript pilot 0.3.1, one prepared draft can have only one active upload. A duplicate `stageCapture` throws `VybeIntegrationError` with code `upload_in_progress` before another reservation or byte copy starts. The guard clears when that attempt settles, including cancellation/failure, so the same draft and key can be retried. Different prepared drafts remain independent.
+
+`draft.dispose()` now cancels that draft's local upload as well as releasing the SDK's retained media reference; it is idempotent and prevents later callbacks/chunks from that attempt. It does not discard remote content, revoke consent, undo accepted requests, or guarantee that an uncooperative transport releases its own byte copies immediately. Use an AbortController to cancel while keeping the draft available for retry. Use `discardCapture(id)` for explicit remote discard. Hosts upgrading from 0.3.0 must keep a prepared draft alive until its upload completes instead of disposing immediately after starting it.
 
 Drafts are memory-only. Unload/process restart cannot recover these facade drafts or credentials; do not claim durable background delivery. Hosts needing their own reviewed persistence can use the lower-level partner client with its documented immutable input/idempotency contract. Current partner access lasts at most ten minutes and has no refresh token; a new connection cannot resume the old connection's capture namespace. An already allocated capture may still be reviewable by its owner in VYBE.
 
