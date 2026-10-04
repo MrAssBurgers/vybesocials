@@ -1,3 +1,4 @@
+import { CommentLoadError } from '@/components/comments/CommentLoadError';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -329,7 +330,7 @@ function PostDetailContent() {
 
   const { currentReaction, likeCount, handleReaction } = usePostReaction(reactionSource);
 
-  const { data: comments, isLoading: commentsLoading } = useComments(post ? id! : '', { scope: `${account.session.uid}:${account.session.epoch}:${profile?.id}:${entry.expires}` });
+  const { data: comments, isLoading: commentsLoading, isError: commentsError, isFetching: commentsFetching, refetch: retryComments } = useComments(post ? id! : '', { scope: `${account.session.uid}:${account.session.epoch}:${profile?.id}:${entry.expires}` });
   const createComment = useCreateComment();
   const deleteComment = useDeleteComment();
 
@@ -764,7 +765,9 @@ function PostDetailContent() {
               </h3>
 
               <div className="space-y-3 max-h-[50vh] overflow-y-auto overscroll-contain pr-1">
-                {commentsLoading ? (
+                {commentsError ? (
+                  <CommentLoadError retry={() => void retryComments()} pending={commentsFetching} />
+                ) : commentsLoading ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <div key={i} className="flex gap-3 p-3">
                       <Skeleton className="h-9 w-9 rounded-full flex-shrink-0" />

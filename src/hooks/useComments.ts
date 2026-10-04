@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { useBumpReactionStreak } from './useReactionStreaks';
 import { useTokenReward } from './useVybeTokens';
 import { recordChallengeActivity } from '@/lib/challengeProgressClient';
-import { tokenAccountGuard, type TokenAccountGuard } from '@/lib/tokenMarketplaceService';
+import { tokenAccountGuard, tokenAccountSnapshot, type TokenAccountGuard } from '@/lib/tokenMarketplaceService';
 
 import { changeComment } from '@/lib/commentChanges';
 
@@ -32,12 +32,18 @@ interface Comment {
 }
 
 export function useComments(postId: string, access?: { scope: string }) {
-  const { profile } = useAuth();
-  
-  return useQuery({
-    queryKey: access ? ['comments', postId, access.scope] : ['comments', postId],
-    ...(access ? { gcTime: 0, staleTime: 0 } : {}),
+  const { profile, user } = useAuth();
+  const session = tokenAccountSnapshot();
+  const queryKey = ['comments', postId, user?.id, session.epoch, profile?.id, access?.scope];
+  const query = useQuery({
+    queryKey,
+    gcTime: 0,
+    staleTime: 0,
+    retry: false,
     queryFn: async (): Promise<Comment[]> => {
+      const guard = tokenAccountGuard(user?.id);
+      guard();
+      if (!user || profile?.user_id !== user.id) throw new Error('Not authenticated');
       const { data, error } = await db
         .from('comments')
         .select(`
@@ -57,6 +63,7 @@ export function useComments(postId: string, access?: { scope: string }) {
         .eq('post_id', postId)
         .order('created_at', { ascending: true });
 
+      guard();
       if (error) throw error;
 
       // Fetch like counts and user's likes in parallel
@@ -72,6 +79,9 @@ export function useComments(postId: string, access?: { scope: string }) {
             : Promise.resolve({ data: [] }),
         ]);
 
+        guard();
+        if (countsRes.error) throw countsRes.error;
+        if (userLikesRes.error) throw userLikesRes.error;
         // Count likes per comment
         for (const row of (countsRes.data || [])) {
           likeCounts[row.comment_id] = (likeCounts[row.comment_id] || 0) + 1;
@@ -93,8 +103,9 @@ export function useComments(postId: string, access?: { scope: string }) {
         user: comment.user as unknown as { id: string; username: string; avatar_url: string | null },
       }));
     },
-    enabled: !!postId,
+    enabled: !!postId && !!user && profile?.user_id === user.id && session.uid === user.id,
   });
+  return { ...query, queryKey };
 }
 
 export function useCreateComment() {

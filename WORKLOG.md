@@ -2,6 +2,23 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Account-scoped comment reads and explicit retry
+
+### What changed
+- Comment cache keys now include auth UID/epoch/profile and optional visibility scope. Reads require a matching signed-in profile, check the initiating session after awaited requests, and discard late account results. Unobserved entries have zero retention; closed CommentSheet no longer starts a read.
+- Likes-query errors propagate instead of becoming incorrect zero counts. Added a shared rounded retry state to PostDetail, InlineComments and CommentSheet so read failures no longer say No comments yet; existing draft inputs stay mounted. CommentSheet optimistic updates target the new exact scoped key.
+- This is client cache/read UX work. Existing broad Firestore comment-read rules, comment likes write authority and draft/account lifecycle still need further review.
+
+### Verification
+- Full 322 files / 3,047 tests, production build, typecheck and scoped lint passed. Six new hook cases cover account isolation, away-and-back late responses, likes errors/retry, signed-out/stale profile and closed reads. Corrected test scheduling expectations to observe the new account query rather than the retired query error. Logs work/comment-reads-*.log.
+- Retained local PostDetail reloaded and displayed the previously saved synthetic comment. Separately rendered the actual error component in an ignored local fixture; clicked Retry and verified its disabled Loading comments state with draft unchanged. Screenshot outputs/vybe-comment-retry-preview.png is that component fixture, not an induced backend outage. No production changes.
+
+### Next 3 tasks and limits
+1. Continue server-side comment visibility and likes authority.
+2. Continue game/mod adapter verification and mini-app runtime isolation.
+3. Publish completed client through Lovable and stage named backend/rules separately. Broad goal remains active.
+
+---
 ## ACTIVE (2026-10-04) - Atomic comment editing and deletion
 
 ### What changed
@@ -8854,5 +8871,6 @@ All eight migration phases complete. See `.lovable/plan.md` for per-phase detail
 1. Run the iOS manual checklist above on an iPhone build and collect screenshots/recording for each auth flow.
 2. If iOS deep-link takeover is still flaky on QR camera scans, verify associated domains/Universal Link entitlement for `vybehub.app` in the native shell.
 3. Push to `origin/main`, then run Lovable Publish and production smoke test on `vybehub.app`.
+
 
 
