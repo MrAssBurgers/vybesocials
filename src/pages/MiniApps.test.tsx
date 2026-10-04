@@ -74,7 +74,7 @@ describe('mini apps studio flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Publish to Hub' }));
     expect(repository.publish).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Publish app' }));
-    await waitFor(() => expect(repository.publish).toHaveBeenCalledWith('alice', expect.objectContaining({ title: 'My small game', owner_id: 'alice' })));
+    await waitFor(() => expect(repository.publish).toHaveBeenCalledWith('alice', expect.objectContaining({ title: 'My small game', owner_id: 'alice' }), expect.objectContaining({ requestId: expect.any(String) })));
     expect(await screen.findByRole('link', { name: 'Open published app' })).toHaveAttribute('href', '/mini-apps/app-1');
     expect(state.sound).toHaveBeenCalledWith('success');
   });

@@ -1,6 +1,7 @@
-import { collection, deleteDoc, doc, documentId, orderBy, startAfter, getDoc, getDocs, limit, query, runTransaction, serverTimestamp, setDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, documentId, orderBy, startAfter, getDoc, getDocs, limit, query, runTransaction, serverTimestamp, where } from 'firebase/firestore';
 import { getFirestoreDb } from '@/lib/firebase/firestoreDb';
 import { validateMiniApp, type MiniAppRecord, type MiniAppSource } from './model';
+import { invokeFunction } from '@/lib/firebase/functionsService';
 import { miniAppAccountGuard } from './account';
 
 export const MINI_APP_PAGE_SIZE = 24;
@@ -59,18 +60,34 @@ export async function saveMiniAppDraft(ownerId: string, source: MiniAppSource, e
   }).then(record => { guard(); return record; });
 }
 
-export async function publishMiniApp(ownerId: string, draft: MiniAppRecord): Promise<void> {
+export type MiniAppPublishIntent = { requestId: string; expectedVersion?: string | null; sourceKey?: string };
+const publicationVersionPattern = /^(?:[a-f0-9]{32}|legacy:-?\d{1,12}:\d{1,9})$/;
+export async function publishMiniApp(ownerId: string, draft: MiniAppRecord, intent: MiniAppPublishIntent = { requestId: crypto.randomUUID() }): Promise<void> {
   const guard = miniAppAccountGuard(ownerId); guard();
-  if (draft.owner_id !== ownerId || !draft.created_at) throw new Error('Save your own draft before publishing.');
-  const reference = doc(getFirestoreDb(), 'mini_apps', draft.id);
-  const published = await getDoc(reference);
+  if (draft.owner_id !== ownerId || !draft.created_at || !/^[\w-]{1,128}$/.test(draft.id)) throw new Error('Save your own draft before publishing.');
+  const source = validateMiniApp(draft);
+  const sourceKey = JSON.stringify({ ownerId, id: draft.id, source });
+  if (intent.sourceKey !== undefined && intent.sourceKey !== sourceKey) throw new Error('Your code changed. Choose Publish to Hub again to publish the new version.');
+  intent.sourceKey = sourceKey;
+  if (intent.expectedVersion === undefined) {
+    const published = await getDoc(doc(getFirestoreDb(), 'mini_apps', draft.id));
+    guard();
+    if (!published.exists()) intent.expectedVersion = null;
+    else {
+      const row = published.data();
+      const version = row.publication_revision ?? (Number.isInteger(row.updated_at?.seconds) && Number.isInteger(row.updated_at?.nanoseconds) ? `legacy:${row.updated_at.seconds}:${row.updated_at.nanoseconds}` : '');
+      if (typeof version !== 'string' || !publicationVersionPattern.test(version)) throw new Error('This publication needs review before it can be replaced.');
+      intent.expectedVersion = version;
+    }
+  }
   guard();
-  // Only the validated source is copied. Future draft writes cannot alter it.
-  await setDoc(reference, {
-    ...validateMiniApp(draft), owner_id: ownerId, schema_version: 1,
-    status: 'published', created_at: published.exists() ? published.data().created_at : serverTimestamp(), updated_at: serverTimestamp(),
-  });
+  const result = await invokeFunction<unknown>('publishMiniApp', { expectedOwnerUid: ownerId, appId: draft.id, requestId: intent.requestId, expectedVersion: intent.expectedVersion, source });
   guard();
+  if (result.error) throw Object.assign(new Error(result.error.message), { code: result.error.code || 'unknown' });
+  const receipt = result.data as Record<string, unknown> | null;
+  if (!receipt || receipt.appId !== draft.id || receipt.status !== 'published' || typeof receipt.publicationRevision !== 'string' || !publicationVersionPattern.test(receipt.publicationRevision)) {
+    throw new Error('The publication response could not be confirmed. Retry publishing to check the saved result.');
+  }
 }
 
 export async function unpublishMiniApp(ownerId: string, app: MiniAppRecord): Promise<void> {

@@ -9,6 +9,8 @@ on:
       - 'storage.rules'
       - 'firebase.qa.json'
       - 'scripts/test-creator-platform-rules.mjs'
+      - 'scripts/test-mini-app-publish-backend.mjs'
+      - 'functions/src/miniAppPublish.ts'
       - 'scripts/test-game-capture-post-rules.mjs'
       - 'scripts/test-partner-gallery-backend.mjs'
       - 'scripts/test-customization-rules.mjs'
@@ -158,6 +160,8 @@ on:
       - 'storage.rules'
       - 'firebase.qa.json'
       - 'scripts/test-creator-platform-rules.mjs'
+      - 'scripts/test-mini-app-publish-backend.mjs'
+      - 'functions/src/miniAppPublish.ts'
       - 'scripts/test-game-capture-post-rules.mjs'
       - 'scripts/test-partner-gallery-backend.mjs'
       - 'scripts/test-customization-rules.mjs'
@@ -326,6 +330,7 @@ jobs:
 
       - name: Check test entry points
         run: |
+          node --check scripts/test-mini-app-publish-backend.mjs
           node --check scripts/test-creator-platform-rules.mjs
           node --check scripts/test-game-capture-post-rules.mjs
           node --check scripts/test-partner-gallery-backend.mjs
@@ -362,7 +367,8 @@ jobs:
           node "$FIREBASE_TEST_TOOLS_ROOT/node_modules/firebase-tools/lib/bin/firebase.js"
           emulators:exec --non-interactive
           --project "$GCLOUD_PROJECT" --config firebase.qa.json --only firestore,storage
-          "node scripts/test-creator-platform-rules.mjs &&
+          "node scripts/test-mini-app-publish-backend.mjs &&
+          node scripts/test-creator-platform-rules.mjs &&
           node scripts/test-game-capture-post-rules.mjs &&
           node scripts/test-partner-gallery-backend.mjs &&
           node scripts/test-customization-rules.mjs &&

@@ -66,8 +66,9 @@ try {
 
   const id = 'held-app'; const draft = doc(alice, 'mini_app_drafts', id); const published = doc(alice, 'mini_apps', id);
   await allowed('owner can create an ordinary private draft', () => setDoc(draft, app()));
-  await allowed('absent hold permits normal first publication', () => setDoc(published, { ...app(), status: 'published' }));
-  await allowed('absent hold permits ordinary public updates', () => updateDoc(published, { title: 'Before hold', updated_at: serverTimestamp() }));
+  await denied('absent hold still requires checked publication', () => setDoc(published, { ...app(), status: 'published' }));
+  await seed('mini_apps', id, { ...app(), status: 'published', created_at: Timestamp.fromMillis(1), updated_at: Timestamp.fromMillis(1) });
+  await denied('public updates require checked publication', () => updateDoc(published, { title: 'Before hold', updated_at: serverTimestamp() }));
   await allowed('unrelated public gallery reads remain available', () => getDocs(query(collection(bob, 'mini_apps'), where('status', '==', 'published'))));
   for (const [label, client] of [['other account', bob], ['moderator', moderator], ['admin claim', admin], ['guest', guest]]) {
     await denied(`${label} cannot directly remove another creator's app`, () => deleteDoc(doc(client, 'mini_apps', id)));
@@ -95,8 +96,9 @@ try {
   await denied('draft deletion and recreation does not erase the public hold', () => setDoc(published, { ...app(), status: 'published' }));
   await seed('_mini_app_moderation', id, hold(id, { active: false, revision: 'release-revision', released_at: '2026-10-03T12:05:00.000Z', released_by_uid: 'report-admin', release_note: 'Synthetic release' }));
   await allowed('server release itself does not recreate the public snapshot', async () => { assert.equal((await getDoc(published)).exists(), false); });
-  await allowed('correct server release permits explicit same-ID publication', () => setDoc(published, { ...app(), status: 'published' }));
-  await allowed('correct server release permits a later owner update', () => updateDoc(published, { title: 'Released app', updated_at: serverTimestamp() }));
+  await denied('server release still requires checked publication', () => setDoc(published, { ...app(), status: 'published' }));
+  await seed('mini_apps', id, { ...app(), status: 'published', created_at: Timestamp.fromMillis(1), updated_at: Timestamp.fromMillis(1) });
+  await denied('released public updates require checked publication', () => updateDoc(published, { title: 'Released app', updated_at: serverTimestamp() }));
   await denied('release does not permit another user to overwrite ownership', () => updateDoc(doc(bob, 'mini_apps', id), { owner_id: bobUid, updated_at: serverTimestamp() }));
   await allowed('owner with admin claim still has ordinary owner unpublish control', () => deleteDoc(doc(ownerAdmin, 'mini_apps', id)));
 
@@ -116,9 +118,9 @@ try {
     await denied(`malformed hold ${index} cannot authorize public edits`, () => updateDoc(doc(alice, 'mini_apps', malformedId), { title: 'Not released', updated_at: serverTimestamp() }));
     await allowed(`malformed hold ${index} leaves private correction editable`, () => updateDoc(doc(alice, 'mini_app_drafts', malformedId), { description: 'Private fix', updated_at: serverTimestamp() }));
   }
-  await allowed('another creator can still publish an unrelated app', async () => {
+  await allowed('another creator can still save an unrelated private app', async () => {
     await setDoc(doc(bob, 'mini_app_drafts', 'unrelated'), app(bobUid));
-    await setDoc(doc(bob, 'mini_apps', 'unrelated'), { ...app(bobUid), status: 'published' });
+
   });
   await allowed('ordinary profile editing remains available', () => updateDoc(doc(alice, 'profiles', 'report-alice-profile'), { bio: 'Unaffected profile edit' }));
   await denied('another account still cannot edit that profile', () => updateDoc(doc(bob, 'profiles', 'report-alice-profile'), { bio: 'Not owner' }));

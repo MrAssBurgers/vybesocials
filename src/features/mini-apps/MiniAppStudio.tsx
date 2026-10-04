@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { MINI_APP_CATEGORIES, MINI_APP_CODE_LIMIT, miniAppError, validateMiniApp, type MiniAppRecord, type MiniAppSource } from './model';
-import { publishMiniApp, saveMiniAppDraft } from './repository';
+import { publishMiniApp, saveMiniAppDraft, type MiniAppPublishIntent } from './repository';
 import { MINI_APP_TEMPLATES } from './templates';
 import { MiniAppRunner } from './MiniAppRunner';
 import { clearMiniAppRecovery, readMiniAppRecoveryEntry, saveMiniAppRecovery } from './recovery';
@@ -34,7 +34,7 @@ export function MiniAppStudio({ ownerId, draft, onClose, onSaved }: {
   const [pendingTemplate, setPendingTemplate] = useState<string | null>(null);
   const [preview, setPreview] = useState<MiniAppSource | null>(null);
   const [recoverySaved, setRecoverySaved] = useState(false);
-  const [failure, setFailure] = useState<{ message: string; publish: boolean; conflict: boolean; copyId?: string } | null>(null);
+  const [failure, setFailure] = useState<{ message: string; publish: boolean; conflict: boolean; copyId?: string; intent?: MiniAppPublishIntent } | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [publishedId, setPublishedId] = useState<string | null>(null);
   const [previewVersion, setPreviewVersion] = useState(0);
@@ -69,7 +69,8 @@ export function MiniAppStudio({ ownerId, draft, onClose, onSaved }: {
     previewPanel.current?.focus({ preventScroll: true });
   }, [previewVersion, reducedMotion]);
 
-  const save = async (publish = false, copyId?: string) => {
+  const save = async (publish = false, copyId?: string, retryIntent?: MiniAppPublishIntent) => {
+    const intent = publish ? retryIntent ?? { requestId: crypto.randomUUID() } : undefined;
     if (inFlight.current) return;
     inFlight.current = true;
     setBusy(true);
@@ -89,7 +90,7 @@ export function MiniAppStudio({ ownerId, draft, onClose, onSaved }: {
       onSaved();
       if (publish) {
         setPublishing(true);
-        await publishMiniApp(ownerId, record);
+        await publishMiniApp(ownerId, record, intent);
         if (!mounted.current) return;
         setPublishedId(record.id);
         toast.success('Your mini app is live in the Hub.');
@@ -99,7 +100,7 @@ export function MiniAppStudio({ ownerId, draft, onClose, onSaved }: {
     } catch (error) {
       if (mounted.current) {
         const message = draftSaved && publish ? `Your private draft was saved, but publishing failed. ${miniAppError(error, 'publish')}` : miniAppError(error);
-        setFailure({ message, publish, copyId, conflict: !!error && typeof error === 'object' && 'code' in error && error.code === 'mini-app-conflict' }); toast.error(message);
+        setFailure({ message, publish, copyId, intent, conflict: !!error && typeof error === 'object' && 'code' in error && error.code === 'mini-app-conflict' }); toast.error(message);
       }
     } finally {
       if (mounted.current) { setBusy(false); setPublishing(false); }
@@ -154,7 +155,7 @@ export function MiniAppStudio({ ownerId, draft, onClose, onSaved }: {
           <Button onClick={() => { try { validateMiniApp(source); setPublishOpen(true); } catch (error) { toast.error(miniAppError(error)); } }}><Upload />Publish to Hub</Button>
         </div>
       </fieldset>
-      {failure && <div role="alert" className="rounded-2xl border border-destructive/40 bg-destructive/5 p-4 text-sm"><p>{failure.message}</p><p className="mt-1 text-muted-foreground">Your code is still in the editor.</p><Button className="mt-3" variant="outline" disabled={busy} onClick={() => void save(failure.publish, failure.copyId)}>{failure.publish ? 'Retry publishing' : 'Retry save'}</Button>{failure.conflict && <Button className="mt-3 ml-2" disabled={busy} onClick={() => void save(false, crypto.randomUUID())}>Save as new draft</Button>}</div>}
+      {failure && <div role="alert" className="rounded-2xl border border-destructive/40 bg-destructive/5 p-4 text-sm"><p>{failure.message}</p><p className="mt-1 text-muted-foreground">Your code is still in the editor.</p><Button className="mt-3" variant="outline" disabled={busy} onClick={() => void save(failure.publish, failure.copyId, failure.intent)}>{failure.publish ? 'Retry publishing' : 'Retry save'}</Button>{failure.conflict && <Button className="mt-3 ml-2" disabled={busy} onClick={() => void save(false, crypto.randomUUID())}>Save as new draft</Button>}</div>}
       {publishedId && <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-4"><p className="text-sm">Your published snapshot is live. New edits stay private.</p><Button asChild variant="outline"><Link to={`/mini-apps/${publishedId}`}>Open published app</Link></Button></div>}
       {preview && <div ref={previewPanel} tabIndex={-1} className="scroll-mt-20 space-y-2 outline-none"><p className="text-sm text-muted-foreground">{JSON.stringify(source) !== JSON.stringify(preview) ? 'Your code has changed. Update preview to load the latest version.' : 'Preview uses the code from your last update.'}</p><Button size="sm" variant="ghost" onClick={() => {
         setPreview(null);

@@ -3,6 +3,7 @@ import { listMiniAppsPage, publishMiniApp, saveMiniAppDraft, unpublishMiniApp } 
 import { MINI_APP_TEMPLATES } from './templates';
 
 const state = vi.hoisted(() => ({ uid: 'alice', rows: new Map<string, Record<string, unknown>>(), sequence: 0, auth: null as any, listener: null as any, loseAck: false, transactionRead: vi.fn(), transactionWrite: vi.fn() }));
+vi.mock('@/lib/firebase/functionsService', () => ({ invokeFunction: vi.fn() }));
 vi.mock('@/lib/firebase/authService', () => ({ getFirebaseAuth: () => state.auth }));
 vi.mock('@/lib/firebase/firestoreDb', () => ({ getFirestoreDb: () => ({}) }));
 vi.mock('firebase/firestore', () => ({
@@ -28,13 +29,42 @@ vi.mock('firebase/firestore', () => ({
   })).sort(([a], [b]) => a.localeCompare(b)).slice(0, q.constraints.find(c => c.count)?.count).map(([path, data]) => ({ id: path.split('/')[1], data: () => structuredClone(data) })) })),
 }));
 
+import { invokeFunction } from '@/lib/firebase/functionsService';
 import { getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
 
-beforeEach(() => { state.uid = 'alice'; state.rows.clear(); state.sequence = 0; state.loseAck = false; vi.clearAllMocks(); state.transactionRead.mockImplementation(async (ref: any) => ({ id: ref.id, exists: () => state.rows.has(ref.path), data: () => structuredClone(state.rows.get(ref.path)) })); state.transactionWrite.mockImplementation((ref: any, data: any) => state.rows.set(ref.path, structuredClone(data))); state.auth = { currentUser: { uid: 'alice' }, onAuthStateChanged: (listener: unknown) => { state.listener = listener; return () => {}; } }; });
+beforeEach(() => { vi.mocked(invokeFunction).mockImplementation(async (_name, body: any) => { const path = `mini_apps/${body.appId}`; const old = state.rows.get(path); state.rows.set(path, { ...body.source, owner_id: body.expectedOwnerUid, schema_version: 1, status: 'published', publication_revision: 'a'.repeat(32), created_at: old?.created_at ?? { seconds: 1000, nanoseconds: 0 } }); return { data: { appId: body.appId, status: 'published', publicationRevision: 'a'.repeat(32) }, error: null } as any; }); state.uid = 'alice'; state.rows.clear(); state.sequence = 0; state.loseAck = false; vi.clearAllMocks(); state.transactionRead.mockImplementation(async (ref: any) => ({ id: ref.id, exists: () => state.rows.has(ref.path), data: () => structuredClone(state.rows.get(ref.path)) })); state.transactionWrite.mockImplementation((ref: any, data: any) => state.rows.set(ref.path, structuredClone(data))); state.auth = { currentUser: { uid: 'alice' }, onAuthStateChanged: (listener: unknown) => { state.listener = listener; return () => {}; } }; });
 function switchAccount(uid: string) { state.uid = uid; state.auth.currentUser = { uid }; state.listener?.({ uid }); }
 
 describe('mini app private drafts and public snapshots', () => {
   const source = MINI_APP_TEMPLATES[0].source;
+  it('retains the original version and request identity after a lost publication response', async () => {
+    const draft = await saveMiniAppDraft('alice', source);
+    const intent = { requestId: 'stable-publication-request' };
+    vi.mocked(invokeFunction).mockResolvedValueOnce({ data: null, error: { code: 'unavailable', message: 'Response lost' } } as any);
+    await expect(publishMiniApp('alice', draft, intent)).rejects.toThrow('Response lost');
+    const first = structuredClone(vi.mocked(invokeFunction).mock.calls.at(-1));
+    state.rows.set(`mini_apps/${draft.id}`, { publication_revision: 'b'.repeat(32) });
+    await publishMiniApp('alice', draft, intent);
+    expect(vi.mocked(invokeFunction).mock.calls.at(-1)).toEqual(first);
+    expect(getDoc).toHaveBeenCalledTimes(1);
+  });
+  it('does not reuse a failed intent for changed code', async () => {
+    const draft = await saveMiniAppDraft('alice', source);
+    const intent = { requestId: 'stable-publication-request' };
+    await publishMiniApp('alice', draft, intent);
+    await expect(publishMiniApp('alice', { ...draft, title: 'Different source' }, intent)).rejects.toThrow('Your code changed');
+    expect(invokeFunction).toHaveBeenCalledTimes(1);
+  });
+  it('does not confirm a malformed publication receipt', async () => {
+    const draft = await saveMiniAppDraft('alice', source);
+    vi.mocked(invokeFunction).mockResolvedValueOnce({ data: { appId: 'another-app', status: 'published', publicationRevision: 'a'.repeat(32) }, error: null } as any);
+    await expect(publishMiniApp('alice', draft)).rejects.toThrow('could not be confirmed');
+  });
+  it('does not report success after an account change during publishing', async () => {
+    const draft = await saveMiniAppDraft('alice', source);
+    vi.mocked(invokeFunction).mockImplementationOnce(async () => { switchAccount('bob'); return { data: {}, error: null } as any; });
+    await expect(publishMiniApp('alice', draft)).rejects.toMatchObject({ code: 'account-changed' });
+  });
   it('saves privately and never publishes without a separate call', async () => {
     const draft = await saveMiniAppDraft('alice', source);
     expect(draft.owner_id).toBe('alice');

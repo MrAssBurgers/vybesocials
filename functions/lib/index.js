@@ -90,4 +90,5 @@ export const setAdminClaim = onCall(async (request) => {
     return { ok: true };
 });
 export { managePostLocalArea } from './postLocalArea.js';
+export { publishMiniApp } from './miniAppPublish.js';
 //# sourceMappingURL=index.js.map

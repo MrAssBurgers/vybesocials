@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Checked mini-app publication
+
+### What changed
+- Moved studio publication behind an authenticated callable with saved-source validation, ownership checks, fail-closed moderation holds and compare-and-swap publication revisions. Lost-response retries retain the same request ID and expected revision; they cannot overwrite newer versions or resurrect removed snapshots. New editor changes require a fresh explicit publish action.
+- Enforced 100 live mini apps per creator and 100 new/changed snapshots per anchored 24-hour window. Shared transactional owner quota serializes concurrent requests, including legacy accounts without quotas. Unchanged snapshots and successful replay do not consume another change. Private saves remain separate.
+- Denied direct client snapshot creation/update and client access to quota/operation records. Owner unpublish remains available and keeps the private draft. Added backend fixture to Creator Platform Rules QA.
+
+### Verification
+- Functions build, app build and full lint passed (0 errors / 5 inherited warnings). App: 305 files / 2,889 tests passed. Entry 1068.1 KiB raw / 321.9 KiB gzip.
+- Separate demo emulators: 11 backend checks passed, including concurrent daily/live limits, stale revisions/source, lost-response replay, unpublish replay, holds, malformed quotas and window renewal. Creator rules: 183 checks; report authority rules: 303 checks. Logs in ignored work/mini-publish-*.log.
+- Actual 8082 studio as synthetic Alice: explicit publish, successful public-page navigation, Run/Stop. Synthetic draft ID 3261b288-9911-439f-b30a-bf0fb2102106; unpublish completed; backend confirms public snapshot absent and private draft retained. Proof in workspace outputs/vybe-mini-app-publishing.png. No production publication.
+
+### Next 3 tasks and limits
+1. Export retained preview state and follow CI after push. Before production rollout deploy the selected publishMiniApp callable, then matched client/rules together; old clients cannot publish once the new rules apply, but their private saves still work. No production deployment occurred.
+2. Continue mini-app runtime resource isolation, private-draft quotas and receipt-retention design. Operation receipts are retained indefinitely for retry safety; no TTL cleanup is configured. Per-account limits are not protection against mass account creation.
+3. Continue native game/mod adapters, remaining content audience/media migrations and physical-device visual checks. Broad goal remains active and incomplete.
+
+---
+
 ## ACTIVE (2026-10-04) - Native capture gallery and preview lifecycle
 
 ### What changed

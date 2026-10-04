@@ -1785,18 +1785,15 @@ service cloud.firestore {
         || resource.data.status == 'published' || resource.data.owner_id == uid());
       allow list: if signedIn()
         && (resource.data.status == 'published' || resource.data.owner_id == uid());
-      allow create: if signedIn() && validMiniApp(request.resource.data, true)
-        && miniAppMayPublish(id)
-        && get(/databases/$(database)/documents/mini_app_drafts/$(id)).data.owner_id == uid()
-        && request.resource.data.created_at == request.time;
-      allow update: if signedIn() && resource.data.owner_id == uid()
-        && miniAppMayPublish(id)
-        && validMiniApp(request.resource.data, true)
-        && request.resource.data.created_at == resource.data.created_at;
+      // Publication snapshots are written only by the checked callable.
+      allow create, update: if false;
       // Owner unpublishing never releases a server hold. Staff removals must
       // use the audited callable, which removes the snapshot and sets its hold.
       allow delete: if signedIn() && resource.data.owner_id == uid();
     }
+
+    match /_mini_app_publish_quotas/{id} { allow read, write: if false; }
+    match /_mini_app_publish_operations/{id} { allow read, write: if false; }
 
     // Partner credentials, device approvals, and upload manifests are server-only.
     // Even app administrators manage connections through the authenticated API.

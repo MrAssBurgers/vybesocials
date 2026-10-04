@@ -48,7 +48,9 @@ try {
   await denied('client cannot forge update timestamp', () => updateDoc(privateRef, { title: 'Fake time', updated_at: Timestamp.fromMillis(0) }));
   await denied('creation timestamp stays immutable', () => updateDoc(privateRef, { created_at: Timestamp.fromMillis(0), updated_at: serverTimestamp() }));
   await allowed('first publish can detect a missing snapshot', () => getDoc(publicRef));
-  await allowed('owner publishes a separate snapshot', () => setDoc(publicRef, { ...app(), status: 'published' }));
+  await denied('owner cannot bypass checked publishing', () => setDoc(publicRef, { ...app(), status: 'published' }));
+  await env.withSecurityRulesDisabled(context => setDoc(doc(context.firestore(), publicRef.path), { ...app(), status: 'published' }));
+  await denied('owner cannot directly update published source', () => updateDoc(publicRef, { html: '<p>Bypass</p>', updated_at: serverTimestamp() }));
   await allowed('another signed-in account can read published app', () => getDoc(doc(bobDb, publicRef.path)));
   await denied('signed-out clients cannot read published code', () => getDoc(doc(guest.firestore(), publicRef.path)));
   await allowed('public gallery query is permitted', () => getDocs(query(collection(bobDb, 'mini_apps'), where('status', '==', 'published'))));
@@ -108,9 +110,15 @@ try {
   await allowed('owner can unpublish without a moderation action', () => deleteDoc(publicRef));
   await denied('another user cannot take over an unpublished app link', () => setDoc(doc(bobDb, publicRef.path), { ...app(), owner_id: 'creator-bob', status: 'published' }));
   await denied('publishing without an owned draft is rejected', () => setDoc(doc(aliceDb, 'mini_apps', 'no-draft'), { ...app(), status: 'published' }));
-  await allowed('owner can republish with a fresh creation time', () => setDoc(publicRef, { ...app(), status: 'published' }));
+  await denied('republishing requires the checked callable', () => setDoc(publicRef, { ...app(), status: 'published' }));
+  await env.withSecurityRulesDisabled(context => setDoc(doc(context.firestore(), publicRef.path), { ...app(), status: 'published' }));
   await allowed('owner can unpublish', () => deleteDoc(publicRef));
   assert.equal((await getDoc(privateRef)).exists(), true); checks++;
+
+  for (const name of ['_mini_app_publish_quotas', '_mini_app_publish_operations']) {
+    await denied(`${name} cannot be read by owner`, () => getDoc(doc(aliceDb, name, 'creator-alice')));
+    await denied(`${name} cannot be forged by staff`, () => setDoc(doc(staff.firestore(), name, 'creator-alice'), { count: 0 }));
+  }
 
   const captureId = 'a'.repeat(48);
   const capturePath = `game-captures/creator-alice/${captureId}`;
