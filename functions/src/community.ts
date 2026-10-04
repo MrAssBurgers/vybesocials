@@ -295,7 +295,8 @@ export const communityManage = onCall(options, async request => {
 
 export const communitySendMessage = onCall(options, async request => {
   const actor = await caller(request, 'send', 60, 60); const data = input(request);
-  const channelId = communityId(data.channelId); const content = textField(data.content, 8000); const mediaUrl = safeMedia(data.mediaUrl, actor);
+  if (data.mediaUrl != null && data.mediaUrl !== '') throw new HttpsError('failed-precondition', 'Re-share this attachment using the private upload control.');
+  const channelId = communityId(data.channelId); const content = textField(data.content, 8000); const mediaUrl = null;
   if (!content && !mediaUrl) throw new HttpsError('invalid-argument', 'Message is empty');
   const clientId = data.clientMessageId == null ? null : textField(data.clientMessageId, 128, true);
   const replyToId = data.replyToId == null ? null : communityId(data.replyToId);

@@ -20,12 +20,12 @@ interface ProfileStoryHighlightsProps {
   className?: string;
 }
 
-export function ProfileStoryHighlights({
+function AllowedStoryHighlights({
   profileId,
   username,
   avatarUrl,
   isOwnProfile,
-  canViewStories = true,
+  canViewStories = false,
   className,
 }: ProfileStoryHighlightsProps) {
   const navigate = useNavigate();
@@ -37,7 +37,7 @@ export function ProfileStoryHighlights({
   const myStoryGroup = useMemo(() => {
     if (!canViewStories || !storyGroups?.length) return null;
     return (
-      storyGroups.find((g) => g.user.id === profileId || g.user.username === username) ?? null
+      storyGroups.find((g) => g.user.id === profileId) ?? null
     );
   }, [storyGroups, profileId, username, canViewStories]);
 
@@ -178,4 +178,8 @@ export function ProfileStoryHighlights({
       )}
     </div>
   );
+}
+
+export function ProfileStoryHighlights(props: ProfileStoryHighlightsProps) {
+  return props.canViewStories === true ? <AllowedStoryHighlights {...props} /> : null;
 }

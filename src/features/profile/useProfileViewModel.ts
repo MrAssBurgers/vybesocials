@@ -1,227 +1,66 @@
-import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useFriendProfile } from '@/hooks/useFriendProfile';
-import { useAuthProfileId } from '@/hooks/useAuthProfileId';
-import { useLockerItems } from '@/hooks/useLockerItems';
-import { useVybeScore } from '@/hooks/useVybeScore';
-import { useUserBadges } from '@/hooks/useBadges';
-import { useStories } from '@/hooks/useStories';
-import { useFriendshipPair } from '@/hooks/useFriendshipPair';
-import { useStreakWithUser } from '@/hooks/useStreaks';
-import { useMutualFriends } from '@/hooks/useFriendsOfFriends';
-import { useCloseFriendIds } from '@/hooks/useCloseFriendIds';
+import { getDocumentFromServer } from '@/lib/firebase/firestoreDb';
 import { db } from '@/lib/firebase';
-import {
-  deriveProfileActions,
-  deriveProfileMenuActions,
-  deriveProfileViewMode,
-} from './profileMode';
-import {
-  DEFAULT_PERMISSIONS,
-  type ProfileViewModel,
-  type ProfileViewPermissions,
-  type ProfileViewProfile,
-} from './types';
+import { useProfileSectionQuery } from './hooks/useProfileSectionQuery';
+import { deriveProfileActions, deriveProfileMenuActions, deriveProfileViewMode } from './profileMode';
+import { DEFAULT_PERMISSIONS, type ProfileViewModel, type ProfileViewPermissions } from './types';
 
-async function countAcceptedFriends(subjectId: string): Promise<number> {
-  const [asSender, asReceiver] = await Promise.all([
-    db
-      .from('friend_requests')
-      .select('id')
-      .eq('sender_id', subjectId)
-      .eq('status', 'accepted'),
-    db
-      .from('friend_requests')
-      .select('id')
-      .eq('receiver_id', subjectId)
-      .eq('status', 'accepted'),
-  ]);
-  const senderCount = asSender.data?.length ?? 0;
-  const receiverCount = asReceiver.data?.length ?? 0;
-  return senderCount + receiverCount;
+export function mapProfilePermissions(visibility: Record<string, boolean> | null | undefined, isSelf: boolean): ProfileViewPermissions {
+  if (!visibility) return { ...DEFAULT_PERMISSIONS };
+  const can = (field: string) => visibility[field] === true;
+  return { bio: can('bio'), followers: can('followers'), following: can('following'), level: can('level'),
+    location: can('location'), posts: can('posts'), clips: can('clips'), stories: can('stories'),
+    online: can('activity'), mutual_friends: can('mutual_friends'),
+    // These sections have no non-owner field in the visibility contract.
+    birthday: isSelf, pronouns: isSelf, score: isSelf && can('level'), friends_list: isSelf };
 }
 
-function mapPermissions(
-  visibility: Record<string, boolean> | null | undefined,
-  isSelf: boolean,
-  isFriend: boolean,
-): ProfileViewPermissions {
-  if (isSelf) {
-    return {
-      ...DEFAULT_PERMISSIONS,
-      location: true,
-      birthday: true,
-      pronouns: true,
-      score: true,
-      online: true,
-      mutual_friends: true,
-      friends_list: true,
-    };
-  }
-  const can = (key: string, fallback = true) =>
-    visibility?.[key] !== false && (visibility?.[key] ?? fallback);
-
-  return {
-    bio: can('bio', true),
-    location: can('location', false),
-    birthday: can('birthday', false) || can('age', false),
-    pronouns: can('pronouns', false),
-    posts: can('posts', true),
-    clips: can('clips', true),
-    stories: can('stories', true),
-    score: can('score', false) || can('vybe_score', false),
-    online: can('activity', false) || can('online', false),
-    mutual_friends: can('mutual_friends', isFriend),
-    friends_list: can('friends_list', isFriend),
-  };
-}
-
-/**
- * Normalized profile surface for `/u/:username`.
- * Cache key: `['profile-view', username, viewerId]`
- */
 export function useProfileViewModel(username: string | undefined): ProfileViewModel {
-  const viewerId = useAuthProfileId();
-  const friendProfile = useFriendProfile(username);
-  const profile = friendProfile.profile as ProfileViewProfile | null | undefined;
+  const friend = useFriendProfile(username);
+  const profile = friend.profile;
   const targetId = profile?.id;
-  const isSelf = friendProfile.isSelf;
-  const isFriend = friendProfile.isFriend;
-  const mode = deriveProfileViewMode({
-    isSelf,
-    isBlocked: friendProfile.isBlocked,
-    friendshipStatus: friendProfile.friendshipStatus,
-  });
+  const mode = deriveProfileViewMode({ isSelf: friend.isSelf, isBlocked: friend.isBlocked, friendshipStatus: friend.friendshipStatus });
+  const permissions = mapProfilePermissions(friend.visibility, friend.isSelf);
   const { primary, secondary } = deriveProfileActions(mode);
-  const menuActions = deriveProfileMenuActions(mode);
-  const permissions = mapPermissions(friendProfile.visibility, isSelf, isFriend);
-
-  const { data: lockerData } = useLockerItems(targetId);
-  const scoreQuery = useVybeScore(permissions.score || isSelf ? targetId : undefined);
-  const badgesQuery = useUserBadges(targetId);
-  const { data: storyGroups } = useStories(targetId);
-  const pairQuery = useFriendshipPair(mode === 'friend' ? targetId : undefined);
-  const streak = useStreakWithUser(mode === 'friend' ? targetId : undefined);
-  const mutualsQuery = useMutualFriends(
-    mode === 'friend' || permissions.mutual_friends ? targetId : undefined,
-  );
-  const { ids: closeFriendIds } = useCloseFriendIds();
-
-  const levelQuery = useQuery({
-    queryKey: ['profile-view-level', targetId],
-    queryFn: async () => {
-      if (!targetId) return null;
-      const { data } = await db
-        .from('user_levels')
-        .select('current_level, xp, xp_to_next')
-        .eq('user_id', targetId)
-        .maybeSingle();
-      if (data) {
-        return {
-          level: Number((data as { current_level?: number }).current_level ?? 1),
-          xpToNext: Number((data as { xp_to_next?: number }).xp_to_next ?? 0),
-        };
-      }
-      // Some docs key by auth uid
-      const authUid = profile?.user_id;
-      if (!authUid) return { level: 1, xpToNext: null };
-      const { data: byAuth } = await db
-        .from('user_levels')
-        .select('current_level, xp, xp_to_next')
-        .eq('user_id', authUid)
-        .maybeSingle();
-      return {
-        level: Number((byAuth as { current_level?: number } | null)?.current_level ?? 1),
-        xpToNext: Number((byAuth as { xp_to_next?: number } | null)?.xp_to_next ?? 0),
-      };
-    },
-    enabled: !!targetId && (isSelf || permissions.score),
-    staleTime: 60_000,
+  const active = !!targetId && mode !== 'blocked';
+  const count = async (table: string, field: string) => {
+    const result = await db.from(table).select('id', { count: 'exact', head: true }).eq(field, targetId!);
+    if (result.error) throw result.error;
+    return typeof result.count === 'number' ? result.count : null;
+  };
+  const posts = useProfileSectionQuery(['count', targetId, 'posts'], active && permissions.posts && permissions.clips, () => count('posts', 'author_id'));
+  const followers = useProfileSectionQuery(['count', targetId, 'followers'], active && permissions.followers, () => count('follows', 'following_id'));
+  const following = useProfileSectionQuery(['count', targetId, 'following'], active && permissions.following, () => count('follows', 'follower_id'));
+  const friends = useProfileSectionQuery(['count', targetId, 'friends'], active && permissions.friends_list, async () => {
+    const results = await Promise.all(['sender_id', 'receiver_id'].map(field => db.from('friend_requests').select('id', { count: 'exact', head: true }).eq(field, targetId!).eq('status', 'accepted')));
+    if (results.some(result => result.error)) throw new Error('Friend count is unavailable.');
+    return results.reduce((sum, result) => sum + (result.count || 0), 0);
   });
-
-  const friendsCountQuery = useQuery({
-    queryKey: ['profile-view-friends-count', targetId, viewerId],
-    queryFn: async () => {
-      if (!targetId) return 0;
-      if (!isSelf && !permissions.friends_list && mode !== 'friend') return 0;
-      return countAcceptedFriends(targetId);
-    },
-    enabled: !!targetId && (isSelf || permissions.friends_list || mode === 'friend'),
-    staleTime: 60_000,
+  const level = useProfileSectionQuery(['level', targetId], active && permissions.level, async guard => {
+    const first = await getDocumentFromServer('user_levels', profile?.user_id || targetId!); guard();
+    if (first) return first;
+    const result = await db.from('user_levels').select('current_level, xp_to_next').eq('user_id', targetId!).limit(1); guard();
+    if (result.error) throw result.error;
+    return result.data?.[0] || null;
   });
-
-  const storyState = useMemo(() => {
-    const group = (storyGroups || []).find(
-      (g) => g.user.id === targetId || g.user.username === username,
-    );
-    return {
-      hasStory: !!group?.stories?.length,
-      hasUnviewed: !!group?.hasUnviewed,
-      hasCloseFriendsStory: false,
-    };
-  }, [storyGroups, targetId, username]);
-
-  const featuredBadges = useMemo(() => {
-    const rows = (badgesQuery.data || []).slice(0, 3);
-    return rows.map(
-      (b: {
-        id?: string;
-        badge_id?: string;
-        name?: string;
-        badge?: { name?: string; icon?: string; icon_url?: string };
-        icon_url?: string;
-      }) => ({
-        id: String(b.id || b.badge_id || ''),
-        name: b.name || b.badge?.name || 'Badge',
-        icon_url: b.icon_url || b.badge?.icon_url || b.badge?.icon || null,
-      }),
-    );
-  }, [badgesQuery.data]);
-
-  const relationshipSummary = useMemo(() => {
-    if (mode !== 'friend' || !targetId) return null;
-    return {
-      emoji: '🤝',
-      streakDays: Number(streak?.streak_count ?? pairQuery.data?.current_streak ?? 0),
-      friendsSince: pairQuery.data?.friends_since ?? null,
-      isBestFriend: closeFriendIds.has(targetId),
-      mutualFriendCount: mutualsQuery.data?.length ?? 0,
-    };
-  }, [mode, targetId, streak, pairQuery.data, closeFriendIds, mutualsQuery.data]);
-
+  const score = useProfileSectionQuery(['score', targetId], active && permissions.score, () => getDocumentFromServer('vybe_scores', targetId!));
+  const badges = useProfileSectionQuery(['badges', targetId], active && friend.isSelf, async () => {
+    const result = await db.rpc('get_user_badges_by_profile', { p_profile_id: targetId });
+    if (result.error) throw result.error;
+    return (result.data || []).map(row => ({ id: String(row.id || row.badge_id || ''), name: String(row.badge_name || 'Badge'), icon_url: typeof row.badge_icon === 'string' ? row.badge_icon : null }));
+  });
+  const number = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : null;
   return {
-    profile: profile ?? null,
-    mode,
-    friendshipStatus: friendProfile.friendshipStatus,
-    permissions,
-    counts: {
-      posts: Number(profile?.post_count ?? 0),
-      followers: Number(profile?.follower_count ?? 0),
-      following: Number(profile?.following_count ?? 0),
-      friends: friendsCountQuery.data ?? 0,
-    },
-    primaryAction: primary,
-    secondaryActions: secondary,
-    menuActions,
-    storyState,
-    relationshipSummary,
-    score: {
-      score: permissions.score || isSelf ? (scoreQuery.data ?? null) : null,
-      visible: isSelf || permissions.score,
-    },
-    level: {
-      level: levelQuery.data?.level ?? null,
-      xpToNext: levelQuery.data?.xpToNext ?? null,
-    },
-    featuredBadges,
-    coverThemeId: lockerData?.equippedProfileTheme ?? null,
-    isPending:
-      friendProfile.profilePending ||
-      friendProfile.relationshipPending ||
-      friendProfile.visibilityPending,
-    isError: friendProfile.profileError,
-    refetch: () => {
-      void friendProfile.refetchProfile();
-    },
+    profile: profile || null, mode, friendshipStatus: friend.friendshipStatus, permissions,
+    counts: { posts: posts.data ?? null, followers: followers.data ?? null, following: following.data ?? null, friends: friends.data ?? null },
+    primaryAction: primary, secondaryActions: secondary,
+    menuActions: deriveProfileMenuActions(mode).filter(action => action !== 'view_friendship' && action !== 'location_sharing'),
+    storyState: { hasStory: false, hasUnviewed: false, hasCloseFriendsStory: false }, relationshipSummary: null,
+    score: { score: number(score.data?.total_score ?? score.data?.score), visible: permissions.score },
+    level: { level: number(level.data?.current_level), xpToNext: number(level.data?.xp_to_next) },
+    featuredBadges: badges.data?.slice(0, 3) || [], coverThemeId: profile?.equipped_profile_theme || null,
+    isPending: friend.profilePending || friend.visibilityPending,
+    isError: friend.profileError || friend.visibilityError,
+    refetch: () => { void friend.refetchProfile(); },
   };
 }

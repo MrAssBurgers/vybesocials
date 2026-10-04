@@ -26,7 +26,7 @@ export function ProfileLevelScoreRow({
   onOpenScore,
   className,
 }: ProfileLevelScoreRowProps) {
-  if (!score?.visible) return null;
+  if (!score?.visible && level?.level == null) return null;
 
   const progress = xpProgressPercent(level);
   const xpLabel =
@@ -39,6 +39,7 @@ export function ProfileLevelScoreRow({
       <div className="vybe-profile-level-score-row vybe-profile-glass overflow-hidden rounded-xl">
         <div className="flex divide-x divide-border/40">
           <button
+            disabled={!score?.visible}
             type="button"
             onClick={onOpenScore}
             className="flex min-w-0 flex-1 flex-col items-start px-3 py-2.5 text-left transition-colors hover:bg-muted/20"
@@ -50,7 +51,7 @@ export function ProfileLevelScoreRow({
               {level?.level ?? '—'}
             </span>
           </button>
-          <button
+          {score?.visible && (          <button
             type="button"
             onClick={onOpenScore}
             className="flex min-w-0 flex-1 flex-col items-start px-3 py-2.5 text-left transition-colors hover:bg-muted/20"
@@ -61,7 +62,7 @@ export function ProfileLevelScoreRow({
             <span className="mt-0.5 text-lg font-bold tabular-nums leading-none">
               {formatScore(score.score)}
             </span>
-          </button>
+          </button>)}
         </div>
         {level?.level != null && (
           <div className="border-t border-border/30 px-3 py-2">

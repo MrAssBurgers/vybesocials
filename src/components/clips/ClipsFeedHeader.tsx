@@ -9,6 +9,7 @@ import type { ClipsFeedTab } from '@/lib/clipsLayout';
 interface ClipsFeedHeaderProps {
   active: ClipsFeedTab;
   onChange: (tab: ClipsFeedTab) => void;
+  surface?: 'video' | 'theme';
 }
 
 function TabButton({
@@ -55,9 +56,10 @@ function TabButton({
 export const ClipsFeedHeader = memo(function ClipsFeedHeader({
   active,
   onChange,
+  surface = 'video',
 }: ClipsFeedHeaderProps) {
   const nativePerf = isNativePerfMode();
-  const isDark = active !== 'videos';
+  const isDark = active !== 'videos' && surface === 'video';
 
   return (
     <div

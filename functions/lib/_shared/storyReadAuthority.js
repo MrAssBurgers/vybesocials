@@ -1,7 +1,8 @@
 import { getStorage } from 'firebase-admin/storage';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { storyStoragePath } from './storyPublishAuthority.js';
-import { createHash } from 'node:crypto';
+import { closeFriendAuthorityId, hasCloseFriendAuthority, resolveIdentity } from './profileAudienceAuthority.js';
+export { closeFriendAuthorityId } from './profileAudienceAuthority.js';
 const text = (value, max) => typeof value === 'string' && value.length <= max ? value : null;
 function safePoll(value) {
     if (value == null)
@@ -16,11 +17,6 @@ function safePoll(value) {
 }
 const validId = (value) => typeof value === 'string' && value.length > 0 && value.length <= 128 && !value.includes('/');
 const unavailable = () => new HttpsError('failed-precondition', 'Your story identity could not be verified. Refresh your profile and retry.');
-export const closeFriendAuthorityId = (ownerUid, friendUid) => createHash('sha256').update(JSON.stringify([ownerUid, friendUid])).digest('hex');
-export function hasCloseFriendAuthority(row, author, viewer) {
-    return row?.version === 1 && row.owner_uid === author.uid && row.owner_profile_id === author.profileId
-        && row.friend_uid === viewer.uid && row.friend_profile_id === viewer.profileId && row.enabled === true;
-}
 export function normalizeStoryListInput(raw, uid) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw))
         throw new HttpsError('invalid-argument', 'Story viewing details are required.');
@@ -34,27 +30,6 @@ export function normalizeStoryListInput(raw, uid) {
         || (value.storyIds !== undefined && (!Array.isArray(value.storyIds) || value.storyIds.length < 1 || value.storyIds.length > 50 || value.storyIds.some(id => !validId(id)))))
         throw new HttpsError('invalid-argument', 'Invalid story selection.');
     return value;
-}
-/** Resolve both historical aliases without borrowing a different account's ID. */
-export async function resolveIdentity(db, tx, alias) {
-    const [direct, byUid] = await Promise.all([tx.get(db.collection('profiles').doc(alias)), tx.get(db.collection('profiles').where('user_id', '==', alias).limit(2))]);
-    if (byUid.size > 1 || (direct.exists && !byUid.empty && direct.id !== byUid.docs[0].id))
-        return null;
-    const profile = direct.exists ? direct : byUid.docs[0];
-    if (!profile)
-        return null;
-    const row = profile.data();
-    const uid = row.user_id;
-    if (!validId(uid) || row.deleted_at || row.is_deleted === true)
-        return null;
-    const [unique, index, uidDoc, aliasOwner] = await Promise.all([
-        tx.get(db.collection('profiles').where('user_id', '==', uid).limit(2)), tx.get(db.collection('user_auth_index').doc(uid)),
-        tx.get(db.collection('profiles').doc(uid)), tx.get(db.collection('profiles').where('user_id', '==', profile.id).limit(2)),
-    ]);
-    if (unique.size !== 1 || unique.docs[0].id !== profile.id || (index.exists && index.data()?.profile_id !== profile.id)
-        || (uidDoc.exists && uidDoc.id !== profile.id) || (profile.id !== uid && !aliasOwner.empty))
-        return null;
-    return { uid, profileId: profile.id, aliases: [...new Set([uid, profile.id])], row };
 }
 /** Existing download tokens only: no token creation, signing, or remote URL fetch. */
 export async function resolveStoryReadMedia(value, ownerUid) {

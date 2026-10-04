@@ -1,5 +1,7 @@
 # Partner Game SDK: consent and private captures
 
+For applications, game mods and tools as well as games, see the new [universal host facade and runnable example](UNIVERSAL_SDK.md). It wraps this same protocol without changing existing game integrations and can be built as a local ESM package. No registry package has been published.
+
 The partner pilot lets a registered game request player consent, upload a private screenshot or video, and give the player a VYBE review link. Publishing happens only after the player reviews the capture in VYBE. A game cannot publish posts or read the player's account through this SDK.
 
 Implementation: [`sdk/game/http.ts`](../sdk/game/http.ts). This is TypeScript source in this repository, not a published npm package. It uses Fetch, URL, AbortController, and Web Crypto SHA-256, with no Firebase dependency. Modern browsers and Node 22 can run it after compilation; a native engine can implement the same [HTTP protocol](PARTNER_GAME_API.md).
@@ -109,6 +111,8 @@ Only captures created by the active connection are accessible. A published/impor
 Access lasts at most ten minutes from player approval. There are no refresh tokens. Expired or revoked access produces `invalid_token`; the game must request a new link. A new connection has its own capture namespace and cannot resume or inspect uploads owned by an earlier connection. The player can still review eligible captures in VYBE while they remain available there.
 
 `revokeConnection()` clears local access even if its network response is lost. In that case server revocation is unconfirmed; the player can revoke the game in VYBE's **Settings → Connections → Connected games**. Starting another link only clears local access; it does not revoke an old connection on the server. An aborted linking operation may likewise have been approved just before cancellation; active connections can be managed in VYBE.
+
+`clearLocalAuthorization()` forgets the current device request and local access token without a network request. Use an AbortController to cancel pending operations too, or the universal facade's `dispose()` for coordinated host teardown. Forgetting credentials does not assert server revocation or undo an already accepted request.
 
 ## Error handling and transport boundaries
 

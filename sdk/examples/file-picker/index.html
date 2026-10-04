@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>VYBE app and mod capture example</title>
+  <style>
+    :root { color-scheme: dark; font: 16px system-ui,sans-serif; background: #111322; color:#f2f3ff; }
+    body { max-width:44rem; margin:3rem auto; padding:0 1rem; } h1 { line-height:1.2; }
+    p { line-height:1.6; } section { margin:1rem 0; padding:1.25rem; border:1px solid #454968; border-radius:1rem; }
+    button,input { font:inherit; } button { min-height:44px; padding:.6rem 1rem; margin:.2rem; border-radius:.6rem; cursor:pointer; }
+    button:disabled { cursor:default; opacity:.55; } label { display:block; margin:.8rem 0; }
+    input[type=text] { display:block; width:95%; margin:.4rem 0; padding:.65rem; } #status { min-height:3rem; white-space:pre-wrap; }
+    code { overflow-wrap:anywhere; } :focus-visible { outline:3px solid #bfa6ff; outline-offset:3px; }
+  </style>
+</head>
+<body>
+  <h1>Bring a moment into VYBE</h1>
+  <p>A runnable app or mod-overlay integration example. Choose an already encoded screenshot or clip. Upload creates a private capture; you publish it yourself in VYBE.</p>
+  <section aria-label="Connection">
+    <p id="configuration">Loading configuration…</p>
+    <button id="connect" disabled>Connect VYBE</button><button id="open-link" disabled>Open consent page</button><button id="revoke" disabled>Disconnect</button>
+    <p id="code"></p>
+  </section>
+  <section aria-label="Capture">
+    <label>Image or video <input id="file" type="file" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm"></label>
+    <label>Caption <input id="caption" type="text" maxlength="2200" placeholder="What happened?"></label>
+    <button id="upload" disabled>Upload for review</button><button id="retry" disabled>Retry same capture</button><button id="cancel" disabled>Cancel current action</button>
+    <button id="review" disabled>Open private review</button><button id="discard" disabled>Discard private capture</button><button id="reset" disabled>Start a new capture</button>
+    <p id="status" role="status" aria-live="polite">No media uploaded.</p>
+  </section>
+  <button id="open-vybe">Open VYBE</button>
+  <p>Closing this page cancels local work. An accepted request may still finish. Disconnect explicitly revokes access; closing alone does not. No account credentials are stored in this example.</p>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

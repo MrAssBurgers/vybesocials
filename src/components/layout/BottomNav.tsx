@@ -108,7 +108,7 @@ const DraggableNavItem = memo(({
           data-tutorial={item.tutorialId}
         >
           <motion.div 
-            className="relative"
+            className={cn('relative vybe-nav-item', isActive && !isEditMode && 'vybe-nav-item--active')}
             whileTap={isEditMode ? {} : TAP.whileTap}
             transition={T.press}
           >
@@ -122,19 +122,16 @@ const DraggableNavItem = memo(({
                 <GripVertical className="h-3 w-3 text-primary" />
               </motion.div>
             )}
-            {isActive && !isEditMode && (
-              <div className="absolute -inset-1.5 rounded-xl bg-primary/15" />
-            )}
-            <Avatar className={cn(
+            {profile?.avatar_url ? <Avatar className={cn(
               "h-7 w-7 relative z-10 transition-[box-shadow,transform]",
-              isActive && "ring-2 ring-primary",
+              isActive && "ring-2 ring-primary/40",
               isEditMode && "animate-pulse"
             )}>
               <ProfileAvatarImage profileId={profile?.id} src={profile?.avatar_url || undefined} />
               <AvatarFallback className="text-[10px] bg-muted">
                 <User className="h-4 w-4" />
               </AvatarFallback>
-            </Avatar>
+            </Avatar> : <User className="h-6 w-6 text-current" strokeWidth={1.8} />}
           </motion.div>
         </Link>
       </Reorder.Item>
@@ -160,7 +157,7 @@ const DraggableNavItem = memo(({
         data-tutorial={item.tutorialId}
       >
         <motion.div 
-          className="relative"
+          className={cn('relative vybe-nav-item', isActive && !isEditMode && 'vybe-nav-item--active')}
           whileTap={isEditMode ? {} : TAP.whileTap}
           transition={T.press}
         >
@@ -174,20 +171,18 @@ const DraggableNavItem = memo(({
               <GripVertical className="h-3 w-3 text-primary" />
             </motion.div>
           )}
-          {isActive && !isEditMode && (
-            <div className="absolute -inset-1.5 rounded-xl bg-primary/15" />
-          )}
           {isHighlighted && (
             <div className="absolute -inset-2 rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse" />
           )}
           <motion.div
-            animate={{ scale: isActive && !isEditMode ? 1.15 : 1 }}
+            animate={{ scale: 1 }}
             transition={MOTION_CONFIG.spring.snappy}
           >
             <Icon
+              strokeWidth={1.8}
               className={cn(
                 "h-6 w-6 relative z-10 transition-colors duration-150",
-                isActive ? "text-primary" : "text-muted-foreground/60 group-hover:text-foreground",
+                "text-current",
                 isEditMode && "animate-pulse"
               )}
             />
@@ -527,47 +522,25 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
         aria-hidden={!isVisible}
         data-tutorial-bottomnav
       >
-        <div 
+        <div
           className={cn(
-            "w-full max-w-[420px] sm:max-w-[480px] md:max-w-[560px] rounded-[28px] overflow-hidden transition-[background-color,border-color] duration-300 relative pointer-events-auto",
-            isEditMode 
-              ? "border border-primary/60 shadow-[0_0_30px_hsl(var(--primary)/0.5)]" 
-              : "border border-white/5"
+            'vybe-nav-surface w-full max-w-[420px] sm:max-w-[480px] md:max-w-[560px] rounded-[32px] overflow-hidden relative pointer-events-auto',
+            isEditMode && 'vybe-nav-surface--editing',
           )}
-          style={{
-            background: 'hsl(var(--card))',
-            boxShadow: isEditMode 
-              ? '0 8px 32px hsl(var(--primary) / 0.5), inset 0 1px 0 hsl(var(--primary) / 0.3)'
-              : '0 10px 30px hsl(var(--background) / 0.55), 0 2px 10px hsl(0 0% 0% / 0.35), inset 0 1px 0 hsl(0 0% 100% / 0.06)',
-          }}
         >
-          {/* VYBE aurora wash — subtle multi-color tint behind the icons */}
-          <div
-            aria-hidden
-            className="absolute inset-0 pointer-events-none gradient-animated"
-            style={{ opacity: isEditMode ? 0.55 : 0.22 }}
-          />
-          {/* Top accent hairline — soft brand glow, fades into nav */}
-          <div
-            aria-hidden
-            className="absolute top-0 left-0 right-0 h-px pointer-events-none bg-gradient-to-r from-transparent via-primary/35 to-transparent"
-            style={{
-              maskImage: 'linear-gradient(to bottom, hsl(0 0% 0% / 1), transparent)',
-              WebkitMaskImage: 'linear-gradient(to bottom, hsl(0 0% 0% / 1), transparent)',
-            }}
-          />
+          <div aria-hidden="true" className="vybe-bubble-shimmer" />
           <Reorder.Group
             axis="x"
             values={navOrder}
             onReorder={handleReorder}
             as="div"
-            className="flex items-stretch h-14 px-1 relative z-10"
+            className="flex items-stretch h-16 px-2 relative z-10"
           >
             {orderedNavItems.map((item) => {
               const path = item.getPath(profile);
               const isActive = (() => {
                 if (item.id === 'clips') {
-                  return location.pathname === '/clips';
+                  return location.pathname === '/clips' || location.pathname === '/explore';
                 }
                 if (item.id === 'messages') {
                   return isMessagesNavActive(location.pathname);

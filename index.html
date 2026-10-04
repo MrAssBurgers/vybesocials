@@ -5,6 +5,12 @@
     <!-- VYBE pre-boot theme — built to public/boot-theme.js (npm run build:boot-theme).
          Replays vybe-boot-theme snapshot + full equipped derivation before first paint. -->
     <script src="/boot-theme.js"></script>
+    <script>
+      // Honor the saved in-app motion choice before the first loading frame.
+      try {
+        if (localStorage.getItem('xd-reduced-motion') === 'true') document.documentElement.classList.add('reduce-motion');
+      } catch (e) { /* Device reduced motion still applies if storage is unavailable. */ }
+    </script>
 
     <!-- Native/Despia: LaunchScreen (or Despia OTA splash) already showed brand.
          Mark handoff BEFORE #vybe-static-boot paints so we don't flash a second VYBE splash. -->
@@ -76,6 +82,8 @@
     <link
       href="https://fonts.googleapis.com/css2?family=Permanent+Marker&display=optional"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
     <script>
       (function () {
@@ -405,7 +413,13 @@
         align-items: center;
         justify-content: center;
         overflow: visible;
-        background: transparent;
+        --boot-primary: var(--primary, 330 88% 62%);
+        --boot-accent: var(--accent, 185 82% 55%);
+        --boot-purple: var(--secondary, 265 78% 64%);
+        --boot-bg: var(--background, 238 24% 9%);
+        --boot-fg: var(--foreground, 220 20% 96%);
+        color: hsl(var(--boot-fg));
+        background: hsl(var(--boot-bg));
         font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         min-height: 100dvh;
         height: 100dvh;
@@ -415,182 +429,73 @@
           env(safe-area-inset-bottom, 0);
         box-sizing: border-box;
       }
-      /*
-       * Native/Despia handoff: keep an opaque hold matching Cap/Despia bg (#09090b)
-       * but hide V + progress so users don't see a second branded splash after
-       * LaunchScreen / Despia OTA. Web browsers keep the full splash above.
-       */
-      html[data-vybe-splash="native-handoff"] body.splash-visible {
-        background: #09090b;
-      }
-      html[data-vybe-splash="native-handoff"] #vybe-static-boot {
-        background: #09090b;
-      }
-      html[data-vybe-splash="native-handoff"] #vybe-static-boot .vybe-boot-ambient,
+      /* Native shells already showed the logo. Keep the same soft background
+         through handoff without adding another branded pause. */
       html[data-vybe-splash="native-handoff"] #vybe-static-boot .vybe-splash-glow,
       html[data-vybe-splash="native-handoff"] #vybe-static-boot .vybe-splash-brand-stack {
         display: none !important;
-        visibility: hidden !important;
-        pointer-events: none !important;
       }
       #vybe-static-boot .vybe-boot-ambient {
-        position: absolute;
-        inset: 0;
-        overflow: hidden;
-        pointer-events: none;
+        position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+        background: hsl(var(--boot-bg));
       }
-      /* Match .vybe-liquid-mesh in index.css so splash → aurora is seamless */
+      /* These fallbacks paint before the app CSS, cached theme or fonts arrive. */
       #vybe-static-boot .vybe-boot-mesh {
-        position: absolute;
-        inset: 0;
+        position: absolute; inset: 0;
         background:
-          radial-gradient(ellipse 95% 75% at 18% 22%, hsl(var(--primary) / 0.48), transparent 58%),
-          radial-gradient(ellipse 85% 65% at 82% 78%, hsl(var(--accent) / 0.38), transparent 55%),
-          radial-gradient(ellipse 75% 58% at 55% 48%, hsl(var(--secondary, var(--primary)) / 0.22), transparent 52%),
-          linear-gradient(145deg, hsl(var(--background)) 0%, hsl(var(--card, var(--background)) / 0.88) 45%, hsl(var(--background)) 100%);
-        background-size: 140% 140%, 150% 150%, 130% 130%, 100% 100%;
-      }
-      html[data-vybe-boot-mode="light"] #vybe-static-boot .vybe-boot-mesh {
-        background:
-          radial-gradient(ellipse 90% 70% at 20% 18%, hsl(var(--primary) / 0.34), transparent 55%),
-          radial-gradient(ellipse 80% 62% at 78% 72%, hsl(var(--accent) / 0.28), transparent 52%),
-          radial-gradient(ellipse 72% 52% at 48% 55%, hsl(var(--secondary, var(--primary)) / 0.2), transparent 50%),
-          linear-gradient(160deg, hsl(var(--background)) 0%, hsl(var(--card, var(--background)) / 0.92) 50%, hsl(var(--background)) 100%);
-        background-size: 140% 140%, 150% 150%, 130% 130%, 100% 100%;
+          radial-gradient(ellipse 100% 80% at 12% 20%, hsl(var(--boot-primary) / .19), transparent 72%),
+          radial-gradient(ellipse 100% 75% at 95% 82%, hsl(var(--boot-accent) / .17), transparent 72%),
+          radial-gradient(ellipse 85% 80% at 52% 45%, hsl(var(--boot-purple) / .13), transparent 72%);
       }
       #vybe-static-boot .vybe-boot-blob {
-        position: absolute;
-        border-radius: 58% 42% 62% 38% / 48% 58% 42% 52%;
-        transform: translate(-50%, -50%);
-        filter: blur(72px);
-        mix-blend-mode: screen;
-        opacity: 0.45;
-        animation: none;
+        position: absolute; width: min(85vw, 620px); height: min(85vw, 620px);
+        border-radius: 50%; opacity: .55; pointer-events: none;
+        transform: translate3d(-50%, -50%, 0); filter: none;
       }
       #vybe-static-boot .vybe-boot-blob--a {
-        top: 14%;
-        left: 16%;
-        width: 360px;
-        height: 360px;
-        background: hsl(var(--primary) / 0.5);
+        top: 32%; left: 25%;
+        background: radial-gradient(ellipse, hsl(var(--boot-primary) / .2), transparent 68%);
       }
       #vybe-static-boot .vybe-boot-blob--b {
-        top: 68%;
-        left: 74%;
-        width: 420px;
-        height: 420px;
-        background: hsl(var(--accent) / 0.42);
+        top: 63%; left: 78%;
+        background: radial-gradient(ellipse, hsl(var(--boot-accent) / .18), transparent 68%);
       }
       #vybe-static-boot .vybe-boot-blob--c {
-        top: 42%;
-        left: 48%;
-        width: 300px;
-        height: 300px;
-        background: hsl(var(--secondary, var(--primary)) / 0.38);
+        top: 48%; left: 48%;
+        background: radial-gradient(ellipse, hsl(var(--boot-purple) / .14), transparent 68%);
       }
-      @keyframes vybe-boot-mesh-drift {
-        0% { background-position: 0% 0%, 100% 100%, 0% 0%; }
-        100% { background-position: 28% 18%, 72% 82%, 0% 0%; }
-      }
-      @keyframes vybe-boot-blob-a {
-        0%, 100% { transform: translate(-50%, -50%) translate(7vw, -2vh) scale(1); }
-        50% { transform: translate(-50%, -50%) translate(-8vw, 5vh) scale(1.06); }
-      }
-      @keyframes vybe-boot-blob-b {
-        0%, 100% { transform: translate(-50%, -50%) translate(-5vw, 3vh) scale(1.02); }
-        50% { transform: translate(-50%, -50%) translate(10vw, -4vh) scale(1.07); }
-      }
-      @keyframes vybe-boot-blob-c {
-        0%, 100% { transform: translate(-50%, -50%) translate(0, 6vh) scale(0.98); }
-        50% { transform: translate(-50%, -50%) translate(7vw, -5vh) scale(1.06); }
-      }
-      #vybe-static-boot .vybe-splash-logo svg .vybe-splash-draw-left {
-        stroke: hsl(var(--primary));
-      }
-      #vybe-static-boot .vybe-splash-logo svg .vybe-splash-draw-right {
-        stroke: hsl(var(--accent));
+      @keyframes vybe-boot-cloud {
+        0%, 100% { transform: translate3d(-50%, -50%, 0) scale(1); }
+        48% { transform: translate3d(-35%, -62%, 0) scale(1.12); }
+        74% { transform: translate3d(-58%, -42%, 0) scale(.96); }
       }
       #vybe-static-boot .vybe-splash-glow {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: min(220px, 62vw);
-        height: min(220px, 62vw);
-        transform: translate(-50%, -58%);
-        background: radial-gradient(circle, hsl(var(--primary) / 0.22) 0%, hsl(var(--accent) / 0.08) 45%, transparent 70%);
-        opacity: 0.5;
-        pointer-events: none;
+        position: absolute; top: 44%; left: 50%; width: min(360px, 90vw); height: min(360px, 90vw);
+        transform: translate(-50%, -50%); pointer-events: none;
+        background: radial-gradient(ellipse, hsl(var(--boot-primary) / .1), transparent 70%);
       }
       #vybe-static-boot .vybe-splash-brand-stack {
-        position: relative;
-        z-index: 2;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        overflow: visible;
-        padding-bottom: 0.25rem;
+        position: relative; z-index: 2; display: flex; flex-direction: column;
+        align-items: center; text-align: center; transform: translateY(-12px);
       }
       #vybe-static-boot .vybe-splash-brand {
-        position: relative;
-        z-index: 2;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 0.5rem;
-        margin-bottom: 0;
-        overflow: visible;
-        padding-bottom: 0.25rem;
+        display: flex; flex-direction: column; align-items: center; gap: 22px;
       }
       #vybe-static-boot .vybe-splash-logo {
-        position: relative;
-        z-index: 2;
-        margin: 0;
-        width: 80px;
-        height: 80px;
+        display: grid; place-items: center; width: 100px; height: 100px; border-radius: 36px;
+        background: radial-gradient(ellipse at 15% 15%, hsl(var(--boot-primary) / .14), transparent 80%),
+          radial-gradient(ellipse at 95% 95%, hsl(var(--boot-accent) / .12), transparent 80%), hsl(var(--boot-fg) / .035);
+        box-shadow: inset 0 1px 4px hsl(var(--boot-fg) / .075), 0 14px 60px hsl(var(--boot-primary) / .08);
       }
-      #vybe-static-boot .vybe-splash-title-wrap {
-        position: relative;
-        z-index: 2;
-        overflow: visible;
-        width: 100%;
-        margin: 0;
-        padding: 0 0 0.2em;
-        box-sizing: border-box;
-        text-align: center;
-        line-height: 0;
-      }
+      #vybe-static-boot .vybe-splash-logo svg { width: 62px; height: 62px; }
+      #vybe-static-boot .vybe-splash-draw-left { stroke: hsl(var(--boot-primary)); }
+      #vybe-static-boot .vybe-splash-draw-right { stroke: hsl(var(--boot-accent)); }
       #vybe-static-boot .vybe-splash-wordmark {
-        display: inline-block;
-        font-family: 'Permanent Marker', cursive;
-        font-size: clamp(2.5rem, 10vw, 3.75rem);
-        font-weight: 400;
-        font-style: normal;
-        letter-spacing: -0.04em;
-        text-transform: uppercase;
-        line-height: 1.3;
-        padding: 0.06em 0.14em 0.32em;
-        overflow: visible;
-        vertical-align: middle;
-        -webkit-font-smoothing: antialiased;
-        opacity: 0;
-        background: linear-gradient(
-          90deg,
-          hsl(var(--primary)) 0%,
-          hsl(var(--accent)) 100%
-        );
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
-        -webkit-text-fill-color: transparent;
-        paint-order: stroke fill;
-        -webkit-text-stroke: 0.35px hsl(var(--foreground) / 0.55);
-        filter:
-          drop-shadow(0 1px 0 hsl(var(--background) / 0.85))
-          drop-shadow(0 0 8px hsl(var(--primary) / 0.55))
-          drop-shadow(0 0 16px hsl(var(--accent) / 0.4));
+        display: block; font-size: 32px; font-weight: 760; letter-spacing: .14em;
+        padding-left: .14em; line-height: 1.2; color: hsl(var(--boot-fg));
       }
-      html[data-vybe-fonts-ready] #vybe-static-boot .vybe-splash-wordmark {
-        opacity: 1;
+      #vybe-static-boot .vybe-splash-tagline {
+        margin: 11px 0 0; font-size: 13px; letter-spacing: .015em; color: hsl(var(--boot-fg) / .54);
       }
       #vybe-static-boot.vybe-static-boot-fade {
         opacity: 0;
@@ -632,70 +537,31 @@
       html[data-vybe-fonts-ready] #vybe-static-boot .vybe-wordmark-img {
         opacity: 1;
       }
-      #vybe-static-boot .vybe-splash-bar-wrap {
-        width: min(16rem, 72vw);
-        margin-top: 1.25rem;
-      }
+      #vybe-static-boot .vybe-splash-bar-wrap { width: min(180px, 55vw); margin-top: 36px; }
       #vybe-static-boot .vybe-splash-bar-track {
-        position: relative;
-        height: 6px;
-        border-radius: 9999px;
-        overflow: hidden;
-        background: hsl(var(--foreground) / 0.1);
+        position: relative; height: 4px; overflow: hidden; border-radius: 999px;
+        background: hsl(var(--boot-fg) / .06);
       }
       #vybe-static-boot .vybe-splash-bar-fill {
-        position: absolute;
-        inset: 0 auto 0 0;
-        width: 100%;
-        border-radius: 9999px;
-        transform-origin: left center;
-        transform: scaleX(0);
-        will-change: transform;
-        background: linear-gradient(
-          90deg,
-          hsl(var(--primary)) 0%,
-          hsl(var(--secondary, var(--primary))) 38%,
-          hsl(var(--accent)) 100%
-        );
-        transition: none;
+        position: absolute; inset: 0 auto 0 0; width: 40%; border-radius: inherit;
+        background: linear-gradient(90deg, transparent, hsl(var(--boot-primary) / .8), hsl(var(--boot-accent) / .8), transparent);
+        transform: translateX(75%);
       }
-      #vybe-static-boot .vybe-splash-meta {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-top: 0.625rem;
-        padding: 0 2px;
-        font-size: 12px;
+      #vybe-static-boot .vybe-splash-meta { margin-top: 14px; text-align: center; font-size: 12px; }
+      #vybe-static-boot .vybe-splash-status { color: hsl(var(--boot-fg) / .6); }
+      /* Warm-up progress is estimated, so don't present it as a measured percent. */
+      #vybe-static-boot .vybe-splash-percent { display: none; }
+      #vybe-static-boot .vybe-splash-build { display: none; }
+      @keyframes vybe-boot-loading {
+        0% { transform: translateX(-100%); opacity: .2; }
+        45%, 55% { opacity: 1; }
+        100% { transform: translateX(350%); opacity: .2; }
       }
-      #vybe-static-boot .vybe-splash-status {
-        color: hsl(var(--muted-foreground) / 0.8);
-        max-width: 70%;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      #vybe-static-boot .vybe-splash-percent {
-        color: hsl(var(--foreground) / 0.8);
-        font-weight: 500;
-        font-variant-numeric: tabular-nums;
-      }
-      #vybe-static-boot .vybe-splash-build {
-        margin: 0.5rem 0 0;
-        text-align: center;
-        font-size: 10px;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: hsl(var(--muted-foreground) / 0.55);
-        font-variant-numeric: tabular-nums;
-      }
-      #vybe-static-boot .vybe-splash-draw-left,
-      #vybe-static-boot .vybe-splash-draw-right {
-        stroke-dasharray: none;
-        stroke-dashoffset: 0;
-        animation: none;
-      }
-      @keyframes vybe-splash-draw {
-        to { stroke-dashoffset: 0; }
+      @media (prefers-reduced-motion: no-preference) {
+        html:not(.reduce-motion):not(.perf-low) #vybe-static-boot .vybe-boot-blob--a { animation: vybe-boot-cloud 24s -6s ease-in-out infinite; }
+        html:not(.reduce-motion):not(.perf-low) #vybe-static-boot .vybe-boot-blob--b { animation: vybe-boot-cloud 31s -17s ease-in-out infinite reverse; }
+        html:not(.reduce-motion):not(.perf-low) #vybe-static-boot .vybe-boot-blob--c { animation: vybe-boot-cloud 37s -11s ease-in-out infinite; }
+        html:not(.reduce-motion):not(.perf-low) #vybe-static-boot .vybe-splash-bar-fill { animation: vybe-boot-loading 2.8s ease-in-out infinite !important; }
       }
       [data-app-shell] {
         min-height: 100dvh;
@@ -824,20 +690,21 @@
             <svg viewBox="-5 -5 110 110" fill="none" width="80" height="80" aria-hidden="true">
               <path d="M18 12 L50 88" stroke-width="11" stroke-linecap="round" class="vybe-splash-draw-left" />
               <path d="M82 12 L50 88" stroke-width="11" stroke-linecap="round" class="vybe-splash-draw-right" />
-              <circle cx="50" cy="88" r="3.5" fill="hsl(var(--primary))" />
+              <circle cx="50" cy="88" r="3.5" fill="hsl(var(--boot-primary))" />
             </svg>
           </div>
           <div class="vybe-splash-title-wrap">
             <span class="vybe-splash-wordmark" aria-hidden="true">VYBE</span>
+            <p class="vybe-splash-tagline">Your people. Your moments.</p>
           </div>
         </div>
         <div class="vybe-splash-bar-wrap">
-          <div class="vybe-splash-bar-track">
+          <div class="vybe-splash-bar-track" aria-hidden="true">
             <div class="vybe-splash-bar-fill"></div>
           </div>
           <div class="vybe-splash-meta">
             <span class="vybe-splash-status">Waking up...</span>
-            <span class="vybe-splash-percent">0%</span>
+            <span class="vybe-splash-percent" aria-hidden="true">0%</span>
           </div>
           <p id="vybe-splash-build" class="vybe-splash-build" aria-hidden="true"></p>
         </div>

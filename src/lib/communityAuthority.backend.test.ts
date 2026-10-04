@@ -322,8 +322,8 @@ describe('community messages bind sender and current permissions', () => {
   it.each([
     'gs://demo-community.appspot.com/media/auth-b/file.png',
     'https://firebasestorage.googleapis.com/v0/b/demo-community.appspot.com/o/community-assets%2Fauth-b%2Ffile.png?token=fixture',
-  ])('accepts this account Storage namespace %s', async mediaUrl => {
+  ])('requires private re-sharing even for an owned legacy namespace %s', async mediaUrl => {
     const { server } = await create({ isPublic: true }); await join({ serverId: server.id });
-    await expect(send(String(channels(server.id)[0].id), { mediaUrl, mediaType: 'image' })).resolves.toMatchObject({ message: { media_url: mediaUrl } });
+    await expect(send(String(channels(server.id)[0].id), { mediaUrl, mediaType: 'image' })).rejects.toMatchObject({ code: 'failed-precondition' });
   });
 });

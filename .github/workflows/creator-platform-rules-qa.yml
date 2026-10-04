@@ -12,6 +12,21 @@ on:
       - 'scripts/test-game-capture-post-rules.mjs'
       - 'scripts/test-customization-rules.mjs'
       - 'scripts/test-custom-sound-rules.mjs'
+      - 'scripts/test-profile-visibility-rules.mjs'
+      - 'scripts/test-profile-audience-backend.mjs'
+      - 'scripts/test-community-attachments-rules.mjs'
+      - 'scripts/test-community-attachments-backend.mjs'
+      - 'functions/src/friendProfile.ts'
+      - 'functions/src/_shared/profileAudienceAuthority.ts'
+      - 'functions/src/communityAttachment.ts'
+      - 'functions/src/_shared/communityAttachments.ts'
+      - 'src/lib/profileVisibility*'
+      - 'src/lib/friendProfileClient*'
+      - 'src/hooks/useFriendProfile*'
+      - 'src/hooks/useProfileAccount*'
+      - 'src/features/profile/**'
+      - 'src/lib/communityAttachmentService*'
+      - 'src/components/community/**'
       - 'scripts/test-story-publish-rules.mjs'
       - 'scripts/test-story-publish-backend.mjs'
       - 'functions/src/storyPublish.ts'
@@ -111,6 +126,7 @@ on:
       - 'src/pages/MiniApps*'
       - 'src/features/mini-apps/**'
       - 'sdk/game/**'
+      - 'sdk/universal/**'
       - '.github/workflows/creator-platform-rules-qa.yml'
   pull_request:
     branches: [main]
@@ -122,6 +138,21 @@ on:
       - 'scripts/test-game-capture-post-rules.mjs'
       - 'scripts/test-customization-rules.mjs'
       - 'scripts/test-custom-sound-rules.mjs'
+      - 'scripts/test-profile-visibility-rules.mjs'
+      - 'scripts/test-profile-audience-backend.mjs'
+      - 'scripts/test-community-attachments-rules.mjs'
+      - 'scripts/test-community-attachments-backend.mjs'
+      - 'functions/src/friendProfile.ts'
+      - 'functions/src/_shared/profileAudienceAuthority.ts'
+      - 'functions/src/communityAttachment.ts'
+      - 'functions/src/_shared/communityAttachments.ts'
+      - 'src/lib/profileVisibility*'
+      - 'src/lib/friendProfileClient*'
+      - 'src/hooks/useFriendProfile*'
+      - 'src/hooks/useProfileAccount*'
+      - 'src/features/profile/**'
+      - 'src/lib/communityAttachmentService*'
+      - 'src/components/community/**'
       - 'scripts/test-story-publish-rules.mjs'
       - 'scripts/test-story-publish-backend.mjs'
       - 'functions/src/storyPublish.ts'
@@ -221,6 +252,7 @@ on:
       - 'src/pages/MiniApps*'
       - 'src/features/mini-apps/**'
       - 'sdk/game/**'
+      - 'sdk/universal/**'
       - '.github/workflows/creator-platform-rules-qa.yml'
 
 permissions:
@@ -274,6 +306,10 @@ jobs:
           node --check scripts/test-game-capture-post-rules.mjs
           node --check scripts/test-customization-rules.mjs
           node --check scripts/test-custom-sound-rules.mjs
+          node --check scripts/test-profile-visibility-rules.mjs
+          node --check scripts/test-profile-audience-backend.mjs
+          node --check scripts/test-community-attachments-rules.mjs
+          node --check scripts/test-community-attachments-backend.mjs
           node --check scripts/test-story-publish-rules.mjs
           node --check scripts/test-story-publish-backend.mjs
           node --check scripts/test-account-authority-rules.mjs
@@ -303,6 +339,10 @@ jobs:
           node scripts/test-game-capture-post-rules.mjs &&
           node scripts/test-customization-rules.mjs &&
           node scripts/test-custom-sound-rules.mjs &&
+          node scripts/test-profile-visibility-rules.mjs &&
+          node scripts/test-profile-audience-backend.mjs &&
+          node scripts/test-community-attachments-rules.mjs &&
+          node scripts/test-community-attachments-backend.mjs &&
           node scripts/test-story-publish-rules.mjs &&
           node scripts/test-story-publish-backend.mjs &&
           node scripts/test-account-authority-rules.mjs &&

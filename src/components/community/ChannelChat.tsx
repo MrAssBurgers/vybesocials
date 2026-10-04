@@ -11,7 +11,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { ServerSafetyGate } from './ServerSafetyGate';
+import { PrivateCommunityAttachment } from './PrivateCommunityAttachment';
+import { CommunityAttachmentComposer } from './CommunityAttachmentComposer';
 import { EmojiPicker } from '@/components/chat/EmojiPicker';
 import { useChannelMessages, useSendChannelMessage, ChannelMessage, useMyServerRole } from '@/hooks/useServers';
 import { useMyChannelPermissions } from '@/hooks/useChannelPermissions';
@@ -166,6 +167,7 @@ export const ChannelChat = memo(function ChannelChat({ channelId, channelName, s
       {/* Input - mobile optimized with safe area */}
       {canSend ? (
         <div className="px-3 sm:px-4 py-2 sm:py-3 border-t border-border bg-background/95 backdrop-blur-sm vybe-chat-composer">
+          <CommunityAttachmentComposer channelId={channelId} disabled={myPerms?.can_attach_media !== true} />
           <div className="flex items-center gap-2">
             <Input
               value={messageText}
@@ -304,13 +306,9 @@ const MessageItem = memo(function MessageItem({
         </div>
 
         {/* Media - with safety gating */}
-        {message.media_url && (message.media_type === 'image' || message.media_type === 'video') && (
+        {(message.attachment_id || message.media_url) && (
           <div className="mt-2">
-            <ServerSafetyGate
-              mediaUrl={message.media_url}
-              mediaType={message.media_type}
-              className="max-w-[85%] sm:max-w-sm"
-            />
+<PrivateCommunityAttachment messageId={message.id} attachmentId={message.attachment_id ?? undefined} legacyUrl={message.media_url} mediaType={message.media_type} />
           </div>
         )}
       </div>

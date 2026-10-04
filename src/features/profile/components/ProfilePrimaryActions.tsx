@@ -1,5 +1,5 @@
-import { useCallback, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   Camera,
@@ -16,10 +16,10 @@ import {
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useCreateConversation } from '@/hooks/useMessages';
-import { useAuthProfileId } from '@/hooks/useAuthProfileId';
-import { useSendFriendRequest, useRespondToFriendRequest, useFriendshipStatus } from '@/hooks/useFriends';
-import { findExistingDmBetweenProfiles } from '@/lib/dmMembershipRepair';
+import { createDmChat } from '@/lib/firebase/chats';
+import { useProfileAccount } from '@/hooks/useProfileAccount';
+import { profileFriendshipAction } from '@/lib/profileFriendshipAction';
+import { isReportSessionError } from '@/lib/reportModerationService';
 import { openSnapCamera } from '@/contexts/cameraOverlayActions';
 import { useCameraOverlayOptional } from '@/contexts/cameraOverlaySafe';
 import { useCallStore, type CallType } from '@/lib/callStore';
@@ -78,35 +78,47 @@ export function ProfilePrimaryActions({
   className,
 }: ProfilePrimaryActionsProps) {
   const navigate = useNavigate();
-  const myProfileId = useAuthProfileId();
-  const createConversation = useCreateConversation();
-  const sendFriend = useSendFriendRequest();
-  const respondFriend = useRespondToFriendRequest();
-  const friendship = useFriendshipStatus(profile.id);
+  const actor = useProfileAccount();
+  const client = useQueryClient();
+  const scope = `${actor.session.uid}:${actor.session.epoch}:${profile.id}`;
+  const currentScope = useRef(scope); currentScope.current = scope;
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const guard = () => { actor.guard(); if (!mounted.current || currentScope.current !== scope) throw Object.assign(new Error('Open this profile again.'), { code: 'account-changed' }); };
+  const showError = (error: unknown, fallback: string) => { try { guard(); } catch { return; } if (!isReportSessionError(error)) toast.error(error instanceof Error ? error.message : fallback); };
+  const [friendPending, setFriendPending] = useState(false);
+  const friendBusy = useRef(false);
+  const changeFriend = async (action: 'send' | 'accept' | 'decline') => {
+    if (friendBusy.current) return;
+    try {
+      guard(); friendBusy.current = true; setFriendPending(true);
+      await profileFriendshipAction({ action, targetId: profile.id, expectedOwnerUid: actor.user!.id }, guard); guard();
+      await Promise.all([client.invalidateQueries({ queryKey: ['profile-visibility-resolved', profile.id, actor.profile!.id, actor.session.uid, actor.session.epoch] }),
+        client.invalidateQueries({ queryKey: ['profile-view-request', profile.id, actor.profile!.id, actor.session.uid, actor.session.epoch] })]);
+      guard(); toast.success(action === 'send' ? 'Friend request confirmed' : action === 'accept' ? 'Friend request accepted' : 'Friend request declined');
+    } catch (error) { showError(error, 'Friendship could not be updated.'); }
+    finally { try { guard(); friendBusy.current = false; setFriendPending(false); } catch { /* Old route. */ } }
+  };
   const camera = useCameraOverlayOptional();
   const { state, startCall } = useCallStore();
   const [isStarting, setIsStarting] = useState<CallType | null>(null);
   const startGuardRef = useRef(false);
 
-  const { data: conversationId } = useQuery({
-    queryKey: ['profile-view-dm', myProfileId, profile.id],
-    queryFn: () => findExistingDmBetweenProfiles(myProfileId!, profile.id),
-    enabled: !!myProfileId && mode === 'friend',
-    staleTime: 60_000,
-  });
-
+  const messageBusy = useRef(false);
   const handleMessage = async () => {
+    if (messageBusy.current) return;
     try {
-      const conversation = await createConversation.mutateAsync({ memberIds: [profile.id] });
-      navigate(`/messages/${conversation.id}`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to open chat');
-    }
+      guard(); messageBusy.current = true;
+      const id = await createDmChat(profile.id, guard); guard();
+      navigate(`/messages/${id}`);
+    } catch (error) { showError(error, 'Failed to open chat'); }
+    finally { try { guard(); messageBusy.current = false; } catch { /* Old route. */ } }
   };
 
   const handleShare = async () => {
     const url = buildProfileShareUrl(profile.username);
     try {
+      guard();
       if (navigator.share) {
         await navigator.share({
           title: `${profile.display_name || profile.username} on VYBE`,
@@ -114,7 +126,7 @@ export function ProfilePrimaryActions({
         });
       } else {
         await navigator.clipboard.writeText(url);
-        toast.success('Profile link copied');
+        guard(); toast.success('Profile link copied');
       }
     } catch {
       /* cancelled */
@@ -122,6 +134,7 @@ export function ProfilePrimaryActions({
   };
 
   const handleCamera = () => {
+    try { guard(); } catch { return; }
     if (!camera?.openCamera) {
       navigate('/upload');
       return;
@@ -135,51 +148,19 @@ export function ProfilePrimaryActions({
     });
   };
 
-  const ensureConversationThen = useCallback(
-    async (then: (id: string) => void | Promise<void>) => {
-      try {
-        let id = conversationId;
-        if (!id) {
-          const conversation = await createConversation.mutateAsync({ memberIds: [profile.id] });
-          id = conversation.id;
-        }
-        if (id) await then(id);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Could not open chat');
-      }
-    },
-    [conversationId, createConversation, profile.id],
-  );
-
-  const handleStartCall = useCallback(
-    async (callType: CallType) => {
-      if (startGuardRef.current) return;
-      if (state.phase !== 'idle') {
-        toast.error('Already in a call');
-        return;
-      }
-      startGuardRef.current = true;
-      setIsStarting(callType);
-      try {
-        await ensureConversationThen(async (id) => {
-          await startCall({
-            callType,
-            conversationId: id,
-            receiverId: profile.id,
-            receiverUsername: profile.username,
-            receiverDisplayName: profile.display_name || profile.username,
-            receiverAvatarUrl: profile.avatar_url,
-          });
-        });
-      } catch (error: unknown) {
-        toast.error(error instanceof Error ? error.message : 'Failed to start call');
-      } finally {
-        startGuardRef.current = false;
-        setIsStarting(null);
-      }
-    },
-    [ensureConversationThen, profile, startCall, state.phase],
-  );
+  const handleStartCall = async (callType: CallType) => {
+    if (startGuardRef.current) return;
+    try {
+      guard();
+      if (state.phase !== 'idle') { toast.error('Already in a call'); return; }
+      startGuardRef.current = true; setIsStarting(callType);
+      const id = await createDmChat(profile.id, guard); guard();
+      await startCall({ callType, conversationId: id, receiverId: profile.id, receiverUsername: profile.username,
+        receiverDisplayName: profile.display_name || profile.username, receiverAvatarUrl: profile.avatar_url });
+      guard();
+    } catch (error) { showError(error, 'Failed to start call'); }
+    finally { try { guard(); startGuardRef.current = false; setIsStarting(null); } catch { /* Old route. */ } }
+  };
 
   if (mode === 'blocked' || !primaryAction) return null;
 
@@ -256,8 +237,8 @@ export function ProfilePrimaryActions({
         {primaryAction === 'add_friend' && (
           <Button
             className="min-w-[10rem] rounded-full"
-            disabled={sendFriend.isPending}
-            onClick={() => sendFriend.mutate(profile.id)}
+            disabled={friendPending}
+            onClick={() => void changeFriend('send')}
           >
             <UserPlus className="mr-2 h-4 w-4" />
             Add Friend
@@ -272,15 +253,8 @@ export function ProfilePrimaryActions({
           <>
             <Button
               className="min-w-[7rem] rounded-full"
-              disabled={respondFriend.isPending}
-              onClick={() => {
-                const requestId = friendship.data?.requestId;
-                if (!requestId) {
-                  toast.error('Request not found');
-                  return;
-                }
-                respondFriend.mutate({ requestId, action: 'accept' });
-              }}
+              disabled={friendPending}
+              onClick={() => void changeFriend('accept')}
             >
               <Check className="mr-2 h-4 w-4" />
               Accept
@@ -289,12 +263,8 @@ export function ProfilePrimaryActions({
               variant="outline"
               size="icon"
               className="h-10 w-10 rounded-full"
-              disabled={respondFriend.isPending}
-              onClick={() => {
-                const requestId = friendship.data?.requestId;
-                if (!requestId) return;
-                respondFriend.mutate({ requestId, action: 'decline' });
-              }}
+              disabled={friendPending}
+              onClick={() => void changeFriend('decline')}
               aria-label="Decline"
             >
               <X className="h-4 w-4" />

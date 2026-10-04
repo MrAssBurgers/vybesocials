@@ -1,7 +1,7 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 import type { DocumentSnapshot, Transaction } from 'firebase-admin/firestore';
 import { db } from './admin.js';
-import { resolveProfileIdFromAuth } from './aiQuota.js';
+import { resolveIdentity } from './profileAudienceAuthority.js';
 import { validDocumentId } from './conversationMembership.js';
 
 export type CommunityRole = 'owner' | 'admin' | 'moderator' | 'member';
@@ -13,12 +13,11 @@ export function communityId(value: unknown): string {
   return value;
 }
 export async function communityActor(uid: string): Promise<CommunityActor> {
-  const profileId = await resolveProfileIdFromAuth(uid);
-  const profile = await db.collection('profiles').doc(communityId(profileId)).get();
-  if (!profile.exists || (profile.data()?.user_id !== uid && !(profileId === uid && profile.data()?.user_id == null))) {
-    throw new HttpsError('failed-precondition', 'A verified profile is required');
-  }
-  return { uid, profileId };
+  return db.runTransaction(async tx => {
+    const identity = await resolveIdentity(db, tx, uid);
+    if (!identity || identity.uid !== uid) throw new HttpsError('failed-precondition', 'A unique verified profile is required');
+    return { uid, profileId: identity.profileId };
+  });
 }
 export const admissionRef = (uid: string, serverId: string) => db.doc(`community_admissions/${uid}/grants/${serverId}`);
 export const rosterRef = (serverId: string, uid: string) => db.doc(`community_rosters/${serverId}/members/${uid}`);
@@ -29,6 +28,9 @@ export function validAdmission(row: Row | undefined, serverId: string, uid: stri
   return row?.server_id === serverId && row?.auth_uid === uid && row?.active === true && communityRoles.includes(row.role);
 }
 export async function communityAccess(tx: Transaction, serverId: string, actor: CommunityActor) {
+  // Identity participates in the same read set as membership/permissions.
+  const identity = await resolveIdentity(db, tx, actor.uid);
+  if (!identity || identity.uid !== actor.uid || identity.profileId !== actor.profileId) throw new HttpsError('failed-precondition', 'Your community profile changed');
   const [serverSnap, grant] = await Promise.all([tx.get(db.collection('servers').doc(serverId)), tx.get(admissionRef(actor.uid, serverId))]);
   const server = serverSnap.data() as Row | undefined;
   if (!server || server.deleted_at) throw new HttpsError('not-found', 'Community is unavailable');

@@ -1,8 +1,8 @@
 import { useState, useMemo, useCallback, useRef, useEffect, memo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ClipsEmptyState } from '@/components/explore/ClipsEmptyState';
 import { 
   Search, 
-  Play, 
   Flame, 
   Clock, 
   Compass, 
@@ -85,10 +85,7 @@ const ExploreTabBar = memo(function ExploreTabBar({
           aria-pressed={viewMode === 'clips'}
           onClick={() => onTabChange('clips')}
           className={cn(
-            "flex items-center gap-1.5 min-h-11 px-4 py-2 rounded-full text-sm font-semibold transition-all",
-            viewMode === 'clips'
-              ? "bg-primary text-primary-foreground shadow-md shadow-primary/30"
-              : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
+            "vybe-soft-chip flex items-center gap-1.5 min-h-11 px-4 py-2 rounded-full text-sm font-semibold"
           )}
         >
           <Clapperboard className="h-4 w-4" />
@@ -99,10 +96,7 @@ const ExploreTabBar = memo(function ExploreTabBar({
           aria-pressed={viewMode === 'videos'}
           onClick={() => onTabChange('videos')}
           className={cn(
-            "flex items-center gap-1.5 min-h-11 px-4 py-2 rounded-full text-sm font-semibold transition-all",
-            viewMode === 'videos'
-              ? "bg-primary text-primary-foreground shadow-md shadow-primary/30"
-              : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
+            "vybe-soft-chip flex items-center gap-1.5 min-h-11 px-4 py-2 rounded-full text-sm font-semibold"
           )}
         >
           <Film className="h-4 w-4" />
@@ -132,6 +126,7 @@ function FullscreenClipsViewer({
   onTabChange: (mode: 'clips' | 'videos') => void;
   isLoading?: boolean;
 }) {
+  const navigate = useNavigate();
   const [currentIndex, setCurrentIndex] = useState(startIndex);
   const [globalMuted, setGlobalMuted] = useState(() => readClipsMutedPreference());
   const containerRef = useRef<HTMLDivElement>(null);
@@ -254,24 +249,12 @@ function FullscreenClipsViewer({
 
   if (clips.length === 0) {
     return (
-      <main aria-label="Clips viewer" className="fixed inset-0 z-50 bg-background flex items-center justify-center">
-        <div className="text-center text-foreground">
-          <Play className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-          <h3 className="text-xl font-semibold mb-2">No clips yet</h3>
-          <p className="text-muted-foreground mb-6">Be the first to share a clip!</p>
-          <Button onClick={onSwitchToVideos} variant="outline" className="bg-card/60 border-border/30 text-foreground hover:bg-card/80">
-            <Film className="h-4 w-4 mr-2" />
-            Browse Videos Instead
-          </Button>
-        </div>
-        <Button
-          aria-label="Close clips"
-          variant="ghost"
-          size="icon"
-          className="fixed top-4 left-4 z-30 w-10 h-10 rounded-full bg-black/80 border border-border/20 text-foreground hover:bg-black/90"
-          onClick={onClose}
-        >
-          <X className="w-5 h-5" />
+      <main aria-label="Clips viewer" className="clips-empty-screen" style={{ minHeight: '100dvh' }}>
+        <ClipsEmptyState onAction={() => navigate('/upload')} onBrowseVideos={onSwitchToVideos} />
+        <Button aria-label="Close clips" variant="ghost" size="icon"
+          className="absolute left-5 z-30 rounded-full bg-foreground/5 text-foreground/75 hover:bg-foreground/10"
+          style={{ top: 'calc(var(--sat, 0px) + 16px)' }} onClick={onClose}>
+          <X className="h-5 w-5" />
         </Button>
       </main>
     );
@@ -425,8 +408,8 @@ function VideosGalleryView({
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
-              <Film className="h-6 w-6 text-primary-foreground" />
+            <div className="h-12 w-12 rounded-[20px] bg-primary/10 flex items-center justify-center">
+              <Film className="h-6 w-6 text-foreground/80" strokeWidth={1.6} />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-foreground">
@@ -475,10 +458,7 @@ function VideosGalleryView({
                   aria-pressed={isActive}
                   onClick={() => handleCategoryChange(cat.id)}
                   className={cn(
-                    "flex items-center gap-2 min-h-11 px-4 py-2 rounded-full text-sm font-medium transition-all shrink-0 border",
-                    isActive
-                      ? "bg-primary text-primary-foreground border-transparent shadow-lg shadow-primary/30"
-                      : "bg-card/60 hover:bg-card border-border/50 text-foreground hover:border-primary/50"
+                    "vybe-soft-chip flex items-center gap-2 min-h-11 px-4 py-2 rounded-full text-sm font-medium shrink-0 border"
                   )}
                 >
                   <cat.icon className="h-4 w-4" />
@@ -499,10 +479,7 @@ function VideosGalleryView({
                 type="button"
                 aria-pressed={selectedTag === tag}
                 className={cn(
-                  "inline-flex min-h-11 items-center border cursor-pointer transition-all px-3 py-1.5 text-sm whitespace-nowrap shrink-0 rounded-full",
-                  selectedTag === tag 
-                    ? "bg-primary text-primary-foreground border-transparent shadow-md shadow-primary/20" 
-                    : "bg-card/40 hover:bg-card border-border/50 hover:border-primary/50 text-muted-foreground hover:text-foreground"
+                  "vybe-soft-chip inline-flex min-h-11 items-center border cursor-pointer px-3 py-1.5 text-sm whitespace-nowrap shrink-0 rounded-full"
                 )}
                 onClick={() => handleTagClick(tag)}
               >
@@ -539,7 +516,7 @@ function VideosGalleryView({
         </AnimatePresence>
 
         {/* Videos Grid */}
-        <ExploreVideosGrid videos={videos} isLoading={isLoading} />
+        <ExploreVideosGrid videos={videos} isLoading={isLoading} hasFilters={!!searchQuery.trim() || !!selectedTag || activeCategory !== 'all'} />
       </div>
     </AppLayout>
   );

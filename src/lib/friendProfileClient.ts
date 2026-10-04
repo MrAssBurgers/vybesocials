@@ -1,4 +1,6 @@
 import { invokeFunction } from '@/lib/firebase/functionsService';
+import { reportAccountGuard, type ReportAccountGuard } from './reportModerationService';
+import { PROFILE_VISIBILITY_FIELDS, isVisibilityLevel, visibilityRow, type ResolvedProfileVisibility } from './profileVisibility';
 
 export type LocationDuration =
   | 'once'
@@ -32,12 +34,27 @@ export async function refreshFriendshipPairStats(otherProfileId: string) {
   ).single();
 }
 
-export async function resolveProfileVisibility(targetId: string) {
-  return invokeFunction<{
-    ok?: boolean;
-    fields?: Record<string, boolean>;
-    settings?: Record<string, string>;
-  }>('resolve-profile-visibility', { target_id: targetId }).single();
+export async function resolveProfileVisibility(input: { targetId: string; expectedOwnerUid: string; expectedProfileId: string }, guard: ReportAccountGuard = reportAccountGuard(input.expectedOwnerUid)): Promise<ResolvedProfileVisibility> {
+  guard();
+  const { data, error } = await invokeFunction<unknown>('resolve-profile-visibility', {
+    target_id: input.targetId, expectedOwnerUid: input.expectedOwnerUid, expectedProfileId: input.expectedProfileId,
+  }).single();
+  guard();
+  if (error) throw Object.assign(new Error(error.message || 'Profile privacy could not be checked. Please retry.'), { code: error.code || error.name });
+  const invalid = () => { throw new Error('Profile privacy could not be confirmed. Please retry.'); };
+  if (!visibilityRow(data) || data.ok !== true || data.ownerUid !== input.expectedOwnerUid || data.viewerProfileId !== input.expectedProfileId
+    || data.targetProfileId !== input.targetId || typeof data.isSelf !== 'boolean' || typeof data.isFriend !== 'boolean' || typeof data.isBlocked !== 'boolean'
+    || !visibilityRow(data.fields) || !visibilityRow(data.settings)) return invalid();
+  if (Object.keys(data.fields).length !== PROFILE_VISIBILITY_FIELDS.length || Object.keys(data.settings).length !== PROFILE_VISIBILITY_FIELDS.length
+    || data.isSelf !== (input.targetId === input.expectedProfileId) || (data.isBlocked && (data.isFriend || data.isSelf))) return invalid();
+  for (const field of PROFILE_VISIBILITY_FIELDS) {
+    const setting = data.settings[field];
+    if (typeof data.fields[field] !== 'boolean' || (!isVisibilityLevel(setting) && setting !== 'unavailable')
+      || (setting === 'unavailable' && data.fields[field]) || (data.isBlocked && data.fields[field])
+      || (data.fields[field] && !data.isSelf && ((setting === 'only_me' || setting === 'private')
+        || ((setting === 'friends' || setting === 'close_friends') && !data.isFriend)))) return invalid();
+  }
+  return data as unknown as ResolvedProfileVisibility;
 }
 
 export async function indexSharedContent(opts: {

@@ -1,5 +1,5 @@
 import { HttpsError } from 'firebase-functions/v2/https';
-import { closeFriendAuthorityId, hasCloseFriendAuthority, resolveIdentity } from './storyReadAuthority.js';
+import { closeFriendAuthorityId, hasCloseFriendAuthority, resolveIdentity } from './profileAudienceAuthority.js';
 const validId = (value) => typeof value === 'string' && value.length > 0 && value.length <= 128 && !value.includes('/');
 const validProof = (row, id, uid) => row.version === 1 && row.owner_uid === uid && validId(row.owner_profile_id)
     && validId(row.friend_uid) && validId(row.friend_profile_id) && typeof row.enabled === 'boolean' && id === closeFriendAuthorityId(uid, row.friend_uid);

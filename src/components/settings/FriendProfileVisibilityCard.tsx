@@ -1,131 +1,67 @@
-import { useEffect, useState } from 'react';
-import { Eye, Lock, Users, Globe } from 'lucide-react';
-import { useAuth } from '@/lib/auth';
-import { db } from '@/lib/firebase';
+import { useEffect, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Eye, Lock, Users, Globe, Heart } from 'lucide-react';
+import { useProfileAccount } from '@/hooks/useProfileAccount';
+import { readVisibilitySettings, writeVisibilitySetting } from '@/lib/profileVisibilitySettings';
+import { type ProfileVisibilityField, type ProfileVisibilityLevel } from '@/lib/profileVisibility';
+import { isReportSessionError } from '@/lib/reportModerationService';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
 import { getUserFriendlyError } from '@/lib/errorUtils';
 import { SettingsSectionCard, SettingsPanel } from './SettingsUI';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-type VisibilityLevel = 'public' | 'friends' | 'close_friends' | 'only_me';
-
-const FIELD_LABELS: Record<string, string> = {
-  bio: 'Bio',
-  followers: 'Followers list',
-  following: 'Following list',
-  level: 'Level & stats',
-  activity: 'Activity status',
-  location: 'Location',
-  posts: 'Posts',
-  clips: 'Clips',
-  stories: 'Stories',
-  mutual_friends: 'Mutual friends',
-  vybe_dna: 'VYBE DNA',
+const FIELD_LABELS: Record<ProfileVisibilityField, string> = {
+  bio: 'Bio', followers: 'Followers list', following: 'Following list', level: 'Level', activity: 'Activity status',
+  location: 'Location', posts: 'Posts', clips: 'Clips', stories: 'Stories', mutual_friends: 'Mutual friends', vybe_dna: 'VYBE DNA',
 };
-
-const LEVELS: { value: VisibilityLevel; label: string; icon: typeof Globe }[] = [
-  { value: 'public', label: 'Everyone', icon: Globe },
-  { value: 'friends', label: 'Friends', icon: Users },
-  { value: 'only_me', label: 'Only me', icon: Lock },
+const LEVELS: { value: ProfileVisibilityLevel; label: string; icon: typeof Globe }[] = [
+  { value: 'public', label: 'Everyone', icon: Globe }, { value: 'friends', label: 'Friends', icon: Users },
+  { value: 'close_friends', label: 'Close friends', icon: Heart }, { value: 'only_me', label: 'Only me', icon: Lock },
 ];
-
-const DEFAULT_FIELDS: Record<string, VisibilityLevel> = {
-  bio: 'friends',
-  followers: 'public',
-  following: 'public',
-  level: 'friends',
-  activity: 'friends',
-  location: 'friends',
-  posts: 'public',
-  clips: 'public',
-  stories: 'friends',
-  mutual_friends: 'friends',
-  vybe_dna: 'friends',
-};
-
+const canonical = (level: string) => level === 'everyone' ? 'public' : level === 'private' ? 'only_me' : level;
 export function FriendProfileVisibilityCard() {
-  const { profile } = useAuth();
-  const [fields, setFields] = useState<Record<string, VisibilityLevel>>(DEFAULT_FIELDS);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!profile?.id) return;
-    void db
-      .from('profile_visibility')
-      .select('fields')
-      .eq('id', profile.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.fields && typeof data.fields === 'object') {
-          setFields({ ...DEFAULT_FIELDS, ...(data.fields as Record<string, VisibilityLevel>) });
-        }
-        setLoading(false);
-      });
-  }, [profile?.id]);
-
-  const saveField = async (field: string, level: VisibilityLevel) => {
-    if (!profile?.id) return;
-    setSaving(field);
-    haptics.tap();
-    const next = { ...fields, [field]: level };
+  const actor = useProfileAccount();
+  return <VisibilitySettingsForSession key={`${actor.session.uid}:${actor.session.epoch}:${actor.profile?.id}`} />;
+}
+function VisibilitySettingsForSession() {
+  const actor = useProfileAccount();
+  const client = useQueryClient();
+  const key = ['profile-visibility-settings', actor.profile?.id, actor.session.uid, actor.session.epoch];
+  const query = useQuery({ queryKey: key, queryFn: () => readVisibilitySettings(actor.profile!.id, actor.guard), enabled: actor.ready,
+    retry: false, gcTime: 0, staleTime: 0, refetchOnMount: 'always', networkMode: 'always' });
+  const [saving, setSaving] = useState(false);
+  const busy = useRef(false);
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const guard = () => { actor.guard(); if (!mounted.current) throw Object.assign(new Error('Open settings again.'), { code: 'account-changed' }); };
+  const save = async (change: Parameters<typeof writeVisibilitySetting>[1]) => {
+    if (busy.current || !query.isFetchedAfterMount || query.isError || !query.data) return;
     try {
-      const { error } = await db.from('profile_visibility').upsert(
-        {
-          id: profile.id,
-          user_id: profile.id,
-          fields: next,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'id' },
-      );
-      if (error) throw error;
-      setFields(next);
-      haptics.success();
-      toast.success('Visibility updated');
-    } catch (err) {
-      haptics.error();
-      toast.error(getUserFriendlyError(err));
-    } finally {
-      setSaving(null);
-    }
+      guard(); busy.current = true; setSaving(true); haptics.tap();
+      const value = await writeVisibilitySetting(actor.profile!.id, change, guard);
+      guard(); client.setQueryData(key, value);
+      void client.invalidateQueries({ queryKey: ['profile-visibility-resolved'] });
+      haptics.success(); toast.success('Visibility updated');
+    } catch (error) {
+      if (!isReportSessionError(error) && mounted.current) { haptics.error(); toast.error(getUserFriendlyError(error)); }
+    } finally { busy.current = false; if (mounted.current) setSaving(false); }
   };
-
-  if (loading) return null;
-
-  return (
-    <SettingsSectionCard
-      title="Friend profile visibility"
-      description="Control what friends see on your private profile"
-      icon={Eye}
-    >
-      <SettingsPanel className="divide-y divide-border/40">
-        {Object.entries(FIELD_LABELS).map(([field, label]) => (
-          <div key={field} className="py-3 first:pt-0 last:pb-0">
-            <p className="text-sm font-medium mb-2">{label}</p>
-            <div className="flex flex-wrap gap-1.5">
-              {LEVELS.map(({ value, label: lvlLabel, icon: Icon }) => (
-                <button
-                  key={value}
-                  type="button"
-                  disabled={saving === field}
-                  onClick={() => saveField(field, value)}
-                  className={cn(
-                    'inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-colors',
-                    fields[field] === value
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'border-border text-muted-foreground hover:bg-muted',
-                  )}
-                >
-                  <Icon className="h-3 w-3" />
-                  {lvlLabel}
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
-      </SettingsPanel>
-    </SettingsSectionCard>
-  );
+  const ready = actor.ready && query.isFetchedAfterMount && !query.isError && !!query.data;
+  return <SettingsSectionCard title="Profile visibility" description="Choose who can see each section on your profile" icon={Eye}>
+    {!actor.ready ? <p className="text-sm text-muted-foreground">Sign in to manage profile visibility.</p> : query.isError ? <div role="alert"><p>Your privacy settings could not be loaded. Nothing has been changed.</p><Button variant="outline" onClick={() => void query.refetch()}>Retry settings</Button></div> : !ready ? <p role="status">Loading privacy settings...</p> : <SettingsPanel className="divide-y divide-border/40">
+      {query.data!.needsRepair && <div className="pb-3" role="alert"><p className="text-sm">Some saved options are unavailable. Repairing keeps recognized choices, sets unavailable choices to Only me, and removes unrecognized fields.</p><Button variant="outline" disabled={saving} onClick={() => void save({ repair: true })}>Repair unavailable options</Button></div>}
+      {Object.entries(FIELD_LABELS).map(([field, label]) => <fieldset key={field} className="py-3 first:pt-0 last:pb-0" disabled={saving || query.data!.needsRepair}>
+        <legend className="text-sm font-medium mb-2">{label}</legend>
+        {query.data!.fields[field as ProfileVisibilityField] === 'unavailable' && <p className="text-xs text-muted-foreground mb-2">Unavailable until repaired</p>}
+        <div className="flex flex-wrap gap-1.5">{LEVELS.map(({ value, label: option, icon: Icon }) => <button key={value} type="button"
+          aria-pressed={canonical(query.data!.fields[field as ProfileVisibilityField]) === value}
+          onClick={() => void save({ field: field as ProfileVisibilityField, level: value })}
+          className={cn('inline-flex min-h-11 items-center gap-1 text-[11px] font-semibold px-2.5 rounded-full border transition-colors', canonical(query.data!.fields[field as ProfileVisibilityField]) === value ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted')}>
+          <Icon className="h-3 w-3" />{option}</button>)}</div>
+      </fieldset>)}
+      <p className="pt-3 text-xs text-muted-foreground">Close friends uses the list you manage in Privacy. These choices control profile sections; they do not retract content or media you already shared elsewhere.</p>
+    </SettingsPanel>}
+  </SettingsSectionCard>;
 }

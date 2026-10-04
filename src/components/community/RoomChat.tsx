@@ -11,7 +11,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { ServerSafetyGate } from './ServerSafetyGate';
+import { PrivateCommunityAttachment } from './PrivateCommunityAttachment';
+import { CommunityAttachmentComposer } from './CommunityAttachmentComposer';
 import { useChannelMessages, useSendChannelMessage, ChannelMessage, useMyServerRole } from '@/hooks/useServers';
 import { useAuth } from '@/lib/auth';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -181,6 +182,7 @@ export const RoomChat = memo(function RoomChat({
       {/* Input - pinned at bottom via flex shrink-0 */}
       {canPost ? (
         <div className="shrink-0 px-3 py-3 border-t border-border/50 bg-card/95 backdrop-blur-md z-10 vybe-chat-composer">
+          <CommunityAttachmentComposer channelId={roomId} disabled={permissions?.can_attach_media !== true} />
           <div className="flex items-center gap-2">
             <Input
               ref={inputRef}
@@ -377,13 +379,9 @@ const MessageBubble = memo(function MessageBubble({
           </div>
 
           {/* Media - with safety gating */}
-          {message.media_url && (message.media_type === 'image' || message.media_type === 'video') && (
+          {(message.attachment_id || message.media_url) && (
             <div className="mt-2">
-              <ServerSafetyGate
-                mediaUrl={message.media_url}
-                mediaType={message.media_type}
-                className="max-w-xs"
-              />
+  <PrivateCommunityAttachment messageId={message.id} attachmentId={message.attachment_id ?? undefined} legacyUrl={message.media_url} mediaType={message.media_type} />
             </div>
           )}
         </div>

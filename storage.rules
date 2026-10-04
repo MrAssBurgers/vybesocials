@@ -52,6 +52,14 @@ service firebase.storage {
       allow create, update: if isOwner(userId) && smallEnough();
       allow delete: if isOwner(userId);
     }
+    // Attachments are reserved by the server, uploaded once, then delivered
+    // only through authenticated message access. No raw bearer URL is shared.
+    match /community-private/{allPaths=**} {
+      // HTTP upload selects a server-owned token-free object; no browser can
+      // enumerate it, mint download tokens, replace bytes or delete a candidate.
+      allow read, write: if false;
+    }
+
     // Personal notification tones are not shared with other accounts. Firebase
     // download URLs are bearer links; client metadata remains owner-readable.
     match /custom-sounds/{userId}/{fileName} {

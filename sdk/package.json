@@ -1,0 +1,18 @@
+{
+  "name": "@vybe/integration-sdk",
+  "version": "0.1.0-pilot",
+  "private": true,
+  "description": "VYBE consent and private capture integration for apps, games, mods and tools",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/universal/index.js",
+  "types": "./dist/universal/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/universal/index.d.ts", "import": "./dist/universal/index.js" },
+    "./partner": { "types": "./dist/game/http.d.ts", "import": "./dist/game/http.js" },
+    "./game": { "types": "./dist/game/index.d.ts", "import": "./dist/game/index.js" }
+  },
+  "files": ["dist", "README.md"],
+  "engines": { "node": ">=22" },
+  "scripts": { "build": "node build.mjs", "prepack": "node build.mjs" }
+}

@@ -10,6 +10,8 @@ interface ProfileAboutSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   profile: ProfileViewProfile;
+  showBio?: boolean;
+  showOtherDetails?: boolean;
   showLocation?: boolean;
   showBirthday?: boolean;
   showPronouns?: boolean;
@@ -19,19 +21,21 @@ export function ProfileAboutSheet({
   open,
   onOpenChange,
   profile,
+  showBio = false,
+  showOtherDetails = false,
   showLocation,
   showBirthday,
   showPronouns,
 }: ProfileAboutSheetProps) {
   const rows: { label: string; value: string }[] = [];
-  if (profile.bio) rows.push({ label: 'Bio', value: profile.bio });
+  if (showBio && profile.bio) rows.push({ label: 'Bio', value: profile.bio });
   if (showPronouns && profile.pronouns) rows.push({ label: 'Pronouns', value: profile.pronouns });
   if (showLocation && profile.location) rows.push({ label: 'Location', value: profile.location });
   if (showBirthday && profile.date_of_birth) {
     rows.push({ label: 'Birthday', value: profile.date_of_birth });
   }
-  if (profile.link_url) rows.push({ label: 'Link', value: profile.link_url });
-  if (profile.created_at) {
+  if (showOtherDetails && profile.link_url) rows.push({ label: 'Link', value: profile.link_url });
+  if (showOtherDetails && profile.created_at) {
     rows.push({
       label: 'Joined',
       value: new Date(profile.created_at).toLocaleDateString(undefined, {

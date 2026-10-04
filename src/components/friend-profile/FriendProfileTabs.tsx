@@ -4,7 +4,6 @@ import { cn } from '@/lib/utils';
 import { PostsTab } from './tabs/PostsTab';
 import { ClipsTab } from './tabs/ClipsTab';
 import { StoriesTab } from './tabs/StoriesTab';
-import { SharedTab } from './tabs/SharedTab';
 
 const TABS = [
   { id: 'posts', label: 'Posts', icon: Grid },
@@ -24,13 +23,12 @@ interface FriendProfileTabsProps {
 
 export const FriendProfileTabs = memo(function FriendProfileTabs({
   profileId,
-  otherProfileId,
   visibility,
   className,
 }: FriendProfileTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>('posts');
 
-  const can = (field: string) => visibility?.[field] !== false;
+  const can = (field: string) => visibility?.[field] === true;
 
   return (
     <div className={cn('space-y-3', className)}>
@@ -39,6 +37,7 @@ export const FriendProfileTabs = memo(function FriendProfileTabs({
           <button
             key={id}
             type="button"
+            disabled={!can(id)}
             onClick={() => setActiveTab(id)}
             className={cn(
               'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors',
@@ -68,7 +67,7 @@ export const FriendProfileTabs = memo(function FriendProfileTabs({
         <p className="text-sm text-muted-foreground text-center py-8">Stories are hidden</p>
       )}
 
-      {activeTab === 'shared' && <SharedTab otherProfileId={otherProfileId} />}
+      {activeTab === 'shared' && <p className="text-sm text-muted-foreground text-center py-8">Shared content is unavailable here.</p>}
     </div>
   );
 });

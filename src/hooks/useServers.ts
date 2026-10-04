@@ -66,6 +66,7 @@ export interface ChannelMessage {
   content: string | null;
   media_url: string | null;
   media_type: string | null;
+  attachment_id?: string | null;
   is_pinned: boolean;
   is_deleted: boolean;
   is_edited: boolean;

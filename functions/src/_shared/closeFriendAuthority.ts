@@ -1,6 +1,6 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
-import { closeFriendAuthorityId, hasCloseFriendAuthority, resolveIdentity } from './storyReadAuthority.js';
+import { closeFriendAuthorityId, hasCloseFriendAuthority, resolveIdentity } from './profileAudienceAuthority.js';
 type Row = Record<string, unknown>;
 const validId = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 128 && !value.includes('/');
 const validProof = (row: Row, id: string, uid: string) => row.version === 1 && row.owner_uid === uid && validId(row.owner_profile_id)

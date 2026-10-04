@@ -3,12 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({ failed: false, refetch: vi.fn() }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 'alice' }, profile: { id: 'alice-profile' } }) }));
 vi.mock('@/hooks/useServers', () => ({
- useChannelMessages: () => ({ data: [{ id: 'private-message', content: 'Private history', sender_id: 'bob', created_at: '2026-10-01T12:00:00Z', media_url: 'https://example.invalid/private', media_type: 'image' }], isError: state.failed, isLoading: false, refetch: state.refetch }),
+ useChannelMessages: () => ({ data: [{ id: 'private-message', content: 'Private history', sender_id: 'bob', created_at: '2026-10-01T12:00:00Z', attachment_id: 'asset', media_url: null, media_type: 'image' }], isError: state.failed, isLoading: false, refetch: state.refetch }),
  useSendChannelMessage: () => ({ mutateAsync: vi.fn(), isPending: false }), useMyServerRole: () => ({ data: 'member' }),
 }));
 vi.mock('@/hooks/useChannelPermissions', () => ({ useMyChannelPermissions: () => ({ data: { can_send: true } }) }));
 vi.mock('./useCommunityMessageActions', () => ({ useCommunityMessageActions: () => ({ dialog: null }) }));
-vi.mock('./ServerSafetyGate', () => ({ ServerSafetyGate: ({ mediaUrl }: { mediaUrl: string }) => <img src={mediaUrl} alt="private attachment" /> }));
+vi.mock('./PrivateCommunityAttachment', () => ({ PrivateCommunityAttachment: () => <img src="blob:private-fixture" alt="private attachment" /> }));
+vi.mock('./CommunityAttachmentComposer', () => ({ CommunityAttachmentComposer: () => null }));
 vi.mock('@/components/chat/EmojiPicker', () => ({ EmojiPicker: () => null }));
 import { ChannelChat } from './ChannelChat';
 import { RoomChat } from './RoomChat';

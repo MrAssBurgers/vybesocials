@@ -12,6 +12,20 @@ export function localPreviewFunctionsProxy(enabled: boolean): Record<string, Pro
       // Returning false asks Vite to reject the request with 404, without forwarding.
       bypass: request => request.method === 'POST' || request.method === 'OPTIONS' ? undefined : false,
     },
+    '^/demo-vybe-preview/us-central1/communityAttachmentBytes/attachment_[a-f0-9]{64}$': {
+      target: 'http://127.0.0.1:5101',
+      changeOrigin: true,
+      followRedirects: false,
+      ws: false,
+      bypass: request => ['GET', 'HEAD', 'OPTIONS'].includes(request.method || '') ? undefined : false,
+    },
+    '^/demo-vybe-preview/us-central1/communityAttachmentBytes/uploads/[a-f0-9]{64}$': {
+      target: 'http://127.0.0.1:5101',
+      changeOrigin: true,
+      followRedirects: false,
+      ws: false,
+      bypass: request => ['PUT', 'OPTIONS'].includes(request.method || '') ? undefined : false,
+    },
   };
 }
 

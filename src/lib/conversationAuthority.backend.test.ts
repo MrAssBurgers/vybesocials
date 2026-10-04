@@ -21,7 +21,7 @@ vi.mock('../../functions/src/_shared/admin.js', () => {
     return {
       path: `query:${name}:${JSON.stringify(filters)}:${limit}`,
       read: () => entries(),
-      get: async () => { const docs = entries().map(([path]) => snapshot(path)); return { docs, empty: docs.length === 0 }; },
+      get: async () => { const docs = entries().map(([path]) => snapshot(path)); return { docs, empty: docs.length === 0, size: docs.length }; },
       where: (field: string, operator: string, value: unknown) => { if (operator !== '==') throw new Error('Unexpected query'); return query(name, [...filters, [field, value]], limit); },
       limit: (value: number) => query(name, filters, value),
     };
@@ -309,6 +309,21 @@ describe('room tokens require verified authority before minting', () => {
     await expect(community()).rejects.toMatchObject({ code: 'permission-denied' });
     trustedCommunity();
     await expect(community()).resolves.toMatchObject({ room: communityRoom() });
+  });
+  it('rejects a colliding UID/profile alias before borrowing community ownership', async () => {
+    trustedCommunity(); state.rows.set('profiles/auth-a', { user_id: 'auth-b' });
+    state.rows.set('servers/server-one', { owner_id: 'auth-a', is_public: false });
+    await expect(community()).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(state.mints).toBe(0); expect(state.writes).toEqual([]);
+  });
+  it('rechecks profile identity inside the admission transaction before minting', async () => {
+    trustedCommunity();
+    state.afterRead = path => {
+      if (path !== 'community_admissions/auth-a/grants/server-one') return;
+      state.afterRead = null; state.rows.set('user_auth_index/auth-a', { profile_id: 'profile-b' });
+    };
+    await expect(community()).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(state.mints).toBe(0); expect(state.writes).toEqual([]);
   });
   it.each([undefined, 'text', 'voice'])('supports migrated live rooms with type %s', async type => {
     trustedCommunity();

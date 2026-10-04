@@ -21,6 +21,7 @@ import { latestPageAddsVisiblePosts } from '@/lib/feedContinuation';
 import { flattenUniqueFeedPosts, shouldHandleFeedShortcut } from '@/lib/feedReliability';
 import { readClipsMutedPreference, writeClipsMutedPreference } from '@/lib/videoPlayback';
 import { ClipsLongVideosPanel } from '@/components/clips/ClipsLongVideosPanel';
+import { ClipsEmptyState } from '@/components/explore/ClipsEmptyState';
 import {
   CLIPS_BOTTOM_UI_OFFSET,
   loadClipsFeedTab,
@@ -274,7 +275,7 @@ export default function ClipsPage() {
 
   if (activeQuery.isError && shorts.length === 0) {
     return <AppLayout hideNav fullWidth noPadding>
-      <ClipsFeedHeader active={feedTab} onChange={handleFeedTabChange} />
+      <ClipsFeedHeader active={feedTab} onChange={handleFeedTabChange} surface="theme" />
       <div className="flex min-h-dvh items-center justify-center bg-background px-5 py-28">
         <FeedFailureNotice label="clips" retrying={activeQuery.isFetching} onRetry={() => { void activeQuery.refetch(); }} />
       </div>
@@ -285,31 +286,31 @@ export default function ClipsPage() {
     return (
       <AppLayout hideNav fullWidth noPadding>
         <div
-          className="flex items-center justify-center bg-black px-4"
-          style={{ height: containerHeight }}
+          className="clips-empty-screen"
+          style={{ minHeight: containerHeight }}
         >
-          <ClipsFeedHeader active={feedTab} onChange={handleFeedTabChange} />
-          <div className="flex flex-col items-center">
+          <ClipsFeedHeader active={feedTab} onChange={handleFeedTabChange} surface="theme" />
+          <div className="relative flex w-full flex-col items-center">
             <FeedEmptyPage hasMore={hasNextPage} loading={isFetchingNextPage} onLoadMore={() => { void fetchNextPage(); }}>
-            <EmptyState
-              emoji={feedTab === 'following' ? '👥' : '🎬'}
-              title={feedTab === 'following' ? 'No clips from people you follow' : 'No clips yet'}
+            <ClipsEmptyState
+              title={feedTab === 'following' ? 'Make this feed your own' : undefined}
               description={
                 feedTab === 'following'
-                  ? 'Follow creators to fill your Following feed'
-                  : 'Be the first to upload a clip'
+                  ? 'Follow creators you love and their latest clips will find a home here.'
+                  : undefined
               }
-              actionLabel={feedTab === 'following' ? 'Discover creators' : 'Upload clip'}
+              actionLabel={feedTab === 'following' ? 'Discover creators' : 'Create a clip'}
               onAction={() => navigate(feedTab === 'following' ? '/explore' : '/upload')}
+              onBrowseVideos={() => handleFeedTabChange('videos')}
             />
             </FeedEmptyPage>
-            <button
+            {hasNextPage && <button
               type="button"
               onClick={() => handleFeedTabChange('videos')}
-              className="mt-4 text-sm font-semibold text-primary hover:underline"
+              className="clips-empty-browse"
             >
-              Browse long videos →
-            </button>
+              Browse videos
+            </button>}
           </div>
         </div>
       </AppLayout>

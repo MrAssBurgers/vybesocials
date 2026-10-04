@@ -45,7 +45,10 @@ body {
 }
 
 .vybe-loading-shell {
-  background: hsl(var(--background, 240 6% 5%));
+  background:
+    radial-gradient(ellipse 100% 80% at 12% 20%, hsl(var(--primary, 330 88% 62%) / .16), transparent 72%),
+    radial-gradient(ellipse 100% 75% at 95% 82%, hsl(var(--accent, 185 82% 55%) / .14), transparent 72%),
+    hsl(var(--background, 238 24% 9%));
 }
 
 /* Boot splash — ambient mesh inside #vybe-static-boot is the background (no flat overlay). */

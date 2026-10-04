@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { db, enforceRateLimit, rateLimit, requireAuth } from './_shared/admin.js';
+import { closeFriendAuthorityId, normalizeProfileVisibilityRequest, resolveProfileAudience } from './_shared/profileAudienceAuthority.js';
 import { areFriends, friendshipPairId, isBlocked, resolveProfileId, } from './_shared/friendship.js';
 function requestId(senderId, receiverId) {
     return `${senderId}_${receiverId}`;
@@ -92,8 +93,13 @@ export const getFriendshipState = onCall({ region: 'us-central1', invoker: 'publ
  */
 export const mutateFriendship = onCall({ region: 'us-central1', invoker: 'public' }, async (request) => {
     const authUid = requireAuth(request);
-    const profileId = await resolveProfileId(authUid);
     const data = (request.data || {});
+    // Updated callers bind the initiating account before any identity/database work.
+    // Older callers remain compatible while they migrate to the captured actor contract.
+    if (Object.hasOwn(data, 'expectedOwnerUid') && data.expectedOwnerUid !== authUid) {
+        throw new HttpsError('failed-precondition', 'Your account changed. Reopen this profile.');
+    }
+    const profileId = await resolveProfileId(authUid);
     const action = data.action;
     if (!['send', 'cancel', 'accept', 'decline', 'unfriend'].includes(action)) {
         throw new HttpsError('invalid-argument', 'Invalid friendship action');
@@ -306,19 +312,6 @@ export const mutateFriendship = onCall({ region: 'us-central1', invoker: 'public
     }
     return { ok: true, request_id: suppliedRequestId, ...result };
 });
-const DEFAULT_VISIBILITY = {
-    bio: 'friends',
-    followers: 'public',
-    following: 'public',
-    level: 'friends',
-    activity: 'friends',
-    location: 'friends',
-    posts: 'public',
-    clips: 'public',
-    stories: 'friends',
-    mutual_friends: 'friends',
-    vybe_dna: 'friends',
-};
 async function countMessagesBetween(a, b) {
     const convSnap = await db.collection('conversations')
         .where('member_ids', 'array-contains', a)
@@ -412,27 +405,9 @@ export const scheduledRefreshFriendshipPairs = onSchedule({ schedule: 'every 6 h
 });
 export const resolveProfileVisibility = onCall({ region: 'us-central1' }, async (request) => {
     const authUid = requireAuth(request);
-    const viewerId = await resolveProfileId(authUid);
-    const data = (request.data || {});
-    const targetId = String(data.target_id || data.targetId || '');
-    if (!targetId)
-        throw new HttpsError('invalid-argument', 'target_id required');
-    const visSnap = await db.collection('profile_visibility').doc(targetId).get();
-    const settings = { ...DEFAULT_VISIBILITY, ...(visSnap.data()?.fields || {}) };
-    const isSelf = viewerId === targetId;
-    const friends = isSelf || (await areFriends(viewerId, targetId));
-    const resolved = {};
-    for (const [field, level] of Object.entries(settings)) {
-        if (level === 'public' || level === 'everyone')
-            resolved[field] = true;
-        else if (level === 'only_me' || level === 'private')
-            resolved[field] = isSelf;
-        else if (level === 'friends' || level === 'close_friends')
-            resolved[field] = friends;
-        else
-            resolved[field] = friends;
-    }
-    return { ok: true, fields: resolved, settings };
+    normalizeProfileVisibilityRequest(request.data, authUid);
+    enforceRateLimit(await rateLimit(`profile-audience:${closeFriendAuthorityId(authUid, 'rate')}`, 60, 60));
+    return resolveProfileAudience(db, authUid, request.data);
 });
 export const indexSharedContent = onCall({ region: 'us-central1' }, async (request) => {
     const authUid = requireAuth(request);

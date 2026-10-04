@@ -67,6 +67,7 @@ export * from './purgeUnsavedOnLeave.js';
 export * from './profilePrivacy.js';
 export * from './premiumGifts.js';
 export * from './community.js';
+export { communityAttachment, communityAttachmentBytes } from './communityAttachment.js';
 export * from './badgeAuthority.js';
 export * from './tokenMarketplace.js';
 export * from './reportModeration.js';

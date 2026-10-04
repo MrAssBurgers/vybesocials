@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useProfileSectionQuery } from '@/features/profile/hooks/useProfileSectionQuery';
 import { Link } from 'react-router-dom';
 import { db } from '@/lib/firebase';
 import {
@@ -28,9 +28,7 @@ export function FollowersFollowingSheet({
   mode,
   username,
 }: FollowersFollowingSheetProps) {
-  const { data: users, isLoading } = useQuery({
-    queryKey: ['follow-list', profileId, mode],
-    queryFn: async () => {
+  const { data: users, isLoading, isError, refetch } = useProfileSectionQuery(['follow-list', profileId, mode], open && !!profileId, async guard => {
       const field = mode === 'followers' ? 'following_id' : 'follower_id';
       const joinField = mode === 'followers' ? 'follower_id' : 'following_id';
 
@@ -42,6 +40,7 @@ export function FollowersFollowingSheet({
 
       if (error) throw error;
 
+      guard();
       const userIds = [...new Set((rows || []).map((r) => r[joinField]).filter(Boolean))];
       if (!userIds.length) return [];
 
@@ -52,20 +51,23 @@ export function FollowersFollowingSheet({
         display_name: string | null;
       }> = [];
 
+      guard();
       for (let i = 0; i < userIds.length; i += 10) {
+        guard();
         const chunk = userIds.slice(i, i + 10);
-        const { data: batch } = await db
+        const { data: batch, error: batchError } = await db
           .from('profiles')
           .select('id, username, avatar_url, display_name')
           .in('id', chunk);
+        guard();
+        if (batchError) throw batchError;
         profiles.push(...(batch || []));
       }
 
+      guard();
       return profiles.sort((a, b) => a.username.localeCompare(b.username));
-    },
-    enabled: open && !!profileId,
-    staleTime: 60_000,
-  });
+    }
+  );
 
   const title =
     mode === 'followers'
@@ -92,6 +94,8 @@ export function FollowersFollowingSheet({
                 </div>
               ))}
             </div>
+          ) : isError ? (
+            <div role="alert" className="p-4"><p>This list is unavailable.</p><button type="button" className="min-h-11 text-primary" onClick={() => void refetch()}>Retry list</button></div>
           ) : !users?.length ? (
             <p className="text-sm text-muted-foreground text-center py-10 px-4">
               {mode === 'followers' ? 'No followers yet.' : 'Not following anyone yet.'}

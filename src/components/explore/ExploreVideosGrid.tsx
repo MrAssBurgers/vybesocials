@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { VideoCard } from './VideoCard';
 import { MediaSkeleton } from '@/components/ui/MediaFallback';
 
@@ -25,11 +25,13 @@ interface VideoPost {
 interface ExploreVideosGridProps {
   videos: VideoPost[];
   isLoading: boolean;
+  hasFilters?: boolean;
 }
 
 export const ExploreVideosGrid = memo(function ExploreVideosGrid({
   videos,
   isLoading,
+  hasFilters = false,
 }: ExploreVideosGridProps) {
   if (isLoading) {
     return (
@@ -58,13 +60,13 @@ export const ExploreVideosGrid = memo(function ExploreVideosGrid({
 
   if (videos.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-neon-pink/20 to-neon-cyan/20 flex items-center justify-center mb-4 border border-border/50">
-          <Search className="h-8 w-8 text-primary drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" />
+      <div className="flex flex-col items-center justify-center py-4">
+        <div className="w-14 h-14 rounded-[22px] bg-primary/5 flex items-center justify-center mb-3">
+          <Search className="h-8 w-8 text-foreground/65" strokeWidth={1.5} />
         </div>
-        <h3 className="text-xl font-semibold mb-2 text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">No videos found</h3>
-        <p className="text-foreground/80 text-center max-w-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
-          Try searching for something else or browse trending tags above
+        <h3 className="text-xl font-semibold mb-2 text-foreground tracking-tight">{hasFilters ? 'No matching videos yet' : 'A little quiet here'}</h3>
+        <p className="text-muted-foreground text-[13px] leading-5 text-center max-w-xs">
+          {hasFilters ? 'Try another search or category to find your next favorite.' : 'New videos will appear here. Share something worth watching.'}
         </p>
       </div>
     );

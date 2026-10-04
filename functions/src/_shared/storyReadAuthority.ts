@@ -1,11 +1,11 @@
-import type { Firestore, Transaction } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { storyStoragePath } from './storyPublishAuthority.js';
-import { createHash } from 'node:crypto';
+import { closeFriendAuthorityId, hasCloseFriendAuthority, resolveIdentity, type AudienceIdentity as Identity } from './profileAudienceAuthority.js';
+export { closeFriendAuthorityId } from './profileAudienceAuthority.js';
 
 type Row = Record<string, unknown>;
-type Identity = { uid: string; profileId: string; aliases: string[]; row: Row };
 const text = (value: unknown, max: number) => typeof value === 'string' && value.length <= max ? value : null;
 function safePoll(value: unknown): Row | null | false {
   if (value == null) return null;
@@ -17,11 +17,6 @@ function safePoll(value: unknown): Row | null | false {
 }
 const validId = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 128 && !value.includes('/');
 const unavailable = () => new HttpsError('failed-precondition', 'Your story identity could not be verified. Refresh your profile and retry.');
-export const closeFriendAuthorityId = (ownerUid: string, friendUid: string) => createHash('sha256').update(JSON.stringify([ownerUid, friendUid])).digest('hex');
-export function hasCloseFriendAuthority(row: Row | undefined, author: Identity, viewer: Identity) {
-  return row?.version === 1 && row.owner_uid === author.uid && row.owner_profile_id === author.profileId
-    && row.friend_uid === viewer.uid && row.friend_profile_id === viewer.profileId && row.enabled === true;
-}
 export type StoryListInput = { expectedOwnerUid: string; expectedProfileId: string; cursor?: string; authorId?: string; storyIds?: string[] };
 
 export function normalizeStoryListInput(raw: unknown, uid: string): StoryListInput {
@@ -33,23 +28,6 @@ export function normalizeStoryListInput(raw: unknown, uid: string): StoryListInp
     || (value.cursor !== undefined && !validId(value.cursor)) || (value.authorId !== undefined && !validId(value.authorId))
     || (value.storyIds !== undefined && (!Array.isArray(value.storyIds) || value.storyIds.length < 1 || value.storyIds.length > 50 || value.storyIds.some(id => !validId(id))))) throw new HttpsError('invalid-argument', 'Invalid story selection.');
   return value as StoryListInput;
-}
-
-/** Resolve both historical aliases without borrowing a different account's ID. */
-export async function resolveIdentity(db: Firestore, tx: Transaction, alias: string): Promise<Identity | null> {
-  const [direct, byUid] = await Promise.all([tx.get(db.collection('profiles').doc(alias)), tx.get(db.collection('profiles').where('user_id', '==', alias).limit(2))]);
-  if (byUid.size > 1 || (direct.exists && !byUid.empty && direct.id !== byUid.docs[0].id)) return null;
-  const profile = direct.exists ? direct : byUid.docs[0];
-  if (!profile) return null;
-  const row = profile.data()!; const uid = row.user_id;
-  if (!validId(uid) || row.deleted_at || row.is_deleted === true) return null;
-  const [unique, index, uidDoc, aliasOwner] = await Promise.all([
-    tx.get(db.collection('profiles').where('user_id', '==', uid).limit(2)), tx.get(db.collection('user_auth_index').doc(uid)),
-    tx.get(db.collection('profiles').doc(uid)), tx.get(db.collection('profiles').where('user_id', '==', profile.id).limit(2)),
-  ]);
-  if (unique.size !== 1 || unique.docs[0].id !== profile.id || (index.exists && index.data()?.profile_id !== profile.id)
-    || (uidDoc.exists && uidDoc.id !== profile.id) || (profile.id !== uid && !aliasOwner.empty)) return null;
-  return { uid, profileId: profile.id, aliases: [...new Set([uid, profile.id])], row };
 }
 
 /** Existing download tokens only: no token creation, signing, or remote URL fetch. */

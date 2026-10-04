@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useProfileSectionQuery } from '@/features/profile/hooks/useProfileSectionQuery';
 import { Link } from 'react-router-dom';
 import { db } from '@/lib/firebase';
 import {
@@ -25,9 +25,7 @@ export function FriendsListSheet({
   profileId,
   username,
 }: FriendsListSheetProps) {
-  const { data: users, isLoading } = useQuery({
-    queryKey: ['profile-friends-list', profileId],
-    queryFn: async () => {
+  const { data: users, isLoading, isError, refetch } = useProfileSectionQuery(['profile-friends-list', profileId], open && !!profileId, async guard => {
       const [asSender, asReceiver] = await Promise.all([
         db
           .from('friend_requests')
@@ -43,6 +41,8 @@ export function FriendsListSheet({
           .limit(200),
       ]);
 
+      guard();
+      if (asSender.error || asReceiver.error) throw new Error('Friends could not be loaded.');
       const ids = [
         ...(asSender.data || []).map((r) => (r as { receiver_id: string }).receiver_id),
         ...(asReceiver.data || []).map((r) => (r as { sender_id: string }).sender_id),
@@ -58,20 +58,23 @@ export function FriendsListSheet({
         display_name: string | null;
       }> = [];
 
+      guard();
       for (let i = 0; i < unique.length; i += 10) {
+        guard();
         const chunk = unique.slice(i, i + 10);
-        const { data: batch } = await db
+        const { data: batch, error: batchError } = await db
           .from('profiles')
           .select('id, username, avatar_url, display_name')
           .in('id', chunk);
+        guard();
+        if (batchError) throw batchError;
         profiles.push(...((batch || []) as typeof profiles));
       }
 
+      guard();
       return profiles.sort((a, b) => a.username.localeCompare(b.username));
-    },
-    enabled: open && !!profileId,
-    staleTime: 60_000,
-  });
+    }
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -87,7 +90,8 @@ export function FriendsListSheet({
                 <Skeleton className="h-4 w-32" />
               </div>
             ))}
-          {!isLoading && !(users || []).length && (
+          {isError && <div role="alert"><p>This list is unavailable.</p><button type="button" className="min-h-11 text-primary" onClick={() => void refetch()}>Retry list</button></div>}
+          {!isLoading && !isError && !(users || []).length && (
             <p className="py-8 text-center text-sm text-muted-foreground">No friends to show.</p>
           )}
           {(users || []).map((u) => (

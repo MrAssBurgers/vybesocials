@@ -1,4 +1,4 @@
-import type { CaptureMime, CaptureReceipt, CaptureRequest } from './index';
+import type { CaptureMime, CaptureReceipt, CaptureRequest } from './index.js';
 
 export const PARTNER_CHUNK_BYTES = 8 * 1024 * 1024;
 const MAX_CAPTURE_BYTES = 48 * 1024 * 1024;
@@ -114,6 +114,13 @@ export class VybePartnerClient {
     if (!this.#session || this.#session.expiresAt <= Date.now()) { this.#session = null; return null; }
     const { connectionId, expiresAt, scopes } = this.#session;
     return { connectionId, expiresAt, scopes: [...scopes] };
+  }
+
+  /** Forget local credentials without implying server revocation. */
+  clearLocalAuthorization(): void {
+    ++this.#linkGeneration;
+    this.#device = null;
+    this.#session = null;
   }
 
   async startDeviceAuthorization(options: { signal?: AbortSignal } = {}): Promise<PartnerDeviceLink> {

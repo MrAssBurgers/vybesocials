@@ -6,7 +6,7 @@ describe('fixed local QA Functions proxy', () => {
   it('is absent outside explicit local QA', () => { expect(localPreviewFunctionsProxy(false)).toBeUndefined(); });
   it('pins the only target without rewriting paths or following redirects', () => {
     const entries = Object.entries(localPreviewFunctionsProxy(true)!);
-    expect(entries).toHaveLength(1);
+    expect(entries).toHaveLength(3);
     expect(entries[0][1]).toMatchObject({ target: 'http://127.0.0.1:5101', changeOrigin: true, followRedirects: false, ws: false });
     expect(entries[0][1].rewrite).toBeUndefined();
   });
@@ -29,6 +29,48 @@ describe('fixed local QA Functions proxy', () => {
   it.each(['POST', 'OPTIONS'])('forwards the normal callable method %s', method => {
     const options = Object.values(localPreviewFunctionsProxy(true)!)[0];
     expect(options.bypass!({ method } as IncomingMessage, {} as ServerResponse, options)).toBeUndefined();
+  });
+});
+
+describe('private attachment QA byte route', () => {
+  const entry = Object.entries(localPreviewFunctionsProxy(true)!)[1];
+  const route = '/demo-vybe-preview/us-central1/communityAttachmentBytes/attachment_' + 'a'.repeat(64);
+  it('pins authenticated byte requests to the demo Functions server', () => {
+    expect(new RegExp(entry[0]).test(route)).toBe(true);
+    expect(entry[1]).toMatchObject({ target: 'http://127.0.0.1:5101', followRedirects: false, ws: false });
+    expect(entry[1].rewrite).toBeUndefined();
+  });
+  it.each(['GET', 'HEAD', 'OPTIONS'])('allows byte read method %s', method => {
+    expect(entry[1].bypass!({ method } as IncomingMessage, {} as ServerResponse, entry[1])).toBeUndefined();
+  });
+  it.each(['POST', 'PUT', 'DELETE', 'CONNECT', undefined])('rejects method %s', method => {
+    expect(entry[1].bypass!({ method } as IncomingMessage, {} as ServerResponse, entry[1])).toBe(false);
+  });
+  it.each(['?token=secret', '/extra', '/../other', '%2Fextra'])('rejects appended paths or credentials %s', suffix => {
+    expect(new RegExp(entry[0]).test(route + suffix)).toBe(false);
+  });
+  it('rejects other projects and malformed attachment IDs', () => {
+    expect(new RegExp(entry[0]).test(route.replace('demo-vybe-preview', 'real-project'))).toBe(false);
+    expect(new RegExp(entry[0]).test(route.slice(0, -1))).toBe(false);
+  });
+});
+
+describe('private attachment QA upload route', () => {
+  const entry = Object.entries(localPreviewFunctionsProxy(true)!)[2];
+  const route = '/demo-vybe-preview/us-central1/communityAttachmentBytes/uploads/' + 'a'.repeat(64);
+  it('allows only the demo reservation upload route', () => {
+    expect(new RegExp(entry[0]).test(route)).toBe(true);
+    expect(new RegExp(entry[0]).test(route.replace('demo-vybe-preview', 'real-project'))).toBe(false);
+    expect(entry[1]).toMatchObject({ target: 'http://127.0.0.1:5101', followRedirects: false, ws: false });
+  });
+  it.each(['PUT', 'OPTIONS'])('allows upload method %s', method => {
+    expect(entry[1].bypass!({ method } as IncomingMessage, {} as ServerResponse, entry[1])).toBeUndefined();
+  });
+  it.each(['GET', 'POST', 'DELETE', 'HEAD', undefined])('rejects method %s', method => {
+    expect(entry[1].bypass!({ method } as IncomingMessage, {} as ServerResponse, entry[1])).toBe(false);
+  });
+  it.each(['?token=secret', '/extra', '/../../other'])('rejects extra path and query %s', suffix => {
+    expect(new RegExp(entry[0]).test(route + suffix)).toBe(false);
   });
 });
 

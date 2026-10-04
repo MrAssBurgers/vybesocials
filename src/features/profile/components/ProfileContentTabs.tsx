@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Play } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { usePosts } from '@/hooks/usePosts';
+import { getDocumentFromServer, getDocumentsFromServer, where, firestoreLimit } from '@/lib/firebase/firestoreDb';
+import { useProfileSectionQuery } from '../hooks/useProfileSectionQuery';
 import { Skeleton } from '@/components/ui/skeleton';
 import { VideoThumbnail } from '@/components/ui/VideoThumbnail';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { cn } from '@/lib/utils';
-import { useTaggedPosts } from '../hooks/useTaggedPosts';
 import { formatProfileStat } from './ProfileCoverHero';
 
 type ContentTab = 'posts' | 'clips' | 'tagged';
@@ -16,36 +16,45 @@ interface ProfileContentTabsProps {
   profileId: string;
   canViewPosts?: boolean;
   canViewClips?: boolean;
+  canViewTagged?: boolean;
   className?: string;
 }
 
 export function ProfileContentTabs({
   profileId,
-  canViewPosts = true,
-  canViewClips = true,
+  canViewPosts = false,
+  canViewClips = false,
+  canViewTagged = false,
   className,
 }: ProfileContentTabsProps) {
   const reduceMotion = useReducedMotion();
-  const { data: allPosts, isLoading } = usePosts(undefined, profileId, {
-    enabled: !!profileId,
+  const [activeTab, setActiveTab] = useState<ContentTab>('posts');
+  const allowed = { posts: canViewPosts, clips: canViewClips, tagged: canViewTagged };
+  const content = useProfileSectionQuery(['content', profileId, activeTab], !!profileId && allowed[activeTab], async guard => {
+    if (activeTab === 'tagged') {
+      const tags = await getDocumentsFromServer('post_user_tags', [where('tagged_user_id', '==', profileId), firestoreLimit(60)]); guard();
+      const ids = [...new Set(tags.map(row => row.post_id).filter((id): id is string => typeof id === 'string' && !id.includes('/')))];
+      const posts = [];
+      for (const id of ids) { guard(); const row = await getDocumentFromServer('posts', id); guard(); if (row) posts.push(row); }
+      return posts;
+    }
+    const profile = await getDocumentFromServer('profiles', profileId); guard();
+    const aliases = [...new Set([profileId, ...(typeof profile?.user_id === 'string' ? [profile.user_id] : [])])];
+    const types = activeTab === 'clips' ? ['short'] : ['post', 'video'];
+    const rows = [];
+    for (const type of types) {
+      guard();
+      rows.push(...await getDocumentsFromServer('posts', [where('author_id', 'in', aliases), where('type', '==', type), firestoreLimit(60)])); guard();
+    }
+    return rows;
   });
-  const taggedQuery = useTaggedPosts(profileId);
-
-  const posts = useMemo(
-    () =>
-      !canViewPosts
-        ? []
-        : (allPosts || []).filter((post) => post.type === 'post' || post.type === 'video'),
-    [allPosts, canViewPosts],
-  );
-  const clips = useMemo(
-    () =>
-      !canViewClips
-        ? []
-        : (allPosts || []).filter((post) => post.type === 'short'),
-    [allPosts, canViewClips],
-  );
-  const tagged = taggedQuery.data || [];
+  const allPosts = useMemo(() => (content.data || []).filter(row => row.is_draft !== true && !row.deleted_at && row.status !== 'deleted' && row.status !== 'draft')
+    .map(row => ({ id: String(row.id), post_id: String(row.id), type: String(row.type), caption: typeof row.caption === 'string' ? row.caption : '',
+      media_url: typeof row.media_url === 'string' ? row.media_url : '', thumbnail_url: typeof row.thumbnail_url === 'string' ? row.thumbnail_url : null,
+      view_count: typeof row.view_count === 'number' ? row.view_count : null })), [content.data]);
+  const posts = canViewPosts && activeTab === 'posts' ? allPosts : [];
+  const clips = canViewClips && activeTab === 'clips' ? allPosts : [];
+  const tagged = canViewTagged && activeTab === 'tagged' ? allPosts : [];
 
   const tabs: { id: ContentTab; label: string }[] = [
     { id: 'posts', label: 'Posts' },
@@ -53,13 +62,13 @@ export function ProfileContentTabs({
     { id: 'tagged', label: 'Tagged' },
   ];
 
-  const [activeTab, setActiveTab] = useState<ContentTab>('posts');
-
   useEffect(() => {
-    if (activeTab === 'posts' && !canViewPosts && canViewClips) setActiveTab('clips');
-  }, [activeTab, canViewPosts, canViewClips]);
+    if (!allowed[activeTab]) {
+      if (canViewPosts) setActiveTab('posts'); else if (canViewClips) setActiveTab('clips'); else if (canViewTagged) setActiveTab('tagged');
+    }
+  }, [activeTab, canViewPosts, canViewClips, canViewTagged]);
 
-  if (isLoading || taggedQuery.isLoading) {
+  if (content.isLoading) {
     return (
       <div className={cn('space-y-2 px-4', className)}>
         <div className="flex gap-6 border-b border-border/30 pb-2">
@@ -100,6 +109,8 @@ export function ProfileContentTabs({
               <button
                 key={tab.id}
                 type="button"
+                disabled={!allowed[tab.id]}
+                aria-selected={active}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
                   'relative flex-1 py-2.5 text-xs font-semibold transition-colors',
@@ -127,13 +138,15 @@ export function ProfileContentTabs({
         transition={{ duration: reduceMotion ? 0 : 0.15 }}
         className="px-3 pt-2"
       >
-        {activeTab === 'posts' && posts.length === 0 && (
+        {!allowed[activeTab] && <EmptyState title="Content not shared" description="This section is not available on this profile." />}
+        {content.isError && allowed[activeTab] && <div role="alert" className="py-8 text-center"><p>Content could not be loaded.</p><button type="button" className="min-h-11 text-primary" onClick={() => void content.refetch()}>Retry content</button></div>}
+        {allowed[activeTab] && !content.isError && activeTab === 'posts' && posts.length === 0 && (
           <EmptyState title={emptyCopy.posts.title} description={emptyCopy.posts.description} />
         )}
-        {activeTab === 'clips' && clips.length === 0 && (
+        {allowed[activeTab] && !content.isError && activeTab === 'clips' && clips.length === 0 && (
           <EmptyState title={emptyCopy.clips.title} description={emptyCopy.clips.description} />
         )}
-        {activeTab === 'tagged' && tagged.length === 0 && (
+        {allowed[activeTab] && !content.isError && activeTab === 'tagged' && tagged.length === 0 && (
           <EmptyState title={emptyCopy.tagged.title} description={emptyCopy.tagged.description} />
         )}
 

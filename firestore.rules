@@ -857,8 +857,29 @@ service cloud.firestore {
       allow write: if false;
     }
     match /profile_visibility/{ownerId} {
-      allow read, write: if ownsProfileId(ownerId);
+      function ownsVisibility() {
+        let profile = /databases/$(database)/documents/profiles/$(ownerId);
+        // An Auth UID cannot borrow a different person's legacy profile ID.
+        return signedIn() && ((exists(profile) && get(profile).data.user_id == uid())
+          || (ownerId == uid() && !exists(profile)));
+      }
+      function validVisibility() {
+        let row = request.resource.data;
+        return row.keys().hasOnly(['id', 'user_id', 'fields', 'created_at', 'updated_at'])
+          && row.get('id', ownerId) == ownerId && row.get('user_id', ownerId) == ownerId
+          && row.fields is map
+          && row.fields.keys().hasOnly(['bio', 'followers', 'following', 'level', 'activity',
+            'location', 'posts', 'clips', 'stories', 'mutual_friends', 'vybe_dna'])
+          && row.fields.values().hasOnly(['public', 'everyone', 'friends', 'close_friends', 'only_me', 'private'])
+          && (!('created_at' in row) || row.created_at is timestamp || (row.created_at is string && row.created_at.size() <= 64))
+          && (!('updated_at' in row) || row.updated_at is timestamp || (row.updated_at is string && row.updated_at.size() <= 64));
+      }
+      // Owners can inspect and deliberately repair malformed historical rows.
+      allow read, delete: if ownsVisibility();
+      allow create, update: if ownsVisibility() && validVisibility();
     }
+    match /_community_attachments/{assetId} { allow read, write: if false; }
+    match /_community_attachment_limits/{ownerUid} { allow read, write: if false; }
     match /shared_content_index/{docId} {
       allow read: if signedIn() && (
         ownsProfileId(resource.data.user_a) ||

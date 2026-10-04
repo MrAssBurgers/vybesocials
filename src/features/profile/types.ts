@@ -40,14 +40,17 @@ export type ProfileMenuActionId =
   | 'hide_suggestion';
 
 export interface ProfileViewCounts {
-  posts: number;
-  followers: number;
-  following: number;
-  friends: number;
+  posts: number | null;
+  followers: number | null;
+  following: number | null;
+  friends: number | null;
 }
 
 export interface ProfileViewPermissions {
   bio: boolean;
+  followers: boolean;
+  following: boolean;
+  level: boolean;
   location: boolean;
   birthday: boolean;
   pronouns: boolean;
@@ -109,6 +112,7 @@ export interface ProfileViewProfile {
   follower_count?: number;
   following_count?: number;
   is_following?: boolean;
+  equipped_profile_theme?: string | null;
 }
 
 export interface ProfileViewModel {
@@ -132,13 +136,16 @@ export interface ProfileViewModel {
 }
 
 export const DEFAULT_PERMISSIONS: ProfileViewPermissions = {
-  bio: true,
+  bio: false,
+  followers: false,
+  following: false,
+  level: false,
   location: false,
   birthday: false,
   pronouns: false,
-  posts: true,
-  clips: true,
-  stories: true,
+  posts: false,
+  clips: false,
+  stories: false,
   score: false,
   online: false,
   mutual_friends: false,

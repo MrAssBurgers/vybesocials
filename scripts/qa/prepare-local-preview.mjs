@@ -29,6 +29,8 @@ export { createGameCapture, getGameCapture, finishGameCapture, completeGameCaptu
 export { getGamePartnerLink, approveGamePartnerLink, denyGamePartnerLink, listGamePartnerConnections, revokeGamePartnerConnection } from ${JSON.stringify(moduleUrl('gamePartnerAuth.js'))};
 export { incrementChallengeProgress, syncMyChallengeProgress, claimChallengeReward } from ${JSON.stringify(moduleUrl('challengeProgress.js'))};
 export { communityCreate, communityJoin, communityInvite, communityManage, communitySendMessage } from ${JSON.stringify(moduleUrl('community.js'))};
+export { communityAttachment, communityAttachmentBytes } from ${JSON.stringify(moduleUrl('communityAttachment.js'))};
+export { resolveProfileVisibility, getFriendshipState, mutateFriendship } from ${JSON.stringify(moduleUrl('friendProfile.js'))};
 `;
 await writeFile(path.join(source, 'guard.mjs'), "if (process.env.GCLOUD_PROJECT !== 'demo-vybe-preview' || process.env.FIRESTORE_EMULATOR_HOST !== '127.0.0.1:8280' || process.env.FIREBASE_AUTH_EMULATOR_HOST !== '127.0.0.1:9199' || process.env.FIREBASE_STORAGE_EMULATOR_HOST !== '127.0.0.1:9399') throw new Error('Local preview requires all demo emulators');\n");
 await writeFile(path.join(source, 'index.mjs'), entry);

@@ -4,7 +4,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { VybeScore } from '@/components/profile/VybeScore';
 
 interface ProfileScoreSheetProps {
   open: boolean;
@@ -18,7 +17,6 @@ interface ProfileScoreSheetProps {
 export function ProfileScoreSheet({
   open,
   onOpenChange,
-  profileId,
   score,
   level,
   xpToNext,
@@ -30,9 +28,6 @@ export function ProfileScoreSheet({
           <DialogTitle>VYBE Score & Level</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="flex items-center justify-center py-2">
-            <VybeScore profileId={profileId} isOwnProfile />
-          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl border border-border/50 bg-muted/30 p-3 text-center">
               <p className="text-2xl font-semibold tabular-nums">{score ?? '—'}</p>

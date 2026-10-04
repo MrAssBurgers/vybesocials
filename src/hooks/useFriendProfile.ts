@@ -1,86 +1,87 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { useProfileByUsername } from '@/hooks/useProfile';
-import { useFriendshipStatus } from '@/hooks/useFriends';
-import { useAuthProfileId } from '@/hooks/useAuthProfileId';
-import { useAuth } from '@/lib/auth';
-import { resolveProfileVisibility, refreshFriendshipPairStats } from '@/lib/friendProfileClient';
-import { useFriendProfileRealtime } from '@/hooks/useFriendProfileRealtime';
-import { db } from '@/lib/firebase';
+import { useProfileAccount } from './useProfileAccount';
+import { resolveProfileVisibility } from '@/lib/friendProfileClient';
+import { getDocumentFromServer, getDocumentsFromServer, where, firestoreLimit } from '@/lib/firebase/firestoreDb';
+import type { ProfileViewProfile } from '@/features/profile/types';
+import type { FriendshipUiStatus } from './useFriends';
 
+function profileRow(row: Record<string, unknown>): ProfileViewProfile {
+  if (typeof row.id !== 'string' || !row.id || row.id.includes('/') || typeof row.user_id !== 'string' || !row.user_id
+    || typeof row.username !== 'string' || !row.username) throw new Error('This profile could not be identified.');
+  const text = (key: string) => typeof row[key] === 'string' ? row[key] as string : null;
+  return { id: row.id, user_id: row.user_id, username: row.username, display_name: text('display_name'), avatar_url: text('avatar_url'),
+    bio: text('bio'), location: text('location'), date_of_birth: text('date_of_birth'), pronouns: text('pronouns'), link_url: text('link_url'),
+    created_at: text('created_at'), equipped_profile_theme: text('equipped_profile_theme'), is_private: row.is_private === true, is_verified: row.is_verified === true };
+}
+
+/** This route never warms private section queries from the global profile cache. */
 export function useFriendProfile(username: string | undefined) {
-  const { profile: currentProfile } = useAuth();
-  const profileId = useAuthProfileId();
-  const profileQuery = useProfileByUsername(username!);
-  const targetId = profileQuery.data?.id;
-  const friendshipQuery = useFriendshipStatus(targetId);
-  const blockedQuery = useQuery({
-    queryKey: ['profile-blocked-pair', profileId, targetId],
+  const actor = useProfileAccount();
+  const profileId = actor.ready ? actor.profile!.id : undefined;
+  const key = [profileId, actor.session.uid, actor.session.epoch];
+  const profileQuery = useQuery({
+    queryKey: ['profile-view-identity', username, ...key],
     queryFn: async () => {
-      if (!profileId || !targetId || profileId === targetId) return false;
-      const { data, error } = await db
-        .from('blocked_users')
-        .select('blocker_id, blocked_id')
-        .or(
-          `and(blocker_id.eq.${profileId},blocked_id.eq.${targetId}),and(blocker_id.eq.${targetId},blocked_id.eq.${profileId})`,
-        )
-        .limit(1);
-      if (error) throw error;
-      return (data?.length ?? 0) > 0;
+      actor.guard();
+      const name = username?.trim();
+      if (!name || name.includes('/')) return null;
+      for (const candidate of [...new Set([name, name.toLowerCase()])]) {
+        const rows = await getDocumentsFromServer('profiles', [where('username', '==', candidate), firestoreLimit(2)]);
+        actor.guard();
+        if (rows.length > 1) throw new Error('This profile could not be identified.');
+        if (rows[0]) return profileRow(rows[0]);
+      }
+      // Older links can contain the canonical profile ID or Auth UID.
+      const direct = await getDocumentFromServer('profiles', name); actor.guard();
+      if (direct && typeof direct.username === 'string') return profileRow(direct);
+      const aliases = await getDocumentsFromServer('profiles', [where('user_id', '==', name), firestoreLimit(2)]); actor.guard();
+      if (aliases.length > 1) throw new Error('This profile could not be identified.');
+      return aliases[0] ? profileRow(aliases[0]) : null;
     },
-    enabled: !!profileId && !!targetId,
-    staleTime: 30_000,
+    enabled: actor.ready && !!username, retry: false, staleTime: 0, gcTime: 0, refetchOnMount: 'always', networkMode: 'always',
   });
-
+  const targetId = profileQuery.isFetchedAfterMount && !profileQuery.isError ? profileQuery.data?.id : undefined;
   const visibilityQuery = useQuery({
-    queryKey: ['profile-visibility-resolved', profileId, targetId],
-    queryFn: async () => {
-      if (!targetId) return null;
-      const { data, error } = await resolveProfileVisibility(targetId);
-      if (error) throw error;
-      return data?.fields ?? null;
-    },
-    enabled: !!profileId && !!targetId,
-    staleTime: 60_000,
+    queryKey: ['profile-visibility-resolved', targetId, ...key],
+    queryFn: () => resolveProfileVisibility({ targetId: targetId!, expectedOwnerUid: actor.user!.id, expectedProfileId: profileId! }, actor.guard),
+    enabled: actor.ready && !!targetId, retry: false, staleTime: 0, gcTime: 0, networkMode: 'always',
+    refetchOnMount: 'always', refetchOnWindowFocus: 'always', refetchOnReconnect: 'always', refetchInterval: 15_000,
   });
-
-  useFriendProfileRealtime(targetId);
-
-  const status = friendshipQuery.data?.status ?? 'none';
-  // Guests (no profileId) have all relationship/visibility queries disabled.
-  // React Query v5 keeps disabled queries in `pending`, so gate the pending
-  // flags on whether the queries are actually enabled — otherwise guest
-  // visitors to /u/:username see the skeleton forever.
-  const relationshipQueriesEnabled = !!profileId && !!targetId;
-
+  const permitted = actor.ready && !!targetId && visibilityQuery.isFetchedAfterMount && !visibilityQuery.isError;
+  const resolved = permitted ? visibilityQuery.data : undefined;
+  const requests = useQuery({
+    queryKey: ['profile-view-request', targetId, ...key],
+    queryFn: async (): Promise<FriendshipUiStatus> => {
+      actor.guard();
+      const [sent, received] = await Promise.all([
+        getDocumentsFromServer('friend_requests', [where('sender_id', '==', profileId), where('receiver_id', '==', targetId), where('status', '==', 'pending'), firestoreLimit(1)]),
+        getDocumentsFromServer('friend_requests', [where('sender_id', '==', targetId), where('receiver_id', '==', profileId), where('status', '==', 'pending'), firestoreLimit(1)]),
+      ]);
+      actor.guard();
+      return received.length ? 'pending_received' : sent.length ? 'pending_sent' : 'none';
+    },
+    enabled: !!resolved && !resolved.isSelf && !resolved.isBlocked && !resolved.isFriend,
+    retry: false, gcTime: 0, staleTime: 0,
+  });
   useEffect(() => {
-    if (status === 'friends' && targetId) {
-      void refreshFriendshipPairStats(targetId);
-    }
-  }, [status, targetId]);
-
-  const usernameSelf =
-    !!username &&
-    !!currentProfile?.username &&
-    username.trim().toLowerCase() === currentProfile.username.trim().toLowerCase();
-
+    if (!actor.ready || !targetId) return;
+    const resume = () => { try { actor.guard(); void visibilityQuery.refetch(); } catch { /* Old account. */ } };
+    window.addEventListener('app-resumed', resume);
+    return () => window.removeEventListener('app-resumed', resume);
+  }, [actor.ready, actor.session.uid, actor.session.epoch, targetId, visibilityQuery.refetch]);
+  const status: FriendshipUiStatus = resolved?.isBlocked ? 'blocked' : resolved?.isFriend ? 'friends' : !requests.isError ? requests.data || 'none' : 'none';
   return {
-    profile: profileQuery.data,
-    profilePending: profileQuery.isLoading,
-    profileError: profileQuery.isError,
-    refetchProfile: profileQuery.refetch,
-    friendshipStatus: status,
-    isFriend: status === 'friends',
+    actor, profile: resolved ? profileQuery.data : null,
+    profilePending: actor.ready && (profileQuery.isLoading || !profileQuery.isFetchedAfterMount),
+    profileError: !actor.ready || profileQuery.isError,
+    refetchProfile: async () => { await profileQuery.refetch(); await visibilityQuery.refetch(); await requests.refetch(); },
+    friendshipStatus: status, isFriend: resolved?.isFriend === true,
     isPendingRequest: status === 'pending_sent' || status === 'pending_received',
-    isSelf: (!!profileId && profileId === targetId) || usernameSelf,
-    isBlocked: status === 'blocked' || blockedQuery.data === true,
-    profileIdReady: !!profileId,
-    relationshipPending:
-      relationshipQueriesEnabled &&
-      (friendshipQuery.isLoading || blockedQuery.isLoading),
-    relationshipError: friendshipQuery.isError || blockedQuery.isError,
-    visibility: visibilityQuery.data,
-    visibilityPending: relationshipQueriesEnabled && visibilityQuery.isLoading,
+    isSelf: resolved?.isSelf === true, isBlocked: resolved?.isBlocked === true,
+    profileIdReady: actor.ready, relationshipPending: false, relationshipError: requests.isError,
+    visibility: resolved?.fields,
+    visibilityPending: actor.ready && !!targetId && !visibilityQuery.isError && (!visibilityQuery.isFetchedAfterMount || visibilityQuery.isLoading),
     visibilityError: visibilityQuery.isError,
   };
 }

@@ -60,11 +60,11 @@ export function ProfileCoverHero({
   coverThemeId,
   coverImageUrl,
   counts,
-  showBio = true,
+  showBio = false,
   showLocation = false,
   showBirthday = false,
   showPronouns = false,
-  showFriendsStat = true,
+  showFriendsStat = false,
   hasStory = false,
   hasUnviewedStory = false,
   isOnline = false,
@@ -124,7 +124,7 @@ export function ProfileCoverHero({
     }
   };
 
-  const stats: { key: StatKey; label: string; value: number }[] = [
+  const stats: { key: StatKey; label: string; value: number | null }[] = [
     { key: 'posts', label: 'Posts', value: counts.posts },
     { key: 'followers', label: 'Followers', value: counts.followers },
     { key: 'following', label: 'Following', value: counts.following },
@@ -280,10 +280,12 @@ export function ProfileCoverHero({
               key={stat.key}
               type="button"
               className="flex min-w-0 flex-1 flex-col items-center gap-0.5 px-0.5 py-0.5 transition-colors hover:bg-muted/25"
+              disabled={stat.value === null}
+              aria-label={`${stat.label}: ${stat.value === null ? 'Not shared or unavailable' : stat.value}`}
               onClick={() => onStatClick?.(stat.key)}
             >
               <p className="text-sm font-bold tabular-nums leading-none">
-                {formatProfileStat(stat.value)}
+                {stat.value === null ? '—' : formatProfileStat(stat.value)}
               </p>
               <p className="truncate text-[9px] text-muted-foreground">{stat.label}</p>
             </button>
