@@ -34,6 +34,7 @@ const ICON_CONFIG: Record<NotificationType, { icon: React.ElementType; color: st
   like: { icon: Heart, color: 'text-rose-500', bg: 'bg-rose-500/10' },
   comment: { icon: MessageCircle, color: 'text-sky-500', bg: 'bg-sky-500/10' },
   follow: { icon: UserPlus, color: 'text-violet-500', bg: 'bg-violet-500/10' },
+  follow_request: { icon: UserPlus, color: 'text-violet-500', bg: 'bg-violet-500/10' },
   friend_request: { icon: Users, color: 'text-amber-500', bg: 'bg-amber-500/10' },
   friend_accepted: { icon: UserCheck, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
   friend_declined: { icon: X, color: 'text-destructive', bg: 'bg-destructive/10' },
@@ -49,6 +50,7 @@ const NOTIFICATION_TEXT: Record<NotificationType, string> = {
   like: 'liked your post',
   comment: 'commented on your post',
   follow: 'started following you',
+  follow_request: 'requested to follow you',
   friend_request: 'sent you a friend request',
   friend_accepted: 'accepted your friend request',
   friend_declined: 'declined your friend request',
@@ -753,6 +755,7 @@ function NotificationRow({ notification, index, isRead, isLast }: NotificationRo
     e.preventDefault();
     e.stopPropagation();
 
+    if (notification.type === 'follow_request') { navigate('/settings?tab=privacy'); return; }
     if (notification.type === 'friend_request' && actor.username) {
       navigate(`/u/${actor.username}`);
       return;

@@ -1,17 +1,16 @@
 import { ReactNode, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
-import { useFollow } from '@/hooks/useProfile';
+import { FollowButton } from '@/components/profile/FollowButton';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
-import { MessageCircle, UserPlus, UserCheck, BadgeCheck } from 'lucide-react';
-import { toast } from 'sonner';
+import { MessageCircle, BadgeCheck } from 'lucide-react';
 import { useMutualFriendsWithUser } from '@/components/profile/MutualFriendsDisplay';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { useDisplayStyle } from '@/hooks/useDisplayStyle';
@@ -151,11 +150,9 @@ export function UserProfileHoverCard({
 }: UserProfileHoverCardProps) {
   const navigate = useNavigate();
   const { profile: currentUser } = useAuth();
-  const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   
   const { data: profileData, isLoading } = useHoverProfile(username, isOpen);
-  const followMutation = useFollow();
   
   // Fetch display style for badge-based name coloring
   const { data: displayStyle } = useDisplayStyle(profileData?.id);
@@ -163,29 +160,6 @@ export function UserProfileHoverCard({
   const signedAvatarUrl = useSignedUrl(profileData?.avatar_url || avatarUrl);
   
   const isOwnProfile = currentUser?.username === username;
-  const isFollowing = profileData?.is_following || false;
-
-  const handleFollow = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (!currentUser || !profileData) {
-      toast.error('Please sign in to follow users');
-      return;
-    }
-
-    try {
-      await followMutation.mutateAsync({
-        targetId: profileData.id,
-        isFollowing,
-      });
-      
-      // Invalidate the hover profile cache
-      queryClient.invalidateQueries({ queryKey: ['hover-profile', username] });
-    } catch (error) {
-      console.error('Failed to follow:', error);
-    }
-  };
 
   const handleMessage = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -284,25 +258,7 @@ export function UserProfileHoverCard({
             {/* Actions */}
             {!isOwnProfile && currentUser && (
               <div className="flex items-center gap-2 pt-1">
-                <Button
-                  size="sm"
-                  variant={isFollowing ? "outline" : "gradient"}
-                  className="flex-1"
-                  onClick={handleFollow}
-                  disabled={followMutation.isPending}
-                >
-                  {isFollowing ? (
-                    <>
-                      <UserCheck className="h-4 w-4 mr-1" />
-                      Following
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus className="h-4 w-4 mr-1" />
-                      Follow
-                    </>
-                  )}
-                </Button>
+                <FollowButton targetId={profileData.id} className="flex-1" />
                 <Button
                   size="sm"
                   variant="outline"

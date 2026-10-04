@@ -1,4 +1,5 @@
 import { CloseFriendsManager } from '@/components/stories/CloseFriendsManager';
+import { FollowRequestsManager } from './FollowRequestsManager';
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Eye, EyeOff, Shield, Users, KeyRound, Sparkles, Baby, Megaphone } from 'lucide-react';
@@ -180,6 +181,7 @@ export function PrivacySection({ onOpenParental }: { onOpenParental?: () => void
             disabled={landingLoading || isPrivate}
           />
         </SettingsPanel>
+        <div className="mt-3"><FollowRequestsManager /></div>
         {onOpenParental && (
           <div className="mt-3">
             <SettingsActionRow

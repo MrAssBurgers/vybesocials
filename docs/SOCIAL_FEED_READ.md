@@ -38,10 +38,11 @@ and [TTL behavior](https://firebase.google.com/docs/firestore/ttl).
 
 ## Remaining release gates
 
-- Private accounts currently admit only their owner through this new reader.
-  Existing `follows` rows are self-created by followers and cannot prove author
-  approval, even if they claim an approved status. Implement server-owned follow
-  approval/revocation before migrating private-account browsing to this reader.
+- Private accounts admit their owner or a current canonical, owner-approved
+  `_follow_authority` grant from `manageFollow`. Existing legacy `follows` rows
+  never prove approval, even if they claim an approved status. Both-direction
+  blocks and profile/post audience restrictions still apply after approval.
+  See [follow approval lifecycle](FOLLOW_APPROVALS.md).
 - This is content-access admission, not a trusted moderation or age attestation.
   Existing post age labels are returned explicitly, including `unrated`, and
   must not become permission to show restricted media to a minor. The partner

@@ -2,7 +2,6 @@ import { db } from '@/lib/firebase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
 import { setCachedProfile, getCachedCurrentProfile } from '@/lib/profileCache';
-import { recordChallengeActivity } from '@/lib/challengeProgressClient';
 
 /** Supabase RPCs return row arrays; Firebase client fallbacks may return a single object. */
 function firstProfileRow(data: unknown): Record<string, unknown> | null {
@@ -267,42 +266,6 @@ export function useProfileByUsername(username: string) {
       return undefined;
     },
     networkMode: 'always',
-  });
-}
-
-export function useFollow() {
-  const { profile } = useAuth();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ targetId, isFollowing }: { targetId: string; isFollowing: boolean }) => {
-      if (!profile) throw new Error('Not authenticated');
-
-      if (isFollowing) {
-        await db.from('follows').delete().match({
-          follower_id: profile.id,
-          following_id: targetId,
-        });
-      } else {
-        await db.from('follows').insert({
-          follower_id: profile.id,
-          following_id: targetId,
-        });
-
-        // Create notification
-        await db.from('notifications').insert({
-          user_id: targetId,
-          type: 'follow',
-          actor_id: profile.id,
-        });
-      }
-    },
-    onSuccess: (_, { isFollowing }) => {
-      queryClient.invalidateQueries({ queryKey: ['profile'] });
-      if (!isFollowing) {
-        recordChallengeActivity(profile?.id, 'follow');
-      }
-    },
   });
 }
 

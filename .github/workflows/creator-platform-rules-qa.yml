@@ -18,6 +18,13 @@ on:
       - 'scripts/test-social-feed-backend.mjs'
       - 'functions/src/socialFeed.ts'
       - 'functions/src/_shared/socialFeedAuthority.ts'
+      - 'functions/src/follow.ts'
+      - 'functions/src/_shared/followAuthority.ts'
+      - 'scripts/test-follow-authority-backend.mjs'
+      - 'src/lib/followService*'
+      - 'src/hooks/useFollowAuthority.ts'
+      - 'src/components/profile/FollowButton*'
+      - 'src/components/settings/FollowRequestsManager*'
       - 'firestore.indexes.json'
       - 'scripts/test-community-attachments-rules.mjs'
       - 'scripts/test-community-attachments-backend.mjs'
@@ -316,6 +323,7 @@ jobs:
           node --check scripts/test-profile-visibility-rules.mjs
           node --check scripts/test-profile-audience-backend.mjs
           node --check scripts/test-social-feed-backend.mjs
+          node --check scripts/test-follow-authority-backend.mjs
           node --check scripts/test-community-attachments-rules.mjs
           node --check scripts/test-community-attachments-backend.mjs
           node --check scripts/test-story-publish-rules.mjs
@@ -351,6 +359,7 @@ jobs:
           node scripts/test-profile-visibility-rules.mjs &&
           node scripts/test-profile-audience-backend.mjs &&
           node scripts/test-social-feed-backend.mjs &&
+          node scripts/test-follow-authority-backend.mjs &&
           node scripts/test-community-attachments-rules.mjs &&
           node scripts/test-community-attachments-backend.mjs &&
           node scripts/test-story-publish-rules.mjs &&

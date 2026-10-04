@@ -162,6 +162,8 @@ export function buildNotificationRoute(payload: NormalizedNotificationPayload): 
       return '/notifications';
     case 'follow':
       return '/notifications';
+    case 'follow_request':
+      return '/settings?tab=privacy';
     case 'like':
     case 'comment':
       return payload.postId ? `/p/${payload.postId}` : '/notifications';

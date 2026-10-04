@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { FollowButton } from '@/components/profile/FollowButton';
 import { motion } from 'framer-motion';
 import { Camera, Settings, Share2, MessageCircle, MoreHorizontal, Crown } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -48,8 +49,6 @@ interface ProfileHeroCardProps {
   frameClass?: string;
   lockerData?: any;
   badgeSettings: any;
-  onFollow: () => void;
-  isFollowPending: boolean;
   onAvatarChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onWarnClick: () => void;
   onBanClick: () => void;
@@ -70,8 +69,6 @@ export function ProfileHeroCard({
   frameClass,
   lockerData,
   badgeSettings,
-  onFollow,
-  isFollowPending,
   onAvatarChange,
   onWarnClick,
   onBanClick,
@@ -301,18 +298,7 @@ export function ProfileHeroCard({
         {/* Primary actions row — clean, full-width on mobile, matches desktop */}
         {!isOwnProfile && (
           <div className="flex items-center gap-2 mt-3">
-            <Button
-              variant={profile.is_following ? 'secondary' : 'default'}
-              size="sm"
-              className={cn(
-                "flex-1 h-10 rounded-xl text-sm font-semibold",
-                !profile.is_following && "bg-primary text-primary-foreground"
-              )}
-              onClick={onFollow}
-              disabled={isFollowPending}
-            >
-              {profile.is_following ? 'Following' : 'Follow'}
-            </Button>
+            <FollowButton targetId={profile.id} className="flex-1 text-sm font-semibold" />
             <Button
               variant="secondary"
               size="sm"

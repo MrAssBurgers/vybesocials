@@ -774,8 +774,8 @@ service cloud.firestore {
     }
     match /follows/{docId} {
       allow read: if signedIn();
-      allow create: if willOwnProfile('follower_id');
-      allow delete: if isOwnerProfile('follower_id') || isAdmin();
+      // manageFollow maintains this count/list projection and its approval proof.
+      allow write: if false;
     }
     match /blocked_users/{docId} {
       allow read: if isOwnerProfile('blocker_id') || isAdmin();
@@ -1803,6 +1803,7 @@ service cloud.firestore {
     match /game_partner_connections/{id} { allow read, write: if false; }
     match /game_partner_uploads/{id}     { allow read, write: if false; }
     match /_social_feed_cursors/{id}     { allow read, write: if false; }
+    match /_follow_authority/{id}        { allow read, write: if false; }
 
     // ---------- catch-all: deny by default ----------
     match /{document=**} {

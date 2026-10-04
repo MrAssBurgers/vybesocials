@@ -44,7 +44,7 @@ function showNativeNotification(title: string, body: string, url?: string) {
   };
 }
 
-export type NotificationType = 'like' | 'comment' | 'follow' | 'friend_request' | 'friend_accepted' | 'friend_declined' | 'message' | 'mention' | 'missed_call' | 'announcement' | 'content_removed' | 'smart_ping';
+export type NotificationType = 'like' | 'comment' | 'follow' | 'follow_request' | 'friend_request' | 'friend_accepted' | 'friend_declined' | 'message' | 'mention' | 'missed_call' | 'announcement' | 'content_removed' | 'smart_ping';
 
 /** Types handled elsewhere — no bell toast (DMs → chat list; missed calls → DM thread). */
 const SKIP_BELL_TOAST_TYPES = new Set<NotificationType>([
@@ -247,6 +247,7 @@ export function useNotifications() {
             like: 'liked your post',
             comment: 'commented on your post',
             follow: 'started following you',
+            follow_request: 'requested to follow you',
             friend_request: 'sent you a friend request',
             friend_accepted: 'accepted your friend request',
             friend_declined: 'declined your friend request',

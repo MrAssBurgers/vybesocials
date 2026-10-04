@@ -2,6 +2,28 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Author-approved follows and follower management
+
+### What changed
+- Added canonical, server-owned follow authority and the `manageFollow` callable. Private accounts receive requests; owners can approve, decline or remove followers; followers can cancel or unfollow. Revision checks prevent stale decisions and concurrent actions from silently overwriting one another. Current identities and two-way blocks are checked transactionally. Legacy follower-created rows never prove private-account approval.
+- The viewer-aware feed now admits currently approved followers to private accounts while retaining each post, profile section, friendship and Close Friends restriction. Client writes to follow projections and all raw authority access are denied. Only server transactions maintain count projections and request notifications.
+- Added rounded, acknowledged follow controls on profiles, hover cards and clips. Requests remain visibly pending until approved. Clip controls load relationship state only near the viewport. Added Requests/Followers management beside the private-account setting, notification navigation to Privacy, account-bound receipt parsing and disk-cache exclusions.
+- Selected local preview now loads 34 domain functions. The actual synthetic-account walkthrough covered request, approval, unfollow, notification navigation, owner approval and removal. Both test accounts' original public settings were restored afterward. Complete demo state is saved in ignored `work/local-preview/follow-verified-checkpoint-export`.
+
+### Verification
+- Full suite: **296 files / 2,822 tests passed**. Functions build, app build, typecheck and focused UI/service checks passed. App entry remains **1069.2 KiB raw / 322.2 KiB gzip**, within budget. Full lint: **0 errors / 5 inherited warnings**.
+- Isolated real emulator follow fixture passed **10 grouped checks**, including actual callable rejection, private requests, owner-only decisions, stale revisions, two-way blocks, public-to-private changes, legacy forgery, cancellation, real concurrent approval/cancellation and raw authority/projection denial. Existing transactional feed fixture passed **12 grouped checks**. The isolated emulator stopped successfully; live preview storage remained separate.
+- Browser evidence is saved in workspace outputs as `vybe-approved-follow.png`, `vybe-follow-requests.png` and `vybe-followers-management.png`. No physical-device clip layout certification is claimed.
+- Previous main **c53f24e0** passed CI **37196091090** and Rules QA **37196091129**. Exact remote checks for this checkpoint are inspected after pushing.
+
+### Release limits and next 3 tasks
+- No production deployment, Lovable Publish or production account mutation. Callable, rules, index and client changes require a coordinated staging rollout. Existing legacy follows require reconfirmation; historical counts need reconciliation. Broader raw post reads, ranked/recommendation/share-preview paths, legacy media URLs, age authority and partner feed consent remain release gates. See `docs/FOLLOW_APPROVALS.md` and `docs/SOCIAL_FEED_READ.md`.
+1. Migrate remaining feed readers and complete controlled media delivery and age/content authority before claiming global private-account enforcement.
+2. Complete reviewed embedded feed access and concrete native game/mod adapters with lifecycle and device verification.
+3. Continue mini-app, smooth UI and staging audits. The original universal-app goal remains active and unfulfilled.
+
+---
+
 ## ACTIVE (2026-10-04) - Viewer-aware feed read foundation
 
 ### What changed

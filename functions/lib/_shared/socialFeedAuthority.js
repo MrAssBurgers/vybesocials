@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { FieldPath, Timestamp } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { closeFriendAuthorityId, hasCloseFriendAuthority, normalizedProfileSettings, resolveIdentity, validAudienceId } from './profileAudienceAuthority.js';
+import { followAuthorityId, hasApprovedFollow } from './followAuthority.js';
 const PAGE_SIZE = 20;
 const CURSOR_TTL = 10 * 60 * 1000;
 export function normalizeSocialFeedInput(raw, uid) {
@@ -39,12 +40,10 @@ async function authorAdmission(db, tx, viewer, alias) {
         return null;
     const settings = normalizedProfileSettings((await tx.get(db.collection('profile_visibility').doc(author.profileId))).data(), author.profileId);
     const self = author.uid === viewer.uid;
-    // Legacy follows are self-created by the follower, so they cannot prove that
-    // a private account approved access. Keep that account closed until a trusted
-    // author-approved follow authority is wired into this new read path.
     if (author.row.is_private != null && typeof author.row.is_private !== 'boolean')
         return null;
-    if (author.row.is_private === true && !self)
+    if (author.row.is_private === true && !self && !hasApprovedFollow((await tx.get(db.collection('_follow_authority')
+        .doc(followAuthorityId(author.uid, viewer.uid)))).data(), author, viewer))
         return null;
     let friend = false;
     let close = false;

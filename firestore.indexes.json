@@ -1,5 +1,8 @@
 {
   "indexes": [
+    { "collectionGroup": "_follow_authority", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "owner_uid", "order": "ASCENDING" }, { "fieldPath": "status", "order": "ASCENDING" }
+    ] },
     { "collectionGroup": "blocked_users", "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "blocker_id", "order": "ASCENDING" },

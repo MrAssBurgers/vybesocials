@@ -5,7 +5,7 @@ import { Grid, Film, Bookmark, Package, Play, Pin } from 'lucide-react';
 import { VideoThumbnail } from '@/components/ui/VideoThumbnail';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { cn } from '@/lib/utils';
-import { useProfileByUsername, useFollow, useUpdateAvatar } from '@/hooks/useProfile';
+import { useProfileByUsername, useUpdateAvatar } from '@/hooks/useProfile';
 import { usePosts } from '@/hooks/usePosts';
 import { useSavedPosts } from '@/hooks/useSavedPosts';
 import { useAuth } from '@/lib/auth';
@@ -67,7 +67,6 @@ export default function ProfilePage() {
       : undefined);
   const { data: posts } = usePosts(undefined, profile?.id, { enabled: !!profile?.id });
   const { data: savedPosts } = useSavedPosts();
-  const follow = useFollow();
   const updateAvatar = useUpdateAvatar();
   const markConversationReadByUser = useMarkConversationReadByUser();
   const [activeTab, setActiveTab] = useState('posts');
@@ -157,14 +156,6 @@ export default function ProfilePage() {
   const themeGradient = lockerData?.equippedProfileTheme ? THEME_GRADIENTS[lockerData.equippedProfileTheme] : undefined;
   const themeImage = lockerData?.equippedProfileTheme ? THEME_IMAGES[lockerData.equippedProfileTheme] : undefined;
   const paidProfileEffect = equippedTheme && MARKETPLACE_EQUIP_MAP[equippedTheme]?.type === 'profile_theme';
-
-  const handleFollow = async () => {
-    if (!profile) return;
-    try {
-      await follow.mutateAsync({ targetId: profile.id, isFollowing: profile.is_following });
-      toast.success(profile.is_following ? 'Unfollowed' : 'Following!');
-    } catch { toast.error('Something went wrong'); }
-  };
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -284,8 +275,6 @@ export default function ProfilePage() {
           frameClass={frameClass}
           lockerData={lockerData}
           badgeSettings={badgeSettings}
-          onFollow={handleFollow}
-          isFollowPending={follow.isPending}
           onAvatarChange={handleAvatarChange}
           onWarnClick={() => setWarnDialogOpen(true)}
           onBanClick={() => setBanDialogOpen(true)}
