@@ -24,6 +24,30 @@ Use fresh PowerShell terminals without inherited provider credentials. Do not su
 
 ## Terminal 1: build the selected Functions and start emulators
 
+### If browser reads hang while the emulator is responsive
+
+First check how many old preview tabs remain open. Each tab can retain a
+Firestore connection even when its page is no longer being tested. Preserve
+user-owned tabs, unsaved editors and unfinished uploads; close only obsolete
+test tabs whose state has been reviewed, then use the app's Retry control.
+Do not reset or restart the retained emulator as the first response.
+
+On October 4, the browser process held six connections to port 8280 while a
+25-draft library read repeatedly timed out. An authenticated REST query with
+the same owner filter, order and limit returned 25 documents in 77 ms. Closing
+two obsolete agent-created test tabs restored library paging immediately:
+24, 48, 72, then 74 loaded drafts. This supports local connection contention;
+it is not evidence that all production transport failures share that cause.
+No Firestore transport setting, auth configuration or security policy was
+changed to recover this session.
+
+The subsequent unchanged-publish browser check succeeded for synthetic app
+`qa-noop-receipt-20261004`. Before/after backend checks found the same complete
+public snapshot, unchanged daily change count, and exactly one new operation
+receipt and operation allowance increment. Prior emulator tests cover replay
+and stale-request rejection; this walkthrough verifies the real UI-to-callable
+path. No production data was used.
+
 Install dependencies if not already installed. The app's peer dependency exception matches existing CI:
 
 ```powershell

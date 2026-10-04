@@ -2,6 +2,21 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Restore preview reads and verify unchanged publishing end to end
+
+### Evidence and completed checks
+- The browser process held six TCP connections to the retained Firestore emulator while library queries stalled; the identical authenticated REST query had returned 25 rows in 77 ms. Inspected and closed only obsolete agent test tabs 15 (signed-out Explore) and 20 (old synthetic capture review, without modifying its saved capture). User-owned tabs and tab 29's unsaved recovery were preserved. No emulator reset/restart or transport/auth/security configuration changes.
+- The next Retry immediately loaded 24 drafts. Successive Load more actions loaded 48, 72 and 74 entries; search then found Publishing receipt QA. This supports local browser connection contention as the cause of this session's stall, not a universal production diagnosis.
+- Opened the named synthetic draft, chose Publish to Hub and confirmed Publish app. The UI showed the published-success message and Open published app link. Backend before/after assertions confirmed an identical public-document hash (source, revision and timestamps), unchanged publication-change count, exactly one new operation receipt and one operation-count increment. Proof outputs/vybe-unchanged-publish-verified.png; local helper work/check-publish-ui.mjs. Previously outstanding browser verification is now complete.
+- Documented recovery without destroying retained data in LOCAL_PREVIEW_QA.md and repaired paragraph order in MINI_APPS.md. This checkpoint changes docs and local verification state only; latest code remains validated by 319 files / 3,016 tests, build/typecheck/scoped lint and the 13 publishing backend groups from prior checkpoints. No production publication.
+
+### Next 3 tasks and limits
+1. Continue remaining social profile/explore/comment authority work and mini-app execution isolation. Hard CPU/network isolation is still not established.
+2. Continue concrete game/mod adapters and permitted-media/native capture-upload verification. Keep preview tab count bounded and preserve unfinished work during cleanup.
+3. Stage named callable/client/rules changes and Lovable publication. Broad objective remains active/incomplete; do not equate this successful local walkthrough with production readiness.
+
+---
+
 ## ACTIVE (2026-10-04) - Bound mini-app reads and expose retry
 
 ### What changed
