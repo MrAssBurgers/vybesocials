@@ -40,6 +40,27 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('mini apps studio flow', () => {
+  it.each(['All mini apps', 'Unpublish'])('returns to the library after opening a published studio app via %s', async action => {
+    const app = record({ ...MINI_APP_TEMPLATES[0].source, title: 'Navigation QA' });
+    repository.get.mockResolvedValue(app);
+    repository.unpublish.mockResolvedValue(undefined);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/mini-apps']}><Routes><Route path="/mini-apps/:appId?" element={<MiniApps />} /></Routes></MemoryRouter></QueryClientProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Build a mini app' }));
+    fireEvent.change(screen.getByLabelText('App name'), { target: { value: app.title } });
+    fireEvent.click(screen.getByRole('button', { name: 'Publish to Hub' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Publish app' }));
+    fireEvent.click(await screen.findByRole('link', { name: 'Open published app' }));
+    await screen.findByRole('heading', { name: app.title });
+    fireEvent.click(screen.getByRole('button', { name: action, exact: true }));
+    if (action === 'Unpublish') {
+      fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Unpublish', exact: true }));
+      await waitFor(() => expect(repository.unpublish).toHaveBeenCalledWith('alice', expect.objectContaining({ id: app.id })));
+    }
+    expect(await screen.findByRole('button', { name: 'Build a mini app' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'App name' })).not.toBeInTheDocument();
+  });
+
   it('keeps searching across loaded pages and offers retry without dropping earlier apps', async () => {
     const one = { ...record(MINI_APP_TEMPLATES[0].source), id: 'one', title: 'First creation' };
     const two = { ...one, id: 'two', title: 'Hidden gem' };

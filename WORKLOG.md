@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Mini-app studio return navigation
+
+### What changed
+- Close the retained editor state when navigating to a published mini app. Returning through All mini apps or after unpublishing now shows the library, retaining the chosen tab/search instead of unexpectedly opening a fresh template editor. Private recovery storage is unchanged.
+- Added routed regression coverage for publish/open/return and publish/open/unpublish using a shared route instance.
+
+### Verification
+- App: 305 files / 2,891 tests passed. Build and scoped lint passed; entry app-CpxeAn8_.js 1068.1 KiB raw / 321.8 KiB gzip.
+- Live 8082: reopened the existing synthetic Publishing QA draft, explicitly republished, opened the result, returned to filtered My drafts, navigated back, unpublished and returned to the same filtered library. Draft remains visible; no fresh editor appears. Screenshot: workspace outputs/vybe-mini-app-library-return.png.
+- Retained demo exports: work/local-preview/mini-publish-verified-export and work/local-preview/mini-navigation-verified-export. Export must use the preview's own tmp directory for hub discovery. No preview restart or quota reset.
+- Previous aa42349e Creator Platform Rules QA 37206691255 succeeded; CI 37206691291 was still running at last check. Native SDK checkpoint 042abd27 CI 37205293586 succeeded.
+
+### Next 3 tasks and limits
+1. Follow exact CI handles and continue mini-app runtime CPU/network isolation and quota/receipt retention work.
+2. Continue universal game/mod host adapters and direct audience/media reader migrations.
+3. Complete physical-device checks and coordinated selective rollout before production claims. No production/Lovable deployment occurred; broad goal remains active.
+
+---
+
 ## ACTIVE (2026-10-04) - Checked mini-app publication
 
 ### What changed

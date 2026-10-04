@@ -35,6 +35,9 @@ function MiniAppsForUser({ epoch }: { epoch: number }) {
   const [tab, setTab] = useState('discover');
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<{ draft: MiniAppRecord | null } | null>(null);
+  // Detail navigation closes the studio; returning must show the library,
+  // not remount an editor from stale local state. Unsaved recovery stays intact.
+  useEffect(() => { if (appId) setEditing(null); }, [appId]);
   const [unpublishTarget, setUnpublishTarget] = useState<MiniAppRecord | null>(null);
   const [unpublishing, setUnpublishing] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
