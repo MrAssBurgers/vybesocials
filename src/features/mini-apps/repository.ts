@@ -1,4 +1,4 @@
-import { collection, deleteDoc, doc, documentId, getDoc, getDocs, limit, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, limit, query, runTransaction, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { getFirestoreDb } from '@/lib/firebase/firestoreDb';
 import { validateMiniApp, type MiniAppRecord, type MiniAppSource } from './model';
 import { miniAppAccountGuard } from './account';
@@ -25,24 +25,23 @@ export async function saveMiniAppDraft(ownerId: string, source: MiniAppSource, e
   const content = validateMiniApp(source);
   if (pendingId && !/^[\w-]{1,128}$/.test(pendingId)) throw new Error('Invalid draft identity. Reopen the studio.');
   const reference = existing || pendingId ? doc(getFirestoreDb(), 'mini_app_drafts', existing?.id || pendingId!) : doc(collection(getFirestoreDb(), 'mini_app_drafts'));
-  let saved = existing;
-  if (!saved && pendingId) {
-    // An exact document-ID query evaluates the missing document's read rule.
-    // Use a bounded owner-filtered range so a new identity safely returns empty
-    // (or the next owned draft); only an exact returned ID may be recovered.
-    const matches = await getDocs(query(collection(getFirestoreDb(), 'mini_app_drafts'), where('owner_id', '==', ownerId), where(documentId(), '>=', pendingId), limit(1)));
+  const conflict = () => Object.assign(new Error('This draft changed in another tab or device. Your code is still here. Save it as a new draft, or reopen the latest saved version.'), { code: 'mini-app-conflict' });
+  const sameSource = (row: unknown, other: unknown) => JSON.stringify(validateMiniApp(row)) === JSON.stringify(validateMiniApp(other));
+  return runTransaction(getFirestoreDb(), async transaction => {
     guard();
-    const recovered = matches.docs.find(row => row.id === pendingId);
-    if (recovered) saved = { ...recovered.data(), id: recovered.id } as MiniAppRecord;
-  }
-  const data = { ...content, owner_id: ownerId, schema_version: 1 as const, updated_at: serverTimestamp() };
-  const createdAt = saved?.created_at || serverTimestamp();
-  if (saved) await updateDoc(reference, data);
-  else await setDoc(reference, { ...data, created_at: createdAt });
-  guard();
-  // A confirmed write is sufficient. Publishing creates its own server time;
-  // a failing read-back must not turn a durable save into a duplicate retry.
-  return { ...data, created_at: createdAt, id: reference.id };
+    const snapshot = await transaction.get(reference);
+    guard();
+    const remote = snapshot.exists() ? { ...snapshot.data(), id: snapshot.id } as MiniAppRecord : null;
+    if (remote && remote.owner_id !== ownerId) throw new Error('You can only edit your own mini apps.');
+    // An acknowledged-equivalent retry is safe even when the previous response
+    // was lost. Different content must never overwrite a recovered identity.
+    if (remote && sameSource(remote, content)) return remote;
+    if (remote ? !existing || !sameSource(remote, existing) : !!existing) throw conflict();
+    const data = { ...content, owner_id: ownerId, schema_version: 1 as const, updated_at: serverTimestamp(),
+      created_at: remote?.created_at || serverTimestamp() };
+    transaction.set(reference, data);
+    return { ...data, id: reference.id };
+  }).then(record => { guard(); return record; });
 }
 
 export async function publishMiniApp(ownerId: string, draft: MiniAppRecord): Promise<void> {

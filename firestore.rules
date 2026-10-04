@@ -1770,7 +1770,10 @@ service cloud.firestore {
       );
     }
     match /mini_app_drafts/{id} {
-      allow read, delete: if signedIn() && resource.data.owner_id == uid();
+      // Transactions must distinguish an unused draft identity from an existing
+      // owned draft. Existing private source remains owner-only.
+      allow get: if signedIn() && (!exists(/databases/$(database)/documents/mini_app_drafts/$(id)) || resource.data.owner_id == uid());
+      allow list, delete: if signedIn() && resource.data.owner_id == uid();
       allow create: if signedIn() && validMiniApp(request.resource.data, false)
         && request.resource.data.created_at == request.time;
       allow update: if signedIn() && resource.data.owner_id == uid()

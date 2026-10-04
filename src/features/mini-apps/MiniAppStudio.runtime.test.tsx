@@ -1,7 +1,9 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MiniAppStudio } from './MiniAppStudio';
+import { saveMiniAppDraft } from './repository';
+import { MINI_APP_TEMPLATES } from './templates';
 import { MINI_APP_RUNTIME_CHANNEL } from './runtimeMessages';
 vi.mock('framer-motion', () => ({ useReducedMotion: () => false }));
 vi.mock('@/lib/theme', () => ({ useTheme: () => ({ reducedMotion: true }) }));
@@ -12,6 +14,25 @@ vi.mock('./recovery', () => ({ readMiniAppRecoveryEntry: () => null, saveMiniApp
 afterEach(cleanup);
 
 describe('studio runtime recovery', () => {
+  it('preserves conflicting code and retries a new copy with the same identity after a lost response', async () => {
+    const draft = { ...MINI_APP_TEMPLATES[0].source, id: 'existing', owner_id: 'alice', schema_version: 1 as const, created_at: { seconds: 1 } };
+    const save = vi.mocked(saveMiniAppDraft); save.mockReset();
+    save.mockRejectedValueOnce(Object.assign(new Error('Draft changed elsewhere'), { code: 'mini-app-conflict' }));
+    render(<MemoryRouter><MiniAppStudio ownerId="alice" draft={draft} onClose={vi.fn()} onSaved={vi.fn()} /></MemoryRouter>);
+    const editor = screen.getByLabelText('HTML code');
+    fireEvent.change(editor, { target: { value: '<main>Keep my local work</main>' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft', exact: true }));
+    await screen.findByRole('alert'); expect(editor).toHaveValue('<main>Keep my local work</main>');
+    save.mockRejectedValueOnce(new Error('Response lost'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save as new draft' }));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Response lost'));
+    const copyId = save.mock.calls[1][3]; expect(copyId).not.toBe('existing'); expect(save.mock.calls[1][2]).toBeNull();
+    save.mockImplementationOnce(async (owner, source) => ({ ...source, id: copyId!, owner_id: owner, schema_version: 1, created_at: { seconds: 2 } }));
+    fireEvent.click(screen.getByRole('button', { name: 'Retry save' }));
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+    expect(save.mock.calls[2][3]).toBe(copyId); expect(save.mock.calls[2][2]).toBeNull();
+    expect(editor).toHaveValue('<main>Keep my local work</main>');
+  });
   it.each(['HTML', 'JavaScript'])('preserves authored code after runtime failure and returns focus to the active %s editor', language => {
     const scroll = vi.fn();
     const previous = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView');

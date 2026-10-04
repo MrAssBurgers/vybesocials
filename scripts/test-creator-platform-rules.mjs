@@ -10,7 +10,7 @@ assert.ok(process.env.FIRESTORE_EMULATOR_HOST && process.env.FIREBASE_STORAGE_EM
 const require = createRequire(path.resolve(process.env.FIREBASE_TEST_TOOLS_ROOT || '.', 'package.json'));
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@firebase/rules-unit-testing');
 // Resolve the same SDK instance as the isolated rules test tools.
-const { doc, collection, setDoc, getDoc, getDocs, query, where, documentId, limit, updateDoc, deleteDoc, serverTimestamp, Timestamp } = require('firebase/firestore');
+const { doc, collection, setDoc, getDoc, getDocs, query, where, documentId, limit, updateDoc, deleteDoc, runTransaction, serverTimestamp, Timestamp } = require('firebase/firestore');
 const { ref, uploadBytes, getBytes, deleteObject } = require('firebase/storage');
 const [firestoreHost, firestorePort] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
 const [storageHost, storagePort] = process.env.FIREBASE_STORAGE_EMULATOR_HOST.split(':');
@@ -55,7 +55,7 @@ try {
   await allowed('private library query is limited to its owner', () => getDocs(query(collection(aliceDb, 'mini_app_drafts'), where('owner_id', '==', 'creator-alice'))));
   // The studio retains an identity before saving. On a lost acknowledgement,
   // it must distinguish a new draft from a committed one without opening reads
-  // of missing/private documents to other users.
+  // of existing private documents to other users.
   const recoveryQuery = (db, ownerId, id) => query(collection(db, 'mini_app_drafts'), where('owner_id', '==', ownerId), where(documentId(), '>=', id), limit(1));
   await allowed('draft recovery safely returns empty for a new owned identity', async () => {
     const matches = await getDocs(recoveryQuery(aliceDb, 'creator-alice', 'zz-pending-new'));
@@ -80,7 +80,17 @@ try {
   await denied('another account cannot recover with the creator owner filter', () => getDocs(recoveryQuery(bobDb, 'creator-alice', privateRef.id)));
   await denied('signed-out clients cannot recover a private draft', () => getDocs(recoveryQuery(guest.firestore(), 'creator-alice', privateRef.id)));
   await denied('document identity alone does not authorize private draft recovery', () => getDocs(query(collection(bobDb, 'mini_app_drafts'), where(documentId(), '==', privateRef.id), limit(1))));
-  await denied('direct missing private draft reads remain denied', () => getDoc(doc(aliceDb, 'mini_app_drafts', 'pending-new')));
+  await allowed('signed-in creators can check an unused draft identity', () => getDoc(doc(aliceDb, 'mini_app_drafts', 'pending-new')));
+  await denied('guests cannot probe missing draft identities', () => getDoc(doc(guest.firestore(), 'mini_app_drafts', 'pending-new')));
+  await allowed('transactional first save reads absence and creates an owned private draft', () => runTransaction(aliceDb, async transaction => {
+    const ref = doc(aliceDb, 'mini_app_drafts', 'transaction-draft');
+    assert.equal((await transaction.get(ref)).exists(), false);
+    transaction.set(ref, app());
+  }));
+  await denied('other users cannot transactionally inspect or overwrite the saved draft', () => runTransaction(bobDb, async transaction => {
+    const ref = doc(bobDb, 'mini_app_drafts', 'transaction-draft');
+    await transaction.get(ref); transaction.set(ref, { ...app(), owner_id: 'creator-bob' });
+  }));
   await denied('unfiltered private draft scan rejected', () => getDocs(collection(bobDb, 'mini_app_drafts')));
   await denied('others cannot overwrite published code', () => updateDoc(doc(bobDb, publicRef.path), { html: 'hijack', updated_at: serverTimestamp() }));
   await denied('publication cannot spoof status', () => updateDoc(publicRef, { status: 'featured', updated_at: serverTimestamp() }));

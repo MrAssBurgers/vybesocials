@@ -2,6 +2,26 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Mini-app draft conflict recovery
+
+### What changed
+- Fixed silent last-write-wins saves in the mini-app studio. Saves now transactionally compare current remote source with the opened draft. Different remote edits and deleted drafts produce a conflict; equivalent uncertain-response retries return the durable record without another write. A new/pending identity cannot overwrite a different recovered draft.
+- Added **Save as new draft** to the conflict state, preserving local code and the newer remote version. Copy retries reuse their chosen identity after an uncertain response while mounted. Existing published snapshots stay separate. Auth guards run before/after transactional reads, on callback retries and after commit.
+- Rules allow signed-in reads of absent draft identities for transactional creation while keeping existing source owner-only and rejecting guests, other-owner transactions and unfiltered scans. Coordinate rules/client rollout; older clients and intentional direct owner writes can still bypass the updated studio's conflict detection. See `docs/MINI_APPS.md`.
+
+### Verification
+- **305 files / 2,871 tests passed**. App build, typecheck, lint, CSS and boot checks passed (**0 errors / 5 inherited warnings**). App entry **app-BWFONkAt.js: 1068.1 KiB raw / 321.8 KiB gzip**, within budget.
+- Isolated Firestore/Storage creator fixture passed **176 checks**, including transactional create and other-owner rejection. Its emulators stopped successfully and used isolated temporary directories; retained demo storage was not reset.
+- Live synthetic Alice workflow: saved Concurrent studio QA, changed its remote HTML in the demo, then attempted to save a different local edit. Actual repository transaction rejected the stale editor and retained its code. Save as new draft succeeded. A read of the demo confirmed both exact versions under distinct draft IDs; neither was published. Screenshot: workspace outputs `vybe-mini-app-conflict.png`. Test drafts remain private in the demo.
+- Unit coverage adds stale edits, deleted/recovered drafts, preserved published snapshots, save-as-copy and stable copy retry identity after a lost acknowledgement. Prior story checkpoint **15d3cf5c** passed CI **37201557288**.
+
+### Next 3 tasks and limits
+1. Continue mini-app end-to-end and isolation work; the documented WebRTC/resource-boundary limitations remain unresolved.
+2. Continue direct content-reader audience migrations, controlled media/age policy and embedded feed consent/native game adapters.
+3. Continue visual/accessibility and physical-device audits, then selective staging. No production deployment or Lovable Publish occurred. The original universal-app goal remains active and unfulfilled.
+
+---
+
 ## ACTIVE (2026-10-04) - Story poster fallback and accessible creation
 
 ### What changed
