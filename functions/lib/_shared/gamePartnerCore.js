@@ -3,6 +3,17 @@ import { db, rateLimit } from './admin.js';
 import { hashGameValue } from './gameCaptureCore.js';
 export const PARTNER_TTL_MS = 10 * 60 * 1000;
 export const PARTNER_SCOPES = ['capture:write', 'capture:status'];
+export const PARTNER_PREVIEW_SCOPE = 'capture:preview';
+export function requestedPartnerScopes(value) {
+    if (value === undefined)
+        return [...PARTNER_SCOPES];
+    if (!Array.isArray(value) || (value.length !== 2 && value.length !== 3)
+        || new Set(value).size !== value.length || PARTNER_SCOPES.some(scope => !value.includes(scope))
+        || value.some(scope => ![...PARTNER_SCOPES, PARTNER_PREVIEW_SCOPE].includes(scope))) {
+        throw new PartnerError(400, 'invalid_request', 'Unsupported integration permissions.');
+    }
+    return value.includes(PARTNER_PREVIEW_SCOPE) ? [...PARTNER_SCOPES, PARTNER_PREVIEW_SCOPE] : [...PARTNER_SCOPES];
+}
 export const PARTNER_CHUNK_BYTES = 8 * 1024 * 1024;
 export const PARTNER_RETENTION_MS = 24 * 60 * 60 * 1000;
 export class PartnerError extends Error {
@@ -62,20 +73,24 @@ export async function authorizePartner(tx, rawToken, scope) {
     if (!/^vyp_[A-Za-z0-9_-]{43}$/.test(rawToken))
         throw new PartnerError(401, 'invalid_token', 'Link this game in VYBE again.');
     const token = (await tx.get(db.collection('game_partner_tokens').doc(hashGameValue(rawToken)))).data();
-    if (!token || token.expires_at_ms <= Date.now() || typeof token.connection_id !== 'string')
+    if (!token || !Number.isSafeInteger(token.expires_at_ms) || token.expires_at_ms <= Date.now()
+        || typeof token.connection_id !== 'string' || !/^[a-f0-9]{32}$/.test(token.connection_id)
+        || typeof token.owner_uid !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(token.owner_uid)
+        || typeof token.client_id !== 'string' || !/^[a-z0-9][a-z0-9_-]{2,63}$/.test(token.client_id))
         throw new PartnerError(401, 'invalid_token', 'This game access expired. Link again in VYBE.');
     const connection = (await tx.get(db.collection('game_partner_connections').doc(token.connection_id))).data();
-    if (!connection || connection.status !== 'active' || connection.expires_at_ms <= Date.now()
+    if (!connection || connection.status !== 'active' || !Number.isSafeInteger(connection.expires_at_ms) || connection.expires_at_ms <= Date.now()
         || connection.owner_uid !== token.owner_uid || connection.client_id !== token.client_id) {
         throw new PartnerError(401, 'invalid_token', 'This game connection is no longer active.');
     }
-    if (!Array.isArray(token.scopes) || !token.scopes.includes(scope) || !connection.scopes.includes(scope))
+    if (!Array.isArray(token.scopes) || !token.scopes.includes(scope) || !Array.isArray(connection.scopes) || !connection.scopes.includes(scope))
         throw new PartnerError(403, 'insufficient_scope', 'This connection cannot perform that action.');
     const game = await registeredPartner(tx, connection.client_id);
     return { uid: connection.owner_uid, clientId: connection.client_id, connectionId: token.connection_id, expiresAt: Math.min(token.expires_at_ms, connection.expires_at_ms), game };
 }
-export async function startPartnerDevice(client, source) {
+export async function startPartnerDevice(client, source, requestedScopes) {
     const clientId = validateClientId(client);
+    const scopes = requestedPartnerScopes(requestedScopes);
     await partnerRateLimit('device-global', 600);
     await partnerRateLimit(`device-ip:${source}`, 20);
     await db.runTransaction(tx => registeredPartner(tx, clientId));
@@ -91,6 +106,7 @@ export async function startPartnerDevice(client, source) {
         tx.create(db.collection('game_partner_devices').doc(deviceHash), {
             client_id: clientId, code_hash: codeHash, status: 'pending', expires_at_ms: now + PARTNER_TTL_MS,
             cleanup_at_ms: now + PARTNER_RETENTION_MS, interval_ms: 5000, next_poll_at_ms: now + 5000,
+            requested_scopes: scopes,
         });
         tx.create(db.collection('game_partner_codes').doc(codeHash), { device_hash: deviceHash, cleanup_at_ms: now + PARTNER_RETENTION_MS });
     });
@@ -128,12 +144,15 @@ export async function exchangePartnerDevice(client, rawCode, source) {
         const connection = (await tx.get(db.collection('game_partner_connections').doc(connectionId))).data();
         if (!connection || connection.status !== 'active' || connection.owner_uid !== device.owner_uid || connection.client_id !== clientId || connection.expires_at_ms <= now)
             throw new PartnerError(400, 'access_denied', 'This game connection is no longer active.');
+        const scopes = requestedPartnerScopes(device.requested_scopes);
+        if (JSON.stringify(requestedPartnerScopes(connection.scopes)) !== JSON.stringify(scopes))
+            throw new PartnerError(400, 'access_denied', 'This connection does not match the approved permissions.');
         tx.create(db.collection('game_partner_tokens').doc(hashGameValue(accessToken)), {
             owner_uid: connection.owner_uid, client_id: clientId, connection_id: connectionId,
-            scopes: [...PARTNER_SCOPES], expires_at_ms: connection.expires_at_ms, cleanup_at_ms: now + PARTNER_RETENTION_MS,
+            scopes, expires_at_ms: connection.expires_at_ms, cleanup_at_ms: now + PARTNER_RETENTION_MS,
         });
         tx.update(deviceRef, { status: 'used' });
-        return { value: { accessToken, tokenType: 'Bearer', expiresIn: Math.max(0, Math.floor((connection.expires_at_ms - now) / 1000)), expiresAt: connection.expires_at_ms, connectionId, scopes: [...PARTNER_SCOPES] } };
+        return { value: { accessToken, tokenType: 'Bearer', expiresIn: Math.max(0, Math.floor((connection.expires_at_ms - now) / 1000)), expiresAt: connection.expires_at_ms, connectionId, scopes } };
     });
     if (result.error)
         throw result.error;

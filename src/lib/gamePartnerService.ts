@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { invokeFunction } from '@/lib/firebase/functionsService';
 
-const scopes = z.array(z.enum(['capture:write', 'capture:status'])).length(2)
-  .refine(value => new Set(value).size === 2, 'Unsupported game permissions');
+const scopes = z.array(z.enum(['capture:write', 'capture:status', 'capture:preview'])).min(2).max(3)
+  .refine(value => new Set(value).size === value.length && value.includes('capture:write') && value.includes('capture:status'), 'Unsupported game permissions');
 const game = {
   clientId: z.string().min(1).max(200),
   gameName: z.string().min(1).max(200),
@@ -55,8 +55,8 @@ export function getGamePartnerLink(userCode: string): Promise<GamePartnerLink> {
   return call('getGamePartnerLink', userCodeBody(userCode), linkSchema);
 }
 
-export function approveGamePartnerLink(userCode: string): Promise<GamePartnerConnection> {
-  return call('approveGamePartnerLink', userCodeBody(userCode), connectionSchema.extend({ status: z.literal('active') }));
+export function approveGamePartnerLink(userCode: string, approvedScopes?: GamePartnerLink['scopes']): Promise<GamePartnerConnection> {
+  return call('approveGamePartnerLink', { ...userCodeBody(userCode), ...(approvedScopes ? { approvedScopes: scopes.parse(approvedScopes) } : {}) }, connectionSchema.extend({ status: z.literal('active') }));
 }
 
 export async function denyGamePartnerLink(userCode: string): Promise<{ ok: true }> {

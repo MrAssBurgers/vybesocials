@@ -2,6 +2,37 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Embedded capture gallery for apps and game mods
+
+### What changed
+- Added optional `capture:preview` consent to the partner protocol. Device requests retain exact scopes; the updated consent page visibly lists media access and acknowledges the reviewed set. Old clients cannot silently approve the new scope. Default two-scope clients stay compatible. Token/connection identity and expiry validation now also rejects malformed authority rows.
+- Added bounded connection-owned gallery listing, authenticated preview chunks and HEAD access checks. Media never exposes Firebase credentials, account IDs or Storage URLs. Reads enforce current token/connection/registry, capture status, account/client/connection binding and publication; generation-pinned bytes pass size/MIME/signature/checksum verification and authorization is repeated before delivery. At most 8 MiB is returned per request, preserving 48 MiB captures within HTTP response limits.
+- Added SDK list/preview/check methods and the `/gallery` package export. The browser/overlay component has soft rounded surfaces, accessible controls, explicit image/video opening, no autoplay, safe caption text, decoding-error feedback, Blob URL cleanup, account/visibility cleanup and periodic access checks. It is trusted host UI, not an iframe authentication bridge or a general social feed. See `docs/PARTNER_CAPTURE_GALLERY.md`.
+- Extended the runnable file-picker host example with the gallery and updated consent/connection settings copy. It has no API request on mount. The locally configured example runs at 127.0.0.1:4176; its checked-in configuration remains unset. Package output is private/local and no registry publication occurred.
+- Real emulator testing exposed the unsupported Storage compose operation in partner finalization. Replaced it with one bounded create-only write of ordered, checksum-verified chunks, using the same production/test code. Concurrent completion and revocation tests remain enforced. No emulator-only success bypass was added.
+- Added the gallery backend fixture to Creator Platform Rules QA. Ignored generated `work/**` artifacts in source lint. The selected local preview now includes `gamePartnerApi` for **32 domain functions**; no production account or provider/auth export was mutated.
+
+### Verification
+- Final full suite: **293 files / 2,801 tests passed**. Full lint: **0 errors / 5 inherited warnings**; the final decoding handler also passed scoped lint. App typecheck, standalone game SDK types, universal package build and Functions build passed. App build **app-BaHVayyR.js: 1069.2 KiB raw / 322.2 KiB gzip**, within existing budgets. CSS/boot and static DM/inbox/camera checks passed.
+- The isolated real Firestore/Storage gallery fixture passed **8 grouped checks**: explicit media consent/old-client denial; actual multi-chunk upload and concurrent completion; private receipt projection and actual binary/HEAD transport; wrong account/connection/scope denial; bounded pagination through expired rows; expiry/discard/publication/binding denial; actual Storage tampering/missing-object denial; revocation during actual Storage download. The separate demo emulator was stopped afterward; TEMP/TMP/TMPDIR remained isolated from the live preview.
+- Browser walkthrough used only synthetic Alice in the 8082 demo and a registered local QA mod. Real code approval, SDK upload, gallery listing and authenticated image display succeeded. A generated two-second MP4 uploaded and decoded inside the host; playback reached 2/2 seconds at 320x180 with no error and autoplay false. Disconnect cleared all gallery media/captions and returned **Connection revoked**. Screenshots: workspace outputs `vybe-mod-capture-gallery.png` and `vybe-mod-video-gallery.png`.
+- The first sample was rejected correctly: repository `public/splash.png` actually contains JPEG bytes. A same-byte `.jpg` fixture was used afterward. The original asset was not altered. Asset MIME consistency remains a follow-up audit item.
+- Local SDK archive: **10 files / 16.3 kB**; all four installed ESM imports and a strict NodeNext TypeScript consumer compiled. The fixed-file example-server check passed. The final package is also copied to workspace outputs as `vybe-integration-sdk-gallery-pilot.tgz`.
+- Complete demo Auth/Firestore/Storage state is retained in ignored `work/local-preview/thirteenth-verified-checkpoint-export`. Previous checkpoint **7c1c65092f8e26dab8722c4bd0ce002e81b180b4** passed CI **37192066295** and Rules QA **37192066302**. Exact checks for this checkpoint are verified after pushing.
+
+### Release limits and remaining work
+- **Source-only checkpoint; no production deployment or Lovable Publish. Never deploy all Functions or modify production auth2faRequest.** Roll out the reviewed partner API/consent changes with the matching consent UI and SDK only after staging checks. Registry approval remains manual.
+- This gallery shows only captures supplied by the current integration connection. General Home/feed browsing, messages, a constrained origin-checked embedding bridge and native Unity/Unreal/Godot/mod adapters remain unfinished. It does not make the full universal social-media objective complete.
+- Preview GETs verify the full object before returning one bounded chunk, so large previews reread data and require deployed bandwidth/memory/load measurement. Timers can be delayed by browser scheduling; already delivered media cannot be recalled. No durable background delivery, physical-device codec/capture/audio/haptics or engine certification is claimed.
+- Broader raw profile/post privacy, legacy media bearer links and LiveKit revocation boundaries from the previous checkpoint still remain. The goal stays active.
+
+### Next 3 tasks
+1. Build a viewer-aware social-feed read contract and a reviewed host bridge so integrations can browse social content beyond their own captures.
+2. Add and certify a concrete native/game-mod adapter, including capture codecs, user input/focus, permissions, cancellation and physical-device behavior.
+3. Continue privacy/LiveKit/story authority and soft UI audits, including mislabeled asset MIME types, and prepare a selective staging release.
+
+---
+
 ## ACTIVE (2026-10-04) - Soft loading and navigation, private attachments, profile audiences and universal SDK
 
 ### What changed

@@ -27,6 +27,7 @@ export { publishStory, listVisibleStories, manageCloseFriends } from ${JSON.stri
 export { premiumGiftManage } from ${JSON.stringify(moduleUrl('premiumGifts.js'))};
 export { createGameCapture, getGameCapture, finishGameCapture, completeGameCapture, discardGameCapture } from ${JSON.stringify(moduleUrl('gameIntegration.js'))};
 export { getGamePartnerLink, approveGamePartnerLink, denyGamePartnerLink, listGamePartnerConnections, revokeGamePartnerConnection } from ${JSON.stringify(moduleUrl('gamePartnerAuth.js'))};
+export { gamePartnerApi } from ${JSON.stringify(moduleUrl('gamePartnerApi.js'))};
 export { incrementChallengeProgress, syncMyChallengeProgress, claimChallengeReward } from ${JSON.stringify(moduleUrl('challengeProgress.js'))};
 export { communityCreate, communityJoin, communityInvite, communityManage, communitySendMessage } from ${JSON.stringify(moduleUrl('community.js'))};
 export { communityAttachment, communityAttachmentBytes } from ${JSON.stringify(moduleUrl('communityAttachment.js'))};

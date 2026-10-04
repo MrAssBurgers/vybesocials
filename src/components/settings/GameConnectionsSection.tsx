@@ -67,7 +67,7 @@ function AccountGameConnections() {
       return <article key={connection.connectionId} className="flex flex-col gap-3 rounded-xl border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0"><h4 className="break-words text-sm font-semibold">{connection.gameName}</h4><p className="break-words text-xs text-muted-foreground">{connection.publisherName}</p>
           <p className="mt-1 text-xs text-muted-foreground">{status === 'active' ? `Access ends ${new Date(connection.expiresAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : status === 'revoked' ? 'Access revoked' : 'Access expired'}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Send private captures · Check capture status</p>
+          <p className="mt-1 text-xs text-muted-foreground">Send private captures · Check capture status{connection.scopes.includes('capture:preview') ? ' · Preview this connection’s media' : ''}</p>
         </div>
         {status === 'active' && <Button variant="outline" size="sm" disabled={busy || loading} aria-label={`Revoke access for ${connection.gameName}`} onClick={() => { setError(''); setSelected(connection); }}>Revoke access</Button>}
       </article>;

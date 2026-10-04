@@ -10,6 +10,7 @@ on:
       - 'firebase.qa.json'
       - 'scripts/test-creator-platform-rules.mjs'
       - 'scripts/test-game-capture-post-rules.mjs'
+      - 'scripts/test-partner-gallery-backend.mjs'
       - 'scripts/test-customization-rules.mjs'
       - 'scripts/test-custom-sound-rules.mjs'
       - 'scripts/test-profile-visibility-rules.mjs'
@@ -136,6 +137,7 @@ on:
       - 'firebase.qa.json'
       - 'scripts/test-creator-platform-rules.mjs'
       - 'scripts/test-game-capture-post-rules.mjs'
+      - 'scripts/test-partner-gallery-backend.mjs'
       - 'scripts/test-customization-rules.mjs'
       - 'scripts/test-custom-sound-rules.mjs'
       - 'scripts/test-profile-visibility-rules.mjs'
@@ -304,6 +306,7 @@ jobs:
         run: |
           node --check scripts/test-creator-platform-rules.mjs
           node --check scripts/test-game-capture-post-rules.mjs
+          node --check scripts/test-partner-gallery-backend.mjs
           node --check scripts/test-customization-rules.mjs
           node --check scripts/test-custom-sound-rules.mjs
           node --check scripts/test-profile-visibility-rules.mjs
@@ -337,6 +340,7 @@ jobs:
           --project "$GCLOUD_PROJECT" --config firebase.qa.json --only firestore,storage
           "node scripts/test-creator-platform-rules.mjs &&
           node scripts/test-game-capture-post-rules.mjs &&
+          node scripts/test-partner-gallery-backend.mjs &&
           node scripts/test-customization-rules.mjs &&
           node scripts/test-custom-sound-rules.mjs &&
           node scripts/test-profile-visibility-rules.mjs &&

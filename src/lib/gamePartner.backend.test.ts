@@ -6,7 +6,8 @@ type Row = Record<string, unknown>;
 const state = vi.hoisted(() => ({
   rows: new Map<string, Row>(), objects: new Map<string, { bytes: Buffer; metadata: Row }>(),
   rate: true, generation: 0, afterRead: null as ((path: string) => void) | null,
-  afterSave: null as (() => void) | null, afterCompose: null as (() => void) | null,
+  afterSave: null as (() => void) | null, afterFinalSave: null as (() => void) | null,
+  afterDownload: null as (() => void) | null,
 }));
 vi.mock('../../functions/src/_shared/admin.js', () => {
   const reference = (path: string) => ({
@@ -67,11 +68,13 @@ vi.mock('../../functions/node_modules/firebase-admin/lib/esm/storage/index.js', 
       if (state.objects.has(path)) throw { code: 412 };
       state.objects.set(path, { bytes: Buffer.from(bytes), metadata: { ...options.metadata, size: String(bytes.length), generation: String(++state.generation) } });
       state.afterSave?.();
+      if (path.startsWith('game-captures/')) state.afterFinalSave?.();
     },
     getMetadata: async () => { const stored = state.objects.get(path); if (!stored) throw { code: 404 }; return [stored.metadata]; },
     download: async () => {
       const stored = state.objects.get(path); if (!stored) throw { code: 404 };
       if (options?.generation && stored.metadata.generation !== options.generation) throw { code: 412 };
+      state.afterDownload?.();
       return [Buffer.from(stored.bytes)];
     },
     delete: async () => { state.objects.delete(path); },
@@ -83,7 +86,7 @@ vi.mock('../../functions/node_modules/firebase-admin/lib/esm/storage/index.js', 
       const buffers = await Promise.all(sources.map(async source => (await source.download())[0]));
       const bytes = Buffer.concat(buffers);
       state.objects.set(destination.name, { bytes, metadata: { contentType: destination.metadata.contentType, size: String(bytes.length), generation: String(++state.generation) } });
-      state.afterCompose?.(); return [destination];
+      state.afterFinalSave?.(); return [destination];
     },
   }) }) };
 });
@@ -94,6 +97,7 @@ import { createPartnerCapture, discardPartnerCapture, finishPartnerCapture, getP
 import { createGameCapture } from '../../functions/src/gameIntegration';
 import { db } from '../../functions/src/_shared/admin';
 import { handleGamePartnerRequest } from '../../functions/src/gamePartnerApi';
+import { readPartnerCapturePreview, checkPartnerCapturePreview } from '../../functions/src/_shared/gamePartnerPreview';
 
 const sha = (value: Buffer | string) => createHash('sha256').update(value).digest('hex');
 const request = (data: unknown, uid = 'player') => ({ data, auth: { uid, token: {} }, rawRequest: {} });
@@ -118,11 +122,65 @@ async function uploaded() {
 beforeEach(() => {
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-03T12:00:00Z'));
   state.rows.clear(); state.objects.clear(); state.rate = true; state.generation = 0;
-  state.afterRead = null; state.afterSave = null; state.afterCompose = null;
+  state.afterRead = null; state.afterSave = null; state.afterFinalSave = null;
+  state.afterDownload = null;
   state.rows.set('game_integrations/neon-rally', { ...game });
   state.rows.set('game_integrations/another-game', { ...game });
 });
 afterEach(() => vi.useRealTimers());
+
+describe('partner capture preview authority', () => {
+  const scopes = ['capture:write', 'capture:status', 'capture:preview'];
+  async function previewReady() {
+    const device = await startPartnerDevice('neon-rally', 'ip', scopes);
+    const connection = await approveGamePartnerLink.run(request({ userCode: device.userCode, approvedScopes: scopes }) as Parameters<typeof approveGamePartnerLink.run>[0]);
+    vi.setSystemTime(Date.now() + 5000);
+    const access = await exchangePartnerDevice('neon-rally', device.deviceCode, 'ip');
+    const capture = await createPartnerCapture(access.accessToken, input());
+    await putPartnerChunk(access.accessToken, capture.captureId, 0, png, sha(png));
+    await finishPartnerCapture(access.accessToken, capture.captureId);
+    return { ...access, connection, capture };
+  }
+  it('requires the updated consent to acknowledge the requested media scope', async () => {
+    const device = await startPartnerDevice('neon-rally', 'ip', scopes);
+    expect((await lookup(device.userCode)).scopes).toEqual(scopes);
+    await expect(approve(device.userCode)).rejects.toMatchObject({ code: 'invalid-argument' });
+    expect([...state.rows.keys()].filter(key => key.startsWith('game_partner_connections/'))).toEqual([]);
+    await expect(startPartnerDevice('neon-rally', 'ip', [...scopes, 'feed:read'])).rejects.toMatchObject({ code: 'invalid_request' });
+  });
+  it('returns verified bytes only to the media-approved original connection', async () => {
+    const a = await previewReady();
+    expect(a.scopes).toEqual(scopes);
+    expect(await readPartnerCapturePreview(a.accessToken, a.capture.captureId)).toMatchObject({ bytes: png, contentType: 'image/png', offset: 0, total: png.length, sha256: sha(png) });
+    await expect(checkPartnerCapturePreview(a.accessToken, a.capture.captureId)).resolves.toBeUndefined();
+    const b = await linked();
+    await expect(readPartnerCapturePreview(b.accessToken, a.capture.captureId)).rejects.toMatchObject({ code: 'insufficient_scope' });
+    state.rows.get(`game_partner_tokens/${sha(b.accessToken)}`)!.scopes = scopes;
+    state.rows.get(`game_partner_connections/${b.connectionId}`)!.scopes = scopes;
+    await expect(readPartnerCapturePreview(b.accessToken, a.capture.captureId)).rejects.toMatchObject({ code: 'not_found' });
+  });
+  it.each(['owner_uid', 'game_id', 'partner_connection_id', 'storage_path', 'content_sha256', 'content_type'])('rejects altered %s before exposing bytes', async field => {
+    const a = await previewReady(); state.rows.get(`game_captures/${a.capture.captureId}`)![field] = 'different';
+    await expect(readPartnerCapturePreview(a.accessToken, a.capture.captureId)).rejects.toMatchObject({ code: 'not_found' });
+  });
+  it.each(['cancelled', 'expired', 'uploading', 'imported'])('does not preview a %s capture', async status => {
+    const a = await previewReady(); state.rows.get(`game_captures/${a.capture.captureId}`)!.status = status;
+    await expect(readPartnerCapturePreview(a.accessToken, a.capture.captureId)).rejects.toMatchObject({ code: 'not_found' });
+  });
+  it('checks the live connection again after bytes arrive', async () => {
+    const a = await previewReady();
+    state.afterDownload = () => { state.rows.get(`game_partner_connections/${a.connectionId}`)!.status = 'revoked'; };
+    await expect(readPartnerCapturePreview(a.accessToken, a.capture.captureId)).rejects.toMatchObject({ code: 'invalid_token' });
+  });
+  it('rejects altered bytes and captures already committed to a post', async () => {
+    const a = await previewReady(); const capture = state.rows.get(`game_captures/${a.capture.captureId}`)!;
+    const stored = state.objects.get(String(capture.storage_path))!; stored.bytes[11] ^= 1;
+    await expect(readPartnerCapturePreview(a.accessToken, a.capture.captureId)).rejects.toMatchObject({ code: 'not_found' });
+    stored.bytes[11] ^= 1;
+    state.rows.set(`posts/game_${a.capture.captureId}`, { game_capture_id: a.capture.captureId, author_id: 'player' });
+    await expect(checkPartnerCapturePreview(a.accessToken, a.capture.captureId)).rejects.toMatchObject({ code: 'not_found' });
+  });
+});
 
 describe('partner device consent and scoped authorization', () => {
   it('stores only hashes of random credentials and no Firebase token or UID in device responses', async () => {
@@ -287,7 +345,7 @@ describe('partner immutable private upload lifecycle', () => {
     await expect(putPartnerChunk(access.accessToken, capture.captureId, 0, png, sha(png))).rejects.toMatchObject({ code: 'invalid_token' });
     expect(state.rows.get(`game_partner_uploads/${capture.captureId}`)!.chunks).toEqual({});
   });
-  it('verifies signature and complete hash before composing', async () => {
+  it('verifies signature and complete hash before final storage writes', async () => {
     const access = await linked();
     const wrongType = Buffer.alloc(12, 1); const bad = await createPartnerCapture(access.accessToken, input(wrongType));
     await putPartnerChunk(access.accessToken, bad.captureId, 0, wrongType, sha(wrongType));
@@ -309,15 +367,15 @@ describe('partner immutable private upload lifecycle', () => {
     expect([...state.rows.keys()].some(path => path.startsWith('posts/'))).toBe(false);
     expect(await finishPartnerCapture(access.accessToken, capture.captureId)).toEqual(ready);
   });
-  it('does not make a composed capture ready after revocation during composition', async () => {
+  it('does not make a completed capture ready after revocation during final storage write', async () => {
     const access = await uploaded();
-    state.afterCompose = () => { state.rows.get(`game_partner_connections/${access.connectionId}`)!.status = 'revoked'; };
+    state.afterFinalSave = () => { state.rows.get(`game_partner_connections/${access.connectionId}`)!.status = 'revoked'; };
     await expect(finishPartnerCapture(access.accessToken, access.capture.captureId)).rejects.toMatchObject({ code: 'invalid_token' });
     expect(state.rows.get(`game_captures/${access.capture.captureId}`)!.status).toBe('uploading');
   });
-  it('does not resurrect a capture discarded during composition', async () => {
+  it('does not resurrect a capture discarded during final storage write', async () => {
     const access = await uploaded();
-    state.afterCompose = () => { state.rows.get(`game_captures/${access.capture.captureId}`)!.status = 'cancelled'; };
+    state.afterFinalSave = () => { state.rows.get(`game_captures/${access.capture.captureId}`)!.status = 'cancelled'; };
     await expect(finishPartnerCapture(access.accessToken, access.capture.captureId)).rejects.toMatchObject({ code: 'expired_capture' });
     expect(state.rows.get(`game_captures/${access.capture.captureId}`)!.status).toBe('cancelled');
   });

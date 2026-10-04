@@ -10,6 +10,7 @@
   "exports": {
     ".": { "types": "./dist/universal/index.d.ts", "import": "./dist/universal/index.js" },
     "./partner": { "types": "./dist/game/http.d.ts", "import": "./dist/game/http.js" },
+    "./gallery": { "types": "./dist/universal/gallery.d.ts", "import": "./dist/universal/gallery.js" },
     "./game": { "types": "./dist/game/index.d.ts", "import": "./dist/game/index.js" }
   },
   "files": ["dist", "README.md"],

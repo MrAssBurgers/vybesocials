@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import { db } from './_shared/admin.js';
 import { GameCaptureValidationError } from './gameIntegrationValidation.js';
 import { authorizePartner, exchangePartnerDevice, partnerRateLimit, PartnerError, startPartnerDevice } from './_shared/gamePartnerCore.js';
+import { checkPartnerCapturePreview, listPartnerCaptures, readPartnerCapturePreview } from './_shared/gamePartnerPreview.js';
 import {
   createPartnerCapture, discardPartnerCapture, finishPartnerCapture, getPartnerCapture,
   putPartnerChunk, revokePartnerToken,
@@ -45,24 +46,43 @@ function safeError(error: unknown): PartnerError {
 export async function handleGamePartnerRequest(request: Request, response: Response): Promise<void> {
   response.set({
     'Cache-Control': 'private, no-store', Pragma: 'no-cache', 'X-Content-Type-Options': 'nosniff',
-    'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+    'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,HEAD,POST,PUT,DELETE,OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization,Content-Type,X-Chunk-SHA256',
-    'Access-Control-Expose-Headers': 'Retry-After',
+    'Access-Control-Expose-Headers': 'Retry-After,Content-Range,X-Capture-SHA256',
   });
   if (request.method === 'OPTIONS') { response.status(204).end(); return; }
   try {
     const path = request.path.replace(/\/$/, '');
     const source = request.ip || request.socket.remoteAddress || 'unknown';
     if (path === '/v1/device/code' && request.method === 'POST') {
-      response.status(200).json(await startPartnerDevice(jsonBody(request).clientId, source)); return;
+      const body = jsonBody(request);
+      response.status(200).json(await startPartnerDevice(body.clientId, source, body.scopes)); return;
     }
     if (path === '/v1/device/token' && request.method === 'POST') {
       const body = jsonBody(request);
       response.status(200).json(await exchangePartnerDevice(body.clientId, body.deviceCode, source)); return;
     }
     const token = accessToken(request);
-    const principal = await db.runTransaction(tx => authorizePartner(tx, token, request.method === 'GET' ? 'capture:status' : 'capture:write'));
+    const principal = await db.runTransaction(tx => authorizePartner(tx, token, ['GET', 'HEAD'].includes(request.method) ? 'capture:status' : 'capture:write'));
     await partnerRateLimit(`access:${principal.uid}`, 120);
+    if (path === '/v1/captures' && request.method === 'GET') {
+      if (Object.keys(request.query ?? {}).some(key => key !== 'cursor')) throw new PartnerError(400, 'invalid_request', 'Unsupported gallery query.');
+      response.status(200).json(await listPartnerCaptures(token, request.query?.cursor)); return;
+    }
+    const preview = /^\/v1\/captures\/([a-f0-9]{48})\/preview$/.exec(path);
+    if (preview && request.method === 'HEAD') {
+      await checkPartnerCapturePreview(token, preview[1]); response.status(204).end(); return;
+    }
+    if (preview && request.method === 'GET') {
+      await partnerRateLimit(`preview:${principal.uid}`, 12);
+      if (Object.keys(request.query ?? {}).some(key => key !== 'chunk')
+        || (request.query?.chunk !== undefined && (typeof request.query.chunk !== 'string' || !/^[0-5]$/.test(request.query.chunk)))) throw new PartnerError(400, 'invalid_request', 'Choose an available preview chunk.');
+      const media = await readPartnerCapturePreview(token, preview[1], Number(request.query?.chunk ?? 0));
+      response.set({ 'Content-Type': media.contentType, 'Content-Length': String(media.bytes.length),
+        'Content-Range': `bytes ${media.offset}-${media.offset + media.bytes.length - 1}/${media.total}`, 'X-Capture-SHA256': media.sha256,
+        'Content-Disposition': 'inline', 'Cross-Origin-Resource-Policy': 'cross-origin' });
+      response.status(200).send(media.bytes); return;
+    }
     if (path === '/v1/captures' && request.method === 'POST') {
       response.status(200).json(await createPartnerCapture(token, jsonBody(request))); return;
     }

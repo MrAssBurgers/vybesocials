@@ -127,19 +127,26 @@ export async function finishPartnerCapture(token: string, rawId: unknown) {
   const bucket = getStorage().bucket();
   const files = chunks.map((chunk, index) => bucket.file(chunkPath(id, index), { generation: chunk.generation }));
   const wholeHash = createHash('sha256');
+  const verifiedChunks: Buffer[] = [];
   for (let index = 0; index < count; index++) {
     const [bytes] = await files[index].download();
     if (bytes.length !== chunks[index].byte_size || hashGameValue(bytes) !== chunks[index].sha256) throw new PartnerError(409, 'conflict', 'Uploaded chunk verification failed.');
     if (index === 0 && !matchesGameCaptureSignature(bytes.subarray(0, 32), capture.content_type)) throw new PartnerError(400, 'invalid_request', 'The file format does not match its media type.');
     wholeHash.update(bytes);
+    verifiedChunks.push(bytes);
   }
   if (wholeHash.digest('hex') !== capture.content_sha256) throw new PartnerError(409, 'conflict', 'The whole-file checksum does not match this capture.');
-  // Recheck before composing and again before making the capture available for review.
+  // Bounded to 48 MiB; the same create-only write runs on Cloud Storage and emulators.
+  // Recheck before writing and again before making the capture available for review.
   await db.runTransaction(tx => boundCapture(tx, token, id, true));
   const destination = bucket.file(capture.storage_path);
-  destination.metadata = { contentType: capture.content_type };
   let preexisting = false;
-  try { await bucket.combine(files, destination, { ifGenerationMatch: 0 }); } catch (error) {
+  try {
+    await destination.save(Buffer.concat(verifiedChunks, capture.byte_size), {
+      resumable: false, validation: 'crc32c', preconditionOpts: { ifGenerationMatch: 0 },
+      metadata: { contentType: capture.content_type, cacheControl: 'private,no-store' },
+    });
+  } catch (error) {
     if (storageCode(error) !== 412) throw error;
     preexisting = true;
   }

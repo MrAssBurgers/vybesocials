@@ -9,6 +9,7 @@ export default tseslint.config(
     ignores: [
       "dist",
       "sdk/dist/**",
+      "work/**",
       "tailwind.config.ts",
       ".cursor/**",
       "functions/lib/**",

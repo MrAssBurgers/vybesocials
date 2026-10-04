@@ -2,7 +2,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { getStorage } from 'firebase-admin/storage';
 import { db, requireAuth } from './_shared/admin.js';
-import { PartnerError, PARTNER_RETENTION_MS, PARTNER_SCOPES, PARTNER_TTL_MS, connectionReceipt, deviceFromUserCode, partnerRateLimit, randomConnectionId, } from './_shared/gamePartnerCore.js';
+import { PartnerError, PARTNER_RETENTION_MS, PARTNER_PREVIEW_SCOPE, PARTNER_TTL_MS, connectionReceipt, requestedPartnerScopes, deviceFromUserCode, partnerRateLimit, randomConnectionId, } from './_shared/gamePartnerCore.js';
 const opts = { region: 'us-central1', invoker: 'public', timeoutSeconds: 60 };
 async function partnerUser(request, action) {
     const uid = requireAuth(request);
@@ -24,7 +24,7 @@ export const getGamePartnerLink = onCall(opts, request => partnerUser(request, u
     const { device, game } = await deviceFromUserCode(tx, request.data?.userCode, uid);
     return {
         clientId: device.client_id, gameName: game.display_name.slice(0, 80), publisherName: game.publisher_name.slice(0, 120),
-        scopes: [...PARTNER_SCOPES], expiresAt: device.expires_at_ms,
+        scopes: requestedPartnerScopes(device.requested_scopes), expiresAt: device.expires_at_ms,
         status: device.expires_at_ms <= Date.now() ? 'expired' : device.status,
     };
 })));
@@ -33,6 +33,12 @@ export const approveGamePartnerLink = onCall(opts, request => partnerUser(reques
     const connectionId = randomConnectionId();
     return db.runTransaction(async (tx) => {
         const { ref, device, game } = await deviceFromUserCode(tx, request.data?.userCode, uid);
+        const scopes = requestedPartnerScopes(device.requested_scopes);
+        // Old consent clients must never silently approve the new media-read permission.
+        if (scopes.includes(PARTNER_PREVIEW_SCOPE) && (request.data?.approvedScopes === undefined
+            || JSON.stringify(requestedPartnerScopes(request.data.approvedScopes)) !== JSON.stringify(scopes))) {
+            throw new PartnerError(400, 'invalid_request', 'Review and approve every requested permission in the updated VYBE app.');
+        }
         const now = Date.now();
         if (device.expires_at_ms <= now)
             throw new PartnerError(409, 'expired_token', 'This game code expired. Start again in your game.');
@@ -45,7 +51,7 @@ export const approveGamePartnerLink = onCall(opts, request => partnerUser(reques
             throw new PartnerError(409, 'conflict', 'This game code has already been used or declined.');
         const connection = {
             owner_uid: uid, client_id: device.client_id, game_name: game.display_name.slice(0, 80), publisher_name: game.publisher_name.slice(0, 120),
-            scopes: [...PARTNER_SCOPES], status: 'active', created_at_ms: now, expires_at_ms: now + PARTNER_TTL_MS, cleanup_at_ms: now + PARTNER_RETENTION_MS,
+            scopes, status: 'active', created_at_ms: now, expires_at_ms: now + PARTNER_TTL_MS, cleanup_at_ms: now + PARTNER_RETENTION_MS,
         };
         tx.create(db.collection('game_partner_connections').doc(connectionId), connection);
         tx.update(ref, { owner_uid: uid, connection_id: connectionId, status: 'approved' });

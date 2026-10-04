@@ -54,13 +54,16 @@ export interface PartnerClientOptions {
   /** Test environments only: HTTP on localhost, 127.0.0.1 or [::1]. */
   allowInsecureLoopback?: boolean;
   fetch?: typeof globalThis.fetch;
+  /** Request explicit consent to read this connection's own private capture media. */
+  previewCaptures?: boolean;
 }
+export interface PartnerCapturePage { captures: PartnerCaptureReceipt[]; nextCursor: string | null }
 export type PartnerCaptureRequest = Omit<CaptureRequest, 'gameId'>;
 /** Partner games never receive private Firebase storage paths or account IDs. */
 export type PartnerCaptureReceipt = Omit<CaptureReceipt, 'storagePath'>;
 type Session = PartnerAuthorization & { accessToken: string };
 type DeviceRequest = PartnerDeviceLink & { deviceCode: string };
-type RequestOptions = { signal?: AbortSignal; session?: Session; body?: unknown; chunk?: Uint8Array; checksum?: string; retry?: boolean };
+type RequestOptions = { signal?: AbortSignal; session?: Session; body?: unknown; chunk?: Uint8Array; checksum?: string; retry?: boolean; preview?: { contentType: CaptureMime; total: number; offset: number } };
 
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new VybePartnerError('invalid_response');
@@ -71,6 +74,32 @@ function boundedString(value: unknown, max: number): value is string {
 }
 function checkAbort(signal?: AbortSignal) { if (signal?.aborted) throw new VybePartnerError('aborted'); }
 function captureId(value: string) { if (!/^[a-f0-9]{48}$/.test(value)) throw new VybePartnerError('invalid_request'); return value; }
+
+async function boundedBody(response: Response, limit: number, signal: AbortSignal): Promise<Uint8Array> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new VybePartnerError('invalid_response');
+  const chunks: Uint8Array[] = []; let total = 0;
+  let rejectAbort: () => void = () => {};
+  const cancelled = new Promise<never>((_, reject) => { rejectAbort = () => reject(new VybePartnerError('aborted')); });
+  const abort = () => { rejectAbort(); void reader.cancel().catch(() => {}); };
+  signal.addEventListener('abort', abort, { once: true });
+  try {
+    checkAbort(signal);
+    while (true) {
+      const result = await Promise.race([reader.read(), cancelled]); checkAbort(signal);
+      if (result.done) break;
+      total += result.value.byteLength;
+      if (total > limit) throw new VybePartnerError('invalid_response');
+      chunks.push(result.value);
+    }
+    const bytes = new Uint8Array(total); let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    return bytes;
+  } finally {
+    signal.removeEventListener('abort', abort);
+    void reader.cancel().catch(() => {});
+  }
+}
 
 function wait(ms: number, signal?: AbortSignal): Promise<void> {
   checkAbort(signal);
@@ -97,6 +126,7 @@ export class VybePartnerClient {
   #device: DeviceRequest | null = null;
   #linkGeneration = 0;
   #polling: DeviceRequest | null = null;
+  #scopes: string[];
 
   constructor(options: PartnerClientOptions) {
     let base: URL;
@@ -108,6 +138,8 @@ export class VybePartnerClient {
     this.#base = base.href.replace(/\/+$/, '');
     this.#clientId = options.clientId;
     this.#fetch = options.fetch || globalThis.fetch.bind(globalThis);
+    if (options.previewCaptures !== undefined && typeof options.previewCaptures !== 'boolean') throw new VybePartnerError('invalid_request');
+    this.#scopes = options.previewCaptures ? [...SCOPES, 'capture:preview'] : [...SCOPES];
   }
 
   get authorization(): PartnerAuthorization | null {
@@ -127,7 +159,7 @@ export class VybePartnerClient {
     const generation = ++this.#linkGeneration;
     this.#device = null;
     this.#session = null;
-    const data = object(await this.#request('/v1/device/code', 'POST', { body: { clientId: this.#clientId }, signal: options.signal }));
+    const data = object(await this.#request('/v1/device/code', 'POST', { body: { clientId: this.#clientId, ...(this.#scopes.length > 2 ? { scopes: [...this.#scopes] } : {}) }, signal: options.signal }));
     if (generation !== this.#linkGeneration) throw new VybePartnerError('authorization_changed');
     if (typeof data.deviceCode !== 'string' || !/^vyd_[A-Za-z0-9_-]{43}$/.test(data.deviceCode)
       || typeof data.userCode !== 'string' || !/^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/.test(data.userCode)
@@ -169,10 +201,10 @@ export class VybePartnerClient {
           if (typeof data.accessToken !== 'string' || !/^vyp_[A-Za-z0-9_-]{43}$/.test(data.accessToken) || data.tokenType !== 'Bearer'
             || typeof data.connectionId !== 'string' || !/^[a-f0-9]{32}$/.test(data.connectionId) || !Number.isInteger(data.expiresIn) || Number(data.expiresIn) <= 0 || Number(data.expiresIn) > 600
             || !Number.isSafeInteger(data.expiresAt) || Number(data.expiresAt) <= Date.now()
-            || scopes.length !== SCOPES.length || SCOPES.some(scope => !scopes.includes(scope))) throw new VybePartnerError('invalid_response');
+            || scopes.length !== this.#scopes.length || this.#scopes.some(scope => !scopes.includes(scope))) throw new VybePartnerError('invalid_response');
           this.#session = {
             accessToken: data.accessToken, connectionId: data.connectionId,
-            expiresAt: Math.min(Number(data.expiresAt), Date.now() + Number(data.expiresIn) * 1000), scopes: [...SCOPES],
+            expiresAt: Math.min(Number(data.expiresAt), Date.now() + Number(data.expiresIn) * 1000), scopes: [...this.#scopes],
           };
           this.#device = null;
           return this.authorization!;
@@ -257,6 +289,39 @@ export class VybePartnerClient {
     }
   }
 
+  async listCaptures(options: { cursor?: string; signal?: AbortSignal } = {}): Promise<PartnerCapturePage> {
+    const suffix = options.cursor === undefined ? '' : `?cursor=${captureId(options.cursor)}`;
+    const data = object(await this.#request(`/v1/captures${suffix}`, 'GET', { signal: options.signal, session: this.#requireSession(), retry: true }));
+    if (!Array.isArray(data.captures) || data.captures.length > 20
+      || (data.nextCursor !== null && (typeof data.nextCursor !== 'string' || !/^[a-f0-9]{48}$/.test(data.nextCursor)))) throw new VybePartnerError('invalid_response');
+    const captures = data.captures.map(value => this.#receipt(value));
+    if (captures.some((row, index) => row.captureId <= (index ? captures[index - 1].captureId : options.cursor ?? ''))
+      || (typeof data.nextCursor === 'string' && (data.nextCursor <= (options.cursor ?? '') || captures.some(row => row.captureId > data.nextCursor!)))) throw new VybePartnerError('invalid_response');
+    return { captures, nextCursor: data.nextCursor as string | null };
+  }
+
+  async getCapturePreview(id: string, options: { signal?: AbortSignal } = {}): Promise<Blob> {
+    const session = this.#requireSession();
+    if (!session.scopes.includes('capture:preview')) throw new VybePartnerError('insufficient_scope');
+    const capture = await this.getCapture(id, options); this.#checkSession(session);
+    if (capture.status !== 'ready') throw new VybePartnerError('not_found');
+    const parts: Blob[] = []; let checksum: string | null = null;
+    for (let offset = 0; offset < capture.byteSize; offset += PARTNER_CHUNK_BYTES) {
+      const part = await this.#request(`/v1/captures/${captureId(id)}/preview?chunk=${offset / PARTNER_CHUNK_BYTES}`, 'GET', {
+        ...options, session, preview: { contentType: capture.contentType, total: capture.byteSize, offset },
+      }) as { blob: Blob; sha256: string };
+      if (checksum && checksum !== part.sha256) throw new VybePartnerError('invalid_response');
+      checksum = part.sha256; parts.push(part.blob);
+    }
+    this.#checkSession(session); checkAbort(options.signal);
+    return new Blob(parts, { type: capture.contentType });
+  }
+  async checkCapturePreview(id: string, options: { signal?: AbortSignal } = {}): Promise<void> {
+    const session = this.#requireSession();
+    if (!session.scopes.includes('capture:preview')) throw new VybePartnerError('insufficient_scope');
+    await this.#request(`/v1/captures/${captureId(id)}/preview`, 'HEAD', { ...options, session });
+  }
+
   getReviewUrl(receipt: Pick<CaptureReceipt, 'captureId'>): string {
     return `https://vybehub.app/game-capture/${captureId(receipt.captureId)}`;
   }
@@ -310,7 +375,25 @@ export class VybePartnerClient {
         if (options.session) this.#checkSession(options.session);
         // Defend against fetch polyfills that ignore redirect:'error'.
         if (response.redirected || (response.url && response.url !== `${this.#base}${path}`)) throw new VybePartnerError('invalid_response');
-        const text = await response.text();
+        if (method === 'HEAD') {
+          if (response.status === 401 && options.session === this.#session) this.#session = null;
+          if (response.status !== 204) throw new VybePartnerError(response.status === 401 ? 'invalid_token' : response.status === 403 ? 'insufficient_scope' : 'not_found', response.status);
+          return undefined;
+        }
+        if (options.preview && response.ok) {
+          const contentType = response.headers.get('content-type');
+          const length = Number(response.headers.get('content-length'));
+          const expected = Math.min(PARTNER_CHUNK_BYTES, options.preview.total - options.preview.offset);
+          const checksum = response.headers.get('x-capture-sha256');
+          if (response.status !== 200 || contentType !== options.preview.contentType || length !== expected
+            || response.headers.get('content-range') !== `bytes ${options.preview.offset}-${options.preview.offset + expected - 1}/${options.preview.total}`
+            || !checksum || !/^[a-f0-9]{64}$/.test(checksum)) { void response.body?.cancel().catch(() => {}); throw new VybePartnerError('invalid_response'); }
+          const bytes = await boundedBody(response, length, controller.signal);
+          checkAbort(options.signal); this.#checkSession(options.session!);
+          if (bytes.byteLength !== length) throw new VybePartnerError('invalid_response');
+          return { blob: new Blob([bytes as Uint8Array<ArrayBuffer>], { type: contentType! }), sha256: checksum };
+        }
+        const text = new TextDecoder().decode(await boundedBody(response, 256 * 1024, controller.signal));
         checkAbort(options.signal);
         if (options.session) this.#checkSession(options.session);
         if (response.status === 401 && options.session === this.#session) this.#session = null;

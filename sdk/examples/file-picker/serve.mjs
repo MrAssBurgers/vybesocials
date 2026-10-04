@@ -6,6 +6,7 @@ const files = new Map([
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/config.js', ['config.js', 'text/javascript; charset=utf-8']],
   ['/sdk/universal/index.js', ['../../dist/universal/index.js', 'text/javascript; charset=utf-8']],
+  ['/sdk/universal/gallery.js', ['../../dist/universal/gallery.js', 'text/javascript; charset=utf-8']],
   ['/sdk/game/http.js', ['../../dist/game/http.js', 'text/javascript; charset=utf-8']],
   ['/sdk/game/index.js', ['../../dist/game/index.js', 'text/javascript; charset=utf-8']],
 ]);

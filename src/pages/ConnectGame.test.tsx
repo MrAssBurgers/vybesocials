@@ -25,6 +25,15 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('game consent', () => {
+  it('displays and explicitly acknowledges the additional media-preview permission', async () => {
+    const scopes = ['capture:write', 'capture:status', 'capture:preview'];
+    api.get.mockResolvedValueOnce({ ...request(), scopes });
+    render(view()); await review();
+    expect(screen.getByText('Show images and videos sent during this connection inside the game or app')).toBeInTheDocument();
+    expect(api.approve).not.toHaveBeenCalled(); fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Approve game access' }));
+    await waitFor(() => expect(api.approve).toHaveBeenCalledWith('ABCD1234', scopes));
+  });
   it('requires review and matching-code confirmation before explicit approval', async () => {
     render(view());
     expect(screen.getByLabelText('Code shown in your game')).toHaveValue('ABCD-1234');

@@ -2,7 +2,7 @@ import { VybePartnerClient, VybePartnerError, type PartnerAuthorization, type Pa
 import { CAPTURE_LIMIT_BYTES, type CaptureMime, type CapturePhase } from '../game/index.js';
 
 export { VybePartnerError } from '../game/http.js';
-export type { PartnerAuthorization, PartnerCaptureReceipt, PartnerDeviceLink } from '../game/http.js';
+export type { PartnerAuthorization, PartnerCaptureReceipt, PartnerDeviceLink, PartnerCapturePage } from '../game/http.js';
 export type { CaptureMime, CapturePhase } from '../game/index.js';
 
 export interface HostCapture {
@@ -145,6 +145,15 @@ export class VybeIntegration {
   }
   getCapture(captureId: string, options: { signal?: AbortSignal } = {}): Promise<PartnerCaptureReceipt> {
     return this.#run(options.signal, operation => this.#client.getCapture(captureId, { signal: operation.signal }));
+  }
+  listCaptures(options: { cursor?: string; signal?: AbortSignal } = {}) {
+    return this.#run(options.signal, operation => this.#client.listCaptures({ ...options, signal: operation.signal }));
+  }
+  getCapturePreview(captureId: string, options: { signal?: AbortSignal } = {}): Promise<Blob> {
+    return this.#run(options.signal, operation => this.#client.getCapturePreview(captureId, { signal: operation.signal }));
+  }
+  checkCapturePreview(captureId: string, options: { signal?: AbortSignal } = {}): Promise<void> {
+    return this.#run(options.signal, operation => this.#client.checkCapturePreview(captureId, { signal: operation.signal }));
   }
   discardCapture(captureId: string, options: { signal?: AbortSignal } = {}): Promise<void> {
     return this.#run(options.signal, operation => this.#client.discardCapture(captureId, { signal: operation.signal }));

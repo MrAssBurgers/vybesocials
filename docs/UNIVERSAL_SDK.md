@@ -2,7 +2,7 @@
 
 VYBE's partner protocol is usable by any registered application, game, game mod or tool that can call HTTPS and supply an encoded image or video. The new `sdk/universal` facade supplies a consistent host lifecycle around that protocol. This is a locally buildable pilot package, not a published registry package or a claim of native-engine certification.
 
-It provides explicit account linking, private capture upload, retry with the original media, capture status/discard, connection revocation and official VYBE browser entry points. It does **not** provide an embedded feed, messages, automatic posting, native overlay UI or a browser-frame authentication bridge. Open VYBE in the user's browser for browsing and publishing.
+It provides explicit account linking, private capture upload, retry with the original media, capture status/discard, connection revocation and official VYBE browser entry points. It now includes an opt-in [embedded capture gallery](PARTNER_CAPTURE_GALLERY.md) for trusted host UI. A general social feed, messages, automatic posting, native overlay implementation and browser-frame authentication bridge remain separate work. Open VYBE in the user's browser for full browsing and publishing.
 
 ## Build and run the real file-picker example
 
@@ -19,7 +19,7 @@ The first screen asks the operator to edit `sdk/examples/file-picker/config.js` 
 
 After configuring an authorized environment, the user explicitly clicks **Connect VYBE**, opens the official consent page and matches the displayed code and publisher. They then choose an image/video, upload for review and open the private review page. Retry uses the same prepared draft. Cancel stops the current local action. Discard and Disconnect require actual server acknowledgements. The host capture adapter in this example reads an already encoded file; a mod can replace it with its host's screenshot/replay API. No network call or browser opening occurs on mount.
 
-The browser example uses an external tab, never an authenticated embedded iframe. It removes `window.opener` before navigating. File selection is explicit; there is no filesystem scan, screen recording or camera permission request.
+The browser example renders the capture gallery locally and uses an external tab for consent and review, never an authenticated embedded iframe. It removes `window.opener` before navigating. File selection is explicit; there is no filesystem scan, screen recording or camera permission request.
 
 ## Local distribution
 
@@ -39,10 +39,11 @@ Exports:
 | Import | Purpose |
 | --- | --- |
 | `@vybe/integration-sdk` | New host-neutral `VybeIntegration`, host/draft types and errors |
+| `@vybe/integration-sdk/gallery` | Opt-in browser/overlay capture gallery |
 | `@vybe/integration-sdk/partner` | Existing `VybePartnerClient` HTTP API |
 | `@vybe/integration-sdk/game` | Existing transport-neutral first-party `VybeGameClient` |
 
-Existing repository `sdk/game` imports remain compatible. The backend registry is still named `game_integrations`; protocol fields such as `gameId` and the consent route `/connect/game` remain unchanged. For a mod, register its actual publisher and client ID; do not borrow the base game's identity or imply its endorsement. Registration is manual in this pilot. No registry, consent or backend schema migration is part of this facade.
+Existing repository `sdk/game` imports remain compatible. The backend registry is still named `game_integrations`; protocol fields such as `gameId` and the consent route `/connect/game` remain unchanged. For a mod, register its actual publisher and client ID; do not borrow the base game's identity or imply its endorsement. Registration is manual in this pilot. The optional gallery adds explicit media-preview consent; existing two-scope integrations remain compatible.
 
 ## Host adapter
 
@@ -121,4 +122,4 @@ Supported payloads remain PNG/JPEG/WebP/MP4/WebM, 12 bytes through 48 MiB. Hashi
 
 Focused facade tests use the real partner client with controlled HTTP responses: explicit official navigation, secret-free links, original-byte retry, rejection of foreign/released/old-account drafts, malformed media, unavailable service recovery, callback-triggered unload, stale host results, polling replacement, explicit revoke and disposal. These are protocol/lifecycle regressions, not claims of live partner deployment. Existing partner protocol tests continue to cover checksums, endpoint/redirect guards, backoff and consent errors.
 
-The local package is built and its compiled exports/TypeScript declarations checked. A registered staging endpoint, current backend rollout and actual host integration still need end-to-end certification. Secure embedded browsing/read scopes and native/mod-specific adapters remain separate work; the current facade opens VYBE externally without exposing the user's Firebase session.
+The local package is built and its compiled exports/TypeScript declarations checked. A registered staging endpoint, current backend rollout and actual host integration still need end-to-end certification. The capture gallery now has its own explicit media-read permission. General social-feed embedding and native/mod-specific adapters remain separate work; full VYBE browsing opens externally without exposing the user's Firebase session.
