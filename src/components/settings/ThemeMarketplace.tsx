@@ -1,9 +1,10 @@
-import { useState, memo, useCallback } from 'react';
+import { useState, memo, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Search, Heart, Download, Star, TrendingUp, Clock, 
   Palette, User, Code, Trash2
 } from 'lucide-react';
+import { useThemeActor } from '@/hooks/useThemeActor';
 import { useAuth } from '@/lib/auth';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -16,7 +17,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { 
-  usePublicThemes, 
+  usePublicThemes, useEquipSharedTheme,
   useLikeTheme,
   useUnlikeTheme,
   useUserThemeLikes,
@@ -24,12 +25,7 @@ import {
   SharedTheme
 } from '@/hooks/useSharedThemes';
 import { useImportThemeCode } from '@/hooks/useUISettings';
-import { persistEquippedUserTheme } from '@/hooks/useCustomTheme';
-import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
-import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
-import { useQueryClient } from '@tanstack/react-query';
 
 
 const CATEGORIES = [
@@ -183,17 +179,17 @@ const ThemeCard = memo(function ThemeCard({
 
 
 export const ThemeMarketplace = memo(function ThemeMarketplace() {
-  const { triggerTransition } = useThemeTransition();
-  const { setTheme: setGlobalTheme } = useTheme();
   const { profile, user } = useAuth();
-  const queryClient = useQueryClient();
+  const equip = useEquipSharedTheme();
+  const session = useThemeActor();
   
   // Data hooks
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('trending');
   
-  const { data: publicThemes = [], isLoading } = usePublicThemes(searchQuery);
+  const publicQuery = usePublicThemes(searchQuery);
+  const { data: publicThemes = [], isLoading } = publicQuery;
   const { data: likedThemeIds = [] } = useUserThemeLikes();
   
   // Mutations
@@ -205,10 +201,11 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
   
   // State
   const [activeThemeId, setActiveThemeId] = useState<string | null>(() => {
-    return localStorage.getItem('vybe-equipped-theme-id');
+    return localStorage.getItem(`vybe-equipped-theme-id:${user?.id}`);
   });
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importCodeInput, setImportCodeInput] = useState('');
+  useEffect(() => { setImportDialogOpen(false); setImportCodeInput(''); }, [session.actor]);
 
   // Filter and sort themes — skip rows with missing/invalid tokens (prevents render crash)
   const filteredThemes = publicThemes
@@ -219,7 +216,8 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
       if (!tokens) return false;
       if (selectedCategory === 'dark') return tokens.mode === 'dark';
       if (selectedCategory === 'light') return tokens.mode === 'light';
-      return true;
+      return theme.category?.toLowerCase() === selectedCategory
+        || theme.tags?.some(tag => tag.toLowerCase() === selectedCategory);
     })
     .sort((a, b) => {
       switch (sortBy) {
@@ -237,53 +235,31 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
       }
     });
 
-  // Select theme - clicking applies and persists
-  const handleSelectTheme = useCallback((theme: SharedTheme) => {
-    const tokens = theme.theme_tokens;
-    if (!tokens?.colorPrimary) {
-      toast.error('This theme is missing color data and cannot be applied.');
-      return;
-    }
-    triggerTransition(
-      tokens.colorPrimary,
-      tokens.colorAccent || '330 80% 60%',
-      () => {
-        try {
-          const targetMode = tokens.mode === 'light' ? 'light' : 'dark';
-          setGlobalTheme(targetMode);
-          persistEquippedUserTheme(tokens, {
-            themeId: theme.id,
-            queryClient,
-            userId: user?.id,
-            basePreset: 'shared',
-            themeName: theme.theme_name,
-            silent: true,
-          });
-          setActiveThemeId(theme.id);
-          toast.success(`Theme "${theme.theme_name}" equipped!`);
-        } catch (error) {
-          console.error('Error applying theme:', error);
-        }
-      }
-    );
-  }, [triggerTransition, setGlobalTheme, queryClient, user?.id]);
+  const currentView = useRef({ uid: user?.id, importDialogOpen, importCodeInput });
+  if (currentView.current.uid !== user?.id || currentView.current.importDialogOpen !== importDialogOpen || currentView.current.importCodeInput !== importCodeInput) currentView.current = { uid: user?.id, importDialogOpen, importCodeInput };
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useEffect(() => { setActiveThemeId(localStorage.getItem(`vybe-equipped-theme-id:${user?.id}`)); }, [user?.id]);
+  const handleSelectTheme = useCallback(async (theme: SharedTheme) => {
+    if (equip.isPending) return;
+    const view = currentView.current;
+    try {
+      await equip.mutateAsync(theme);
+      if (mounted.current && currentView.current === view) setActiveThemeId(theme.id);
+    } catch { /* Failed persistence leaves the existing theme intact. */ }
+  }, [equip]);
 
-
-  // Import theme by code
   const handleImport = useCallback(async () => {
-    if (!importCodeInput.trim()) return;
-    
+    if (!importCodeInput.trim() || importCode.isPending || equip.isPending) return;
+    const view = currentView.current;
     try {
       const theme = await importCode.mutateAsync(importCodeInput.trim());
-      if (theme) {
-        handleSelectTheme(theme as unknown as SharedTheme);
-        setImportDialogOpen(false);
-        setImportCodeInput('');
-      }
-    } catch (err) {
-      // Error handled by mutation
-    }
-  }, [importCodeInput, importCode, handleSelectTheme]);
+      if (!mounted.current || currentView.current !== view) return;
+      await equip.mutateAsync(theme);
+      if (!mounted.current || currentView.current !== view) return;
+      setActiveThemeId(theme.id); setImportDialogOpen(false); setImportCodeInput('');
+    } catch { /* The failing mutation explains the error and the code stays editable. */ }
+  }, [importCodeInput, importCode, equip]);
 
   return (
     <div className="space-y-6">
@@ -328,6 +304,7 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
                 <div className="space-y-4 pt-4">
                   <Input
                     placeholder="Enter theme code (e.g., ABC12345)"
+                    disabled={importCode.isPending || equip.isPending}
                     value={importCodeInput}
                     onChange={(e) => setImportCodeInput(e.target.value.toUpperCase())}
                     className="font-mono text-center text-lg tracking-wider"
@@ -336,9 +313,9 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
                   <Button 
                     className="w-full" 
                     onClick={handleImport}
-                    disabled={!importCodeInput.trim() || importCode.isPending}
+                    disabled={!importCodeInput.trim() || importCode.isPending || equip.isPending}
                   >
-                    {importCode.isPending ? 'Importing...' : 'Import Theme'}
+                    {importCode.isPending ? 'Checking code…' : equip.isPending ? 'Equipping…' : 'Import Theme'}
                   </Button>
                 </div>
               </DialogContent>
@@ -381,7 +358,9 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
 
       {/* Theme Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {isLoading ? (
+        {publicQuery.isError ? (
+          <div className="col-span-full py-10 text-center"><p>Could not load themes.</p><Button variant="ghost" onClick={() => void publicQuery.refetch()}>Retry</Button></div>
+        ) : isLoading || publicQuery.isFetching ? (
           // Skeleton loading
           Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="rounded-xl border border-border bg-card animate-pulse">

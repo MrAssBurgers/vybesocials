@@ -18,7 +18,7 @@ export function SharedThemeMessageBubble({
   senderUsername,
 }: SharedThemeMessageBubbleProps) {
   const [open, setOpen] = useState(false);
-  const { data: theme, isLoading } = useSharedThemeById(sharedThemeId);
+  const { data: theme, isLoading, isFetching, isError, refetch } = useSharedThemeById(sharedThemeId);
 
   return (
     <>
@@ -26,9 +26,10 @@ export function SharedThemeMessageBubble({
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();
-          if (theme) setOpen(true);
+          if (isError) void refetch();
+          else if (theme) setOpen(true);
         }}
-        disabled={!theme}
+        disabled={!theme && !isError}
         className={cn(
           'group flex items-center gap-3 p-2.5 pr-4 rounded-2xl max-w-[260px] active:scale-[0.98] transition-transform',
           'border border-border/40 bg-card',
@@ -44,7 +45,7 @@ export function SharedThemeMessageBubble({
               className="h-14 w-14"
             />
           ) : (
-            <div className="h-14 w-14 rounded-xl bg-muted/30 animate-pulse" />
+            <div className={cn('h-14 w-14 rounded-xl bg-muted/30', (isLoading || isFetching) && 'animate-pulse')} />
           )}
         </div>
 
@@ -55,7 +56,7 @@ export function SharedThemeMessageBubble({
             VYBE Theme
           </div>
           <p className="text-sm font-semibold truncate mt-0.5">
-            {isLoading ? 'Loading…' : theme?.theme_name || 'Theme unavailable'}
+            {isLoading || isFetching ? 'Loading…' : isError ? 'Could not load · Retry' : theme?.theme_name || 'Theme unavailable'}
           </p>
           <p className="text-[11px] text-muted-foreground truncate">
             {theme ? 'Tap to preview · Equip' : senderUsername ? `from @${senderUsername}` : ' '}

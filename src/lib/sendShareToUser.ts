@@ -11,34 +11,31 @@ export async function sendThemeToUser(params: {
   recipientProfileId: string;
   senderProfileId: string;
   sharedThemeId: string;
-  themeName?: string;
+  clientMessageId: string;
+  accountGuard: () => void;
 }): Promise<boolean> {
-  const { recipientProfileId, senderProfileId, sharedThemeId, themeName } = params;
+  const { recipientProfileId, senderProfileId, sharedThemeId, clientMessageId, accountGuard } = params;
   try {
+    accountGuard();
     const convId = await createDmChat(recipientProfileId);
+    accountGuard();
     if (!convId) return false;
-
     await repairConversationForSend(convId, senderProfileId, recipientProfileId);
-
-    const { error: msgErr } = await insertDmMessage(
-      {
-        conversation_id: convId,
-        sender_id: senderProfileId,
-        content: sharedThemeId,
-        media_url: themeName || null,
-        media_type: 'theme',
-        message_type: 'shared_theme',
-      },
-      { otherProfileId: recipientProfileId },
-    );
-    if (msgErr) return false;
-
-    await bumpConversationUpdatedAt(convId);
-
-    recordShareTo(recipientProfileId);
+    accountGuard();
+    const { data, error } = await insertDmMessage({
+      conversation_id: convId, sender_id: senderProfileId, content: sharedThemeId,
+      media_url: null, media_type: null, message_type: 'shared_theme',
+      client_message_id: clientMessageId,
+    }, { otherProfileId: recipientProfileId, accountGuard });
+    accountGuard();
+    if (error || !data?.id || data.conversation_id !== convId || data.sender_id !== senderProfileId
+      || data.content !== sharedThemeId || data.message_type !== 'shared_theme'
+      || (data as typeof data & { client_message_id?: string }).client_message_id !== clientMessageId) return false;
+    // The callable owns conversation timestamps. An optional recency write
+    // cannot turn an acknowledged message into a failed delivery.
+    try { recordShareTo(recipientProfileId); } catch { /* Best effort only. */ }
     return true;
-  } catch (err) {
-    console.error('[sendThemeToUser] failed:', err);
+  } catch {
     return false;
   }
 }

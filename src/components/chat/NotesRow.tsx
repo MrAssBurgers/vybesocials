@@ -1,4 +1,4 @@
-import { useState, memo } from 'react';
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useMyNote, useFriendsNotes, useSetNote, useDeleteNote } from '@/hooks/useNotes';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -9,6 +9,8 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Search, X } from 'lucide-react';
 import { db } from '@/lib/firebase';
+import { tokenAccountGuard, tokenAccountSnapshot } from '@/lib/tokenMarketplaceService';
+import { validNoteGifUrl } from '@/lib/userNotesService';
 // GIPHY calls go through the giphy-search edge function (key stays server-side).
 
 interface GifResult {
@@ -18,9 +20,11 @@ interface GifResult {
 }
 
 export const NotesRow = memo(function NotesRow() {
-  const { profile } = useAuth();
-  const { data: myNote } = useMyNote();
-  const { data: friendNotes = [] } = useFriendsNotes();
+  const { user, profile } = useAuth();
+  const ownQuery = useMyNote();
+  const friendsQuery = useFriendsNotes();
+  const myNote = ownQuery.data;
+  const friendNotes = friendsQuery.data;
   const setNote = useSetNote();
   const deleteNote = useDeleteNote();
   const navigate = useNavigate();
@@ -31,52 +35,110 @@ export const NotesRow = memo(function NotesRow() {
   const [gifSearch, setGifSearch] = useState('');
   const [gifResults, setGifResults] = useState<GifResult[]>([]);
   const [gifLoading, setGifLoading] = useState(false);
+  const [gifError, setGifError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [expectedRevision, setExpectedRevision] = useState<string | null>(null);
+  const lifecycle = useRef({ mounted: true, editor: 0, draft: 0, gif: 0 });
+  const account = tokenAccountSnapshot();
+  const accountKey = JSON.stringify([user?.id, account.epoch, profile?.id]);
+  const busy = setNote.isPending || deleteNote.isPending;
+  useEffect(() => {
+    lifecycle.current.mounted = true;
+    return () => { lifecycle.current.mounted = false; lifecycle.current.editor++; lifecycle.current.gif++; };
+  }, []);
+  useEffect(() => {
+    lifecycle.current.editor++; lifecycle.current.gif++;
+    setEditOpen(false); setNoteText(''); setGifUrl(null); setGifResults([]); setGifError(null); setSaveError(null);
+  }, [accountKey]);
+
+  const setOpen = (open: boolean) => {
+    lifecycle.current.editor++; lifecycle.current.gif++;
+    setEditOpen(open);
+  };
 
   const handleOpenEdit = () => {
+    if (!ownQuery.state) return;
+    lifecycle.current.editor++; lifecycle.current.draft++;
     setNoteText(myNote?.content || '');
     setGifUrl(myNote?.gif_url || null);
     setShowGifPicker(false);
+    setExpectedRevision(ownQuery.state.revision);
+    setSaveError(null); setGifError(null); setGifSearch('');
     setEditOpen(true);
   };
 
-  const searchGifs = async (query: string) => {
+  const searchGifs = useCallback(async (query: string) => {
     const trimmed = query.trim();
+    const guard = tokenAccountGuard(user?.id);
+    const generation = ++lifecycle.current.gif;
+    const editor = lifecycle.current.editor;
+    const current = () => {
+      try { guard(); return lifecycle.current.mounted && lifecycle.current.gif === generation && lifecycle.current.editor === editor; } catch { return false; }
+    };
     setGifLoading(true);
+    setGifError(null);
     try {
-      const { data } = await db.functions.invoke('giphy-search', {
+      guard();
+      const { data, error } = await db.functions.invoke('giphy-search', {
         body: {
           endpoint: trimmed ? 'search' : 'trending',
           query: trimmed || undefined,
           limit: 20,
         },
       });
+      if (!current()) return;
+      if (error || !Array.isArray(data?.results)) throw new Error('GIFs could not load. Please retry.');
       setGifResults(
-        ((data?.results || []) as any[]).map((r: any) => ({
+        data.results.filter((r: any) => r && typeof r.id === 'string' && validNoteGifUrl(r.url || r.mediumUrl || r.previewUrl))
+          .slice(0, 20).map((r: any) => ({
           id: r.id,
           url: r.url || r.mediumUrl || r.previewUrl || '',
-          preview: r.previewUrl || r.mediumUrl || r.url || '',
+          preview: validNoteGifUrl(r.previewUrl) ? r.previewUrl : r.url || r.mediumUrl,
         }))
       );
-    } catch { setGifResults([]); }
-    setGifLoading(false);
+    } catch { if (current()) { setGifError('GIFs could not load. Please retry.'); setGifResults([]); } }
+    finally { if (current()) setGifLoading(false); }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!editOpen || !showGifPicker) return;
+    const timer = window.setTimeout(() => void searchGifs(gifSearch), 250);
+    return () => { window.clearTimeout(timer); lifecycle.current.gif++; };
+  }, [editOpen, showGifPicker, gifSearch, searchGifs]);
+
+  const changeCallbacks = (confirmation = 'Note saved') => {
+    const guard = tokenAccountGuard(user?.id); const editor = lifecycle.current.editor; const draft = lifecycle.current.draft;
+    const current = () => { try { guard(); return lifecycle.current.mounted && lifecycle.current.editor === editor; } catch { return false; } };
+    return {
+      onSuccess: (result: { revision: string }) => {
+        if (!current()) return;
+        setExpectedRevision(result.revision);
+        setSaveError(null);
+        if (lifecycle.current.draft === draft) { setOpen(false); toast.success(confirmation); }
+      },
+      onError: (error: Error) => { if (current()) setSaveError(error.message || 'Your note could not be saved. Please retry.'); },
+    };
+  };
+  const handleRemove = () => {
+    if (busy) return;
+    setSaveError(null);
+    const callbacks = changeCallbacks('Note removed');
+    deleteNote.mutate({ expectedRevision }, callbacks);
   };
 
   const handleSave = () => {
+    if (busy) return;
     const trimmed = noteText.trim();
     if (!trimmed && !gifUrl) {
-      deleteNote.mutate(undefined, {
-        onSuccess: () => { setEditOpen(false); toast.success('Note removed'); },
-      });
+      setSaveError('Write a note or choose a GIF. Use Remove to delete your existing note.');
       return;
     }
     if (trimmed.length > 60) {
       toast.error('Note must be 60 characters or less');
       return;
     }
-    setNote.mutate({ content: trimmed || '🎬', gifUrl: gifUrl || undefined }, {
-      onSuccess: () => { setEditOpen(false); toast.success('Note updated!'); },
-      onError: () => toast.error('Failed to update note'),
-    });
+    setSaveError(null);
+    setNote.mutate({ content: trimmed, gifUrl: gifUrl || undefined, expectedRevision }, changeCallbacks());
   };
 
   const renderNoteBubble = (content: string, noteGifUrl?: string | null, maxW = 'max-w-[120px]') => {
@@ -102,10 +164,17 @@ export const NotesRow = memo(function NotesRow() {
 
   return (
     <>
+      {(ownQuery.isError || ownQuery.isExpired || friendsQuery.isError || friendsQuery.isExpired) && (
+        <div role="alert" className="mx-4 mb-3 rounded-2xl border border-border/50 bg-muted/40 p-3 text-xs">
+          <p>{ownQuery.isError || ownQuery.isExpired ? 'Your note could not be refreshed.' : 'Friends’ notes could not be refreshed.'}</p>
+          <Button variant="ghost" size="sm" className="mt-1 rounded-full" disabled={ownQuery.isFetching || friendsQuery.isFetching}
+            onClick={() => { void ownQuery.refetch(); void friendsQuery.refetch(); }}>Retry notes</Button>
+        </div>
+      )}
       <div className="dm-notes-row relative z-0 px-4 pt-2 pb-3 overflow-x-auto no-scrollbar" style={{ overflowY: 'clip' }}>
         <div className="flex gap-3 min-w-max" style={{ overflow: 'visible' }}>
           {/* Current user's note */}
-          <button onClick={handleOpenEdit} className="flex flex-col items-center w-[3.25rem] flex-shrink-0" style={{ overflow: 'visible' }}>
+          <button onClick={handleOpenEdit} disabled={!ownQuery.state} className="flex flex-col items-center w-[3.25rem] flex-shrink-0 disabled:opacity-60" style={{ overflow: 'visible' }}>
             <div className="relative mb-1" style={{ overflow: 'visible' }}>
               {(myNote?.content || myNote?.gif_url) && renderNoteBubble(myNote?.content || '', myNote?.gif_url)}
               <Avatar className="dm-note-avatar dm-note-avatar--mine h-[3.25rem] w-[3.25rem]">
@@ -116,7 +185,7 @@ export const NotesRow = memo(function NotesRow() {
               </Avatar>
             </div>
             <span className="text-[10px] text-muted-foreground leading-none truncate max-w-[3.25rem]">
-              {myNote ? 'My Note' : 'Add Note'}
+              {ownQuery.isPending ? 'Loading…' : !ownQuery.state ? 'Unavailable' : myNote ? 'My Note' : 'Add Note'}
             </span>
           </button>
 
@@ -142,11 +211,16 @@ export const NotesRow = memo(function NotesRow() {
               </span>
             </button>
           ))}
+          {friendsQuery.hasNextPage && !friendsQuery.isError && (
+            <Button variant="ghost" size="sm" className="rounded-full self-center" disabled={friendsQuery.isFetchingNextPage} onClick={() => void friendsQuery.fetchNextPage()}>
+              {friendsQuery.isFetchingNextPage ? 'Loading…' : 'More notes'}
+            </Button>
+          )}
         </div>
       </div>
 
       {/* Edit Note Dialog */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+      <Dialog open={editOpen} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-center">Set a Note</DialogTitle>
@@ -162,7 +236,7 @@ export const NotesRow = memo(function NotesRow() {
                   <div className="bg-foreground/90 rounded-xl overflow-hidden shadow-lg relative" style={{ width: 48, height: 48 }}>
                     <img src={gifUrl} alt="" className="w-full h-full object-cover" />
                     <button
-                      onClick={() => setGifUrl(null)}
+                      onClick={() => { lifecycle.current.draft++; setGifUrl(null); }}
                       className="absolute -top-1 -right-1 bg-destructive rounded-full p-0.5"
                     >
                       <X className="h-3 w-3 text-destructive-foreground" />
@@ -174,7 +248,7 @@ export const NotesRow = memo(function NotesRow() {
             
             <Input
               value={noteText}
-              onChange={(e) => setNoteText(e.target.value)}
+              onChange={(e) => { lifecycle.current.draft++; setNoteText(e.target.value); }}
               placeholder="Share what's on your mind..."
               maxLength={60}
               className="text-center rounded-full"
@@ -182,6 +256,7 @@ export const NotesRow = memo(function NotesRow() {
               onKeyDown={(e) => e.key === 'Enter' && handleSave()}
             />
             <p className="text-[10px] text-muted-foreground">{noteText.length}/60 · Expires in 24h</p>
+            {saveError && <p role="alert" className="text-xs text-destructive">{saveError}</p>}
             
             {/* GIF button */}
             <Button
@@ -190,7 +265,6 @@ export const NotesRow = memo(function NotesRow() {
               className="rounded-full text-xs"
               onClick={() => {
                 setShowGifPicker(!showGifPicker);
-                if (!showGifPicker) searchGifs('');
               }}
             >
               🎬 {showGifPicker ? 'Hide GIFs' : 'Add GIF'}
@@ -206,14 +280,15 @@ export const NotesRow = memo(function NotesRow() {
                     value={gifSearch}
                     onChange={(e) => {
                       setGifSearch(e.target.value);
-                      searchGifs(e.target.value);
                     }}
                     placeholder="Search GIFs..."
                     className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                   />
                 </div>
                 <div className="grid grid-cols-3 gap-1.5 max-h-40 overflow-y-auto rounded-lg">
-                  {gifLoading ? (
+                  {gifError ? (
+                    <div role="alert" className="col-span-3 text-center text-xs py-4"><p>{gifError}</p><Button variant="ghost" size="sm" onClick={() => void searchGifs(gifSearch)}>Retry GIFs</Button></div>
+                  ) : gifLoading ? (
                     <p className="col-span-3 text-center text-xs text-muted-foreground py-4">Loading...</p>
                   ) : gifResults.length === 0 ? (
                     <p className="col-span-3 text-center text-xs text-muted-foreground py-4">No GIFs found</p>
@@ -222,6 +297,7 @@ export const NotesRow = memo(function NotesRow() {
                       <button
                         key={gif.id}
                         onClick={() => {
+                          lifecycle.current.draft++;
                           setGifUrl(gif.url);
                           setShowGifPicker(false);
                         }}
@@ -240,11 +316,8 @@ export const NotesRow = memo(function NotesRow() {
                 <Button
                   variant="outline"
                   className="flex-1 rounded-full"
-                  onClick={() => {
-                    deleteNote.mutate(undefined, {
-                      onSuccess: () => { setEditOpen(false); toast.success('Note removed'); },
-                    });
-                  }}
+                  onClick={handleRemove}
+                  disabled={busy}
                 >
                   Remove
                 </Button>
@@ -252,7 +325,7 @@ export const NotesRow = memo(function NotesRow() {
               <Button
                 className="flex-1 rounded-full"
                 onClick={handleSave}
-                disabled={setNote.isPending}
+                disabled={busy}
               >
                 {myNote ? 'Update' : 'Share'}
               </Button>

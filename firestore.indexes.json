@@ -1,5 +1,8 @@
 {
   "indexes": [
+    { "collectionGroup": "shared_themes", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "is_public", "order": "ASCENDING" }, { "fieldPath": "likes_count", "order": "DESCENDING" }
+    ] },
     { "collectionGroup": "dna_agent_actions", "queryScope": "COLLECTION", "fields": [
       { "fieldPath": "user_id", "order": "ASCENDING" }, { "fieldPath": "created_at", "order": "DESCENDING" }
     ] },

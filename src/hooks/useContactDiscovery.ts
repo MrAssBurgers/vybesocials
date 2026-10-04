@@ -1,106 +1,91 @@
-import { useState } from 'react';
-import { db } from '@/lib/firebase';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
-import { toast } from 'sonner';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
+import { captureContactActor, contactDiscoveryState, contactFailureMessage, matchDeviceContacts, type ContactDiscoveryState, type ContactSearchResult } from '@/lib/contactDiscoveryService';
+import { readDeviceContacts } from '@/lib/nativeContacts';
+import { profileFriendshipAction } from '@/lib/profileFriendshipAction';
 
-interface Contact {
-  name: string;
-  phoneNumber: string;
-}
+type Search = { phase: 'idle' | 'reading' | 'matching' | 'complete' | 'error'; result?: ContactSearchResult; error?: string };
+interface View { key: string; settings?: ContactDiscoveryState; settingsError?: string; loadingSettings: boolean; saving: boolean; search: Search; sent: string[]; adding: string | null; friendError?: string }
+const initial = (key: string): View => ({ key, loadingSettings: true, saving: false, search: { phase: 'idle' }, sent: [], adding: null });
 
-interface DiscoveredUser {
-  id: string;
-  username: string;
-  display_name: string | null;
-  avatar_url: string | null;
-  phone_number: string;
-}
-
+/** Private address-book state never enters query persistence or browser storage. */
 export function useContactDiscovery() {
-  const { profile } = useAuth();
-  const [loading, setLoading] = useState(false);
-  const [discoveredUsers, setDiscoveredUsers] = useState<DiscoveredUser[]>([]);
-
-  const normalizePhoneNumber = (phone: string): string => {
-    const digits = phone.replace(/\D/g, '');
-    if (digits.length > 10) {
-      return `+${digits}`;
-    }
-    return `+1${digits}`;
+  const { user, profile } = useAuth(), session = useReportAccountSession();
+  const ready = !!user?.id && !!profile?.id && profile.user_id === user.id && session.uid === user.id;
+  const key = `${user?.id || ''}:${profile?.id || ''}:${profile?.user_id || ''}:${session.epoch}:${ready}`;
+  const live = useRef({ key, mounted: true }); live.current.key = key;
+  const operations = useRef({ settings: 0, search: 0, friend: 0 });
+  const [stored, setStored] = useState<View>(() => initial(key));
+  const view = ready && stored.key === key ? stored : initial(key);
+  const actor = () => {
+    if (!ready) throw new Error('Wait for your signed-in profile to load.');
+    const startedKey = key;
+    return captureContactActor(user.id, profile.id, () => {
+      if (!live.current.mounted || live.current.key !== startedKey) throw Object.assign(new Error('Your account changed. Reopen contacts.'), { code: 'account-changed' });
+    });
   };
-
-  const requestContacts = async (): Promise<Contact[]> => {
-    // Check if Contact Picker API is available
-    if (!('contacts' in navigator && 'ContactsManager' in window)) {
-      return [];
-    }
-
+  const update = (fn: (old: View) => View) => setStored(old => fn(old.key === key ? old : initial(key)));
+  const loadSettings = async () => {
+    const operation = ++operations.current.settings;
+    let current: ReturnType<typeof actor>;
+    try { current = actor(); } catch { return; }
+    update(old => ({ ...old, loadingSettings: true, settings: undefined, settingsError: undefined }));
     try {
-      const props = ['name', 'tel'];
-      const opts = { multiple: true };
-      
-      // @ts-expect-error Contact Picker API types
-      const contacts = await navigator.contacts.select(props, opts);
-      
-      return contacts.map((contact: any) => ({
-        name: contact.name?.[0] || 'Unknown',
-        phoneNumber: contact.tel?.[0] || '',
-      })).filter((c: Contact) => c.phoneNumber);
-    } catch (error: any) {
-      if (error.name !== 'AbortError') {
-        console.error('Contact access error:', error);
-      }
-      return [];
+      const settings = await contactDiscoveryState(current); current.guard();
+      if (operation === operations.current.settings) update(old => ({ ...old, settings, loadingSettings: false }));
+    } catch (error) {
+      try { current.guard(); } catch { return; }
+      if (operation === operations.current.settings) update(old => ({ ...old, loadingSettings: false, settingsError: contactFailureMessage(error) }));
     }
   };
-
-  const discoverFriends = async (contacts?: Contact[]): Promise<DiscoveredUser[]> => {
-    if (!profile?.id) return [];
-    
-    setLoading(true);
-    
+  useEffect(() => { live.current.mounted = true; return () => { live.current.mounted = false; operations.current.search++; }; }, []);
+  useEffect(() => { setStored(initial(key)); if (ready) void loadSettings(); }, [key, ready]);
+  const setDiscoverable = async (enabled: boolean) => {
+    if (view.saving) return;
+    let current: ReturnType<typeof actor>; try { current = actor(); } catch { return; }
+    const operation = ++operations.current.settings;
+    update(old => ({ ...old, saving: true, settingsError: undefined }));
     try {
-      // Get contacts from device if not provided
-      const contactList = contacts || await requestContacts();
-      
-      if (contactList.length === 0) {
-        setDiscoveredUsers([]);
-        return [];
-      }
-
-      // Normalize phone numbers for search
-      const phoneNumbers = contactList
-        .map(c => normalizePhoneNumber(c.phoneNumber))
-        .filter(Boolean);
-
-      // Search for users with matching verified phone numbers (server-side RPC,
-      // never exposes raw phone_number to the client).
-      const { data: users, error } = await (db
-        .rpc('discover_users_by_phone', { _phones: phoneNumbers }) as any);
-
-      if (error) throw error;
-
-      const filtered = (users || []).filter((u: any) => u.id !== profile.id);
-      setDiscoveredUsers(filtered);
-      return filtered;
-    } catch (error: any) {
-      console.error('Error discovering contacts:', error);
-      toast.error('Failed to search contacts');
-      return [];
-    } finally {
-      setLoading(false);
+      const settings = await contactDiscoveryState(current, enabled); current.guard();
+      if (operation === operations.current.settings) update(old => ({ ...old, settings, saving: false }));
+    } catch (error) {
+      try { current.guard(); } catch { return; }
+      if (operation === operations.current.settings) update(old => ({ ...old, saving: false, settingsError: contactFailureMessage(error) }));
     }
   };
-
-  const isContactPickerSupported = () => {
-    return 'contacts' in navigator && 'ContactsManager' in window;
+  const discoverFriends = async () => {
+    if (view.search.phase === 'reading' || view.search.phase === 'matching') return;
+    let current: ReturnType<typeof actor>; try { current = actor(); } catch { return; }
+    const operation = ++operations.current.search; operations.current.friend++;
+    const baseGuard = current.guard; current.guard = () => { baseGuard(); if (operation !== operations.current.search) throw new Error('contacts_cancelled'); };
+    update(old => ({ ...old, search: { phase: 'reading' }, friendError: undefined, sent: [], adding: null }));
+    try {
+      // The picker starts in the click's user gesture; no network await precedes it.
+      const contacts = await readDeviceContacts(); current.guard();
+      if (!contacts.length) { update(old => ({ ...old, search: { phase: 'idle' } })); return; }
+      update(old => ({ ...old, search: { phase: 'matching' } }));
+      const result = await matchDeviceContacts(contacts, current); current.guard();
+      update(old => ({ ...old, search: { phase: 'complete', result } }));
+    } catch (error) {
+      try { baseGuard(); } catch { return; }
+      if (operation !== operations.current.search) return;
+      update(old => ({ ...old, search: error instanceof Error && error.message === 'contacts_cancelled' ? { phase: 'idle' } : { phase: 'error', error: contactFailureMessage(error) } }));
+    }
   };
-
-  return {
-    loading,
-    discoveredUsers,
-    discoverFriends,
-    isContactPickerSupported,
-    requestContacts,
+  const cancelSearch = () => { operations.current.search++; update(old => ({ ...old, search: { phase: 'idle' } })); };
+  const addFriend = async (targetId: string) => {
+    if (view.adding || !view.search.result?.matches.some(match => match.id === targetId)) return;
+    let current: ReturnType<typeof actor>; try { current = actor(); } catch { return; }
+    const operation = ++operations.current.friend;
+    update(old => ({ ...old, adding: targetId, friendError: undefined }));
+    try {
+      await profileFriendshipAction({ action: 'send', targetId, expectedOwnerUid: current.uid }, current.guard); current.guard();
+      if (operation === operations.current.friend) update(old => ({ ...old, adding: null, sent: [...old.sent, targetId] }));
+    } catch (error) {
+      try { current.guard(); } catch { return; }
+      if (operation === operations.current.friend) update(old => ({ ...old, adding: null, friendError: contactFailureMessage(error) }));
+    }
   };
+  return { ...view, ready, loadSettings, setDiscoverable, discoverFriends, cancelSearch, addFriend };
 }

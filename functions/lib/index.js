@@ -93,4 +93,6 @@ export { managePostLocalArea } from './postLocalArea.js';
 export { publishMiniApp } from './miniAppPublish.js';
 export { saveMiniAppDraft, deleteMiniAppDraft } from './miniAppDrafts.js';
 export { clearDnaAdaptationData } from './dnaAdaptation.js';
+export { getFriendsNotes, manageUserNote } from './userNotes.js';
+export { manageSharedTheme, generateThemeCode, useThemeCode } from './sharedThemes.js';
 //# sourceMappingURL=index.js.map

@@ -1,9 +1,11 @@
-import { getDocumentFromServer, getDocumentsFromServer, where, firestoreLimit } from '@/lib/firebase/firestoreDb';
+import { getDocumentsFromServer, where, orderBy, firestoreLimit } from '@/lib/firebase/firestoreDb';
 import type { SharedTheme } from '@/hooks/useSharedThemes';
+import { normalizeSharedThemeTokens, normalizeSharedThemeLayout, themeHttpsUrl } from '@/lib/sharedThemeSchema';
 import type { ThemeTokens } from '@/hooks/useCustomTheme';
+import { themeAuthorityRequest, type ThemeActor } from '@/lib/themeAuthorityClient';
 
 type Row = Record<string, unknown>;
-type ReadOptions = { signal?: AbortSignal };
+type ReadOptions = { signal?: AbortSignal; actor?: ThemeActor };
 export type SavedTheme = SharedTheme & { saved_id: string };
 export interface SavedThemeCollection {
   themes: SavedTheme[];
@@ -18,58 +20,75 @@ function validId(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= 1500 && !value.includes('/');
 }
 
-function unavailable(error: unknown): boolean {
-  const code = error && typeof error === 'object' && 'code' in error ? String(error.code).replace(/^firestore\//, '') : '';
-  return code === 'permission-denied' || code === 'not-found';
-}
-
 export function normalizeSharedTheme(row: Row, id: string): SharedTheme | null {
-  const tokens = row.theme_tokens;
-  if (!validId(row.creator_id) || !tokens || typeof tokens !== 'object' || Array.isArray(tokens)
-    || typeof (tokens as Row).colorPrimary !== 'string' || !(tokens as Row).colorPrimary) return null;
+  if (!validId(id) || !validId(row.creator_id)) return null;
+  let tokens: ThemeTokens;
+  let layout: SharedTheme['layout_settings'];
+  try {
+    tokens = normalizeSharedThemeTokens(row.theme_tokens) as unknown as ThemeTokens;
+    layout = normalizeSharedThemeLayout(row.layout_settings);
+  } catch { return null; }
+  let creator: SharedTheme['creator'];
+  if (row.creator && typeof row.creator === 'object' && !Array.isArray(row.creator)) {
+    const value = row.creator as Row;
+    let avatar: string | null = null;
+    try { avatar = value.avatar_url ? themeHttpsUrl(value.avatar_url) : null; } catch { /* Omit malformed profile images. */ }
+    creator = { username: typeof value.username === 'string' ? value.username.slice(0, 80) : null,
+      display_name: typeof value.display_name === 'string' ? value.display_name.slice(0, 120) : null, avatar_url: avatar };
+  }
   const count = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
   return {
     id, creator_id: row.creator_id,
-    theme_name: typeof row.theme_name === 'string' ? row.theme_name : 'Untitled theme',
-    theme_tokens: { ...tokens, mode: (tokens as Row).mode === 'light' ? 'light' : 'dark' } as ThemeTokens,
-    layout_settings: row.layout_settings && typeof row.layout_settings === 'object' && !Array.isArray(row.layout_settings) ? row.layout_settings : null,
-    description: typeof row.description === 'string' ? row.description : null,
+    theme_name: typeof row.theme_name === 'string' ? row.theme_name.slice(0, 80) : 'Untitled theme',
+    theme_tokens: tokens,
+    layout_settings: layout, creator,
+    description: typeof row.description === 'string' ? row.description.slice(0, 500) : null,
     likes_count: count(row.likes_count), downloads_count: count(row.downloads_count),
     is_public: row.is_public === true,
     created_at: typeof row.created_at === 'string' ? row.created_at : '',
-    tags: Array.isArray(row.tags) ? row.tags.filter((tag): tag is string => typeof tag === 'string') : null,
-    category: typeof row.category === 'string' ? row.category : null,
+    tags: Array.isArray(row.tags) ? row.tags.filter((tag): tag is string => typeof tag === 'string' && tag.length <= 40).slice(0, 10) : null,
+    category: typeof row.category === 'string' ? row.category.slice(0, 40) : null,
   };
 }
 
-/** Direct reads enforce current Firestore visibility; there is no privileged link bypass. */
+/** Every detail rechecks current link/grant/friendship authority on the server. */
 export async function loadSharedTheme(id: string, options?: ReadOptions): Promise<SharedTheme | null> {
   checkRead(options);
   if (!validId(id)) return null;
-  let row: Row | null;
-  try {
-    row = await getDocumentFromServer<Row>('shared_themes', id);
-  } catch (error) {
-    checkRead(options);
-    if (unavailable(error)) return null;
-    throw error;
-  }
+  if (!options?.actor) throw new Error('Sign in before opening a shared theme.');
+  const result = await themeAuthorityRequest(options.actor, 'manage-shared-theme', { action: 'read', themeId: id }, options.signal);
   checkRead(options);
-  const theme = row ? normalizeSharedTheme(row, id) : null;
-  if (!theme) return null;
-  let creator = await getDocumentFromServer<Row>('profiles', theme.creator_id);
-  checkRead(options);
-  if (!creator) {
-    const profiles = await getDocumentsFromServer<Row>('profiles', [where('user_id', '==', theme.creator_id), firestoreLimit(1)]);
-    checkRead(options);
-    creator = profiles[0] || null;
-  }
-  if (creator) theme.creator = {
-    display_name: typeof creator.display_name === 'string' ? creator.display_name : null,
-    avatar_url: typeof creator.avatar_url === 'string' ? creator.avatar_url : null,
-    username: typeof creator.username === 'string' ? creator.username : null,
-  };
+  if (result.ownerUid !== options.actor.uid || result.profileId !== options.actor.profileId) throw new Error('The theme request was not confirmed. Please retry.');
+  if (result.theme === null) return null;
+  const row = result.theme;
+  if (!row || typeof row !== 'object' || Array.isArray(row) || (row as Row).id !== id) throw new Error('The theme could not be verified. Please retry.');
+  const theme = normalizeSharedTheme(row as Row, id);
+  if (!theme) throw new Error('This theme contains unsupported settings.');
   return theme;
+}
+
+/** Raw public rows identify candidates only; current admission supplies all rendered content. */
+export async function loadPublicSharedThemes(actor: ThemeActor, search = '', signal?: AbortSignal): Promise<SharedTheme[]> {
+  const candidates = await getDocumentsFromServer<Row>('shared_themes', [where('is_public', '==', true), orderBy('likes_count', 'desc'), firestoreLimit(50)]);
+  checkRead({ signal });
+  const ids = [...new Set(candidates.map(row => row.id).filter(validId))];
+  const admitted: SharedTheme[] = [];
+  for (let offset = 0; offset < ids.length; offset += 20) {
+    const batch = ids.slice(offset, offset + 20);
+    const result = await themeAuthorityRequest(actor, 'manage-shared-theme', { action: 'readMany', themeIds: batch }, signal);
+    checkRead({ signal });
+    if (result.ownerUid !== actor.uid || result.profileId !== actor.profileId || !Array.isArray(result.themes) || result.themes.length > batch.length) throw new Error('Themes could not be verified. Please retry.');
+    const seen = new Set<string>();
+    for (const value of result.themes) {
+      if (!value || typeof value !== 'object' || !batch.includes(value.id) || seen.has(value.id)) throw new Error('Themes could not be verified. Please retry.');
+      seen.add(value.id);
+      const theme = normalizeSharedTheme(value, value.id);
+      if (!theme || !theme.is_public) throw new Error('Themes could not be verified. Please retry.');
+      admitted.push(theme);
+    }
+  }
+  const query = search.trim().toLocaleLowerCase();
+  return admitted.filter(theme => !query || theme.theme_name.toLocaleLowerCase().includes(query));
 }
 
 export async function hasSavedTheme(ownerId: string, themeId: string): Promise<boolean> {
@@ -81,14 +100,15 @@ export async function hasSavedTheme(ownerId: string, themeId: string): Promise<b
 export async function loadSavedThemes(ownerId: string, options?: ReadOptions): Promise<SavedThemeCollection> {
   checkRead(options);
   if (!validId(ownerId)) throw new Error('Could not identify your theme library');
-  const rows = await getDocumentsFromServer<Row>('saved_themes', [where('user_id', '==', ownerId)]);
+  const owners = [...new Set([ownerId, ...(options?.actor ? [options.actor.uid] : [])])];
+  const rows = (await Promise.all(owners.map(owner => getDocumentsFromServer<Row>('saved_themes', [where('user_id', '==', owner)])))).flat();
   checkRead(options);
   // Sort locally so imported references without created_at are still visible.
   rows.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
   const references = new Map<string, string>();
   let unavailableCount = 0;
   for (const row of rows) {
-    if (row.user_id !== ownerId) continue;
+    if (!owners.includes(String(row.user_id))) continue;
     if (!validId(row.shared_theme_id) || !validId(row.id)) { unavailableCount++; continue; }
     if (!references.has(row.shared_theme_id)) references.set(row.shared_theme_id, row.id);
   }
@@ -113,9 +133,10 @@ export async function loadSavedThemes(ownerId: string, options?: ReadOptions): P
 export async function loadOwnSharedThemes(ownerId: string, options?: ReadOptions): Promise<SharedTheme[]> {
   checkRead(options);
   if (!validId(ownerId)) throw new Error('Could not identify your theme library');
-  const rows = await getDocumentsFromServer<Row>('shared_themes', [where('creator_id', '==', ownerId)]);
+  const owners = [...new Set([ownerId, ...(options?.actor ? [options.actor.uid] : [])])];
+  const rows = (await Promise.all(owners.map(owner => getDocumentsFromServer<Row>('shared_themes', [where('creator_id', '==', owner)])))).flat();
   checkRead(options);
-  return rows.filter(row => row.creator_id === ownerId && validId(row.id))
-    .map(row => normalizeSharedTheme(row, String(row.id))).filter((row): row is SharedTheme => Boolean(row))
+  return rows.filter(row => owners.includes(String(row.creator_id)) && validId(row.id))
+    .map(row => normalizeSharedTheme({ ...row, creator_id: ownerId }, String(row.id))).filter((row): row is SharedTheme => Boolean(row))
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
 }

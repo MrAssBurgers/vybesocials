@@ -894,7 +894,9 @@ service cloud.firestore {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
     match /user_notes/{docId} {
-      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+      // Current friends/blocks/expiry and immutable owner writes are checked by
+      // getFriendsNotes/manageUserNote. Old snapshots never grant friend access.
+      allow read, write: if false;
     }
 
     // ---------- posts / comments / reactions ----------
@@ -1680,26 +1682,41 @@ service cloud.firestore {
         && request.resource.data.user_id == resource.data.user_id;
       allow delete: if signedIn() && ownsUserField('user_id');
     }
+    // Discovery proofs/phone indexes/quota records are server-owned.
+    match /_contact_discovery/{id} { allow read, write: if false; }
+    match /_contact_discovery_phones/{id} { allow read, write: if false; }
+    match /_contact_discovery_limits/{id} { allow read, write: if false; }
+
     match /shared_themes/{id} {
       allow read: if signedIn() && (
         resource.data.is_public == true ||
         isOwnerProfile('creator_id') ||
         resource.data.creator_id == uid()
       );
-      allow create: if signedIn() && willOwnProfile('creator_id');
+      // Audience grants and immutable theme snapshots are issued by the callable.
+      allow create: if false;
       allow update: if signedIn() && (
         isOwnerProfile('creator_id') || isStaffModerator()
-      ) && request.resource.data.creator_id == resource.data.creator_id;
+      ) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['theme_name', 'description'])
+        && request.resource.data.theme_name is string && request.resource.data.theme_name.size() > 0
+        && request.resource.data.theme_name.size() <= 80
+        && (request.resource.data.get('description', null) == null || (request.resource.data.description is string && request.resource.data.description.size() <= 1000));
       allow delete: if signedIn() && (
         isOwnerProfile('creator_id') || isStaffModerator()
       );
     }
     match /saved_themes/{id} {
       allow read: if signedIn() && isOwnerProfile('user_id');
-      allow create: if signedIn() && willOwnProfile('user_id');
-      allow delete: if signedIn() && isOwnerProfile('user_id');
-      allow update: if false;
+      allow write: if false;
     }
+    match /theme_likes/{id} {
+      allow read: if signedIn() && isOwnerProfile('user_id');
+      allow write: if false;
+    }
+    match /_shared_theme_authority/{id} { allow read, write: if false; }
+    match /_shared_theme_receipts/{id} { allow read, write: if false; }
+    match /_theme_codes/{id} { allow read, write: if false; }
+    match /_theme_code_receipts/{id} { allow read, write: if false; }
 
     // ---------- explicit deny-all admin-only tables (Cloud Functions handle these) ----------
     match /app_secrets/{id}                   { allow read, write: if false; }

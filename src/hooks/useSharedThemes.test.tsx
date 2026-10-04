@@ -7,11 +7,19 @@ import { useEquipSharedTheme, useMySharedThemes, useSavedThemes, useSharedThemeB
 const mocks = vi.hoisted(() => ({
   uid: 'alice-auth' as string | undefined, profileId: 'alice-profile' as string | undefined,
   liveUid: 'alice-auth' as string | undefined,
+  session: { uid: 'alice-auth' as string | undefined, epoch: 1 }, collection: vi.fn(),
   saved: vi.fn(), own: vi.fn(), detail: vi.fn(), hasSaved: vi.fn(), upsert: vi.fn(), insert: vi.fn(),
   equip: vi.fn(), setTheme: vi.fn(), rpc: vi.fn(), success: vi.fn(), error: vi.fn(), warning: vi.fn(),
 }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: mocks.uid ? { id: mocks.uid } : null, profile: mocks.profileId ? { id: mocks.profileId, user_id: mocks.uid } : null }) }));
 vi.mock('@/hooks/useAuthProfileId', () => ({ useAuthProfileId: () => mocks.profileId }));
+vi.mock('@/lib/reportModerationService', () => ({
+  reportAccountSubscribe: () => () => {}, reportAccountSnapshot: () => mocks.session,
+  reportAccountGuard: (uid: string) => { const epoch = mocks.session.epoch; return () => {
+    if (mocks.liveUid !== uid || mocks.session.epoch !== epoch) throw new Error('Your account changed');
+  }; },
+}));
+vi.mock('@/lib/themeSharingService', () => ({ changeThemeCollection: mocks.collection, createAndDeliverTheme: vi.fn() }));
 vi.mock('@/lib/theme', () => ({ useTheme: () => ({ setTheme: mocks.setTheme }) }));
 vi.mock('@/lib/firebase/authService', () => ({ firebaseAuth: { getUser: async () => ({ data: { user: mocks.liveUid ? { id: mocks.liveUid } : null } }) } }));
 vi.mock('@/lib/sharedThemeRepository', () => ({ loadSavedThemes: mocks.saved, loadOwnSharedThemes: mocks.own, loadSharedTheme: mocks.detail, hasSavedTheme: mocks.hasSaved }));
@@ -31,7 +39,7 @@ function deferred<T>() {
 let client: QueryClient;
 function wrapper({ children }: { children: ReactNode }) { return <QueryClientProvider client={client}>{children}</QueryClientProvider>; }
 function switchAccount(uid: string | undefined, profileId = uid ? `${uid}-profile` : undefined) {
-  mocks.uid = uid; mocks.liveUid = uid; mocks.profileId = profileId;
+  mocks.uid = uid; mocks.liveUid = uid; mocks.profileId = profileId; mocks.session = { uid, epoch: mocks.session.epoch + 1 };
 }
 beforeEach(() => {
   vi.clearAllMocks(); localStorage.clear();
@@ -39,7 +47,7 @@ beforeEach(() => {
   client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   mocks.saved.mockResolvedValue({ themes: [{ ...theme, saved_id: 'save-one' }], unavailableCount: 0 });
   mocks.own.mockResolvedValue([theme]); mocks.detail.mockResolvedValue(theme);
-  mocks.hasSaved.mockResolvedValue(false);
+  mocks.hasSaved.mockResolvedValue(false); mocks.collection.mockResolvedValue(undefined);
   mocks.upsert.mockResolvedValue({ error: null }); mocks.insert.mockResolvedValue({ error: null });
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
@@ -62,7 +70,7 @@ describe('private theme account isolation', () => {
     expect(hook.result.current.detail.data).toBeUndefined();
     await act(async () => { nextSaved.resolve({ themes: [], unavailableCount: 0 }); nextOwn.resolve([]); nextDetail.resolve(null); });
     await waitFor(() => expect(hook.result.current.detail.data).toBeNull());
-    expect(client.getQueryData(['shared-theme', 'bob-auth', 'theme-one'])).toBeNull();
+    expect(client.getQueryData(['shared-theme', 'bob-auth', mocks.session.epoch, 'alice-profile', 'theme-one'])).toBeNull();
   });
 
   it('ignores a late old-account result after a new account has finished loading', async () => {
@@ -76,7 +84,7 @@ describe('private theme account isolation', () => {
     expect(signal.aborted).toBe(true);
     await act(async () => { old.resolve([theme]); });
     expect(hook.result.current.data).toEqual([]);
-    expect(client.getQueryData(['my-shared-themes', 'bob-auth', 'bob-profile'])).toEqual([]);
+    expect(client.getQueryData(['my-shared-themes', 'bob-auth', mocks.session.epoch, 'bob-profile'])).toEqual([]);
   });
 
   it('does not load private/detail data when signed out, even with a cached profile', async () => {
@@ -178,7 +186,7 @@ describe('truthful shared-theme equip', () => {
   });
 
   it('distinguishes an equipped theme from a failed optional gallery save', async () => {
-    mocks.insert.mockResolvedValue({ error: { message: 'Gallery unavailable' } });
+    mocks.collection.mockRejectedValue(new Error('Gallery unavailable'));
     const hook = renderHook(useEquipSharedTheme, { wrapper });
     await act(async () => { await hook.result.current.mutateAsync(theme); });
     expect(mocks.equip).toHaveBeenCalledTimes(1);

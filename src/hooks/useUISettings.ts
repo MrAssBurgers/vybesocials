@@ -3,6 +3,8 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { useEffect, useCallback } from 'react';
+import { useThemeActor } from '@/hooks/useThemeActor';
+import { exportThemeCode, importThemeCode } from '@/lib/themeSharingService';
 import { readDevicePreference, writeDevicePreference } from '@/lib/devicePreferences';
 
 // Default navigation tabs
@@ -321,75 +323,27 @@ export function useApplyUISettings() {
   return settings;
 }
 
-// Export/Import theme code functions
-export function useExportThemeCode() {
-  const { profile } = useAuth();
-
-  return useMutation({
-    mutationFn: async (themeId: string) => {
-      if (!profile?.id) throw new Error('Not authenticated');
-
-      // Generate a unique code
-      const { data: codeData, error: codeError } = await db
-        .rpc('generate_theme_code');
-
-      if (codeError) throw codeError;
-
-      const code = codeData as string;
-
-      // Insert the theme code
-      const { error } = await db
-        .from('theme_codes')
-        .insert({
-          code,
-          theme_id: themeId,
-          creator_id: profile.id,
-        });
-
-      if (error) throw error;
-
-      return code;
-    },
-    onSuccess: (code) => {
-      toast.success(`Theme code created: ${code}`);
-    },
-    onError: (error: any) => {
-      console.error('Failed to create theme code:', error);
-      toast.error('Failed to create theme code');
-    },
-  });
-}
-
-export function useImportThemeCode() {
+// Both operations use checked, owner-bound callable receipts.
+function useThemeCodeAction<T>(run: (actor: NonNullable<ReturnType<typeof useThemeActor>['actor']>, input: string) => Promise<T>) {
+  const session = useThemeActor();
   const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (code: string) => {
-      // Use the code and get theme ID
-      const { data: themeId, error } = await db
-        .rpc('use_theme_code', { p_code: code.toUpperCase() });
-
-      if (error) throw error;
-      if (!themeId) throw new Error('Invalid or expired theme code');
-
-      // Get the theme data
-      const { data: theme, error: themeError } = await db
-        .from('shared_themes')
-        .select('*')
-        .eq('id', themeId)
-        .single();
-
-      if (themeError) throw themeError;
-
-      return theme;
+  const mutation = useMutation({
+    mutationFn: async ({ input, captured }: { input: string; captured: ReturnType<typeof session.capture> }) => {
+      captured.guard(); const value = await run(captured.actor, input); captured.guard(); return value;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['public-themes'] });
-      toast.success('Theme imported successfully!');
+    onSuccess: (_, { captured }) => {
+      try { captured.guard(); } catch { return; }
+      void queryClient.invalidateQueries({ queryKey: ['saved-themes'] });
     },
-    onError: (error: any) => {
-      console.error('Failed to import theme:', error);
-      toast.error(error.message || 'Invalid theme code');
+    onError: (error, { captured }) => {
+      try { captured.guard(); } catch { return; }
+      toast.error(error instanceof Error ? error.message : 'The theme code could not be used. Please retry.');
     },
   });
+  return { ...mutation,
+    mutate: (input: string) => mutation.mutate({ input, captured: session.capture() }),
+    mutateAsync: async (input: string) => mutation.mutateAsync({ input, captured: session.capture() }),
+  };
 }
+export function useExportThemeCode() { return useThemeCodeAction(exportThemeCode); }
+export function useImportThemeCode() { return useThemeCodeAction(importThemeCode); }

@@ -15,6 +15,7 @@ const PRIVATE_DM_KEYS = new Set([
   'messages', 'chat-search', 'message-transcript', 'message-pins', 'message-requests',
   'conversation-offers', 'scheduled-messages', 'vanish-messages', 'vanish-threads',
   'trashed-conversations', 'dm-reminders', 'word-reactions',
+  'my-note', 'friends-notes',
 ]);
 // Community metadata can include private names, invitations, members and media.
 // Disk snapshots cannot prove today's admission or channel permission.
@@ -28,8 +29,9 @@ const PRIVATE_COMMUNITY_KEYS = new Set([
 const PRIVATE_STORY_KEYS = new Set(['stories', 'visible-story', 'story-author', 'friend-profile-stories', 'story-highlights', 'close-friends', 'close-friend-ids', 'story-likes', 'story-views', 'story-polls', 'story-poll-votes']);
 // Profile sections depend on the current viewer and fresh audience decisions.
 const PRIVATE_PROFILE_KEYS = new Set(['profile', 'profile-by-id', 'profile-by-username', 'profile-view-identity', 'profile-view-request', 'profile-visibility-resolved', 'profile-visibility-settings', 'profile-section', 'profile-blocked-pair', 'profile-view-level', 'profile-view-friends-count', 'profile-cover-bg', 'profile-friends-list', 'follow-list', 'follow-authority', 'follow-management', 'tagged-posts']);
+const PRIVATE_THEME_KEYS = new Set(['shared-theme', 'public-themes', 'saved-themes', 'my-shared-themes', 'theme-likes']);
 const isPrivatePersistedKey = (key?: readonly unknown[]) => typeof key?.[0] === 'string'
-  && (PRIVATE_REPORT_KEYS.has(key[0]) || PRIVATE_DM_KEYS.has(key[0]) || PRIVATE_COMMUNITY_KEYS.has(key[0]) || PRIVATE_STORY_KEYS.has(key[0]) || PRIVATE_PROFILE_KEYS.has(key[0]) || (key[0] === 'posts' && key[1] === 'profile-server-v2'));
+  && (PRIVATE_REPORT_KEYS.has(key[0]) || PRIVATE_THEME_KEYS.has(key[0]) || PRIVATE_DM_KEYS.has(key[0]) || PRIVATE_COMMUNITY_KEYS.has(key[0]) || PRIVATE_STORY_KEYS.has(key[0]) || PRIVATE_PROFILE_KEYS.has(key[0]) || (key[0] === 'posts' && key[1] === 'profile-server-v2'));
 
 /**
  * IndexedDB-backed storage adapter for react-query persistence.

@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import { isConversationPairBlocked, validDocumentId, withConversationAccess } from './_shared/conversationMembership.js';
+import { assertSharedThemeDelivery, themeId } from './_shared/sharedThemeAuthority.js';
 const ALLOWED_MESSAGE_TYPES = new Set([
     'text',
     'media',
@@ -18,6 +19,7 @@ const ALLOWED_MESSAGE_TYPES = new Set([
     'event',
     'shared_post',
     'shared_clip',
+    'shared_theme',
     'call_event',
     'screenshot_notification',
     'screen_recording_notification',
@@ -181,6 +183,13 @@ export const sendDmMessage = onCall(SEND_DM_OPTS, async (request) => {
     const clientMessageId = typeof data.clientMessageId === 'string' && data.clientMessageId.trim()
         ? data.clientMessageId.trim().slice(0, 128)
         : null;
+    if (messageType === 'shared_theme') {
+        themeId(content);
+        if (mediaUrl !== null || viewMode !== 'permanent' || data.mediaType != null || !clientMessageId
+            || typeof data.clientMessageId !== 'string' || data.clientMessageId.trim().length > 128 || data.expectedSenderUid !== authUid) {
+            throw new HttpsError('invalid-argument', 'Theme messages need a stable request identity and no media attachment.');
+        }
+    }
     const now = new Date().toISOString();
     // 24h/timed: start the clock at send so unsaved messages purge even if never opened.
     // on_close / view_once: no expires_at here — leave-purge or first view handles it.
@@ -206,6 +215,11 @@ export const sendDmMessage = onCall(SEND_DM_OPTS, async (request) => {
     const result = await withConversationAccess(conversationId, { profileId: senderProfileId, authUid }, {
         allowCreate: true, repair: true, peerHint: data.otherProfileId,
     }, async (tx, access) => {
+        if (messageType === 'shared_theme') {
+            if (access.isGroup || !access.other)
+                throw new HttpsError('permission-denied', 'Themes can only be delivered to a selected friend.');
+            await assertSharedThemeDelivery(db, tx, authUid, senderProfileId, access.other.profileId, content);
+        }
         if (!access.isGroup && access.other) {
             if (await isConversationPairBlocked(tx, { profileId: senderProfileId, authUid }, access.other)) {
                 throw new HttpsError('permission-denied', 'You can’t message this user');
@@ -214,9 +228,16 @@ export const sendDmMessage = onCall(SEND_DM_OPTS, async (request) => {
         if (clientMessageId) {
             const existing = await tx.get(db.collection('messages').where('conversation_id', '==', conversationId)
                 .where('client_message_id', '==', clientMessageId).where('sender_id', '==', senderProfileId).limit(1));
-            if (!existing.empty)
-                return { message: { ...existing.docs[0].data(), id: existing.docs[0].id }, deduped: true,
+            if (!existing.empty) {
+                const previous = existing.docs[0].data();
+                if (messageType === 'shared_theme' && (previous.message_type !== messageType || previous.content !== content || previous.media_url !== null || previous.view_mode !== 'permanent')) {
+                    throw new HttpsError('already-exists', 'This message request was already used for different content.');
+                }
+                if (messageType === 'shared_theme' && previous.is_deleted === true)
+                    throw new HttpsError('failed-precondition', 'The original theme message was deleted. Start a new share to send it again.');
+                return { message: { ...previous, id: existing.docs[0].id }, deduped: true,
                     otherProfileId: access.other?.profileId ?? null, treatAsDirect: !access.isGroup };
+            }
         }
         tx.create(msgRef, message);
         return { message, deduped: false, otherProfileId: access.other?.profileId ?? null, treatAsDirect: !access.isGroup };

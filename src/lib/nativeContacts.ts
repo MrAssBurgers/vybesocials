@@ -74,8 +74,9 @@ async function readWebContacts(): Promise<DeviceContactEntry[]> {
     }));
   } catch (e: unknown) {
     const name = e && typeof e === 'object' && 'name' in e ? String((e as { name?: string }).name) : '';
-    if (name === 'SecurityError' || name === 'InvalidStateError') throw new Error('contacts_blocked');
-    throw new Error('contacts_cancelled');
+    if (name === 'SecurityError' || name === 'InvalidStateError' || name === 'NotAllowedError') throw new Error('contacts_blocked');
+    if (name === 'AbortError') throw new Error('contacts_cancelled');
+    throw new Error('contacts_failed');
   }
 }
 
@@ -85,8 +86,7 @@ export async function readDeviceContacts(): Promise<DeviceContactEntry[]> {
 
   if (isDespiaRuntime()) {
     try {
-      const list = await readDespiaContacts();
-      if (list.length) return list;
+      return await readDespiaContacts();
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
       if (msg === 'contacts_blocked' || msg === 'contacts_cancelled') throw e;

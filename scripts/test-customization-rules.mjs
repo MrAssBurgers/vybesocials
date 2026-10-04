@@ -63,8 +63,12 @@ try {
   for (const [label, owner] of [['auth UID', uid], ['legacy profile', profileId]]) {
     const publicId = `shared-public-${owner}`;
     const privateId = `shared-private-${owner}`;
-    await allowed(`${label} owner can create public theme`, () => setDoc(doc(alice, 'shared_themes', publicId), shared(owner, true)));
-    await allowed(`${label} owner can create private snapshot`, () => setDoc(doc(alice, 'shared_themes', privateId), shared(owner)));
+    await denied(`${label} public theme creation needs server authority`, () => setDoc(doc(alice, 'shared_themes', publicId), shared(owner, true)));
+    await denied(`${label} private snapshot creation needs server authority`, () => setDoc(doc(alice, 'shared_themes', privateId), shared(owner)));
+    await env.withSecurityRulesDisabled(async context => {
+      await setDoc(doc(context.firestore(), 'shared_themes', publicId), shared(owner, true));
+      await setDoc(doc(context.firestore(), 'shared_themes', privateId), shared(owner));
+    });
     await allowed(`${label} private snapshot stays readable by owner`, () => getDoc(doc(alice, 'shared_themes', privateId)));
     await allowed(`${label} public theme stays readable by another signed-in account`, () => getDoc(doc(bob, 'shared_themes', publicId)));
     await denied(`${label} private snapshot is not readable by another account`, () => getDoc(doc(bob, 'shared_themes', privateId)));
@@ -72,7 +76,7 @@ try {
     await allowed(`${label} owner can rename shared theme`, () => updateDoc(doc(alice, 'shared_themes', publicId), { theme_name: 'Renamed' }));
     await denied(`${label} owner cannot attribute theme to another auth UID`, () => updateDoc(doc(alice, 'shared_themes', publicId), { creator_id: otherUid }));
     await denied(`${label} owner cannot attribute theme to another legacy profile`, () => updateDoc(doc(alice, 'shared_themes', publicId), { creator_id: otherProfileId }));
-    await allowed(`${label} staff can moderate shared theme`, () => updateDoc(doc(staff, 'shared_themes', publicId), { is_public: false }));
+    await denied(`${label} staff cannot desynchronize immutable theme audience`, () => updateDoc(doc(staff, 'shared_themes', publicId), { is_public: false }));
     await denied(`${label} staff cannot transfer theme authorship`, () => updateDoc(doc(staff, 'shared_themes', publicId), { creator_id: otherUid }));
     await allowed(`${label} staff can remove shared theme`, () => deleteDoc(doc(staff, 'shared_themes', publicId)));
 

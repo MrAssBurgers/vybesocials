@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Globe, Link2, Send, Lock, Check, X, Copy, Search } from 'lucide-react';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
@@ -11,6 +11,7 @@ import { useShareTheme, ThemeShareVisibility } from '@/hooks/useSharedThemes';
 import type { ThemeTokens } from '@/hooks/useCustomTheme';
 import { useFriends } from '@/hooks/useFriends';
 import { ThemePreviewCanvas } from './ThemePreviewCanvas';
+import { useThemeActor } from '@/hooks/useThemeActor';
 import { toast } from 'sonner';
 
 interface ShareMyThemeSheetProps {
@@ -41,7 +42,15 @@ export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareM
   const [createdLink, setCreatedLink] = useState<string | null>(null);
 
   const share = useShareTheme();
-  const { data: friends = [] } = useFriends();
+  const friendsQuery = useFriends();
+  const friends = friendsQuery.isError ? [] : friendsQuery.data || [];
+  const session = useThemeActor();
+  const view = useRef({ open, actor: session.actor, name, description, visibility, selectedFriends, tokens });
+  if (view.current.open !== open || view.current.actor !== session.actor || view.current.name !== name || view.current.description !== description || view.current.visibility !== visibility || view.current.selectedFriends !== selectedFriends || view.current.tokens !== tokens) {
+    view.current = { open, actor: session.actor, name, description, visibility, selectedFriends, tokens };
+  }
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   useEffect(() => {
     if (open) {
@@ -49,9 +58,10 @@ export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareM
       setDescription('');
       setVisibility('friends');
       setSelectedFriends([]);
+      setFriendQuery('');
       setCreatedLink(null);
     }
-  }, [open, initialName, tokens.themeName]);
+  }, [open, initialName, tokens.themeName, session.actor]);
 
 
   const filteredFriends = (friends as any[]).filter((f) => {
@@ -67,7 +77,7 @@ export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareM
     setVisibility('friends');
     setCreatedLink(null);
     setSelectedFriends((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((x) => x !== id) : prev.length < 30 ? [...prev, id] : prev
     );
   };
 
@@ -82,29 +92,31 @@ export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareM
     }
   })();
 
+  const copyLink = async (link: string) => {
+    const current = view.current;
+    try {
+      await navigator.clipboard.writeText(link);
+      if (mounted.current && view.current === current) toast.success('Link copied');
+    } catch {
+      if (mounted.current && view.current === current) toast.error('Could not copy. Select and copy the link below.');
+    }
+  };
   const handleSubmit = async () => {
-    if (visibility === 'unlisted' && createdLink) {
-      await navigator.clipboard.writeText(createdLink);
-      toast.success('Link copied');
-      return;
-    }
-    if (visibility === 'friends' && selectedFriends.length === 0) return;
-
-    const result = await share.mutateAsync({
-      themeName: name.trim() || 'My VYBE',
-      themeTokens: tokens,
-      description: description.trim() || undefined,
-      visibility,
-      recipientProfileIds: selectedFriends,
-    });
-
-    if (visibility === 'unlisted' && result?.row?.id) {
-      const link = `${window.location.origin}/theme/${result.row.id}`;
-      setCreatedLink(link);
-      try { await navigator.clipboard.writeText(link); } catch {}
-    } else {
-      onClose();
-    }
+    if (share.isPending) return;
+    if (visibility === 'unlisted' && createdLink) { await copyLink(createdLink); return; }
+    if (visibility === 'friends' && (selectedFriends.length === 0 || friendsQuery.isError)) return;
+    const current = view.current;
+    try {
+      const result = await share.mutateAsync({
+        themeName: name.trim() || 'My VYBE', themeTokens: tokens,
+        description: description.trim() || undefined, visibility, recipientProfileIds: selectedFriends,
+      });
+      if (!mounted.current || view.current !== current || !current.open) return;
+      if (result.visibility === 'unlisted') {
+        const origin = import.meta.env.DEV ? window.location.origin : 'https://vybehub.app';
+        setCreatedLink(`${origin}/theme/${encodeURIComponent(result.row.id)}`);
+      } else onClose();
+    } catch { /* Keep the form and retry identity; the mutation explains the failure. */ }
   };
 
   return (
@@ -148,6 +160,7 @@ export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareM
               return (
                 <button
                   key={key}
+                  disabled={share.isPending}
                   onClick={() => { setVisibility(key); setCreatedLink(null); if (key !== 'friends') setSelectedFriends([]); }}
                   className={cn(
                     'relative h-11 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-colors',
@@ -197,6 +210,7 @@ export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareM
                       <span className="font-bold text-primary">{selectedFriends.length}</span> selected
                     </p>
                     <button
+                      disabled={share.isPending}
                       onClick={() => setSelectedFriends([])}
                       className="text-[11px] font-semibold text-muted-foreground active:scale-95"
                     >
@@ -206,7 +220,9 @@ export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareM
                 )}
 
                 <div className="space-y-1">
-                  {(friends as any[]).length === 0 ? (
+                  {friendsQuery.isError ? (
+                    <div className="py-6 text-center text-sm"><p>Could not load your friends.</p><Button variant="ghost" onClick={() => void friendsQuery.refetch()}>Retry</Button></div>
+                  ) : friendsQuery.isLoading ? <p className="py-6 text-center text-sm">Loading friends…</p> : friends.length === 0 ? (
                     <p className="text-center text-xs text-muted-foreground py-10">
                       No friends yet — add some to send themes directly.
                     </p>
@@ -220,6 +236,7 @@ export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareM
                       return (
                         <button
                           key={f.id}
+                          disabled={share.isPending}
                           onClick={() => toggleFriend(f.id)}
                           className={cn(
                             'w-full flex items-center gap-3 p-2 rounded-xl transition-all active:scale-[0.98]',
@@ -263,6 +280,7 @@ export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareM
                 className="space-y-3"
               >
                 <Input
+                  disabled={share.isPending || !!createdLink}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Theme name"
@@ -270,6 +288,7 @@ export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareM
                   className="h-11 bg-muted/30 border-border/40 rounded-xl"
                 />
                 <Textarea
+                  disabled={share.isPending}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Describe your vibe (optional)"
@@ -296,6 +315,7 @@ export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareM
                 className="space-y-3"
               >
                 <Input
+                  disabled={share.isPending || !!createdLink}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Theme name"
@@ -305,15 +325,15 @@ export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareM
                 <div className="p-3 rounded-2xl bg-primary/5 border border-primary/20 flex items-start gap-2.5">
                   <Link2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Only people with the link can view and equip it. Not listed anywhere.
+                    Anyone with this link can sign in to view and equip it, and can forward the link. It will not appear in Browse.
                   </p>
                 </div>
                 {createdLink && (
                   <div className="p-3 rounded-2xl bg-primary/10 border border-primary/30 flex items-center gap-2">
                     <Link2 className="h-4 w-4 text-primary shrink-0" />
-                    <p className="text-xs text-foreground/80 truncate flex-1">{createdLink}</p>
+                    <input aria-label="Theme share link" readOnly value={createdLink} className="text-xs text-foreground/80 min-w-0 flex-1 bg-transparent" onFocus={e => e.target.select()} />
                     <button
-                      onClick={() => { navigator.clipboard.writeText(createdLink); toast.success('Copied'); }}
+                      onClick={() => void copyLink(createdLink)}
                       className="text-[11px] font-semibold text-primary shrink-0 active:scale-95 flex items-center"
                     >
                       <Copy className="h-3.5 w-3.5 mr-1" />Copy
@@ -333,6 +353,7 @@ export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareM
                 className="space-y-3"
               >
                 <Input
+                  disabled={share.isPending || !!createdLink}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Theme name"
@@ -356,7 +377,7 @@ export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareM
             onClick={handleSubmit}
             disabled={
               share.isPending ||
-              (visibility === 'friends' && selectedFriends.length === 0)
+              (visibility === 'friends' && (selectedFriends.length === 0 || friendsQuery.isError || friendsQuery.isLoading))
             }
             className="w-full h-12 rounded-2xl text-base font-bold bg-gradient-to-r from-primary via-primary to-accent text-primary-foreground shadow-lg shadow-primary/30"
           >
