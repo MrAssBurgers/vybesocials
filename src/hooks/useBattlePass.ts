@@ -4,7 +4,7 @@ import { db, getFirebaseAuth } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
-import { navigationRef } from '@/lib/navigationRef';
+import { claimChallengeRewardOnce } from '@/lib/challengeClaimOnce';
 import { tokenAccountGuard, tokenMarketplaceRequest } from '@/lib/tokenMarketplaceService';
 
 export interface UserLevel {
@@ -257,21 +257,8 @@ export function useRealtimeChallengeRewards(onNewReward?: (reward: ChallengeRewa
           
           if (active && getFirebaseAuth().currentUser?.uid === user.id && reward && reward.is_claimed === false && ownerIds.includes(reward.user_id) && !seen.has(reward.challenge_id)) {
             seen.add(reward.challenge_id);
+            void claimChallengeRewardOnce(reward.id, Number(reward.xp_amount) || 0, reward.challenge_id);
             callbackRef.current?.(reward as ChallengeReward);
-            
-            // Show toast notification
-            toast.success(
-              `🎯 Challenge Complete! Claim your ${reward.xp_amount} XP reward!`,
-              {
-                duration: 8000,
-                action: {
-                  label: 'Claim',
-                  onClick: () => {
-                    navigationRef.current?.('/challenges');
-                  },
-                },
-              }
-            );
           }
         },
       })));

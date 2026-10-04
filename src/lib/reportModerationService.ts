@@ -1,6 +1,7 @@
 import { getFirebaseAuth } from '@/lib/firebase/authService';
 import { invokeFunction } from '@/lib/firebase/functionsService';
 import { validateMiniApp, type MiniAppSource } from '@/features/mini-apps/model';
+import { missingCloudFunction, saveReportFlag } from '@/lib/reportFlagFallback';
 
 export type ReportTargetType = 'profile' | 'post' | 'comment' | 'mini_app' | 'message';
 export type ReportReason = 'spam' | 'harassment' | 'inappropriate' | 'hate' | 'impersonation' | 'other' | 'blocked_user';
@@ -103,7 +104,25 @@ export async function reportModerationRequest<T>(request: Record<string, unknown
   guard();
   const result = await invokeFunction<unknown>('report-moderation', request);
   guard();
-  if (result.error) throw Object.assign(new Error(result.error.message || 'Reporting is unavailable. Please try again.'), { code: result.error.code || result.error.name });
+  if (result.error) {
+    if (request.action === 'submit' && missingCloudFunction(result.error)) {
+      const uid = reportAccountSnapshot().uid;
+      guard();
+      if (!uid || !['profile', 'post', 'comment', 'mini_app', 'message'].includes(String(request.targetType)) || typeof request.targetId !== 'string' || typeof request.reason !== 'string') {
+        throw Object.assign(new Error(result.error.message || 'Reporting is unavailable. Please try again.'), { code: result.error.code || result.error.name });
+      }
+      const saved = await saveReportFlag({
+        targetType: request.targetType as ReportTargetType,
+        targetId: request.targetId,
+        reason: request.reason,
+        ...(typeof request.details === 'string' ? { details: request.details } : {}),
+        reporterUid: uid,
+      });
+      guard();
+      return saved as T;
+    }
+    throw Object.assign(new Error(result.error.message || 'Reporting is unavailable. Please try again.'), { code: result.error.code || result.error.name });
+  }
   if (!isRow(result.data) || (!['list', 'count', 'inspect'].includes(String(request.action)) && result.data.success !== true)) throw new Error('The report action was not confirmed. Please try again.');
   return result.data as T;
 }

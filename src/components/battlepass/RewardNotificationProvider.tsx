@@ -41,8 +41,8 @@ export function RewardNotificationProvider({ children }: RewardNotificationProvi
   }, []);
 
   // Subscribe to realtime reward updates - shows modal when challenge completes
-  useRealtimeChallengeRewards((reward) => {
-    showRewardModal(reward);
+  useRealtimeChallengeRewards(() => {
+    // Claimed automatically. One toast, no extra claim dialog.
   });
 
   // Subscribe to level updates

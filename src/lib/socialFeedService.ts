@@ -2,6 +2,7 @@ import { validLocalArea, type LocalArea } from './localArea';
 import { z } from 'zod';
 import { invokeFunction } from '@/lib/firebase/functionsService';
 import type { Post } from '@/hooks/useInfinitePosts';
+import { missingSocialFeedFunction, readClientSocialFeed } from '@/lib/socialFeedFallback';
 
 const id = z.string().min(1).max(1500).refine(value => !value.includes('/'));
 const type = z.enum(['post', 'short', 'video']);
@@ -48,13 +49,16 @@ export async function readSocialPostPreviews(input: SocialPostPreviewsInput, gua
   return result.posts;
 }
 
-/** No legacy RPC or cached-data fallback: a failed current read must remain a failure. */
+/** A denied or malformed read stays a failure. A missing callable uses the signed-in timeline. */
 export async function readSocialFeed(input: SocialFeedInput, guard: () => void): Promise<SocialFeedPage> {
   guard();
   if (input.feed === 'local' ? !validLocalArea(input.area) : input.area !== undefined) throw new Error('Choose an approximate area for Local.');
   const response = await invokeFunction<unknown>('readSocialFeed', input);
   guard();
-  if (response.error) throw Object.assign(new Error(response.error.message || 'Your feed could not be refreshed.'), { code: response.error.code });
+  if (response.error) {
+    if (missingSocialFeedFunction(response.error)) return readClientSocialFeed(input, guard);
+    throw Object.assign(new Error(response.error.message || 'Your feed could not be refreshed.'), { code: response.error.code || response.error.name });
+  }
   const parsed = page.safeParse(response.data);
   if (!parsed.success) throw new Error('Your feed response could not be verified. Refresh and retry.');
   const result = parsed.data;

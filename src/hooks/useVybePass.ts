@@ -5,7 +5,7 @@ import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeC
 import { useAuth } from '@/lib/auth';
 import { ensureArray } from '@/lib/persistedCollections';
 import { toast } from 'sonner';
-import { navigationRef } from '@/lib/navigationRef';
+import { claimChallengeRewardOnce } from '@/lib/challengeClaimOnce';
 import { getCachedUserLevel, setCachedUserLevel } from '@/lib/userLevelCache';
 
 export interface UserLevel {
@@ -258,30 +258,16 @@ export function useRealtimeChallengeRewards(
         event: 'INSERT',
         table: 'challenge_rewards',
         filter: `user_id=eq.${profile.user_id}`,
-        callback: async (payload) => {
-          const { data: reward } = await db
-            .from('challenge_rewards')
-            .select(`*, challenge:challenges(title, description)`)
-            .eq('id', payload.new.id)
-            .single();
-          
-          if (reward) {
-            queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards', profile.user_id] });
-            callbackRef.current?.(reward as ChallengeReward);
-            
-            toast.success(
-              `🎯 Challenge Complete! Claim your ${reward.xp_amount} XP reward!`,
-              {
-                duration: 8000,
-                action: {
-                  label: 'Claim',
-                  onClick: () => {
-                    navigationRef.current?.('/challenges');
-                  },
-                },
-              }
-            );
-          }
+        callback: (payload) => {
+          const row = payload.new as { id?: string; is_claimed?: boolean; xp_amount?: number; challenge_id?: string };
+          if (!row?.id || row.is_claimed === true) return;
+          queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards', profile.user_id] });
+          void claimChallengeRewardOnce(
+            String(row.id),
+            Number(row.xp_amount) || 0,
+            typeof row.challenge_id === 'string' ? row.challenge_id : undefined,
+          );
+          callbackRef.current?.(row as ChallengeReward);
         },
       },
       {
