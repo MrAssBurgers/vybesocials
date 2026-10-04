@@ -2,6 +2,26 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Real Godot rendering and soft capture UI
+
+### What changed
+- Added an opt-in local-only render check to the debug/unconfigured Godot example. Waits for four rendered frames, saves separate panel/gameplay PNGs and exits. Rejects headless display, configured SDK clients and non-debug builds before output. No network or emulator upload automation is included.
+- Actual render inspection exposed banded concentric circles and square disabled controls. Replaced concentric draws with smooth radial gradient textures; all button states and caption field now use rounded styles, and the motion toggle sits beside its label.
+- Updated SDK/example docs with precise rendering evidence and remaining limits; refreshed workspace outputs/vybe-godot-capture-example.zip (15 source files). Outputs/vybe-godot-panel.png and vybe-godot-gameplay.png are direct engine readbacks, not mockups.
+
+### Verification
+- Official Godot 4.5.1 .NET, Windows OpenGL 3.3 / NVIDIA RTX 5090: rendered 960x800 panel and isolated 1280x720 gameplay PNG, both visually inspected. The gameplay capture excludes the Vybe panel. Engine process exited successfully; no lingering render process.
+- Godot build zero warnings/errors; headless scene/codec/thread/cancel/hide smoke passed; explicit dummy-display render rejection passed. All 46 compiled .NET checks and app 309 files / 2,930 tests plus app build passed. Logs work/godot-render-*.log and work/godot-render/*.log. Generated offline/version churn restored.
+- Prior 0f03ca37 main CI 37214228218 and creator rules CI 37214228183 both succeeded, confirming the prior moderation fixture correction.
+
+### Blocked step and next 3 tasks
+- Automatic approval review rejected the combined command that would add/launch an automated engine-to-emulator consent/upload check, with only 'blocked by policy' and no detailed reason. The rejected command did not execute. Removed its pending call-site hook, did not add the automation or relaunch it through another mechanism. Continued independent local-only render verification. Full engine upload/user-interaction walkthrough remains unverified; this does not block other goal work.
+1. Obtain an allowed/manual engine-to-Vybe walkthrough for connect, screenshot selection, private upload, review and disconnect; do not treat independent rendering and SDK tests as proof of the combined flow or circumvent the rejected automation.
+2. Continue actual engine/mod browsing/gallery adapters, mini-app isolation/retention and remaining audience/media migrations.
+3. Physical-device validation and selective production rollout remain pending. Broad goal active/incomplete; no production deployment or engine certification claimed.
+
+---
+
 ## ACTIVE (2026-10-04) - Godot desktop capture host example
 
 ### What changed

@@ -106,4 +106,4 @@ No media is downloaded by this method. Render captions/names as text; request me
 A guarded `--feed-emulator` mode in the compiled checks targets only demo-vybe-preview at loopback 5101/8280. It requires the synthetic local-feed-mod registry/profile fixture and explicit code approval; it performs a real feed read and revokes in finally. It is separate from the existing capture emulator walkthrough and never configures production.
 
 
-A concrete Godot 4.5.1 .NET desktop capture example is available at [sdk/examples/godot](https://github.com/MrAssBurgers/vybesocials/tree/main/sdk/examples/godot). It compiles and passes local engine/headless lifecycle checks; rendered gameplay and the full engine-to-Vybe upload walkthrough remain unverified. See its README before adapting it.
+A concrete Godot 4.5.1 .NET desktop capture example is available at [sdk/examples/godot](https://github.com/MrAssBurgers/vybesocials/tree/main/sdk/examples/godot). It compiles and passes local engine/headless lifecycle checks; rendered panel/gameplay PNG readback is verified locally; the full engine-to-Vybe upload walkthrough remains unverified. See its README before adapting it.

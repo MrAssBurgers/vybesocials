@@ -36,7 +36,7 @@ public partial class CaptureDemo : Control
         column.AddChild(new Label { Text = "Capture the game below. Preview it, then choose whether to upload.", AutowrapMode = TextServer.AutowrapMode.WordSmart });
         game = new SubViewport { Size = new Vector2I(1280, 720), RenderTargetUpdateMode = SubViewport.UpdateMode.Always };
         AddChild(game); var world = new DemoWorld(); game.AddChild(world);
-        var motion = new CheckButton { Text = "Pause scene animation" }; motion.Toggled += paused => world.Animate = !paused; column.AddChild(motion);
+        var motion = new CheckButton { Text = "Pause scene animation", SizeFlagsHorizontal = SizeFlags.ShrinkBegin }; motion.Toggled += paused => world.Animate = !paused; column.AddChild(motion);
         var gameView = new TextureRect { Texture = game.GetTexture(), CustomMinimumSize = new Vector2(0, 230), ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered }; column.AddChild(gameView);
         status = new Label { Text = "Connect when you are ready.", AutowrapMode = TextServer.AutowrapMode.WordSmart }; column.AddChild(status);
         code = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart }; column.AddChild(code);
@@ -45,7 +45,9 @@ public partial class CaptureDemo : Control
         browser = AddButton(actions, "Open approval page", () => Open(connectUri));
         capture = AddButton(actions, "Take screenshot", () => { capturePending = true; busy = true; Refresh(); });
         cancel = AddButton(actions, "Cancel request", () => operation?.Cancel());
-        caption = new LineEdit { PlaceholderText = "Caption for this moment", MaxLength = 2200 }; column.AddChild(caption);
+        caption = new LineEdit { PlaceholderText = "Caption for this moment", MaxLength = 2200, CustomMinimumSize = new Vector2(0, 44) };
+        foreach (string state in new[] { "normal", "focus", "read_only" }) caption.AddThemeStyleboxOverride(state, RoundedStyle(new Color("211b30")));
+        column.AddChild(caption);
         preview = new TextureRect { CustomMinimumSize = new Vector2(0, 130), ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered, Visible = false }; column.AddChild(preview);
         var sharing = new HFlowContainer(); column.AddChild(sharing);
         upload = AddButton(sharing, "Upload privately", Upload);
@@ -65,6 +67,7 @@ public partial class CaptureDemo : Control
         VisibilityChanged += () => { if (!IsVisibleInTree()) { operation?.Cancel(); if (capturePending) { capturePending = false; busy = false; } ClearImage(true); connectUri = reviewUri = null; code.Text = ""; Refresh(); } };
         Refresh();
         if (OS.GetCmdlineUserArgs().Contains("--vybe-smoke-test")) CallDeferred(nameof(RunSmoke));
+        else if (OS.GetCmdlineUserArgs().Contains("--vybe-render-check")) CallDeferred(nameof(RunRenderCheck));
     }
 
     public async void RunSmoke()
@@ -100,9 +103,15 @@ public partial class CaptureDemo : Control
     private Button AddButton(Container parent, string text, Action action)
     {
         var button = new Button { Text = text, CustomMinimumSize = new Vector2(0, 42) };
-        var style = new StyleBoxFlat { BgColor = new Color("382851"), CornerRadiusTopLeft = 18, CornerRadiusTopRight = 18, CornerRadiusBottomLeft = 18, CornerRadiusBottomRight = 18, ContentMarginLeft = 18, ContentMarginRight = 18 };
-        button.AddThemeStyleboxOverride("normal", style); button.Pressed += action; parent.AddChild(button); return button;
+        foreach (var pair in new[] { ("normal", "382851"), ("hover", "513969"), ("pressed", "62447e"), ("disabled", "211b30") }) button.AddThemeStyleboxOverride(pair.Item1, RoundedStyle(new Color(pair.Item2)));
+        var focus = RoundedStyle(new Color(0, 0, 0, 0)); focus.BorderColor = new Color("bca2eb"); focus.SetBorderWidthAll(2); button.AddThemeStyleboxOverride("focus", focus);
+        button.AddThemeColorOverride("font_disabled_color", new Color("9c90b0"));
+        button.Pressed += action; parent.AddChild(button); return button;
     }
+
+    private static StyleBoxFlat RoundedStyle(Color color) => new() { BgColor = color,
+        CornerRadiusTopLeft = 18, CornerRadiusTopRight = 18, CornerRadiusBottomLeft = 18, CornerRadiusBottomRight = 18,
+        ContentMarginLeft = 18, ContentMarginRight = 18, ContentMarginTop = 8, ContentMarginBottom = 8 };
 
     public override void _Process(double delta)
     {
