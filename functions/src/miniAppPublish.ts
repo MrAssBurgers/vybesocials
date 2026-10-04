@@ -4,6 +4,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
 
 export const MINI_APP_PUBLISH_LIMIT = 100;
+export const MINI_APP_PUBLISH_OPERATION_LIMIT = 200;
 export const MINI_APP_PUBLISH_WINDOW_MS = 24 * 60 * 60 * 1000;
 const fields = ['title', 'description', 'category', 'html', 'css', 'javascript'] as const;
 type Source = { title: string; description: string; category: string; html: string; css: string; javascript: string };
@@ -70,18 +71,20 @@ export async function runMiniAppPublish(database: Firestore, uid: string, input:
     }
     if (JSON.stringify(miniAppSource(draft)) !== JSON.stringify(source)) conflict();
     if (request.expectedVersion !== version) conflict();
-    if (published?.status === 'published' && JSON.stringify(miniAppSource(published)) === JSON.stringify(source)) {
-      return { appId, status: 'published' as const, publicationRevision: version! };
-    }
+    const unchanged = published?.status === 'published' && JSON.stringify(miniAppSource(published)) === JSON.stringify(source);
     const now = Date.now(); const quota = quotaSnap.data();
     if (quota && (quota.version !== 1 || quota.owner_uid !== uid || !Number.isSafeInteger(quota.window_started_at_ms)
       || quota.window_started_at_ms < 0 || quota.window_started_at_ms > now || !Number.isSafeInteger(quota.count) || quota.count < 0
-      || !Number.isSafeInteger(quota.revision) || quota.revision < 0 || quota.revision >= Number.MAX_SAFE_INTEGER)) {
+      || !Number.isSafeInteger(quota.revision) || quota.revision < 0 || quota.revision >= Number.MAX_SAFE_INTEGER
+      || (quota.operation_count !== undefined && (!Number.isSafeInteger(quota.operation_count) || quota.operation_count < quota.count)))) {
       throw new HttpsError('failed-precondition', 'Your publication limits need review. Your private drafts are safe.');
     }
     const start = quota && now - quota.window_started_at_ms < MINI_APP_PUBLISH_WINDOW_MS ? quota.window_started_at_ms : now;
     const count = quota && start === quota.window_started_at_ms ? quota.count : 0;
-    if (count >= MINI_APP_PUBLISH_LIMIT) throw new HttpsError('resource-exhausted', 'You have reached 100 publication changes in 24 hours. Keep saving private drafts and publish again later.', { retryAfter: Math.ceil((start + MINI_APP_PUBLISH_WINDOW_MS - now) / 1000) });
+    // Legacy rows count their changed publications as recorded operations.
+    const operations = quota && start === quota.window_started_at_ms ? quota.operation_count ?? quota.count : 0;
+    if (operations >= MINI_APP_PUBLISH_OPERATION_LIMIT) throw new HttpsError('resource-exhausted', 'You have reached 200 new publishing requests in 24 hours. Retrying the same request is still available. Keep saving private drafts and try again later.', { retryAfter: Math.ceil((start + MINI_APP_PUBLISH_WINDOW_MS - now) / 1000) });
+    if (!unchanged && count >= MINI_APP_PUBLISH_LIMIT) throw new HttpsError('resource-exhausted', 'You have reached 100 publication changes in 24 hours. Keep saving private drafts and publish again later.', { retryAfter: Math.ceil((start + MINI_APP_PUBLISH_WINDOW_MS - now) / 1000) });
     if (!published || published.status !== 'published') {
       // ID-only projection avoids downloading every existing app's source.
       // Updating the shared owner row serializes concurrent creates, including
@@ -90,11 +93,14 @@ export async function runMiniAppPublish(database: Firestore, uid: string, input:
       if (active.size >= MINI_APP_PUBLISH_LIMIT) throw new HttpsError('resource-exhausted', 'You already have 100 live mini apps. Unpublish one before sharing another.');
     }
     const time = FieldValue.serverTimestamp();
-    tx.set(publicRef, { ...source, owner_id: uid, schema_version: 1, status: 'published', publication_revision: publicationRevision,
+    const admittedRevision = unchanged ? version! : publicationRevision;
+    if (!unchanged) tx.set(publicRef, { ...source, owner_id: uid, schema_version: 1, status: 'published', publication_revision: admittedRevision,
       created_at: published?.created_at instanceof Timestamp ? published.created_at : time, updated_at: time });
-    tx.set(ownerRef, { version: 1, owner_uid: uid, window_started_at_ms: start, count: count + 1, revision: (quota?.revision ?? 0) + 1, updated_at: time });
-    tx.create(receiptRef, { version: 1, owner_uid: uid, app_id: appId, fingerprint, publication_revision: publicationRevision, created_at: time });
-    return { appId, status: 'published' as const, publicationRevision };
+    tx.set(ownerRef, { version: 1, owner_uid: uid, window_started_at_ms: start, count: count + (unchanged ? 0 : 1), operation_count: operations + 1, revision: (quota?.revision ?? 0) + 1, updated_at: time });
+    // Even an unchanged publication binds its request ID permanently. Without
+    // this receipt, the ID could later be reused for a different source/version.
+    tx.create(receiptRef, { version: 1, owner_uid: uid, app_id: appId, fingerprint, publication_revision: admittedRevision, created_at: time });
+    return { appId, status: 'published' as const, publicationRevision: admittedRevision };
   });
 }
 

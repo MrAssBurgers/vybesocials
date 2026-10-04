@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Bind unchanged mini-app publication requests
+
+### What changed
+- An unchanged publication previously returned success without recording its request ID. It now writes a permanent receipt binding the exact input and current publication revision. Reusing that ID with different source/version fails; replay after replacement or unpublish fails without recreating content. Unchanged publishing preserves the public snapshot and timestamps.
+- Added a transactional allowance of 200 new accepted publishing operations per owner per anchored 24-hour window, separate from the existing 100 changed-publication limit. Matching retries remain free; unchanged requests consume an operation but not a change. Legacy quota rows migrate from their change count. Malformed counters fail closed. Permanent receipt growth is bounded per day, not lifetime; safe archival remains outstanding.
+- Updated local-preview preparation to include draft save/delete and checked post-preview exports already used by the current client. Did not rerun preparation over the retained preview. Corrected obsolete draft-replay wording in MINI_APPS.md.
+
+### Verification
+- Functions build, production app build, 319 files / 3,013 app tests passed. Both modified scripts pass Node syntax checks. Isolated demo Firestore emulator passed 13 publishing groups, including exact no-op retry, changed payload reuse, unpublish replay, final-slot concurrency, quota reset and legacy/malformed counters. Logs work/publish-receipt-*.log. Generated build/version churn restored.
+- Created only the synthetic local fixture qa-noop-receipt-20261004 (Publishing receipt QA) through the real save/publish helper. Did not overwrite the existing Tap rush private source or the 100,000-character Recovery boundary QA local draft. Fresh-tab sign-in eventually completed after logging claimProfileByEmail not-found, and the named app detail loaded. The draft library then remained in Loading with other read timeouts; the browser unchanged-publish check remains unverified. Existing tab 29's unsaved recovery was retained. No production mutations/deployments.
+- Runtime review reconfirmed the current srcdoc approach has no hard CPU isolation; no freeze-resistance claim or runtime isolation change was made.
+
+### Next 3 tasks and limits
+1. Diagnose slow fresh local-preview login and hanging library reads, then finish the named synthetic unchanged-publish UI walkthrough. Retain existing emulator data and local recovery.
+2. Continue mini-app execution isolation, receipt archival design, remaining profile/explore/comment authority, and game/mod adapters. Native capture/upload and real permitted-media playback still require end-to-end verification.
+3. Selectively stage publishMiniApp plus previously named save/delete/read callables with compatible client/rules, then Lovable publication. Broad goal active/incomplete.
+
+---
+
 ## ACTIVE (2026-10-04) - Permanent mini-app draft retirement
 
 ### What changed

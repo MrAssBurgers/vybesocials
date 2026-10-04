@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 const projectId = process.env.GCLOUD_PROJECT;
 assert.match(projectId || '', /^demo-[a-z0-9-]+$/);
+assert.notEqual(projectId, 'demo-vybe-preview', 'Use an isolated test project');
 assert.match(process.env.FIRESTORE_EMULATOR_HOST || '', /^(127\.0\.0\.1|localhost):\d+$/);
 process.env.FIREBASE_CONFIG = JSON.stringify({ projectId });
 const { db } = await import('../functions/lib/_shared/admin.js');
@@ -37,21 +38,30 @@ await check('publication and lost-response replay count once', async () => {
   assert.equal((await db.doc(`_mini_app_publish_quotas/${uid}`).get()).data().count, 1);
   assert.equal((await db.doc(`mini_apps/${appId}`).get()).data().title, source.title);
 });
-await check('identical publication does not consume another change', async () => {
-  assert.deepEqual(await call(input({ expectedVersion: receipt.publicationRevision })), receipt);
+let unchangedRequest;
+await check('identical publication records one operation without changing source, dates or change allowance', async () => {
+  unchangedRequest = input({ expectedVersion: receipt.publicationRevision });
+  const before = (await db.doc(`mini_apps/${appId}`).get()).data();
+  assert.deepEqual(await call(unchangedRequest), receipt);
+  assert.deepEqual(await call(unchangedRequest), receipt);
+  assert.deepEqual((await db.doc(`mini_apps/${appId}`).get()).data(), before);
   assert.equal((await db.doc(`_mini_app_publish_quotas/${uid}`).get()).data().count, 1);
+  assert.equal((await db.doc(`_mini_app_publish_quotas/${uid}`).get()).data().operation_count, 2);
 });
 await check('newer versions reject stale requests and preserve original creation time', async () => {
   const before = (await db.doc(`mini_apps/${appId}`).get()).data();
   const next = { ...source, title: 'Updated saved source' }; await draft(appId, uid, next);
+  await assert.rejects(call({ ...unchangedRequest, source: next }), { code: 'aborted' });
   await assert.rejects(call(input({ source: next })), { code: 'aborted' });
   receipt = await call(input({ source: next, expectedVersion: receipt.publicationRevision }));
   assert.deepEqual((await db.doc(`mini_apps/${appId}`).get()).data().created_at, before.created_at);
   await assert.rejects(call(originalRequest), { code: 'aborted' });
+  await assert.rejects(call(unchangedRequest), { code: 'aborted' });
 });
 await check('replaying after unpublish cannot recreate a snapshot', async () => {
   await db.doc(`mini_apps/${appId}`).delete();
   await assert.rejects(call(originalRequest), { code: 'aborted' });
+  await assert.rejects(call({ ...unchangedRequest, expectedVersion: null }), { code: 'aborted' });
   assert.equal((await db.doc(`mini_apps/${appId}`).get()).exists, false);
   await draft(appId);
 });
@@ -64,7 +74,7 @@ await check('active and malformed moderation holds block publication', async () 
   receipt = await call(input());
 });
 await check('concurrent changes cannot exceed daily limit', async () => {
-  await db.doc(`_mini_app_publish_quotas/${uid}`).update({ count: 99 });
+  await db.doc(`_mini_app_publish_quotas/${uid}`).update({ count: 99, operation_count: 99 });
   const ids = [`${uid}-race-a`, `${uid}-race-b`]; await Promise.all(ids.map(id => draft(id)));
   const results = await Promise.allSettled(ids.map(id => call(input({ appId: id }))));
   assert.equal(results.filter(r => r.status === 'fulfilled').length, 1);
@@ -87,6 +97,34 @@ await check('concurrent first publications respect existing live-app limit', asy
   const results = await Promise.allSettled(ids.map(id => runMiniAppPublish(db, owner, input({ expectedOwnerUid: owner, appId: id }))));
   assert.equal(results.filter(r => r.status === 'fulfilled').length, 1);
   assert.equal(results.find(r => r.status === 'rejected').reason.code, 'resource-exhausted');
+});
+await check('concurrent unchanged requests share the last operation slot, and matching retries remain free', async () => {
+  const id = `${uid}-operations`; await draft(id);
+  const first = await call(input({ appId: id }));
+  await db.doc(`_mini_app_publish_quotas/${uid}`).update({ count: 100, operation_count: 199 });
+  const requests = ['a', 'b'].map(suffix => input({ appId: id, expectedVersion: first.publicationRevision, requestId: `unchanged-race-request-${suffix}` }));
+  const results = await Promise.allSettled(requests.map(call));
+  const winner = results.findIndex(result => result.status === 'fulfilled');
+  assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
+  assert.equal(results.find(result => result.status === 'rejected').reason.code, 'resource-exhausted');
+  const quota = (await db.doc(`_mini_app_publish_quotas/${uid}`).get()).data();
+  assert.equal(quota.count, 100); assert.equal(quota.operation_count, 200);
+  assert.deepEqual(await call(requests[winner]), first);
+  assert.deepEqual((await db.doc(`_mini_app_publish_quotas/${uid}`).get()).data(), quota);
+  await db.doc(`_mini_app_publish_quotas/${uid}`).update({ window_started_at_ms: Date.now() - 86400001 });
+  assert.deepEqual(await call(requests[1 - winner]), first);
+  const reset = (await db.doc(`_mini_app_publish_quotas/${uid}`).get()).data();
+  assert.equal(reset.count, 0); assert.equal(reset.operation_count, 1);
+});
+await check('legacy quota rows migrate and malformed operation counters reject new requests', async () => {
+  const id = `${uid}-legacy-quota`; await draft(id);
+  await db.doc(`_mini_app_publish_quotas/${uid}`).set({ version: 1, owner_uid: uid, count: 2, revision: 2, window_started_at_ms: Date.now() });
+  const first = await call(input({ appId: id }));
+  assert.equal((await db.doc(`_mini_app_publish_quotas/${uid}`).get()).data().operation_count, 3);
+  for (const invalid of [-1, 2, 3.5, '4', Number.MAX_SAFE_INTEGER + 1]) {
+    await db.doc(`_mini_app_publish_quotas/${uid}`).update({ operation_count: invalid });
+    await assert.rejects(call(input({ appId: id, expectedVersion: first.publicationRevision })), { code: 'failed-precondition' });
+  }
 });
 console.log(`Mini-app publishing: ${checks} backend checks passed`);
 await db.terminate();
