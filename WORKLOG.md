@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Explicit partner public feed consent and HTTP pilot
+
+### What changed
+- Added optional feed:read_public permission gated by a verified registration's public_feed_enabled flag, checked at device creation, consent, token exchange and feed reads. Capture defaults remain unchanged. Updated consent requires exact scope acknowledgement; settings lists browsing and explains revocation limits.
+- GET /v1/feed resolves account identity and reauthorizes the same token/connection inside the existing public/safe-only feed transaction. Strips internal owner/viewer IDs and personal reaction/bookmark/pin fields. Strict query validation, connection-bound cursor, no-store response and 30/minute per-connection rate limit; invalidated cursors return feed_changed.
+- Documented the HTTP contract and added seven grouped backend checks to creator-platform CI. Existing SDK packages do not yet expose the new scope/method.
+
+### Verification
+- App tests: 306 files / 2,900 tests passed. Functions build, app build (1068.1 KiB raw / 321.8 KiB gzip) and scoped lint passed. Isolated demo Firestore backend: seven grouped checks passed (capability, exact consent, exchange recheck, projection/privacy, missing scope/auth, cross-connection cursor, disable/revoke).
+- Real retained local preview: signed in as synthetic Alice, reviewed visible Local Feed Mod permission, approved, real HTTP endpoint returned three public posts, then existing POST /v1/connection/revoke succeeded and subsequent feed request returned 401. Initial disposable fixture incorrectly tried DELETE /v1/connection (404); corrected test, revoked that first grant in Settings and repeated successfully. Both synthetic grants show revoked and correct feed permission in Settings.
+- Consent screenshot: workspace outputs/vybe-public-feed-consent.png. No production partner registration or deployment. Retained preview data was not reset.
+
+### Next 3 tasks and limits
+1. Add strict opt-in JavaScript/universal and .NET feed SDK methods, bounded parsing, cancellation/expiry/revocation cleanup and host browse UI. This HTTP checkpoint alone is not completed in-game social browsing.
+2. Investigate one observed transient full navigation from a new connect URL to home after settings hot reload; a second navigation and complete approval succeeded. Continue mini-app CPU/network isolation, quotas/retention and remaining audience/media reader migrations.
+3. Verify physical devices and coordinated selective rollout. Public safe labels remain metadata; already delivered content/media cannot be recalled. Broad goal remains active and incomplete.
+
+---
+
 ## ACTIVE (2026-10-04) - External social browsing read boundary
 
 ### What changed

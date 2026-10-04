@@ -98,7 +98,7 @@ function projectPost(id: string, row: AudienceRow, admission: NonNullable<Awaite
 // transaction, so revocation conflicts with delivery and forces revalidation.
 export type ExternalFeedBoundary = { connectionId: string; authorize: (tx: Transaction) => Promise<void> };
 
-/** Account-bound reader; no partner HTTP route grants access yet. */
+/** Account-bound reader with a separately authorized external public-feed boundary. */
 export async function readSocialFeedPage(db: Firestore, uid: string, raw: unknown, nowMs = Date.now(), external?: ExternalFeedBoundary) {
   const input = normalizeSocialFeedInput(raw, uid);
   if (!Number.isSafeInteger(nowMs) || nowMs < 0 || nowMs > 8_640_000_000_000_000 - CURSOR_TTL) throw new HttpsError('failed-precondition', 'Feed time is unavailable.');

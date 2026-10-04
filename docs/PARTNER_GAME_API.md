@@ -1,6 +1,6 @@
 # VYBE partner game API — limited pilot
 
-This pilot lets a registered game request ten minutes of permission to submit private captures for review in VYBE. It cannot publish a post, read the account/feed/messages, or obtain a Firebase user token. Users approve a clearly named game and verified publisher in VYBE, then review each capture before publishing with the existing moderation flow.
+This pilot lets a registered game request ten minutes of permission to submit private captures for review in VYBE. It cannot publish a post, read private account data/messages, or obtain a Firebase user token. An optional, separately approved public-feed permission is described below. Users approve a clearly named game and verified publisher in VYBE, then review each capture before publishing with the existing moderation flow.
 
 The implementation is source code, not an announcement that a production endpoint is deployed. Registration remains manual. No refresh tokens, embedded client secrets, public media URLs, Unity-specific authentication plugin, background publishing, or automatic account sign-in are provided by this pilot. The HTTP TypeScript client is documented in [PARTNER_GAME_SDK.md](./PARTNER_GAME_SDK.md). The older first-party Firebase SDK is a separate trust model described in [GAME_SDK.md](./GAME_SDK.md).
 
@@ -44,6 +44,7 @@ All JSON endpoints use `Content-Type: application/json`. Errors are `{ "error": 
 | `POST /v1/device/code` | `{clientId, scopes?}` | Device-link request below |
 | `POST /v1/device/token` | `{clientId, deviceCode}` | One-time access token exchange below |
 | `POST /v1/captures` | Capture request below; bearer required | Partner capture receipt |
+| `GET /v1/feed` | Optional `cursor`, `contentType`; feed bearer permission required | Public feed page below |
 | `GET /v1/captures/:captureId` | Bearer required | Partner capture receipt |
 | `PUT /v1/captures/:captureId/chunks/:index` | Binary chunk; bearer required | `{index,byteSize,sha256}` |
 | `POST /v1/captures/:captureId/finish` | `{}`; bearer required | Verified ready receipt |
@@ -53,6 +54,20 @@ All JSON endpoints use `Content-Type: application/json`. Errors are `{ "error": 
 There is no publish endpoint. `capture:write` covers allocation, chunk upload, finishing, discarding the connection's own unpublished captures, and self-revocation. `capture:status` covers only that connection's captures. Each request checks token expiry, live connection ownership, revocation, scopes, and current verified registration. Capture IDs are bound to account, game, connection, and upload key. Re-linking creates a new connection; it cannot access or resume a previous connection's captures. Existing ready captures remain available to their owner inside VYBE.
 
 The optional `capture:preview` permission and connection-owned gallery endpoints are documented in [PARTNER_CAPTURE_GALLERY.md](PARTNER_CAPTURE_GALLERY.md). The default two-scope client remains unchanged. Preview permission requires an explicit updated consent acknowledgement.
+
+### Optional public feed (HTTP pilot)
+
+A verified registry must additionally set `public_feed_enabled: true`. Request `feed:read_public` alongside required `capture:write` and `capture:status`; optionally include `capture:preview` too. The default two-scope request does not gain feed access. Registration capability is checked at request, consent, exchange and each feed read. Removing this capability blocks browsing without expanding or disabling capture permissions.
+
+The updated consent screen displays public browsing separately. Approval must send `approvedScopes` exactly matching the requested scope set whenever feed or preview permission is requested. Old clients cannot silently approve it. Access expires after ten minutes without renewal and can be revoked through the existing connection controls.
+
+`GET /v1/feed` accepts only `contentType=post|short|video` and an opaque 48-character lowercase hexadecimal `cursor`. Omit content type for all supported types. Preserve the selected content type when paging. A cursor is bound to the account and connection; do not reuse it after reconnecting. `409 feed_changed` means clear the page/cursor and start fresh. Requests are limited to 30 per minute per connection in addition to the account-wide access limit.
+
+The response is `{connectionId, expiresAt, contentType, nextCursor, posts}`. Expiry is Unix milliseconds; absent filters and exhausted cursors are null. Each post contains `id`, `type`, `caption`, `createdAt`, `mediaUrl`, `mediaUrls`, `thumbnailUrl`, `ageRating`, public counters `likeCount`, `commentCount`, `viewCount`, `tags`, and `author: {id, username, displayName, avatarUrl}`. No internal owner UID, viewer profile, personal reactions, bookmarks, or pin state is returned.
+
+Only explicitly public posts from explicitly public profiles and public profile sections, marked `safe`, qualify. Existing blocks and moderation restrictions still apply; being the author or a friend does not expand access. Safe labels are metadata, not independent content verification. This is a public discovery page, not personal, following, local, private, or messaging access. The server checks authorization within the content transaction. Already returned content and media URLs cannot be recalled; hosts must discard cached content on disconnect/expiry and never treat counters or URLs as access authority.
+
+This checkpoint provides the HTTP endpoint and VYBE consent/settings UI. The shipped JavaScript/.NET SDK packages and host examples do not yet implement this optional scope or feed method; their existing strict capture-only contracts remain unchanged. No real partner is enabled and no production deployment is implied.
 
 ### Device link and consent
 

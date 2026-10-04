@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { invokeFunction } from '@/lib/firebase/functionsService';
 
-const scopes = z.array(z.enum(['capture:write', 'capture:status', 'capture:preview'])).min(2).max(3)
+const scopes = z.array(z.enum(['capture:write', 'capture:status', 'capture:preview', 'feed:read_public'])).min(2).max(4)
   .refine(value => new Set(value).size === value.length && value.includes('capture:write') && value.includes('capture:status'), 'Unsupported game permissions');
 const game = {
   clientId: z.string().min(1).max(200),

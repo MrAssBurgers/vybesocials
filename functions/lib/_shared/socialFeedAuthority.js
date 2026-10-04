@@ -110,7 +110,7 @@ function projectPost(id, row, admission) {
         author: { id: author.profileId, username, displayName: text(author.row.display_name, 200), avatarUrl: httpsUrl(author.row.avatar_url) },
     };
 }
-/** Account-bound reader; no partner HTTP route grants access yet. */
+/** Account-bound reader with a separately authorized external public-feed boundary. */
 export async function readSocialFeedPage(db, uid, raw, nowMs = Date.now(), external) {
     const input = normalizeSocialFeedInput(raw, uid);
     if (!Number.isSafeInteger(nowMs) || nowMs < 0 || nowMs > 8_640_000_000_000_000 - CURSOR_TTL)

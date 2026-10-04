@@ -18,6 +18,13 @@ beforeEach(() => { vi.clearAllMocks(); auth.id = 'alice'; api.list.mockImplement
 afterEach(cleanup);
 
 describe('connected game controls', () => {
+  it('shows optional public browsing permission and explains its revocation', async () => {
+    api.list.mockResolvedValueOnce([{ ...connection(), scopes: ['capture:write', 'capture:status', 'feed:read_public'] }]);
+    render(view()); await screen.findByText(/Browse public posts marked safe/);
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke access for Moon Race' }));
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('browsing public posts');
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('Content already received cannot be recalled');
+  });
   it('requires confirmation, preserves access on cancel, and shows successful revocation immediately', async () => {
     render(view()); await screen.findByText('Moon Race');
     fireEvent.click(screen.getByRole('button', { name: 'Revoke access for Moon Race' }));

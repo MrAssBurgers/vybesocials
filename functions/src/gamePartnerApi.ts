@@ -1,5 +1,6 @@
 import { HttpsError, onRequest, type Request } from 'firebase-functions/v2/https';
 import type { Response } from 'express';
+import { readPartnerPublicFeed } from './_shared/gamePartnerFeed.js';
 import { db } from './_shared/admin.js';
 import { GameCaptureValidationError } from './gameIntegrationValidation.js';
 import { authorizePartner, exchangePartnerDevice, partnerRateLimit, PartnerError, startPartnerDevice } from './_shared/gamePartnerCore.js';
@@ -42,7 +43,7 @@ function safeError(error: unknown): PartnerError {
   return new PartnerError(503, 'unavailable', 'The game upload service is temporarily unavailable. Retry safely using the same upload key.');
 }
 
-/** Public transport; every private operation authorizes an opaque capture-only token. */
+/** Public transport; every private operation authorizes an opaque, explicitly scoped token. */
 export async function handleGamePartnerRequest(request: Request, response: Response): Promise<void> {
   response.set({
     'Cache-Control': 'private, no-store', Pragma: 'no-cache', 'X-Content-Type-Options': 'nosniff',
@@ -63,8 +64,12 @@ export async function handleGamePartnerRequest(request: Request, response: Respo
       response.status(200).json(await exchangePartnerDevice(body.clientId, body.deviceCode, source)); return;
     }
     const token = accessToken(request);
-    const principal = await db.runTransaction(tx => authorizePartner(tx, token, ['GET', 'HEAD'].includes(request.method) ? 'capture:status' : 'capture:write'));
+    const principal = await db.runTransaction(tx => authorizePartner(tx, token, path === '/v1/feed' && request.method === 'GET' ? 'feed:read_public' : ['GET', 'HEAD'].includes(request.method) ? 'capture:status' : 'capture:write'));
     await partnerRateLimit(`access:${principal.uid}`, 120);
+    if (path === '/v1/feed' && request.method === 'GET') {
+      await partnerRateLimit(`feed:${principal.connectionId}`, 30);
+      response.status(200).json(await readPartnerPublicFeed(token, request.query ?? {})); return;
+    }
     if (path === '/v1/captures' && request.method === 'GET') {
       if (Object.keys(request.query ?? {}).some(key => key !== 'cursor')) throw new PartnerError(400, 'invalid_request', 'Unsupported gallery query.');
       response.status(200).json(await listPartnerCaptures(token, request.query?.cursor)); return;

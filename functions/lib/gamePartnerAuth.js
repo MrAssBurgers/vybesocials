@@ -2,7 +2,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { getStorage } from 'firebase-admin/storage';
 import { db, requireAuth } from './_shared/admin.js';
-import { PartnerError, PARTNER_RETENTION_MS, PARTNER_PREVIEW_SCOPE, PARTNER_TTL_MS, connectionReceipt, requestedPartnerScopes, deviceFromUserCode, partnerRateLimit, randomConnectionId, } from './_shared/gamePartnerCore.js';
+import { PartnerError, PARTNER_RETENTION_MS, PARTNER_PREVIEW_SCOPE, PARTNER_FEED_SCOPE, PARTNER_TTL_MS, connectionReceipt, requestedPartnerScopes, deviceFromUserCode, partnerRateLimit, randomConnectionId, } from './_shared/gamePartnerCore.js';
 const opts = { region: 'us-central1', invoker: 'public', timeoutSeconds: 60 };
 async function partnerUser(request, action) {
     const uid = requireAuth(request);
@@ -34,8 +34,8 @@ export const approveGamePartnerLink = onCall(opts, request => partnerUser(reques
     return db.runTransaction(async (tx) => {
         const { ref, device, game } = await deviceFromUserCode(tx, request.data?.userCode, uid);
         const scopes = requestedPartnerScopes(device.requested_scopes);
-        // Old consent clients must never silently approve the new media-read permission.
-        if (scopes.includes(PARTNER_PREVIEW_SCOPE) && (request.data?.approvedScopes === undefined
+        // Old consent clients must never silently approve the optional read permissions.
+        if ((scopes.includes(PARTNER_PREVIEW_SCOPE) || scopes.includes(PARTNER_FEED_SCOPE)) && (request.data?.approvedScopes === undefined
             || JSON.stringify(requestedPartnerScopes(request.data.approvedScopes)) !== JSON.stringify(scopes))) {
             throw new PartnerError(400, 'invalid_request', 'Review and approve every requested permission in the updated VYBE app.');
         }

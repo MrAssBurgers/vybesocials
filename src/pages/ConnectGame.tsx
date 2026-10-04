@@ -62,7 +62,7 @@ function GameConsent({ account, initialCode }: { account: string; initialCode: s
     lock.current = true; setBusy(decision); setError('');
     try {
       if (decision === 'approve') {
-        const result = await (request.link.scopes.includes('capture:preview')
+        const result = await (request.link.scopes.some(scope => scope === 'capture:preview' || scope === 'feed:read_public')
           ? approveGamePartnerLink(request.code, request.link.scopes) : approveGamePartnerLink(request.code));
         if (active.current) setConnected(result);
       } else {
@@ -106,8 +106,8 @@ function GameConsent({ account, initialCode }: { account: string; initialCode: s
             <div><p className="text-xs text-muted-foreground">Registered game</p><h2 className="break-words text-xl font-semibold">{request.link.gameName}</h2><p className="break-words text-sm text-muted-foreground">Published by {request.link.publisherName}</p></div>
             <p className="font-mono text-2xl font-bold tracking-widest">{formatGameUserCode(request.code)}</p>
             <div><h3 className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck className="h-4 w-4 text-primary" aria-hidden="true" /> Access you can approve</h3>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground"><li>Send private captures for your review</li><li>Check the status of captures sent by this game</li>{request.link.scopes.includes('capture:preview') && <li>Show images and videos sent during this connection inside the game or app</li>}</ul>
-              <p className="mt-3 text-xs text-muted-foreground">The game cannot publish posts or read your account, feed, or messages. Access lasts ten minutes, with no automatic renewal.</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground"><li>Send private captures for your review</li><li>Check the status of captures sent by this game</li>{request.link.scopes.includes('capture:preview') && <li>Show images and videos sent during this connection inside the game or app</li>}{request.link.scopes.includes('feed:read_public') && <li>Browse public VYBE posts marked safe inside this game or app</li>}</ul>
+              <p className="mt-3 text-xs text-muted-foreground">{request.link.scopes.includes('feed:read_public') ? 'This does not include private posts, messages, bookmarks, or your personal feed. The game cannot publish posts. Content already shown to the game cannot be recalled.' : 'The game cannot publish posts or read your account, feed, or messages.'} Access lasts ten minutes, with no automatic renewal.</p>
             </div>
             {pending ? <>
               <p className="text-xs text-muted-foreground">Request expires in {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, '0')}</p>

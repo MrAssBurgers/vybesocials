@@ -13,6 +13,8 @@ on:
       - 'functions/src/miniAppPublish.ts'
       - 'scripts/test-game-capture-post-rules.mjs'
       - 'scripts/test-partner-gallery-backend.mjs'
+      - 'scripts/test-partner-feed-backend.mjs'
+      - 'functions/src/_shared/gamePartnerFeed.ts'
       - 'scripts/test-customization-rules.mjs'
       - 'scripts/test-custom-sound-rules.mjs'
       - 'scripts/test-profile-visibility-rules.mjs'
@@ -164,6 +166,8 @@ on:
       - 'functions/src/miniAppPublish.ts'
       - 'scripts/test-game-capture-post-rules.mjs'
       - 'scripts/test-partner-gallery-backend.mjs'
+      - 'scripts/test-partner-feed-backend.mjs'
+      - 'functions/src/_shared/gamePartnerFeed.ts'
       - 'scripts/test-customization-rules.mjs'
       - 'scripts/test-custom-sound-rules.mjs'
       - 'scripts/test-profile-visibility-rules.mjs'
@@ -334,6 +338,7 @@ jobs:
           node --check scripts/test-creator-platform-rules.mjs
           node --check scripts/test-game-capture-post-rules.mjs
           node --check scripts/test-partner-gallery-backend.mjs
+          node --check scripts/test-partner-feed-backend.mjs
           node --check scripts/test-customization-rules.mjs
           node --check scripts/test-custom-sound-rules.mjs
           node --check scripts/test-profile-visibility-rules.mjs
@@ -371,6 +376,7 @@ jobs:
           node scripts/test-creator-platform-rules.mjs &&
           node scripts/test-game-capture-post-rules.mjs &&
           node scripts/test-partner-gallery-backend.mjs &&
+          node scripts/test-partner-feed-backend.mjs &&
           node scripts/test-customization-rules.mjs &&
           node scripts/test-custom-sound-rules.mjs &&
           node scripts/test-profile-visibility-rules.mjs &&

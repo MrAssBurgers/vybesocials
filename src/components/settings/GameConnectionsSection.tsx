@@ -67,14 +67,14 @@ function AccountGameConnections() {
       return <article key={connection.connectionId} className="flex flex-col gap-3 rounded-xl border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0"><h4 className="break-words text-sm font-semibold">{connection.gameName}</h4><p className="break-words text-xs text-muted-foreground">{connection.publisherName}</p>
           <p className="mt-1 text-xs text-muted-foreground">{status === 'active' ? `Access ends ${new Date(connection.expiresAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : status === 'revoked' ? 'Access revoked' : 'Access expired'}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Send private captures · Check capture status{connection.scopes.includes('capture:preview') ? ' · Preview this connection’s media' : ''}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Send private captures · Check capture status{connection.scopes.includes('capture:preview') ? ' · Preview this connection’s media' : ''}{connection.scopes.includes('feed:read_public') ? ' · Browse public posts marked safe' : ''}</p>
         </div>
         {status === 'active' && <Button variant="outline" size="sm" disabled={busy || loading} aria-label={`Revoke access for ${connection.gameName}`} onClick={() => { setError(''); setSelected(connection); }}>Revoke access</Button>}
       </article>;
     })}
     <AlertDialog open={!!selected} onOpenChange={open => { if (!open && !busy) { setSelected(null); setError(''); } }}>
       <AlertDialogContent className="w-[calc(100%-2rem)]">
-        <AlertDialogHeader><AlertDialogTitle>Revoke access for {selected?.gameName}?</AlertDialogTitle><AlertDialogDescription>This immediately stops this connection from submitting new captures or checking their status. Captures already sent remain available for review until they expire, and published posts stay on VYBE. Reconnecting requires a new code and your approval.</AlertDialogDescription></AlertDialogHeader>
+        <AlertDialogHeader><AlertDialogTitle>Revoke access for {selected?.gameName}?</AlertDialogTitle><AlertDialogDescription>This immediately stops this connection from submitting new captures, checking their status, previewing media, or browsing public posts. Content already received cannot be recalled. Captures already sent remain available for review until they expire, and published posts stay on VYBE. Reconnecting requires a new code and your approval.</AlertDialogDescription></AlertDialogHeader>
         {error && <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm">{error}</p>}
         <AlertDialogFooter><AlertDialogCancel disabled={busy}>Keep access</AlertDialogCancel><Button variant="destructive" disabled={busy} onClick={() => void revoke()}>{busy ? 'Revoking…' : 'Revoke game access'}</Button></AlertDialogFooter>
       </AlertDialogContent>

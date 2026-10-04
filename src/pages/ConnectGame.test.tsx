@@ -25,6 +25,18 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('game consent', () => {
+  it('shows the public-feed boundary and explicitly approves its exact scope set', async () => {
+    const scopes = ['capture:write', 'capture:status', 'feed:read_public'];
+    api.get.mockResolvedValueOnce({ ...request(), scopes });
+    render(view()); await review();
+    expect(screen.getByText('Browse public VYBE posts marked safe inside this game or app')).toBeInTheDocument();
+    expect(screen.getByText(/This does not include private posts, messages, bookmarks/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve game access' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Approve game access' }));
+    await waitFor(() => expect(api.approve).toHaveBeenCalledWith('ABCD1234', scopes));
+  });
+
   it('displays and explicitly acknowledges the additional media-preview permission', async () => {
     const scopes = ['capture:write', 'capture:status', 'capture:preview'];
     api.get.mockResolvedValueOnce({ ...request(), scopes });

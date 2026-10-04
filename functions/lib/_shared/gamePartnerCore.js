@@ -4,15 +4,16 @@ import { hashGameValue } from './gameCaptureCore.js';
 export const PARTNER_TTL_MS = 10 * 60 * 1000;
 export const PARTNER_SCOPES = ['capture:write', 'capture:status'];
 export const PARTNER_PREVIEW_SCOPE = 'capture:preview';
+export const PARTNER_FEED_SCOPE = 'feed:read_public';
 export function requestedPartnerScopes(value) {
     if (value === undefined)
         return [...PARTNER_SCOPES];
-    if (!Array.isArray(value) || (value.length !== 2 && value.length !== 3)
+    if (!Array.isArray(value) || (value.length < 2 || value.length > 4)
         || new Set(value).size !== value.length || PARTNER_SCOPES.some(scope => !value.includes(scope))
-        || value.some(scope => ![...PARTNER_SCOPES, PARTNER_PREVIEW_SCOPE].includes(scope))) {
+        || value.some(scope => ![...PARTNER_SCOPES, PARTNER_PREVIEW_SCOPE, PARTNER_FEED_SCOPE].includes(scope))) {
         throw new PartnerError(400, 'invalid_request', 'Unsupported integration permissions.');
     }
-    return value.includes(PARTNER_PREVIEW_SCOPE) ? [...PARTNER_SCOPES, PARTNER_PREVIEW_SCOPE] : [...PARTNER_SCOPES];
+    return [...PARTNER_SCOPES, ...[PARTNER_PREVIEW_SCOPE, PARTNER_FEED_SCOPE].filter(scope => value.includes(scope))];
 }
 export const PARTNER_CHUNK_BYTES = 8 * 1024 * 1024;
 export const PARTNER_RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -56,6 +57,10 @@ export async function registeredPartner(tx, clientId) {
     }
     return game;
 }
+export function requirePartnerFeedCapability(game, scopes) {
+    if (scopes.includes(PARTNER_FEED_SCOPE) && game.public_feed_enabled !== true)
+        throw new PartnerError(403, 'access_denied', 'Public feed access is not enabled for this integration.');
+}
 export async function partnerRateLimit(key, max = 60, windowSec = 60) {
     if (!await rateLimit(`game_partner_${hashGameValue(key)}`, max, windowSec))
         throw new PartnerError(429, 'rate_limited', 'Too many requests. Try again later.', windowSec);
@@ -86,6 +91,7 @@ export async function authorizePartner(tx, rawToken, scope) {
     if (!Array.isArray(token.scopes) || !token.scopes.includes(scope) || !Array.isArray(connection.scopes) || !connection.scopes.includes(scope))
         throw new PartnerError(403, 'insufficient_scope', 'This connection cannot perform that action.');
     const game = await registeredPartner(tx, connection.client_id);
+    requirePartnerFeedCapability(game, [scope]);
     return { uid: connection.owner_uid, clientId: connection.client_id, connectionId: token.connection_id, expiresAt: Math.min(token.expires_at_ms, connection.expires_at_ms), game };
 }
 export async function startPartnerDevice(client, source, requestedScopes) {
@@ -93,7 +99,7 @@ export async function startPartnerDevice(client, source, requestedScopes) {
     const scopes = requestedPartnerScopes(requestedScopes);
     await partnerRateLimit('device-global', 600);
     await partnerRateLimit(`device-ip:${source}`, 20);
-    await db.runTransaction(tx => registeredPartner(tx, clientId));
+    await db.runTransaction(async (tx) => requirePartnerFeedCapability(await registeredPartner(tx, clientId), scopes));
     await partnerRateLimit(`device-client:${clientId}`, 300);
     await partnerRateLimit('device-daily', 1000, 86400);
     const deviceCode = opaqueCredential('vyd_');
@@ -102,7 +108,7 @@ export async function startPartnerDevice(client, source, requestedScopes) {
     const codeHash = hashGameValue(normalizeUserCode(userCode));
     const now = Date.now();
     await db.runTransaction(async (tx) => {
-        await registeredPartner(tx, clientId);
+        requirePartnerFeedCapability(await registeredPartner(tx, clientId), scopes);
         tx.create(db.collection('game_partner_devices').doc(deviceHash), {
             client_id: clientId, code_hash: codeHash, status: 'pending', expires_at_ms: now + PARTNER_TTL_MS,
             cleanup_at_ms: now + PARTNER_RETENTION_MS, interval_ms: 5000, next_poll_at_ms: now + 5000,
@@ -123,7 +129,7 @@ export async function exchangePartnerDevice(client, rawCode, source) {
         const device = (await tx.get(deviceRef)).data();
         if (!device || device.client_id !== clientId)
             throw new PartnerError(400, 'invalid_grant', 'Invalid device request.');
-        await registeredPartner(tx, clientId);
+        requirePartnerFeedCapability(await registeredPartner(tx, clientId), requestedPartnerScopes(device.requested_scopes));
         const now = Date.now();
         if (device.expires_at_ms <= now)
             throw new PartnerError(400, 'expired_token', 'This device code expired. Start again.');
@@ -168,6 +174,7 @@ export async function deviceFromUserCode(tx, rawCode, uid) {
     if (!device || device.code_hash !== hashGameValue(code) || (device.owner_uid && device.owner_uid !== uid))
         throw new PartnerError(404, 'not_found', 'That game code was not found.');
     const game = await registeredPartner(tx, device.client_id);
+    requirePartnerFeedCapability(game, requestedPartnerScopes(device.requested_scopes));
     return { ref, device, game };
 }
 //# sourceMappingURL=gamePartnerCore.js.map
