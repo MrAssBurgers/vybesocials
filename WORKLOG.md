@@ -2,6 +2,24 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Reliable maximum-size draft recovery
+
+### What changed
+- Fixed recovery read/write size mismatch: JSON can expand each UTF-16 code unit to six characters, while the former reader allowed roughly twice the source limit. Valid saved recovery could therefore disappear on reopening.
+- Both directions now use one conservative serialized bound covering full code, bounded metadata and envelope. Recovery picks only source fields, validates metadata lengths, preserves unfinished source, and normalizes pending identity. Failed/invalid writes retain the previous recovery and return false.
+- Regression checks cover maximum source containing control characters, lone surrogates, backslashes and emoji, metadata bounds, source-only serialization and storage-quota failure. First quota test targeted the browser prototype rather than this repo's storage stub; corrected the test spy and reran the full suite.
+
+### Verification
+- Actual retained 8082 demo: imported Recovery boundary QA with 100,000 JavaScript characters (99,996 control characters inside a comment), confirmed local recovery status, navigated Home, performed full navigation back to mini apps and reopened studio. Read-only textarea inspection confirmed exact length, control count and comment delimiters. Code was never executed or published. Screenshot outputs/vybe-draft-recovery.png; fixture work/recovery-boundary-qa.json. Tab 29 retains this local unsaved test draft.
+- App typecheck, scoped lint, 311 files / 2,953 tests and production build passed. Logs work/recovery-bounds-*.log. Generated version/offline artifacts restored. Prior feca83ff CI 37216139172 was still in progress when inspected.
+
+### Next 3 tasks and limits
+1. Continue mini-app runtime isolation and operation replay/receipt retention; recovery is still subject to browser storage availability and quota.
+2. Continue concrete game/mod integrations and remaining audience/media-reader migrations. Prior engine automation review restriction remains in effect; combined Godot upload walkthrough is not verified.
+3. Native-device checks and selective production rollout remain pending. Broad goal active/incomplete; no production deployment in this checkpoint.
+
+---
+
 ## ACTIVE (2026-10-04) - Preserve page state across screen sizes
 
 ### What changed
