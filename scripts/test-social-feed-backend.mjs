@@ -256,5 +256,60 @@ try {
       await assertFails(getDocs(collection(database, '_post_local_areas')));
     }
   });
+  const externalConnection = 'a'.repeat(32);
+  const externalAuthority = db.doc('game_partner_connections/feed-boundary-test');
+  const external = (connectionId = externalConnection) => ({ connectionId, authorize: async tx => {
+    const row = (await tx.get(externalAuthority)).data();
+    if (row?.status !== 'active') throw Object.assign(new Error('Connection revoked'), { code: 'permission-denied' });
+  } });
+  const externalRead = (patch = {}, boundary = external()) => readSocialFeedPage(db, viewer.uid, request(viewer, patch), Date.now(), boundary);
+  await check('external boundary exposes only explicit safe public content and no viewer signals', async () => {
+    await clearPosts(); await resetPolicy();
+    await externalAuthority.set({ status: 'active' });
+    await db.doc(`profiles/${author.profile}`).update({ is_private: false });
+    await relationship.set({ sender_id: viewer.profile, receiver_id: author.profile, status: 'accepted' });
+    await seed('external-public', { visibility: 'public' });
+    await seed('external-friends', { visibility: 'friends' });
+    await seed('external-unrated', { visibility: 'public', age_rating: 'unrated' });
+    await seed('external-adult', { visibility: 'public', age_rating: '18+' });
+    await seed('external-implicit');
+    await db.doc(`profiles/${viewer.profile}`).update({ is_private: false });
+    await seed('external-self-private', { author_id: viewer.profile, visibility: 'only_me' });
+    await seed('external-conflicting', { visibility: 'public', audience: 'only_me' });
+    await db.doc('likes/external-personal').set({ user_id: viewer.uid, post_id: 'external-public', reaction_type: 'love' });
+    await db.doc('bookmarks/external-personal').set({ user_id: viewer.uid, post_id: 'external-public' });
+    const page = await externalRead();
+    assert.deepEqual(page.posts.map(post => post.id), ['external-public']);
+    assert.equal(page.posts[0].reactionType, null); assert.equal(page.posts[0].isBookmarked, false);
+    const normal = await read(); assert.equal(normal.posts.find(post => post.id === 'external-public').reactionType, 'love');
+    assert.equal(normal.posts.find(post => post.id === 'external-public').isBookmarked, true);
+    await preference.set({ profile_id: author.profile, fields: { posts: 'friends' } });
+    assert.deepEqual((await externalRead()).posts, []);
+    await preference.delete();
+    await db.doc(`profiles/${author.profile}`).update({ is_private: true });
+    assert.deepEqual((await externalRead()).posts, []);
+    await db.doc(`profiles/${author.profile}`).update({ is_private: false });
+    await block.set({ blocker_id: author.uid, blocked_id: viewer.uid });
+    assert.deepEqual((await externalRead()).posts, []);
+    await block.delete();
+  });
+  await check('external pagination is connection-bound and cannot borrow first-party cursors', async () => {
+    await clearPosts(); await resetPolicy();
+    await Promise.all(Array.from({ length: 22 }, (_, i) => seed(`external-page-${i}`, { visibility: 'public' })));
+    const page = await externalRead(); assert.equal(page.posts.length, 20); assert.ok(page.nextCursor);
+    assert.equal((await externalRead({ cursor: page.nextCursor })).posts.length, 2);
+    await assert.rejects(externalRead({ cursor: page.nextCursor }, external('b'.repeat(32))), { code: 'failed-precondition' });
+    await assert.rejects(read(viewer, { cursor: page.nextCursor }), { code: 'failed-precondition' });
+    const normal = await read();
+    await assert.rejects(externalRead({ cursor: normal.nextCursor }), { code: 'failed-precondition' });
+    await externalAuthority.update({ status: 'revoked' });
+    await assert.rejects(externalRead({ cursor: page.nextCursor }), { code: 'permission-denied' });
+    await assert.rejects(externalRead(), { code: 'permission-denied' });
+  });
+  await check('external boundary rejects ranking/location modes and client-injected permissions', async () => {
+    for (const feed of ['following', 'personalized', 'local']) await assert.rejects(externalRead({ feed, ...(feed === 'local' ? { area: { lat: 0, lng: 0 } } : {}) }), { code: 'invalid-argument' });
+    await assert.rejects(read(viewer, { external: { connectionId: externalConnection } }), { code: 'invalid-argument' });
+    await assert.rejects(externalRead({}, external('malformed')), { code: 'invalid-argument' });
+  });
   console.log(`Social feed backend: ${checks} grouped checks passed.`);
 } finally { await env.cleanup(); await db.terminate(); }

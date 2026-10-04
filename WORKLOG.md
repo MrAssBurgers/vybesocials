@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - External social browsing read boundary
+
+### What changed
+- Extended the existing authoritative feed reader with a server-only ExternalFeedBoundary: fixed 32-hex connection ID and an authorization callback executed inside the same transaction as content/relationship reads. No HTTP route, scope, or player consent currently enables it; first-party callable input rejects injected boundary fields.
+- External mode supports discover/content-type pages only. Requires an explicitly public author, public profile section, explicit public/everyone post audience, no conflicting restriction, and safe age rating. Self/friend access does not widen that floor. Existing block/moderation/audience checks still apply.
+- External pages skip personal like/bookmark queries and retain null/false compatibility placeholders. Cursors are bound to the external connection and cannot cross into first-party reads or another connection. Existing first-party cursor records without the new field remain compatible.
+
+### Verification
+- Functions build, app build and scoped lint passed. App 306 files / 2,898 tests passed; unchanged app-7vZPPrVB.js 1068.1 KiB raw / 321.8 KiB gzip.
+- Separate demo Firestore emulator: all 22 grouped social-feed checks passed, including new public/safe-only filtering, private self/friend content exclusion, private profiles/sections, blocks, unchanged first-party personal reactions, revoked authorization, cross-connection/first-party cursor rejection, and forbidden ranking/location modes. Logs work/partner-feed-foundation-*.log. Retained demo preview was not reset.
+- Developer hub checkpoint 43098bcd CI 37208048596 succeeded. No UI changed in this backend checkpoint and no production deployment occurred.
+
+### Next 3 tasks and limits
+1. Add reviewed partner feed capability plus explicit feed permission consent, an HTTP adapter that resolves viewer identity and reauthorizes the exact token/connection via this boundary, and strict SDK receipt parsing. The adapter must strip internal ownerUid/viewerProfileId and personal-signal placeholders; this internal reader is not a public API response. Existing capture permissions must remain unchanged.
+2. Build host browsing UI with explicit media selection, cancellation, account/revocation cleanup and connection-bound pagination; test actual consent through endpoint and SDK. Broader feeds/messages and age-policy coverage remain separate incomplete requirements. Safe labels are metadata, not independent content verification; already-returned content cannot be remotely recalled.
+3. Continue mini-app CPU/network isolation, quotas/retention, remaining audience/media migrations and physical-device checks before coordinated selective rollout. Broad goal remains active and incomplete.
+
+---
+
 ## ACTIVE (2026-10-04) - Universal integration developer entry point
 
 ### What changed

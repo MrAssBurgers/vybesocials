@@ -93,19 +93,28 @@ function projectPost(id: string, row: AudienceRow, admission: NonNullable<Awaite
   };
 }
 
-/** Account-bound, current-authority read foundation. Partner access is not enabled here. */
-export async function readSocialFeedPage(db: Firestore, uid: string, raw: unknown, nowMs = Date.now()) {
+// Server-only boundary. Never derive this object from callable input. The
+// authorization callback must re-read the connection/token within this same
+// transaction, so revocation conflicts with delivery and forces revalidation.
+export type ExternalFeedBoundary = { connectionId: string; authorize: (tx: Transaction) => Promise<void> };
+
+/** Account-bound reader; no partner HTTP route grants access yet. */
+export async function readSocialFeedPage(db: Firestore, uid: string, raw: unknown, nowMs = Date.now(), external?: ExternalFeedBoundary) {
   const input = normalizeSocialFeedInput(raw, uid);
   if (!Number.isSafeInteger(nowMs) || nowMs < 0 || nowMs > 8_640_000_000_000_000 - CURSOR_TTL) throw new HttpsError('failed-precondition', 'Feed time is unavailable.');
+  if (external && (!/^[a-f0-9]{32}$/.test(external.connectionId) || typeof external.authorize !== 'function'
+    || (input.feed !== undefined && input.feed !== 'discover'))) throw new HttpsError('invalid-argument', 'Unsupported external feed request.');
   // Opaque server-owned cursors do not disclose IDs or timestamps of excluded posts.
   const newCursor = randomBytes(24).toString('hex');
   return db.runTransaction(async tx => {
+    if (external) await external.authorize(tx);
     const viewer = await resolveIdentity(db, tx, uid);
     if (!viewer || viewer.uid !== uid || viewer.profileId !== input.expectedProfileId) throw new HttpsError('failed-precondition', 'Your profile changed. Reopen the feed.');
     let query = db.collection('posts').orderBy('created_at', 'desc').orderBy(FieldPath.documentId(), 'desc').limit(PAGE_SIZE + 1);
     if (input.cursor) {
       const cursor = (await tx.get(db.collection('_social_feed_cursors').doc(input.cursor))).data();
       if (!cursor || cursor.version !== 1 || cursor.owner_uid !== uid || cursor.profile_id !== viewer.profileId
+        || (cursor.partner_connection_id ?? null) !== (external?.connectionId ?? null)
         || !(cursor.expires_at instanceof Timestamp) || cursor.expires_at.toMillis() <= nowMs
         || typeof cursor.post_id !== 'string' || !cursor.post_id || cursor.post_id.includes('/') || Buffer.byteLength(cursor.post_id) > 1500
         || (cursor.content_type ?? null) !== (input.contentType ?? null)
@@ -138,6 +147,16 @@ export async function readSocialFeedPage(db: Firestore, uid: string, raw: unknow
       const admission = await admissions.get(row.author_id)!;
       if (!admission || (row.user_id !== undefined && (typeof row.user_id !== 'string' || !admission.author.aliases.includes(row.user_id)))) continue;
       if (input.feed === 'following' && !admission.connected) continue;
+      if (external) {
+        // Relationships and self access must never widen this initial external
+        // surface. Require an explicit public author and public post audience.
+        const publicLevel = (level: unknown) => level === 'public' || level === 'everyone';
+        if (admission.author.row.is_private !== false || row.age_rating !== 'safe'
+          || !publicLevel(admission.settings[row.type === 'short' ? 'clips' : 'posts'])
+          || !(publicLevel(row.visibility) || publicLevel(row.audience))
+          || ['visibility', 'audience'].some(key => Object.hasOwn(row, key) && !publicLevel(row[key]))
+          || (row.is_private !== undefined && row.is_private !== false)) continue;
+      }
       const projected = projectPost(post.id, row, admission);
       if (!projected) continue;
       if (input.feed === 'local') {
@@ -159,7 +178,7 @@ export async function readSocialFeedPage(db: Firestore, uid: string, raw: unknow
     // Only enrich admitted posts. Never fetch raw post documents again on the client.
     // One query per viewer alias avoids Firestore's Cartesian IN-query limit.
     const reactions = new Map<string, string>(); const bookmarks = new Set<string>();
-    if (posts.length) {
+    if (posts.length && !external) {
       const ids = posts.map(post => post.id);
       for (const alias of viewer.aliases) {
         const [likes, saved] = await Promise.all([
@@ -181,7 +200,7 @@ export async function readSocialFeedPage(db: Firestore, uid: string, raw: unknow
       // The raw boundary may be malformed content. Firestore still orders it;
       // retain it privately so a bad row cannot permanently strand pagination.
       tx.create(db.collection('_social_feed_cursors').doc(newCursor), {
-        version: 1, owner_uid: uid, profile_id: viewer.profileId, post_id: last.id,
+        version: 1, owner_uid: uid, profile_id: viewer.profileId, post_id: last.id, partner_connection_id: external?.connectionId ?? null,
         created_at: last.data().created_at, content_type: input.contentType ?? null, feed: input.feed ?? 'discover', area: input.area ?? null, expires_at: Timestamp.fromMillis(nowMs + CURSOR_TTL),
       });
       nextCursor = newCursor;
