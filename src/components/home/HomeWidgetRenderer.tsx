@@ -153,6 +153,8 @@ interface Props {
   isFetchingNextGlobal: boolean;
   hasNextGlobal?: boolean;
   onLoadMoreGlobal?: () => void;
+  localControls?: ReactNode;
+  localReady?: boolean;
   localPosts: Post[];
   localLoading: boolean;
   localRefreshing?: boolean;
@@ -297,7 +299,7 @@ function FeedSection({
   activeTab, setActiveTab, showAds, navigate, hasNewPosts, clearNewPosts, handleRefresh,
   forYouPosts, forYouLoading, forYouRefreshing, forYouError, onRetryForYou, forYouFetching, isFetchingNextForYou,
   globalPosts, globalLoading, globalRefreshing, globalError, onRetryGlobal, globalFetching, isFetchingNextGlobal,
-  localPosts, localLoading, localRefreshing, localError, onRetryLocal, localFetching, isFetchingNextLocal,
+  localControls, localReady = true, localPosts, localLoading, localRefreshing, localError, onRetryLocal, localFetching, isFetchingNextLocal,
   hasNextForYou, onLoadMoreForYou, hasNextGlobal, onLoadMoreGlobal, hasNextLocal, onLoadMoreLocal,
   loadMoreRef,
 }: Props) {
@@ -388,7 +390,8 @@ function FeedSection({
         </TabsContent>
 
         <TabsContent value="local" className="space-y-4" forceMount style={{ display: activeTab === 'local' ? 'block' : 'none' }}>
-          <InlinePostList
+          {localControls}
+          {localReady && <InlinePostList
             posts={localPosts}
             isLoading={localLoading}
             isRefreshing={localRefreshing}
@@ -399,10 +402,10 @@ function FeedSection({
             onLoadMore={onLoadMoreLocal}
             loadMoreRef={activeTab === 'local' ? loadMoreRef : () => {}}
             emptyIcon="📍"
-            emptyText="No local posts yet. Share what's happening nearby!"
+            emptyText="No nearby posts shared to Local yet. Share a moment from your post's options."
             onExplore={() => navigate('/explore')}
             showAds={showAds}
-          />
+          />}
         </TabsContent>
 
         <TabsContent value="global" className="space-y-4" forceMount style={{ display: activeTab === 'global' ? 'block' : 'none' }}>

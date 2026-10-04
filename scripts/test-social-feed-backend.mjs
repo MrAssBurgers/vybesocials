@@ -13,6 +13,8 @@ const { initializeTestEnvironment, assertFails } = require('@firebase/rules-unit
 const { doc, setDoc, getDoc, getDocs, collection } = require('firebase/firestore');
 const { db } = await import('../functions/lib/_shared/admin.js');
 const { Timestamp } = await import('../functions/node_modules/firebase-admin/lib/firestore/index.js');
+const { managePostLocalArea } = await import('../functions/lib/postLocalArea.js');
+const { managePostLocalAreaAuthority } = await import('../functions/lib/_shared/postLocalAreaAuthority.js');
 const { readSocialFeed } = await import('../functions/lib/socialFeed.js');
 const { readSocialFeedPage } = await import('../functions/lib/_shared/socialFeedAuthority.js');
 const { closeFriendAuthorityId } = await import('../functions/lib/_shared/profileAudienceAuthority.js');
@@ -209,6 +211,49 @@ try {
       await assertFails(getDoc(doc(database, saved.ref.path)));
       await assertFails(setDoc(doc(database, saved.ref.path), { owner_uid: viewer.uid }));
       await assertFails(getDocs(collection(database, '_social_feed_cursors')));
+    }
+  });
+  await check('Local requires explicit coarse areas and author-owned acknowledged sharing', async () => {
+    await clearPosts(); await resetPolicy(); await seed('local-near'); await seed('local-far'); await seed('local-private', { audience: 'only_me' }); await seed('local-unshared');
+    const area = { lat: 41.9, lng: -87.6 };
+    const manage = (postId, patch = {}, who = author) => managePostLocalAreaAuthority(db, who.uid, { ...request(who), postId, action: 'state', ...patch });
+    await assert.rejects(managePostLocalArea.run({ data: {} }), { code: 'unauthenticated' });
+    for (const patch of [{ feed: 'local' }, { feed: 'local', area: { lat: 41.878, lng: -87.6 } }, { area }, { feed: 'local', area: { ...area, precise: true } }]) await assert.rejects(read(viewer, patch), { code: 'invalid-argument' });
+    await assert.rejects(manage('local-near', {}, viewer), { code: 'permission-denied' });
+    await assert.rejects(manage('local-near', { action: 'share', revision: 0, area: { lat: 41.878, lng: -87.6 } }), { code: 'invalid-argument' });
+    assert.equal((await manage('local-near')).enabled, false);
+    for (const postId of ['local-near', 'local-private']) await manage(postId, { action: 'share', revision: 0, area });
+    await manage('local-far', { action: 'share', revision: 0, area: { lat: 0, lng: 0 } });
+    const page = await read(viewer, { feed: 'local', area }); assert.deepEqual(page.posts.map(post => post.id), ['local-near']); assert.deepEqual(page.area, area);
+    assert.ok(!JSON.stringify(page.posts).includes('41.9'));
+    await assert.rejects(manage('local-near', { action: 'remove', revision: 0 }), { code: 'failed-precondition' });
+    await block.set({ blocker_id: author.profile, blocked_id: viewer.uid }); assert.deepEqual((await read(viewer, { feed: 'local', area })).posts, []); await block.delete();
+    await manage('local-near', { action: 'remove', revision: 1 }); assert.deepEqual((await read(viewer, { feed: 'local', area })).posts, []);
+    assert.equal((await db.doc('_post_local_areas/local-near').get()).data().area, null);
+    await assert.rejects(manage('local-near', { action: 'share', revision: 1, area }), { code: 'failed-precondition' });
+    await manage('local-near', { action: 'share', revision: 2, area });
+    await db.doc('_post_local_areas/local-near').update({ owner_uid: viewer.uid }); assert.deepEqual((await read(viewer, { feed: 'local', area })).posts, []);
+    await assert.rejects(manage('local-near'), { code: 'failed-precondition' });
+  });
+  await check('Local cursors cannot move between areas and recheck sharing after removal', async () => {
+    await clearPosts(); await db.recursiveDelete(db.collection('_post_local_areas'));
+    const area = { lat: 0, lng: 179.9 };
+    await Promise.all(Array.from({ length: 21 }, (_, i) => seed(`unshared-${i}`)));
+    await seed('older-near', { created_at: '2026-10-03T12:00:00.000Z' });
+    const input = { ...request(author), postId: 'older-near', action: 'share', revision: 0, area: { lat: 0, lng: -179.9 } };
+    await managePostLocalArea.run({ auth: { uid: author.uid }, data: input });
+    const first = await read(viewer, { feed: 'local', area }); assert.deepEqual(first.posts, []); assert.ok(first.nextCursor);
+    await assert.rejects(read(viewer, { feed: 'local', area: { lat: 0, lng: 179.8 }, cursor: first.nextCursor }), { code: 'failed-precondition' });
+    await assert.rejects(read(viewer, { cursor: first.nextCursor }), { code: 'failed-precondition' });
+    assert.deepEqual((await read(viewer, { feed: 'local', area, cursor: first.nextCursor })).posts.map(post => post.id), ['older-near']);
+    const { area: ignoredArea, ...removeInput } = input;
+    await managePostLocalAreaAuthority(db, author.uid, { ...removeInput, action: 'remove', revision: 1 });
+    assert.deepEqual((await read(viewer, { feed: 'local', area, cursor: first.nextCursor })).posts, []);
+    for (const context of [env.unauthenticatedContext(), env.authenticatedContext(author.uid), env.authenticatedContext(viewer.uid, { admin: true })]) {
+      const database = context.firestore();
+      await assertFails(getDoc(doc(database, '_post_local_areas/older-near')));
+      await assertFails(setDoc(doc(database, '_post_local_areas/older-near'), { enabled: true }));
+      await assertFails(getDocs(collection(database, '_post_local_areas')));
     }
   });
   console.log(`Social feed backend: ${checks} grouped checks passed.`);

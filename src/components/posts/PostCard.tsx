@@ -1,4 +1,4 @@
-import { useState, useRef, memo, useCallback, useMemo, useEffect } from 'react';
+import { useState, useRef, memo, lazy, Suspense, useCallback, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ProfileLink } from '@/components/profile/ProfileLink';
 import { WhyAmISeeingThisDialog } from './WhyAmISeeingThisDialog';
@@ -13,6 +13,7 @@ import {
   BadgeCheck,
   Pin,
   MoreHorizontal,
+  MapPin,
   PinOff,
   Pencil,
   Trash2,
@@ -363,6 +364,8 @@ function NaturalAspectImage({
   );
 }
 
+const PostLocalAreaDialog = lazy(() => import('./PostLocalAreaDialog').then(module => ({ default: module.PostLocalAreaDialog })));
+
 interface PostCardProps {
   post: {
     id: string;
@@ -466,6 +469,7 @@ export const PostCard = memo(function PostCard({
   }, [signedAvatarUrl, post.author.avatar_url]);
 
   // Memoize computed values
+  const [localSharingOpen, setLocalSharingOpen] = useState(false);
   const isOwnPost = useMemo(() => profile?.id === post.author.id, [profile?.id, post.author.id]);
   const isAdmin = useMemo(() => isModOrAdminRole(userRole), [userRole]);
   const { data: pinnedCount = 0 } = usePinnedPostCount(isOwnPost ? profile?.id : undefined);
@@ -689,33 +693,7 @@ export const PostCard = memo(function PostCard({
                 variant="ghost" 
                 size="icon-sm"
                 aria-label="Post options"
-                onPointerDown={(e) => {
-                  // Prevent Radix from opening on pointerdown
-                  e.preventDefault();
-                  e.stopPropagation();
-                  const el = e.currentTarget as any;
-                  el._ptrStart = { x: e.clientX, y: e.clientY, time: Date.now() };
-                }}
-                onPointerUp={(e) => {
-                  e.stopPropagation();
-                  const el = e.currentTarget as any;
-                  const start = el._ptrStart;
-                  if (!start) return;
-                  const dx = Math.abs(e.clientX - start.x);
-                  const dy = Math.abs(e.clientY - start.y);
-                  const dt = Date.now() - start.time;
-                  // Cancel if finger moved >10px or tap shorter than 50ms
-                  if (dx > 10 || dy > 10 || dt < 50) return;
-                  // Debounce: block repeat taps within 300ms
-                  if (el._lastTap && Date.now() - el._lastTap < 300) return;
-                  el._lastTap = Date.now();
-                  setMenuOpen(prev => !prev);
-                }}
-                onClick={(e) => {
-                  // Prevent default click from also toggling
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
+                onClick={event => event.stopPropagation()}
                 className="transition-transform active:scale-95"
               >
                 <MoreHorizontal className="h-5 w-5" />
@@ -754,6 +732,7 @@ export const PostCard = memo(function PostCard({
                       </>
                     )}
                   </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setLocalSharingOpen(true)}><MapPin className="h-4 w-4 mr-2" />Local sharing</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setIsEditOpen(true)}>
                     <Pencil className="h-4 w-4 mr-2" />
                     Edit Post
@@ -1094,6 +1073,8 @@ export const PostCard = memo(function PostCard({
 
       {/* Bottom spacing if no tags */}
       {(!post.tags || post.tags.length === 0) && <div className="pb-4" />}
+
+      {localSharingOpen && isOwnPost && <Suspense fallback={null}><PostLocalAreaDialog postId={post.id} onClose={() => setLocalSharingOpen(false)} /></Suspense>}
 
       {/* Edit Post Dialog */}
       <DeleteContentDialog

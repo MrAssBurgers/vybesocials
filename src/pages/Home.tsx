@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { useInfiniteFollowingPosts, usePersonalizedFeed } from '@/hooks/useInfinitePosts';
 import { useSocialFeed } from '@/hooks/useSocialFeed';
+import { LocalLocationControl } from '@/components/home/LocalLocationControl';
 import { useLocalFeed } from '@/hooks/useLocalFeed';
 import type { Post } from '@/hooks/useInfinitePosts';
 import { useDNAPreferences } from '@/hooks/useDNAPreferences';
@@ -109,14 +110,6 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const isGlobalTab = activeTab === 'global';
   const isLocalTab = activeTab === 'local';
 
-  const [localVisited, setLocalVisited] = useState(false);
-
-  useEffect(() => {
-    if (isLocalTab) setLocalVisited(true);
-  }, [isGlobalTab, isLocalTab]);
-
-  const loadLocalFeed = localVisited || isLocalTab;
-
   // Personalized feed — only while For You tab is active
   const {
     data: forYouData,
@@ -153,6 +146,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   } = useSocialFeed('post', isGlobalTab);
 
   const {
+    localLocation,
     data: localData,
     isPending: localPending,
     isError: localError,
@@ -161,7 +155,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     hasNextPage: hasNextLocal,
     isFetchingNextPage: isFetchingNextLocal,
     refetch: refetchLocal,
-  } = useLocalFeed({ enabled: loadLocalFeed });
+  } = useLocalFeed({ enabled: isLocalTab });
 
   const queryClient = useQueryClient();
   const forYouPosts = useMemo(() => {
@@ -259,14 +253,14 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
       queryClient.invalidateQueries({ queryKey: ['social-feed'] });
       await refetchGlobal();
     } else if (activeTab === 'local') {
-      queryClient.invalidateQueries({ queryKey: ['local-feed'] });
-      await refetchLocal();
+      queryClient.invalidateQueries({ queryKey: ['social-feed'] });
+      if (localLocation.location) await refetchLocal();
     } else {
       queryClient.invalidateQueries({ queryKey: ['personalized-feed-v2'] });
       queryClient.invalidateQueries({ queryKey: ['infinite-following-posts'] });
       await Promise.all([refetchForYou(), refetchFollowing()]);
     }
-  }, [activeTab, queryClient, refetchForYou, refetchGlobal, refetchFollowing, refetchLocal, clearNewPosts]);
+  }, [activeTab, queryClient, refetchForYou, refetchGlobal, refetchFollowing, refetchLocal, clearNewPosts, localLocation.location]);
 
   // Infinite scroll observer - use refs for current values to avoid recreating callback
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -432,6 +426,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             isFetchingNextGlobal={isFetchingNextGlobal}
             hasNextGlobal={hasNextGlobal}
             onLoadMoreGlobal={() => { if (hasNextGlobal && !isFetchingNextGlobal) void fetchNextGlobal(); }}
+            localControls={<LocalLocationControl location={localLocation} />}
+            localReady={!!localLocation.location}
             localPosts={localPosts}
             localLoading={localFeedLoading}
             localRefreshing={localFeedRefreshing}

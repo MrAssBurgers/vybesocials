@@ -23,6 +23,16 @@ beforeEach(() => {
 });
 afterEach(() => { clients.splice(0).forEach(client => client.clear()); });
 describe('visible current-account Global feed', () => {
+  it('requires an area for Local and discards pages when that area changes', async () => {
+    const hook = renderHook(({ area }: { area?: { lat: number; lng: number } }) => useSocialFeed(undefined, true, 'local', area), { ...setup(), initialProps: { area: undefined } });
+    expect(state.read).not.toHaveBeenCalled();
+    hook.rerender({ area: { lat: 41.9, lng: -87.6 } });
+    await waitFor(() => expect(hook.result.current.data).toBeDefined());
+    state.read.mockImplementation(() => new Promise(() => {}));
+    hook.rerender({ area: { lat: 42, lng: -87.6 } });
+    expect(hook.result.current.data).toBeUndefined();
+    await waitFor(() => expect(state.read).toHaveBeenLastCalledWith(expect.objectContaining({ feed: 'local', area: { lat: 42, lng: -87.6 } }), expect.any(Function)));
+  });
   it('does not reuse discovery pages or cursors for a Following selection', async () => {
     const hook = renderHook(({ feed }: { feed: 'personalized' | 'following' }) => useSocialFeed('short', true, feed), { ...setup(), initialProps: { feed: 'personalized' as 'personalized' | 'following' } });
     await waitFor(() => expect(hook.result.current.data).toBeDefined());

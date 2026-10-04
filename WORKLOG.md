@@ -2,6 +2,28 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Explicit, audience-checked Local sharing
+
+### What changed
+- Replaced Local's generic-feed fallback with the current audience-checked reader, fixed approximate proximity and explicit per-post author opt-in. Added `managePostLocalArea`, owner/profile/post-bound revisions, client-closed `_post_local_areas` proofs and area-bound opaque cursors. Local applies every existing audience/block check before distance filtering; other feeds reject location fields. The obsolete Local RPC now errors instead of mislabeling general posts.
+- Added rounded Local area controls and a lazy-loaded own-post Local sharing dialog. GPS is requested only on a click, rounded before transport, never written to disk and cleared from the screen on exit/hide/account changes. Late GPS callbacks cannot restore previous-account locations. Removed the old precise `vybe-user-location` cache and persisted `local-feed` snapshots. Sharing requires a separate explicit confirmation button after choosing an area; removal needs no GPS.
+- Replaced the post-options trigger's custom timing gate with standard accessible menu behavior. Fast clicks and Enter now open it; Escape dismisses it. Selected preview now loads 35 domain functions. See `docs/SOCIAL_FEED_READ.md` for approximate distance and server cursor retention details.
+
+### Verification
+- **304 files / 2,865 tests passed**. Functions/app builds, typecheck, full lint, CSS and boot checks passed. Lint retains **0 errors / 5 inherited warnings**. Final app entry **app-BN4h0_5L.js: 1068.1 KiB raw / 321.8 KiB gzip**, within budget.
+- Isolated real-emulator social feed fixture passed **19 grouped checks** and follow authority fixture **10 grouped checks**. Added actual callable guest/schema/owner rejection, explicit sharing, near/far/private/blocked selection, stale revisions, removal clearing stored area, changed author proof rejection, dateline continuation, area/cursor substitution denial and raw proof read/write/list denial. The isolated emulator stopped successfully.
+- Hook tests cover no mount-time GPS request, precise-cache retirement, rounding, account/activation/hide/clear/retry late callbacks, denied/invalid GPS and area-isolated feed pages. Service/dialog tests cover explicit sharing, acknowledgement, mismatched receipts, unknown state and late post changes. Synthetic coordinates only; real device GPS permission behavior remains unverified.
+- Browser: Local shows its rounded explicit chooser without requesting permission. On Alice's explicitly marked synthetic `qa-local-sharing` post, real HTTP callable sharing at synthetic area `{lat:0,lng:0}` was readable in the own-post dialog; Remove from Local acknowledged success without GPS and stayed removed on reopen. Quick clicks/keyboard post options worked. Screenshots: workspace outputs `vybe-local-area.png` and `vybe-local-sharing.png`.
+- Retained preview export: ignored `work/local-preview/local-feed-verified-checkpoint-export` (Auth, Firestore, Storage). No production changes. Previous main **672f26e1** passed CI **37199841460** and Rules QA **37199841484**. Exact remote checks for this checkpoint are inspected after push.
+
+### Release limits and next 3 tasks
+- No production deployment or Lovable Publish. Stage the matching `managePostLocalArea`, `readSocialFeed`, client and rules together; never deploy all Functions or change production auth2faRequest. Local uses coarse cell-center distance and chronological candidate scanning, not verified residence or a scalable geo index. Sparse areas may need multiple continuations; read costs and rate limits need production-sized staging. Cursor search areas can remain until TTL cleanup after their 10-minute expiry. Legacy raw post/profile/explore endpoints, media delivery, age authority and interaction permissions remain release work.
+1. Migrate remaining direct post/profile/explore/ranked/share-preview readers, then close raw content paths and implement controlled media and age policy.
+2. Complete embedded feed consent and native game/mod adapters with lifecycle/device checks.
+3. Continue mini-app/soft UI audits, including the visibly white Your story tile, then selective staging and physical-device verification. The original universal-app goal remains active and unfulfilled.
+
+---
+
 ## ACTIVE (2026-10-04) - For You and Following audience migration
 
 ### What changed

@@ -295,15 +295,6 @@ async function rpcGetTrendingFeed(params: Record<string, unknown>): Promise<Reco
   });
 }
 
-async function rpcGetLocalPosts(params: Record<string, unknown>): Promise<Record<string, unknown>[]> {
-  // Geo filter not ported client-side yet — return recent posts so Local tab isn't empty.
-  return loadPostsSlice({
-    excludeAuthorId: (params.p_user_id as string | null) || undefined,
-    offset: Number(params.p_offset || 0),
-    limit: Number(params.p_limit || 15),
-  });
-}
-
 export async function runFeedRpc(
   name: string,
   params: Record<string, unknown>,
@@ -318,7 +309,7 @@ export async function runFeedRpc(
     case 'get_trending_feed':
       return rpcGetTrendingFeed(params);
     case 'get_local_posts':
-      return rpcGetLocalPosts(params);
+      throw new Error('Local requires the current audience-checked feed and an approximate area.');
     default:
       return [];
   }

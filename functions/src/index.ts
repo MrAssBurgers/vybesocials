@@ -92,3 +92,5 @@ export const setAdminClaim = onCall(async (request) => {
   }, { merge: true });
   return { ok: true };
 });
+
+export { managePostLocalArea } from './postLocalArea.js';

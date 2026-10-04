@@ -4,13 +4,13 @@
 tab uses it through `useSocialFeed` and strict `socialFeedService` parsing.
 Shared personalized and Following hooks now use the same reader for Home,
 Clips' short/long-video lists and Watch's related-video list. Home keeps its DNA
-topic boost/reduce and chronological tie-breaking. Local and other legacy readers
-remain to be migrated. Integration tokens
+topic boost/reduce and chronological tie-breaking. Local uses explicit approximate
+areas and author-owned per-post opt-in. Other legacy readers remain to be migrated. Integration tokens
 still cannot use this endpoint. Do not describe this as a completed embedded feed.
 
-Input: `{ expectedOwnerUid, expectedProfileId, cursor?, contentType?, feed? }` where the
+Input: `{ expectedOwnerUid, expectedProfileId, cursor?, contentType?, feed?, area? }` where the
 optional type is `post`, `short` or `video`. Extra fields are rejected.
-Feed is `discover` (default), `personalized` or `following`, echoed in the receipt
+Feed is `discover` (default), `personalized`, `following` or `local`, echoed in the receipt
 and bound into the opaque cursor. A cursor cannot be transferred between feeds.
 Output: `{ ownerUid, viewerProfileId, contentType, feed, posts, nextCursor }`. Each post has its
 ID, type, caption, creation time, media URLs, thumbnail, age label, tags, and a
@@ -47,6 +47,49 @@ The checked-in TTL policy removes expired cursor records after deployment; acces
 expiry is checked synchronously and never depends on TTL deletion timing. See
 [Firebase's index configuration reference](https://firebase.google.com/docs/reference/firestore/indexes/)
 and [TTL behavior](https://firebase.google.com/docs/firestore/ttl).
+
+## Local selection and sharing
+
+Local requires `area: { lat, lng }` rounded to one decimal degree before transport.
+Latitude is -90 through 90; longitude is -180 inclusive through 180 exclusive.
+The app normalizes +180 to -180. Precise, nonfinite, extra-field and out-of-range
+values are rejected; other feed modes reject an area. Local receipts echo only
+the viewer's search area, never an author's area. Opaque cursors bind the exact
+coarse selection and cannot be reused for another area or feed.
+
+`managePostLocalArea` supports `state`, `share` and `remove`, bound to the current
+canonical owner/profile and post. Writes require the latest revision; sharing
+also requires a coarse area. No staff override exists. Server-owned
+`_post_local_areas/{postId}` stores the current author tuple, enabled flag,
+revision and coarse area. Clients cannot read, write or list this collection.
+Removing sharing replaces the area with null. An enabled, valid proof for the
+current author is required after all ordinary audience checks. Haversine distance
+between coarse area centers must be at most 40.2336 km (25 miles), including
+correct dateline/polar behavior. This is approximate proximity, not verified
+residence, anti-spoofing or an exact distance guarantee.
+
+Home Local never prompts for GPS on mount or falls back to generic posts. A user
+explicitly chooses an area for this view. The hook rounds GPS immediately, keeps
+only the coarse value in memory, purges the former precise localStorage key, and
+discards callbacks after account changes, tab exit, document hiding, clearing,
+retry or unmount. Search areas are cleared from the screen on exit/hide. Server
+cursor records can retain the coarse search area until TTL cleanup after their
+10-minute access expiry; expiry is not a promise of immediate physical deletion.
+Post areas remain until removed. Old `local-feed` disk snapshots are excluded
+from serialization and restoration along with `social-feed`.
+
+Own post options expose a rounded Local sharing dialog. Reading status must
+succeed before a write is offered. Choosing an area and sharing are separate
+explicit actions; no GPS is needed to remove sharing. Mutation receipts bind
+owner/profile/post/action/revision and writes invalidate the authoritative feed.
+The legacy `get_local_posts` RPC now throws instead of returning unrelated posts.
+
+Local still uses bounded chronological candidate scanning. Sparse areas may need
+several empty-page continuations; production needs a scalable geographic candidate
+index and read-cost/latency validation. Real-device GPS prompts and native location
+permissions are not certified by the synthetic-coordinate tests. Deploy
+`managePostLocalArea`, `readSocialFeed`, matching rules and client together in
+selective staging. Do not enable a mismatched client/backend combination.
 
 ## Personalized and Following selection
 

@@ -3,6 +3,8 @@ import { FieldPath, Timestamp } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { closeFriendAuthorityId, hasCloseFriendAuthority, normalizedProfileSettings, resolveIdentity, validAudienceId } from './profileAudienceAuthority.js';
 import { followAuthorityId, hasApprovedFollow, hasCurrentFollow } from './followAuthority.js';
+import { isLocalArea, nearbyLocalArea, sameLocalArea } from './localArea.js';
+import { validPostLocalProof } from './postLocalAreaAuthority.js';
 import { rankSocialPosts } from './socialFeedRanking.js';
 const PAGE_SIZE = 20;
 const CURSOR_TTL = 10 * 60 * 1000;
@@ -12,8 +14,9 @@ export function normalizeSocialFeedInput(raw, uid) {
     const row = raw;
     if (row.expectedOwnerUid !== uid)
         throw new HttpsError('failed-precondition', 'Your account changed. Reopen the feed.');
-    if (!validAudienceId(row.expectedProfileId) || Object.keys(row).some(key => !['expectedOwnerUid', 'expectedProfileId', 'cursor', 'contentType', 'feed'].includes(key))
-        || (row.feed !== undefined && !['discover', 'personalized', 'following'].includes(row.feed))
+    if (!validAudienceId(row.expectedProfileId) || Object.keys(row).some(key => !['expectedOwnerUid', 'expectedProfileId', 'cursor', 'contentType', 'feed', 'area'].includes(key))
+        || (row.feed !== undefined && !['discover', 'personalized', 'following', 'local'].includes(row.feed))
+        || (row.feed === 'local' ? !isLocalArea(row.area) : row.area !== undefined)
         || (row.contentType !== undefined && !['post', 'short', 'video'].includes(row.contentType))
         || (row.cursor !== undefined && (typeof row.cursor !== 'string' || !/^[a-f0-9]{48}$/.test(row.cursor)))) {
         throw new HttpsError('invalid-argument', 'Invalid feed selection.');
@@ -126,6 +129,7 @@ export async function readSocialFeedPage(db, uid, raw, nowMs = Date.now()) {
                 || typeof cursor.post_id !== 'string' || !cursor.post_id || cursor.post_id.includes('/') || Buffer.byteLength(cursor.post_id) > 1500
                 || (cursor.content_type ?? null) !== (input.contentType ?? null)
                 || (cursor.feed ?? 'discover') !== (input.feed ?? 'discover')
+                || !sameLocalArea(cursor.area, input.area)
                 || !Object.hasOwn(cursor, 'created_at'))
                 throw new HttpsError('failed-precondition', 'This feed page expired. Refresh the feed.');
             query = query.startAfter(cursor.created_at, cursor.post_id);
@@ -161,8 +165,14 @@ export async function readSocialFeedPage(db, uid, raw, nowMs = Date.now()) {
             if (input.feed === 'following' && !admission.connected)
                 continue;
             const projected = projectPost(post.id, row, admission);
-            if (projected)
-                posts.push(projected);
+            if (!projected)
+                continue;
+            if (input.feed === 'local') {
+                const proof = (await tx.get(db.collection('_post_local_areas').doc(post.id))).data();
+                if (!validPostLocalProof(proof, admission.author, post.id) || !proof?.enabled || !isLocalArea(proof.area) || !nearbyLocalArea(input.area, proof.area))
+                    continue;
+            }
+            posts.push(projected);
         }
         if (input.feed === 'personalized' && posts.length) {
             const history = [];
@@ -204,11 +214,12 @@ export async function readSocialFeedPage(db, uid, raw, nowMs = Date.now()) {
             // retain it privately so a bad row cannot permanently strand pagination.
             tx.create(db.collection('_social_feed_cursors').doc(newCursor), {
                 version: 1, owner_uid: uid, profile_id: viewer.profileId, post_id: last.id,
-                created_at: last.data().created_at, content_type: input.contentType ?? null, feed: input.feed ?? 'discover', expires_at: Timestamp.fromMillis(nowMs + CURSOR_TTL),
+                created_at: last.data().created_at, content_type: input.contentType ?? null, feed: input.feed ?? 'discover', area: input.area ?? null, expires_at: Timestamp.fromMillis(nowMs + CURSOR_TTL),
             });
             nextCursor = newCursor;
         }
         return { ownerUid: uid, viewerProfileId: viewer.profileId, contentType: input.contentType ?? null, feed: input.feed ?? 'discover',
+            ...(input.feed === 'local' ? { area: input.area } : {}),
             posts: posts.map(post => ({ ...post, reactionType: reactions.get(post.id) ?? null, isBookmarked: bookmarks.has(post.id) })), nextCursor };
     });
 }

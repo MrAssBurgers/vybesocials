@@ -12,6 +12,18 @@ const response = () => ({ ownerUid: 'alice', viewerProfileId: 'profile-alice', c
 beforeEach(() => { state.invoke.mockReset(); state.invoke.mockResolvedValue({ data: response(), error: null }); });
 
 describe('current account social feed transport', () => {
+  it('binds Local receipts to the selected coarse area before showing posts', async () => {
+    const area = { lat: 41.9, lng: -87.6 };
+    const localInput = { ...input, feed: 'local' as const, area };
+    state.invoke.mockResolvedValue({ data: { ...response(), feed: 'local', area } });
+    expect((await readSocialFeed(localInput, () => {})).posts).toHaveLength(1);
+    state.invoke.mockResolvedValue({ data: { ...response(), feed: 'local', area: { lat: 42, lng: -87.6 } } });
+    await expect(readSocialFeed(localInput, () => {})).rejects.toThrow();
+    state.invoke.mockClear();
+    await expect(readSocialFeed({ ...localInput, area: { lat: 41.878, lng: -87.6 } }, () => {})).rejects.toThrow();
+    await expect(readSocialFeed({ ...input, area }, () => {})).rejects.toThrow();
+    expect(state.invoke).not.toHaveBeenCalled();
+  });
   it('preserves approved presentation, reaction and bookmark controls without a raw-post fallback', async () => {
     const guard = vi.fn(); const result = await readSocialFeed(input, guard);
     expect(guard).toHaveBeenCalledTimes(2);
