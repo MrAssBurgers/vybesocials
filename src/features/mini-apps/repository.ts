@@ -60,6 +60,27 @@ export async function saveMiniAppDraft(ownerId: string, source: MiniAppSource, e
   }).then(record => { guard(); return record; });
 }
 
+export async function deleteMiniAppDraft(ownerId: string, draft: MiniAppRecord): Promise<void> {
+  const guard = miniAppAccountGuard(ownerId); guard();
+  if (draft.owner_id !== ownerId || !/^[\w-]{1,128}$/.test(draft.id)) throw new Error('You can only delete your own drafts.');
+  const expectedSource = JSON.stringify(validateMiniApp(draft));
+  const reference = doc(getFirestoreDb(), 'mini_app_drafts', draft.id);
+  await runTransaction(getFirestoreDb(), async transaction => {
+    guard();
+    const snapshot = await transaction.get(reference);
+    guard();
+    if (!snapshot.exists()) return;
+    const current = snapshot.data();
+    if (current.owner_id !== ownerId) throw new Error('You can only delete your own drafts.');
+    // Compare the reviewed source; a stale library must not erase another editor's work.
+    if (JSON.stringify(validateMiniApp(current)) !== expectedSource) {
+      throw Object.assign(new Error('This draft changed since you opened it. Refresh and review the latest version before deleting.'), { code: 'mini-app-draft-conflict' });
+    }
+    transaction.delete(reference);
+  });
+  guard();
+}
+
 export type MiniAppPublishIntent = { requestId: string; expectedVersion?: string | null; sourceKey?: string };
 const publicationVersionPattern = /^(?:[a-f0-9]{32}|legacy:-?\d{1,12}:\d{1,9})$/;
 export async function publishMiniApp(ownerId: string, draft: MiniAppRecord, intent: MiniAppPublishIntent = { requestId: crypto.randomUUID() }): Promise<void> {

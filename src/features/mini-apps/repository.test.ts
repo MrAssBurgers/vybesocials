@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { listMiniAppsPage, publishMiniApp, saveMiniAppDraft, unpublishMiniApp } from './repository';
+import { deleteMiniAppDraft, listMiniAppsPage, publishMiniApp, saveMiniAppDraft, unpublishMiniApp } from './repository';
 import { MINI_APP_TEMPLATES } from './templates';
 
 const state = vi.hoisted(() => ({ uid: 'alice', rows: new Map<string, Record<string, unknown>>(), sequence: 0, auth: null as any, listener: null as any, loseAck: false, transactionRead: vi.fn(), transactionWrite: vi.fn() }));
@@ -37,6 +37,30 @@ function switchAccount(uid: string) { state.uid = uid; state.auth.currentUser = 
 
 describe('mini app private drafts and public snapshots', () => {
   const source = MINI_APP_TEMPLATES[0].source;
+  it('deletes only the reviewed private draft and allows an acknowledged-equivalent retry', async () => {
+    const draft = await saveMiniAppDraft('alice', source);
+    await publishMiniApp('alice', draft);
+    const published = structuredClone(state.rows.get(`mini_apps/${draft.id}`));
+    state.loseAck = true;
+    await expect(deleteMiniAppDraft('alice', draft)).rejects.toThrow('Response lost');
+    await deleteMiniAppDraft('alice', draft);
+    expect(state.rows.has(`mini_app_drafts/${draft.id}`)).toBe(false);
+    expect(state.rows.get(`mini_apps/${draft.id}`)).toEqual(published);
+  });
+  it('keeps newer draft source and rejects foreign ownership', async () => {
+    const draft = await saveMiniAppDraft('alice', source);
+    await saveMiniAppDraft('alice', { ...source, title: 'Newer edit' }, draft);
+    await expect(deleteMiniAppDraft('alice', draft)).rejects.toMatchObject({ code: 'mini-app-draft-conflict' });
+    expect(state.rows.get(`mini_app_drafts/${draft.id}`)?.title).toBe('Newer edit');
+    await expect(deleteMiniAppDraft('alice', { ...draft, owner_id: 'bob' })).rejects.toThrow('own drafts');
+  });
+  it('does not delete when the account changes during the read', async () => {
+    const draft = await saveMiniAppDraft('alice', source);
+    const read = state.transactionRead.getMockImplementation()!;
+    state.transactionRead.mockImplementationOnce(async ref => { const result = await read(ref); switchAccount('bob'); return result; });
+    await expect(deleteMiniAppDraft('alice', draft)).rejects.toMatchObject({ code: 'account-changed' });
+    expect(state.rows.has(`mini_app_drafts/${draft.id}`)).toBe(true);
+  });
   it('retains the original version and request identity after a lost publication response', async () => {
     const draft = await saveMiniAppDraft('alice', source);
     const intent = { requestId: 'stable-publication-request' };

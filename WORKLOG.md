@@ -2,6 +2,24 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Mini-app draft cleanup
+
+### What changed
+- Added Delete draft to My drafts with a named confirmation, cancellation and pending state. Public snapshots remain available independently.
+- Transaction compares reviewed source before deletion, rejects stale edits and foreign owners, guards account changes and permits retry after a lost successful acknowledgement. Conflicts close the dialog and refresh for review.
+
+### Verification
+- 309 files / 2,923 tests passed; app build and scoped lint passed. New tests cover public snapshot preservation, lost acknowledgement, newer edits, foreign ownership, account change during read and explicit confirmation/cancel/refresh.
+- Live 8082 synthetic Alice: loaded draft library, opened Library QA 001 confirmation, checked wording and cancelled; draft remained visible. No browser deletion performed. Screenshot workspace outputs/vybe-draft-delete-confirmation.png. Build-generated version/offline manifest churn restored.
+- Previous 1d070076 latest CI returned success. No production deployment.
+
+### Next 3 tasks and limits
+1. Add server-enforced draft admission/storage quotas and publication receipt retention; these remain unbounded today.
+2. Continue engine/mod adapters and remaining audience/media reader migrations.
+3. Verify physical devices and selective rollout; broad app goal remains active and incomplete.
+
+---
+
 ## ACTIVE (2026-10-04) - .NET public browsing parity
 
 ### What changed

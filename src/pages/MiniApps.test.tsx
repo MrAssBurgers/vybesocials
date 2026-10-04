@@ -8,7 +8,7 @@ import { MINI_APP_TEMPLATES } from '@/features/mini-apps/templates';
 import type { MiniAppRecord, MiniAppSource } from '@/features/mini-apps/model';
 
 const state = vi.hoisted(() => ({ uid: 'alice', reducedMotion: false, systemReducedMotion: false, sound: vi.fn(), success: vi.fn(), report: vi.fn() }));
-const repository = vi.hoisted(() => ({ list: vi.fn(), save: vi.fn(), publish: vi.fn(), unpublish: vi.fn(), get: vi.fn() }));
+const repository = vi.hoisted(() => ({ list: vi.fn(), save: vi.fn(), publish: vi.fn(), unpublish: vi.fn(), remove: vi.fn(), get: vi.fn() }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: state.uid }, profile: { id: `${state.uid}-profile` } }) }));
 vi.mock('@/hooks/useReportAccountSession', () => ({ useReportAccountSession: () => ({ uid: state.uid, epoch: 1 }) }));
 vi.mock('@/lib/theme', () => ({ useTheme: () => ({ reducedMotion: state.reducedMotion }) }));
@@ -19,7 +19,7 @@ vi.mock('@/components/layout/AppLayout', () => ({ AppLayout: ({ children }: { ch
 vi.mock('@/lib/haptics', () => ({ triggerHaptic: vi.fn() }));
 vi.mock('@/lib/sounds', () => ({ playSound: state.sound }));
 vi.mock('sonner', () => ({ toast: { success: state.success, error: vi.fn() } }));
-vi.mock('@/features/mini-apps/repository', () => ({ listMiniAppsPage: repository.list, saveMiniAppDraft: repository.save, publishMiniApp: repository.publish, unpublishMiniApp: repository.unpublish, getPublishedMiniApp: repository.get }));
+vi.mock('@/features/mini-apps/repository', () => ({ deleteMiniAppDraft: repository.remove, listMiniAppsPage: repository.list, saveMiniAppDraft: repository.save, publishMiniApp: repository.publish, unpublishMiniApp: repository.unpublish, getPublishedMiniApp: repository.get }));
 
 const record = (source: MiniAppSource, owner = 'alice'): MiniAppRecord => ({ ...source, id: 'app-1', owner_id: owner, schema_version: 1, created_at: { seconds: 1 } });
 
@@ -40,6 +40,22 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('mini apps studio flow', () => {
+  it('requires explicit confirmation to delete a private draft and refreshes the library', async () => {
+    const app = record(MINI_APP_TEMPLATES[0].source);
+    repository.list.mockImplementation(async (_owner, view) => ({ apps: view === 'drafts' ? [app] : [], nextCursor: null }));
+    repository.remove.mockResolvedValue(undefined);
+    mount();
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'My drafts' }), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete draft' }));
+    expect(repository.remove).not.toHaveBeenCalled();
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Keep draft' }));
+    expect(repository.remove).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete draft' }));
+    repository.list.mockResolvedValue({ apps: [], nextCursor: null });
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete draft' }));
+    await waitFor(() => expect(repository.remove).toHaveBeenCalledWith('alice', app));
+    expect(await screen.findByText('Your next idea starts here')).toBeInTheDocument();
+  });
   it('closes stale unpublish confirmation and refreshes the newer publication', async () => {
     const old = { ...record(MINI_APP_TEMPLATES[0].source), title: 'Older version' };
     repository.list.mockResolvedValueOnce({ apps: [old], nextCursor: null }).mockResolvedValue({ apps: [{ ...old, title: 'Newer version' }], nextCursor: null });

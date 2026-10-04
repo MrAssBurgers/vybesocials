@@ -15,7 +15,7 @@ import { useAuth } from '@/lib/auth';
 import { MiniAppRunner } from '@/features/mini-apps/MiniAppRunner';
 import { MiniAppStudio } from '@/features/mini-apps/MiniAppStudio';
 import { miniAppError, type MiniAppRecord } from '@/features/mini-apps/model';
-import { getPublishedMiniApp, listMiniAppsPage, unpublishMiniApp, type MiniAppPage } from '@/features/mini-apps/repository';
+import { deleteMiniAppDraft, getPublishedMiniApp, listMiniAppsPage, unpublishMiniApp, type MiniAppPage } from '@/features/mini-apps/repository';
 
 const categoryIcons = { game: Gamepad2, tool: Wrench, art: Palette };
 
@@ -40,6 +40,8 @@ function MiniAppsForUser({ epoch }: { epoch: number }) {
   useEffect(() => { if (appId) setEditing(null); }, [appId]);
   const [unpublishTarget, setUnpublishTarget] = useState<MiniAppRecord | null>(null);
   const [unpublishing, setUnpublishing] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<MiniAppRecord | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -73,6 +75,24 @@ function MiniAppsForUser({ epoch }: { epoch: number }) {
       }
     }
     finally { if (mounted.current) setUnpublishing(false); }
+  };
+
+  const deleteDraft = async () => {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    try {
+      await deleteMiniAppDraft(ownerId, deleteTarget);
+      if (!mounted.current) return;
+      setDeleteTarget(null); refresh();
+      toast.success('Private draft deleted. Published versions are unchanged.');
+    } catch (error) {
+      if (mounted.current) {
+        if (error && typeof error === 'object' && 'code' in error && error.code === 'mini-app-draft-conflict') {
+          setDeleteTarget(null); refresh();
+        }
+        toast.error(miniAppError(error));
+      }
+    } finally { if (mounted.current) setDeleting(false); }
   };
 
   const report = async (reason: string) => {
@@ -113,7 +133,7 @@ function MiniAppsForUser({ epoch }: { epoch: number }) {
           return <article key={app.id} className="flex min-w-0 flex-col rounded-2xl border border-border bg-card/70 p-5 transition-colors hover:border-primary/40">
             <div className="mb-4 flex items-center justify-between"><div className="rounded-2xl bg-primary/10 p-3 text-primary"><Icon aria-hidden className="h-6 w-6" /></div><span className="flex items-center gap-1 text-xs text-muted-foreground">{tab === 'discover' && <Globe className="h-3 w-3" />}{tab === 'discover' ? app.category : 'Private draft'}</span></div>
             <h2 className="break-words text-lg font-semibold">{app.title}</h2><p className="mt-1 flex-1 break-words text-sm text-muted-foreground">{app.description || 'A little creation from the VYBE community.'}</p>
-            <div className="mt-5 flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => tab === 'drafts' ? setEditing({ draft: app }) : navigate(`/mini-apps/${app.id}`)}>{tab === 'drafts' ? <Code2 /> : <Play />}{tab === 'drafts' ? 'Edit draft' : 'Open app'}</Button>{tab === 'discover' && app.owner_id === ownerId && <Button size="sm" variant="ghost" onClick={() => setUnpublishTarget(app)}>Unpublish</Button>}</div>
+            <div className="mt-5 flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => tab === 'drafts' ? setEditing({ draft: app }) : navigate(`/mini-apps/${app.id}`)}>{tab === 'drafts' ? <Code2 /> : <Play />}{tab === 'drafts' ? 'Edit draft' : 'Open app'}</Button>{tab === 'drafts' && <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(app)}>Delete draft</Button>}{tab === 'discover' && app.owner_id === ownerId && <Button size="sm" variant="ghost" onClick={() => setUnpublishTarget(app)}>Unpublish</Button>}</div>
           </article>;
         })}
       </div>}
@@ -125,6 +145,7 @@ function MiniAppsForUser({ epoch }: { epoch: number }) {
 
   return <AppLayout hideRightSidebar><div className="mx-auto w-full max-w-4xl px-2 pb-8 pt-2 sm:px-4">{content}</div>
     <AlertDialog open={Boolean(unpublishTarget)} onOpenChange={open => { if (!open && !unpublishing) setUnpublishTarget(null); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Unpublish this mini app?</AlertDialogTitle><AlertDialogDescription>Its public page will become unavailable. Your private draft is kept so you can publish again later.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={unpublishing}>Keep published</AlertDialogCancel><AlertDialogAction disabled={unpublishing} onClick={event => { event.preventDefault(); void unpublish(); }}>{unpublishing ? 'Unpublishing…' : 'Unpublish'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+    <AlertDialog open={Boolean(deleteTarget)} onOpenChange={open => { if (!open && !deleting) setDeleteTarget(null); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete this private draft?</AlertDialogTitle><AlertDialogDescription>“{deleteTarget?.title}” will be removed from your saved drafts. This cannot be undone. Any published version stays available in the Hub.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={deleting}>Keep draft</AlertDialogCancel><AlertDialogAction disabled={deleting} onClick={event => { event.preventDefault(); void deleteDraft(); }}>{deleting ? 'Deleting…' : 'Delete draft'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
     <ReportContentDialog key={submitSafetyReport.sessionKey + ':' + appId} open={reportOpen} onOpenChange={setReportOpen} title="Report mini app" onSubmit={report} />
   </AppLayout>;
 }
