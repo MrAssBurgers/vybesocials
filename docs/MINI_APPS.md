@@ -66,6 +66,12 @@ recovery file, which retains unsaved work as described above.
 
 Next-page errors keep previously loaded cards available and offer Retry loading
 more. Search does not claim a whole-library result until pages have been loaded;
+Library, public-detail and pre-publication version reads have a 15-second deadline.
+A stalled read surfaces a connection/retry message instead of holding the loading
+state indefinitely. A late preflight response cannot continue into publishing;
+retry performs a fresh version read using the retained publication intent. This
+deadline abandons the UI result, not the underlying Firestore transport. It does
+not claim to cancel a write or resolve a broken browser connection.
 new entries inserted before an existing cursor require Refresh apps. This is not
 chronological ranking or a full-text search service. Firestore still transfers
 source documents for each page; metadata-only discovery and large-library cost

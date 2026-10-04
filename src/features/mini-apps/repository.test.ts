@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { deleteMiniAppDraft, listMiniAppsPage, publishMiniApp, saveMiniAppDraft, unpublishMiniApp } from './repository';
+import { deleteMiniAppDraft, getPublishedMiniApp, listMiniAppsPage, MINI_APP_READ_TIMEOUT_MS, publishMiniApp, saveMiniAppDraft, unpublishMiniApp } from './repository';
 import { MINI_APP_TEMPLATES } from './templates';
 
 const state = vi.hoisted(() => ({ uid: 'alice', rows: new Map<string, Record<string, unknown>>(), sequence: 0, auth: null as any, listener: null as any, loseAck: false, transactionRead: vi.fn(), transactionWrite: vi.fn() }));
@@ -62,6 +62,47 @@ function switchAccount(uid: string) { state.uid = uid; state.auth.currentUser = 
 
 describe('mini app private drafts and public snapshots', () => {
   const source = MINI_APP_TEMPLATES[0].source;
+  it('releases a stalled library read and allows a fresh retry', async () => {
+    vi.useFakeTimers();
+    try {
+      let finish!: (value: any) => void;
+      vi.mocked(getDocs).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+      const pending = expect(listMiniAppsPage('alice', 'drafts')).rejects.toThrow('taking too long');
+      await vi.advanceTimersByTimeAsync(MINI_APP_READ_TIMEOUT_MS);
+      await pending;
+      expect(await listMiniAppsPage('alice', 'drafts')).toEqual({ apps: [], nextCursor: null });
+      finish({ docs: [] });
+      await Promise.resolve();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+  it('times out a stalled detail read without requiring an app restart', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(getDoc).mockImplementationOnce(() => new Promise(() => {}));
+      const pending = expect(getPublishedMiniApp('stalled')).rejects.toThrow('Check your connection');
+      await vi.advanceTimersByTimeAsync(MINI_APP_READ_TIMEOUT_MS);
+      await pending;
+      expect(await getPublishedMiniApp('missing')).toBeNull();
+    } finally { vi.useRealTimers(); }
+  });
+  it('a timed-out publication preflight cannot publish when its late read completes', async () => {
+    const draft = await saveMiniAppDraft('alice', source);
+    const intent = { requestId: 'preflight-retry-request' };
+    vi.useFakeTimers();
+    try {
+      let finish!: (value: any) => void;
+      vi.mocked(getDoc).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+      const pending = expect(publishMiniApp('alice', draft, intent)).rejects.toThrow('taking too long');
+      await vi.advanceTimersByTimeAsync(MINI_APP_READ_TIMEOUT_MS);
+      await pending;
+      finish({ exists: () => false });
+      await Promise.resolve();
+      expect(vi.mocked(invokeFunction).mock.calls.filter(call => call[0] === 'publishMiniApp')).toHaveLength(0);
+      await publishMiniApp('alice', draft, intent);
+      expect(vi.mocked(invokeFunction).mock.calls.filter(call => call[0] === 'publishMiniApp')).toHaveLength(1);
+    } finally { vi.useRealTimers(); }
+  });
   it('deletes only the reviewed private draft and allows an acknowledged-equivalent retry', async () => {
     const draft = await saveMiniAppDraft('alice', source);
     await publishMiniApp('alice', draft);

@@ -3,16 +3,19 @@ import { getFirestoreDb } from '@/lib/firebase/firestoreDb';
 import { validateMiniApp, type MiniAppRecord, type MiniAppSource } from './model';
 import { invokeFunction } from '@/lib/firebase/functionsService';
 import { miniAppAccountGuard } from './account';
+import { withTimeout } from '@/lib/withTimeout';
 
 export const MINI_APP_PAGE_SIZE = 24;
+export const MINI_APP_READ_TIMEOUT_MS = 15_000;
+const readMiniApp = <T>(request: Promise<T>) => withTimeout(request, MINI_APP_READ_TIMEOUT_MS, 'Mini apps are taking too long to load. Check your connection and try again.');
 export type MiniAppPage = { apps: MiniAppRecord[]; nextCursor: string | null };
 export async function listMiniAppsPage(ownerId: string, view: 'published' | 'drafts', cursor?: string): Promise<MiniAppPage> {
   const guard = miniAppAccountGuard(ownerId); guard();
   if (!['published', 'drafts'].includes(view) || (cursor !== undefined && (typeof cursor !== 'string' || !cursor || cursor.length > 1500 || cursor.includes('/')))) throw new Error('Refresh the mini-app library to continue.');
   const privateView = view === 'drafts';
   const reference = collection(getFirestoreDb(), privateView ? 'mini_app_drafts' : 'mini_apps');
-  const rows = await getDocs(query(reference, where(privateView ? 'owner_id' : 'status', '==', privateView ? ownerId : 'published'),
-    orderBy(documentId()), ...(cursor ? [startAfter(cursor)] : []), limit(MINI_APP_PAGE_SIZE + 1)));
+  const rows = await readMiniApp(getDocs(query(reference, where(privateView ? 'owner_id' : 'status', '==', privateView ? ownerId : 'published'),
+    orderBy(documentId()), ...(cursor ? [startAfter(cursor)] : []), limit(MINI_APP_PAGE_SIZE + 1))));
   guard();
   const candidates = rows.docs.slice(0, MINI_APP_PAGE_SIZE);
   const apps: MiniAppRecord[] = [];
@@ -30,7 +33,7 @@ export async function listMiniAppsPage(ownerId: string, view: 'published' | 'dra
 
 export async function getPublishedMiniApp(id: string): Promise<MiniAppRecord | null> {
   if (!/^[\w-]{1,128}$/.test(id)) return null;
-  const row = await getDoc(doc(getFirestoreDb(), 'mini_apps', id));
+  const row = await readMiniApp(getDoc(doc(getFirestoreDb(), 'mini_apps', id)));
   if (!row.exists() || row.data().status !== 'published') return null;
   return { ...row.data(), id: row.id } as MiniAppRecord;
 }
@@ -93,7 +96,7 @@ export async function publishMiniApp(ownerId: string, draft: MiniAppRecord, inte
   if (intent.sourceKey !== undefined && intent.sourceKey !== sourceKey) throw new Error('Your code changed. Choose Publish to Hub again to publish the new version.');
   intent.sourceKey = sourceKey;
   if (intent.expectedVersion === undefined) {
-    const published = await getDoc(doc(getFirestoreDb(), 'mini_apps', draft.id));
+    const published = await readMiniApp(getDoc(doc(getFirestoreDb(), 'mini_apps', draft.id)));
     guard();
     if (!published.exists()) intent.expectedVersion = null;
     else {

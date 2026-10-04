@@ -2,6 +2,24 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Bound mini-app reads and expose retry
+
+### What changed
+- Library pages, public detail and publication version preflight now have a 15-second read deadline. Existing error/retry controls become available instead of an indefinite spinner. A timed-out preflight never continues into publishing when its old response arrives; retry retains the intent and reads the version afresh.
+- Read deadlines do not cancel underlying Firestore transport and were deliberately not applied to writes as a claim of cancellation.
+
+### Verification
+- Targeted 41 repository tests pass, including stalled page/detail retry and late preflight completion with no publish request. Full 319 files / 3,016 tests, app typecheck, scoped lint and production build passed. Logs work/mini-read-timeout-*.log.
+- Browser tab 30, retained 8082: My drafts transitioned from Loading to the specific timeout message and enabled Try again. Clicking it began a fresh attempt. Screenshot outputs/vybe-mini-app-read-retry.png. The same authenticated owner-filtered, document-ordered 25-draft query returned HTTP 200 with 25 documents in 77 ms via the local emulator REST endpoint. This points toward browser transport rather than database query latency, but the underlying connection cause is not established or fixed.
+- Retained emulator session 86401 confirmed live, serving callables. No restart/reset, production mutation or deployment. Tab 29's Recovery boundary QA source remains untouched. Generated version/offline churn restored.
+
+### Next 3 tasks and limits
+1. Diagnose the fresh-tab browser Firestore transport stall and slow profile loading; complete unchanged-publish UI verification for qa-noop-receipt-20261004 once library reads recover. Read timeout handling is verified, successful retry recovery is not.
+2. Continue mini-app execution isolation and receipt retention, remaining social read/comment authority, and concrete game/mod adapters. Existing runtime/native verification limits remain.
+3. Stage named functions and matching client/rules then publish via Lovable. Broad goal stays active/incomplete.
+
+---
+
 ## ACTIVE (2026-10-04) - Bind unchanged mini-app publication requests
 
 ### What changed
