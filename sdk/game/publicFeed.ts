@@ -14,7 +14,7 @@ function assert(value: unknown): asserts value { if (!value) throw new Error('In
 function record(value: unknown, keys: string): Record<string, unknown> {
   assert(value && typeof value === 'object' && !Array.isArray(value));
   const row = value as Record<string, unknown>, allowed = keys.split(' ');
-  assert(Object.keys(row).length === allowed.length && allowed.every(key => Object.hasOwn(row, key)));
+  assert(Object.keys(row).length === allowed.length && allowed.every(key => Object.prototype.hasOwnProperty.call(row, key)));
   return row;
 }
 function text(value: unknown, max: number): value is string { return typeof value === 'string' && value.length <= max; }

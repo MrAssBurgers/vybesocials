@@ -42,6 +42,7 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
 
   // Login confirmation pending — keep the user on auth until approved.
   if (shouldBlockPostLoginNavigation()) {
+    stashAuthReturnPath(`${location.pathname}${location.search}${location.hash}`);
     return <Navigate to="/auth" replace />;
   }
 
@@ -80,6 +81,9 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
   // A signed-in account is not fully initialized until onboarding is explicitly
   // complete. Missing/unknown profile state must never fall through to Home.
   if (location.pathname !== '/onboarding' && profile?.onboarding_completed !== true) {
+    // The profile may still be restoring after the account is ready. Keep the
+    // exact destination through both that transient gate and real onboarding.
+    stashAuthReturnPath(`${location.pathname}${location.search}${location.hash}`);
     return <Navigate to="/onboarding" replace />;
   }
 

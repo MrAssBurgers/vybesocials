@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Preserve game links through authentication gates
+
+### What changed
+- ProtectedRoute now retains pathname/query/fragment before pending login approval and profile/onboarding redirects. Onboarding restores that path after confirmed completion; unknown completion state no longer redirects as completed.
+- Landing no longer consumes session return storage during rendering. PostLoginRedirect resolves/consumes once in an effect guarded against StrictMode effect replay. Existing approval and onboarding requirements remain enforced.
+- Fixed prior SDK CI failure: Object.hasOwn in the feed parser required ES2022, while standalone SDK checks target ES2020. Replaced with compatible hasOwnProperty.call without widening compiler baseline.
+
+### Verification
+- App 309 files / 2,919 tests passed; app build, scoped lint, SDK build and exact ES2020 standalone SDK CI typecheck passed. Feed SDK regression tests passed after the compatibility fix. Added pending-gate path retention, profile-restoration retention, saved-path consumption and StrictMode redirect regression tests.
+- Live synthetic Alice: original first full navigation still failed after onboarding and render fixes. Temporary local history trace isolated pending approval redirect to /auth without saving path, followed by /home. Trace removed. After saving that gate's destination, full navigation and subsequent reload both remained /connect/game?code=ABCD-3456#request with matching prefilled code. Dummy code was not submitted or approved. Screenshot workspace outputs/vybe-consent-link-restored.png.
+- Prior a1822beb rules workflow succeeded (37210542960); main CI failed only at the standalone SDK typecheck (37210543059), addressed here. No production deployment.
+
+### Next 3 tasks and limits
+1. Verify this checkpoint CI and add .NET public browsing parity plus concrete engine/mod adapters.
+2. Validate media playback, lifecycle and navigation on real devices; continue mini-app isolation/quotas and audience/media migrations.
+3. Coordinate selective rollout after required checks; broad app goal remains active and incomplete.
+
+---
+
 ## ACTIVE (2026-10-04) - Public browsing host panel
 
 ### What changed

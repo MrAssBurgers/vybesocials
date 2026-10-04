@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useLayoutEffect, useCallback, type CSSProperties } from 'react';
-import { useNavigate, useSearchParams, useLocation, Navigate } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth';
+import { PostLoginRedirect } from '@/components/auth/PostLoginRedirect';
 import { getPostLoginPath, resolvePostLoginDestination } from '@/lib/authReturnPath';
 import { getCachedCurrentProfile } from '@/lib/profileCache';
 import { Button } from '@/components/ui/button';
@@ -890,7 +891,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     !isInviteRoute &&
     !isInviteEntryMode()
   ) {
-    return <Navigate to={resolvePostLoginDestination(profile)} replace />;
+    return <PostLoginRedirect profile={profile} />;
   }
 
   if (completingSignIn) {

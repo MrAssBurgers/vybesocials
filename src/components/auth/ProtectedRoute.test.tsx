@@ -52,8 +52,15 @@ describe('database-backed route access', () => {
     expect(screen.getByText('Protected feature mounted')).toBeInTheDocument();
   });
   it('does not bypass pending login approval', () => {
-    state.approval = true; show();
+    state.approval = true; show('/connect/game?code=ABCD-2345');
     expect(screen.getByText('Authentication destination')).toBeInTheDocument();
+    expect(state.stash).toHaveBeenCalledWith('/connect/game?code=ABCD-2345');
+  });
+  it.each([null, { onboarding_completed: false }])('preserves a game consent destination through profile restoration/onboarding: %j', profile => {
+    state.auth = { user: { id: 'test-user' }, profile, authReady: true };
+    show('/connect/game?code=ABCD-2345#request');
+    expect(screen.getByText('Onboarding destination')).toBeInTheDocument();
+    expect(state.stash).toHaveBeenCalledWith('/connect/game?code=ABCD-2345#request');
   });
   it('does not bypass onboarding', () => {
     state.auth = { user: { id: 'test-user' }, profile: { onboarding_completed: false }, authReady: true }; show();

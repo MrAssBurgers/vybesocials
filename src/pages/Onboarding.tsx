@@ -12,6 +12,7 @@ import { AgeSetup } from '@/components/onboarding/AgeSetup';
 import { AIVybeDesigner } from '@/components/onboarding/AIVybeDesigner';
 import { LegalAcceptance } from '@/components/onboarding/LegalAcceptance';
 import { useAuth } from '@/lib/auth';
+import { getPostLoginPath } from '@/lib/authReturnPath';
 import { db, firebaseStorage } from '@/lib/firebase';
 import { updateUserProfile, getProfileByAuthUid } from '@/lib/firebase/users';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -215,8 +216,8 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     void (async () => {
       const fresh = await refreshProfile();
       if (cancelled || !fresh) return;
-      if (fresh.onboarding_completed !== false) {
-        navigate('/home', { replace: true });
+      if (fresh.onboarding_completed === true) {
+        navigate(getPostLoginPath('/home'), { replace: true });
       }
     })();
     return () => { cancelled = true; };
@@ -434,7 +435,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     if (isInviteMode && onInviteNavigate) {
       onInviteNavigate('home');
     } else {
-      navigate('/home', { replace: true });
+      navigate(getPostLoginPath('/home'), { replace: true });
     }
   };
 
@@ -481,7 +482,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       if (isInviteMode && onInviteNavigate) {
         onInviteNavigate('home');
       } else {
-        navigate('/home', { replace: true });
+        navigate(getPostLoginPath('/home'), { replace: true });
       }
     } catch (err) {
       console.error('Skip error:', err);
