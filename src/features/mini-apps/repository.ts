@@ -31,11 +31,20 @@ export async function listMiniAppsPage(ownerId: string, view: 'published' | 'dra
   return { apps, nextCursor: rows.docs.length > MINI_APP_PAGE_SIZE && last ? last.id : null };
 }
 
-export async function getPublishedMiniApp(id: string): Promise<MiniAppRecord | null> {
+export async function getPublishedMiniApp(id: string, viewerId: string): Promise<MiniAppRecord | null> {
+  const guard = miniAppAccountGuard(viewerId); guard();
   if (!/^[\w-]{1,128}$/.test(id)) return null;
   const row = await readMiniApp(getDoc(doc(getFirestoreDb(), 'mini_apps', id)));
-  if (!row.exists() || row.data().status !== 'published') return null;
-  return { ...row.data(), id: row.id } as MiniAppRecord;
+  guard();
+  if (!row.exists()) return null;
+  const data = row.data();
+  if (data.status !== 'published' || data.schema_version !== 1 || typeof data.owner_id !== 'string'
+    || !/^[\w-]{1,128}$/.test(data.owner_id)
+    || (data.publication_revision !== undefined && (typeof data.publication_revision !== 'string' || !/^[a-f0-9]{32}$/.test(data.publication_revision)))) return null;
+  try {
+    return { ...validateMiniApp(data), id, owner_id: data.owner_id, schema_version: 1, status: 'published',
+      publication_revision: data.publication_revision, created_at: data.created_at, updated_at: data.updated_at };
+  } catch { return null; }
 }
 
 export async function saveMiniAppDraft(ownerId: string, source: MiniAppSource, existing?: MiniAppRecord | null, pendingId?: string): Promise<MiniAppRecord> {

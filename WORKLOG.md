@@ -2,6 +2,23 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Validate direct mini-app links before rendering
+
+### What changed
+- Direct mini-app reads previously cast raw Firestore documents to the app model. They now guard the viewer session before/after reading and validate schema, owner, published state, optional revision and bounded source. Only known source/metadata fields reach the UI; invalid documents return unavailable. The unavailable explanation now covers both removed and unusable apps.
+- This closes a direct-link path around library validation, including object-valued titles that could crash React. It does not claim server-side access revocation or stronger iframe resource/network isolation.
+
+### Verification
+- Full 319 files / 3,027 tests, typecheck, scoped lint and production build passed. Added malformed schema/owner/status/title/code/category/revision cases, bounded code, unknown-field projection, and wrong/changed viewer-session checks. Logs work/mini-detail-validation-*.log.
+- Retained 8082 browser: synthetic malformed public document qa-invalid-mini-source-20261004 renders App unavailable instead of a title-object React error, with no Run app control. Existing recovery and normal published test app preserved. Proof outputs/vybe-invalid-mini-app-unavailable.png. No production data/deployment; generated version/offline files restored.
+
+### Next 3 tasks and limits
+1. Continue profile/explore/comment authority paths and mini-app runtime isolation; direct document validation is not full hostile-code isolation.
+2. Continue universal game/mod integrations and outstanding native/permitted-media end-to-end checks.
+3. Stage named callables, compatible client and rules, then Lovable publication. Broad goal active/incomplete.
+
+---
+
 ## ACTIVE (2026-10-04) - Restore preview reads and verify unchanged publishing end to end
 
 ### Evidence and completed checks

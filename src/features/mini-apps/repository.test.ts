@@ -80,11 +80,34 @@ describe('mini app private drafts and public snapshots', () => {
     vi.useFakeTimers();
     try {
       vi.mocked(getDoc).mockImplementationOnce(() => new Promise(() => {}));
-      const pending = expect(getPublishedMiniApp('stalled')).rejects.toThrow('Check your connection');
+      const pending = expect(getPublishedMiniApp('stalled', 'alice')).rejects.toThrow('Check your connection');
       await vi.advanceTimersByTimeAsync(MINI_APP_READ_TIMEOUT_MS);
       await pending;
-      expect(await getPublishedMiniApp('missing')).toBeNull();
+      expect(await getPublishedMiniApp('missing', 'alice')).toBeNull();
     } finally { vi.useRealTimers(); }
+  });
+  it.each([
+    { schema_version: 2 }, { owner_id: null }, { owner_id: '' }, { status: 'draft' },
+    { title: {} }, { html: null }, { javascript: 'x'.repeat(100001) },
+    { category: 'unknown' }, { publication_revision: 42 },
+  ])('does not admit malformed published source through a direct link: %j', async patch => {
+    state.rows.set('mini_apps/direct', { ...source, owner_id: 'bob', schema_version: 1, status: 'published', ...patch });
+    expect(await getPublishedMiniApp('direct', 'alice')).toBeNull();
+  });
+  it('projects validated public source without arbitrary stored metadata', async () => {
+    state.rows.set('mini_apps/direct', { ...source, owner_id: 'bob', schema_version: 1, status: 'published', id: 'spoofed', private_notes: 'not part of the public app model' });
+    const result = await getPublishedMiniApp('direct', 'alice');
+    expect(result).toMatchObject({ ...source, id: 'direct', owner_id: 'bob', status: 'published' });
+    expect(result).not.toHaveProperty('private_notes');
+  });
+  it('rejects direct reads before dispatch or after the viewer session changes', async () => {
+    await expect(getPublishedMiniApp('direct', 'bob')).rejects.toMatchObject({ code: 'account-changed' });
+    expect(getDoc).not.toHaveBeenCalled();
+    vi.mocked(getDoc).mockImplementationOnce(async () => {
+      switchAccount('bob'); switchAccount('alice');
+      return { exists: () => true, data: () => ({ ...source, owner_id: 'alice', schema_version: 1, status: 'published' }) } as any;
+    });
+    await expect(getPublishedMiniApp('direct', 'alice')).rejects.toMatchObject({ code: 'account-changed' });
   });
   it('a timed-out publication preflight cannot publish when its late read completes', async () => {
     const draft = await saveMiniAppDraft('alice', source);

@@ -50,7 +50,7 @@ function MiniAppsForUser({ epoch }: { epoch: number }) {
     staleTime: 0, gcTime: 0, retry: false as const };
   const apps = useInfiniteQuery({ ...pageOptions, queryKey: ['mini-apps', 'pages', 'published', ownerId, epoch], queryFn: ({ pageParam }) => listMiniAppsPage(ownerId, 'published', pageParam), enabled: Boolean(ownerId) && !appId && tab === 'discover' });
   const drafts = useInfiniteQuery({ ...pageOptions, queryKey: ['mini-apps', 'pages', 'drafts', ownerId, epoch], queryFn: ({ pageParam }) => listMiniAppsPage(ownerId, 'drafts', pageParam), enabled: Boolean(ownerId) && !appId && tab === 'drafts' });
-  const detail = useQuery({ queryKey: ['mini-apps', 'detail', appId, ownerId, epoch], queryFn: () => getPublishedMiniApp(appId!), enabled: Boolean(ownerId && appId), retry: false });
+  const detail = useQuery({ queryKey: ['mini-apps', 'detail', appId, ownerId, epoch], queryFn: () => getPublishedMiniApp(appId!, ownerId), enabled: Boolean(ownerId && appId), retry: false });
   const refresh = () => { void queryClient.invalidateQueries({ queryKey: ['mini-apps'] }); };
   const activeList = tab === 'discover' ? apps : drafts;
   const loaded = [...new Map((activeList.data?.pages.flatMap(page => page.apps) || []).map(app => [app.id, app])).values()];
@@ -104,7 +104,7 @@ function MiniAppsForUser({ epoch }: { epoch: number }) {
   const content = appId ? (
     <div className="space-y-5">
       <Button variant="ghost" onClick={() => navigate('/mini-apps')}><ArrowLeft />All mini apps</Button>
-      {detail.isLoading || (detail.isFetching && !detail.data) ? <Loading /> : detail.isError ? <ErrorNotice error={detail.error} onRetry={() => void detail.refetch()} /> : !detail.data ? <div className="rounded-2xl border border-border p-8 text-center"><h1 className="text-xl font-bold">App unavailable</h1><p className="mt-2 text-muted-foreground">This app is no longer published.</p></div> : <>
+      {detail.isLoading || (detail.isFetching && !detail.data) ? <Loading /> : detail.isError ? <ErrorNotice error={detail.error} onRetry={() => void detail.refetch()} /> : !detail.data ? <div className="rounded-2xl border border-border p-8 text-center"><h1 className="text-xl font-bold">App unavailable</h1><p className="mt-2 text-muted-foreground">This app cannot be opened right now. It may have been unpublished.</p></div> : <>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0"><span className="text-xs uppercase tracking-wider text-primary">Community {detail.data.category}</span><h1 className="mt-1 break-words text-3xl font-bold">{detail.data.title}</h1><p className="mt-2 break-words text-muted-foreground">{detail.data.description}</p></div>
           <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => { void navigator.clipboard.writeText(`${window.location.origin}/mini-apps/${detail.data!.id}`).then(() => toast.success('App link copied.'), () => toast.error('Could not copy. Copy this page URL from your browser.')); }}><Copy />Copy link</Button><Button size="sm" variant="ghost" onClick={() => setReportOpen(true)}><Flag />Report</Button>{detail.data.owner_id === ownerId && <Button size="sm" variant="ghost" onClick={() => setUnpublishTarget(detail.data!)}>Unpublish</Button>}</div>

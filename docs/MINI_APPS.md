@@ -64,6 +64,15 @@ reading. Mini-app query snapshots are excluded from both disk writes and old dis
 restoration. This is separate from the studio's deliberate owner-scoped local
 recovery file, which retains unsaved work as described above.
 
+Direct public-app links also guard the viewer session before and after their
+read. They require the supported schema, published status, a valid owner,
+valid optional publication revision, and validated bounded source before the
+page or runtime receives it. Unknown stored fields are omitted from the app
+model. Malformed documents render unavailable instead of crashing the page or
+bypassing the library's code limits. This is client validation, not a replacement
+for Firestore rules or server publishing checks; it does not recall already
+delivered source or add hard runtime isolation.
+
 Next-page errors keep previously loaded cards available and offer Retry loading
 more. Search does not claim a whole-library result until pages have been loaded;
 new entries inserted before an existing cursor require Refresh apps. This is not
