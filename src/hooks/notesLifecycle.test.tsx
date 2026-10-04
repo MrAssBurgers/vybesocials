@@ -1,3 +1,5 @@
+import { installQueryCacheNormalizer } from '@/lib/persistedCollections';
+vi.mock('@/lib/profileAvatarCache', () => ({ enrichProfileAvatar: (profile: unknown) => profile }));
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
@@ -80,4 +82,16 @@ it('deletion propagates rejection rather than notifying success', async () => {
   const hook = renderHook(() => useDeleteNote(), { wrapper }); const onError = vi.fn(), onSuccess = vi.fn();
   act(() => hook.result.current.mutate({ expectedRevision: 'a'.repeat(48) }, { onError, onSuccess }));
   await waitFor(() => expect(onError).toHaveBeenCalled()); expect(onSuccess).not.toHaveBeenCalled();
+});
+
+it('keeps admitted infinite pages intact under the real app cache normalizer', async () => {
+  const stop = installQueryCacheNormalizer(client);
+  try {
+    const hook = renderHook(() => useFriendsNotes(), { wrapper });
+    await waitFor(() => expect(hook.result.current.data).toHaveLength(1));
+    const data = client.getQueryCache().getAll().find(query => query.queryKey[0] === 'friends-notes')?.state.data;
+    expect(data).toEqual(expect.objectContaining({ pages: expect.any(Array), pageParams: expect.any(Array) }));
+    await act(async () => { await hook.result.current.refetch(); });
+    expect(hook.result.current.data[0].content).toBe('Private friend note');
+  } finally { stop(); }
 });

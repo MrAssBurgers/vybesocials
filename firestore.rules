@@ -1689,7 +1689,6 @@ service cloud.firestore {
 
     match /shared_themes/{id} {
       allow read: if signedIn() && (
-        resource.data.is_public == true ||
         isOwnerProfile('creator_id') ||
         resource.data.creator_id == uid()
       );
@@ -1715,6 +1714,7 @@ service cloud.firestore {
     }
     match /_shared_theme_authority/{id} { allow read, write: if false; }
     match /_shared_theme_receipts/{id} { allow read, write: if false; }
+    match /_shared_theme_cursors/{id} { allow read, write: if false; }
     match /_theme_codes/{id} { allow read, write: if false; }
     match /_theme_code_receipts/{id} { allow read, write: if false; }
 

@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { useState, useEffect, useRef, useCallback, useId, memo } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useMyNote, useFriendsNotes, useSetNote, useDeleteNote } from '@/hooks/useNotes';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -11,6 +11,7 @@ import { Search, X } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { tokenAccountGuard, tokenAccountSnapshot } from '@/lib/tokenMarketplaceService';
 import { validNoteGifUrl } from '@/lib/userNotesService';
+import './NotesRow.css';
 // GIPHY calls go through the giphy-search edge function (key stays server-side).
 
 interface GifResult {
@@ -28,6 +29,8 @@ export const NotesRow = memo(function NotesRow() {
   const setNote = useSetNote();
   const deleteNote = useDeleteNote();
   const navigate = useNavigate();
+  const editorId = useId();
+  const ownButton = useRef<HTMLButtonElement>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [gifUrl, setGifUrl] = useState<string | null>(null);
@@ -141,7 +144,7 @@ export const NotesRow = memo(function NotesRow() {
     setNote.mutate({ content: trimmed, gifUrl: gifUrl || undefined, expectedRevision }, changeCallbacks());
   };
 
-  const renderNoteBubble = (content: string, noteGifUrl?: string | null, maxW = 'max-w-[120px]') => {
+  const renderNoteBubble = (content: string, noteGifUrl?: string | null, maxW = 'max-w-[96px]') => {
     if (noteGifUrl) {
       return (
         <div className="absolute -top-9 left-1/2 -translate-x-1/2 z-[2]">
@@ -171,10 +174,13 @@ export const NotesRow = memo(function NotesRow() {
             onClick={() => { void ownQuery.refetch(); void friendsQuery.refetch(); }}>Retry notes</Button>
         </div>
       )}
-      <div className="dm-notes-row relative z-0 px-4 pt-2 pb-3 overflow-x-auto no-scrollbar" style={{ overflowY: 'clip' }}>
-        <div className="flex gap-3 min-w-max" style={{ overflow: 'visible' }}>
+      <div className="dm-notes-row relative z-0 px-4 pt-10 pb-3 overflow-x-auto no-scrollbar" style={{ overflowY: 'clip' }}>
+        <div className="flex gap-4 min-w-max" style={{ overflow: 'visible' }}>
           {/* Current user's note */}
-          <button onClick={handleOpenEdit} disabled={!ownQuery.state} className="flex flex-col items-center w-[3.25rem] flex-shrink-0 disabled:opacity-60" style={{ overflow: 'visible' }}>
+          <button ref={ownButton} type="button" onClick={handleOpenEdit} disabled={!ownQuery.state}
+            aria-label={ownQuery.isPending ? 'Loading your note' : !ownQuery.state ? 'Your note is unavailable' : myNote ? 'Edit your note' : 'Add a note'}
+            aria-haspopup="dialog"
+            className="flex flex-col items-center w-16 flex-shrink-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 disabled:opacity-60" style={{ overflow: 'visible' }}>
             <div className="relative mb-1" style={{ overflow: 'visible' }}>
               {(myNote?.content || myNote?.gif_url) && renderNoteBubble(myNote?.content || '', myNote?.gif_url)}
               <Avatar className="dm-note-avatar dm-note-avatar--mine h-[3.25rem] w-[3.25rem]">
@@ -194,7 +200,10 @@ export const NotesRow = memo(function NotesRow() {
             <button
               key={note.id}
               onClick={() => note.profile && navigate(`/u/${note.profile.username}`)}
-              className="flex flex-col items-center w-[3.25rem] flex-shrink-0"
+              type="button"
+              aria-label={`View ${note.profile?.display_name || note.profile?.username}'s profile. ${note.content ? `Note: ${note.content}.` : ''}${note.gif_url ? ' GIF attached.' : ''}`}
+              title={note.content || 'GIF note'}
+              className="flex flex-col items-center w-16 flex-shrink-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4"
               style={{ overflow: 'visible' }}
             >
               <div className="relative mb-1" style={{ overflow: 'visible' }}>
@@ -221,9 +230,12 @@ export const NotesRow = memo(function NotesRow() {
 
       {/* Edit Note Dialog */}
       <Dialog open={editOpen} onOpenChange={setOpen}>
-        <DialogContent className="max-w-sm rounded-2xl">
+        <DialogContent className="max-w-sm rounded-2xl"
+          onEscapeKeyDown={() => setOpen(false)}
+          onCloseAutoFocus={event => { event.preventDefault(); ownButton.current?.focus({ preventScroll: true }); }}>
           <DialogHeader>
             <DialogTitle className="text-center">Set a Note</DialogTitle>
+            <DialogDescription className="text-center text-xs">Share a short update with friends. Notes disappear after 24 hours.</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 py-2">
             <div className="relative">
@@ -236,8 +248,10 @@ export const NotesRow = memo(function NotesRow() {
                   <div className="bg-foreground/90 rounded-xl overflow-hidden shadow-lg relative" style={{ width: 48, height: 48 }}>
                     <img src={gifUrl} alt="" className="w-full h-full object-cover" />
                     <button
+                      type="button"
+                      aria-label="Remove GIF"
                       onClick={() => { lifecycle.current.draft++; setGifUrl(null); }}
-                      className="absolute -top-1 -right-1 bg-destructive rounded-full p-0.5"
+                      className="absolute -top-2 -right-2 flex h-8 w-8 items-center justify-center bg-destructive rounded-full"
                     >
                       <X className="h-3 w-3 text-destructive-foreground" />
                     </button>
@@ -246,16 +260,21 @@ export const NotesRow = memo(function NotesRow() {
               )}
             </div>
             
+            <label htmlFor={editorId} className="sr-only">Your note</label>
             <Input
+              id={editorId}
+              aria-describedby={`${editorId}-limit`}
               value={noteText}
               onChange={(e) => { lifecycle.current.draft++; setNoteText(e.target.value); }}
               placeholder="Share what's on your mind..."
               maxLength={60}
               className="text-center rounded-full"
               autoFocus
-              onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+              onKeyDown={event => {
+                if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); handleSave(); }
+              }}
             />
-            <p className="text-[10px] text-muted-foreground">{noteText.length}/60 · Expires in 24h</p>
+            <p id={`${editorId}-limit`} className="text-[10px] text-muted-foreground">{noteText.length}/60 · Expires in 24h</p>
             {saveError && <p role="alert" className="text-xs text-destructive">{saveError}</p>}
             
             {/* GIF button */}
@@ -277,6 +296,7 @@ export const NotesRow = memo(function NotesRow() {
                   <Search className="h-3.5 w-3.5 text-muted-foreground" />
                   <input
                     type="text"
+                    aria-label="Search GIFs"
                     value={gifSearch}
                     onChange={(e) => {
                       setGifSearch(e.target.value);
@@ -293,9 +313,11 @@ export const NotesRow = memo(function NotesRow() {
                   ) : gifResults.length === 0 ? (
                     <p className="col-span-3 text-center text-xs text-muted-foreground py-4">No GIFs found</p>
                   ) : (
-                    gifResults.map((gif) => (
+                    gifResults.map((gif, index) => (
                       <button
                         key={gif.id}
+                        type="button"
+                        aria-label={`Choose GIF ${index + 1}`}
                         onClick={() => {
                           lifecycle.current.draft++;
                           setGifUrl(gif.url);

@@ -52,15 +52,37 @@ export function usePublicThemes(searchQuery?: string) {
     const timer = setTimeout(() => setSearch(searchQuery || ''), 250);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+  const scope = JSON.stringify([...session.key, search]);
+  const [paging, setPaging] = useState<{ scope: string; cursors: (string | null)[]; index: number }>({ scope, cursors: [null], index: 0 });
+  const active = paging.scope === scope ? paging : { scope, cursors: [null], index: 0 };
+  const cursor = active.cursors[active.index];
+  const searchPending = (searchQuery || '') !== search;
   const query = useQuery({
-    queryKey: ['public-themes', ...session.key, search],
+    queryKey: ['public-themes', ...session.key, search, cursor],
     queryFn: async ({ signal }) => {
       const { actor, guard } = session.capture(); guard();
-      const result = await loadPublicSharedThemes(actor, search, signal); guard(); return result;
+      const result = await loadPublicSharedThemes(actor, search, signal, cursor); guard(); return result;
     },
     enabled: !!session.actor, ...themeQueryOptions,
   });
-  return { ...query, data: query.isError || query.isFetching ? undefined : query.data };
+  const hidden = query.isError || query.isFetching || searchPending;
+  return { ...query, data: hidden ? undefined : query.data?.themes, isLoading: query.isLoading || searchPending,
+    page: active.index + 1, hasNextPage: !hidden && !!query.data?.nextCursor, hasPreviousPage: active.index > 0,
+    nextPage: () => {
+      if (hidden || !query.data?.nextCursor) return;
+      session.capture().guard();
+      setPaging({ scope, cursors: [...active.cursors.slice(0, active.index + 1), query.data.nextCursor], index: active.index + 1 });
+    },
+    previousPage: () => {
+      if (query.isFetching || active.index === 0) return;
+      session.capture().guard(); setPaging({ ...active, index: active.index - 1 });
+    },
+    restart: () => {
+      session.capture().guard();
+      if (active.index === 0) return query.refetch();
+      setPaging({ scope, cursors: [null], index: 0 });
+    },
+  };
 }
 
 export function useSavedThemes() {

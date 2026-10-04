@@ -1,14 +1,18 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
-import { useQueryClient } from '@tanstack/react-query';
+import { reportAccountGuard } from '@/lib/reportModerationService';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 
 export function useUploadSound() {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
+  const session = useReportAccountSession();
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const mounted = useRef(false);
+  useEffect(() => { setIsUploading(false); setProgress(0); }, [session.uid, session.epoch]);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const uploadSound = useCallback(async ({
     file,
@@ -31,46 +35,39 @@ export function useUploadSound() {
       return null;
     }
 
-    setIsUploading(true);
-    setProgress(10);
-
+    const account = reportAccountGuard(user.id);
+    const guard = () => { account(); if (!mounted.current) throw new Error('Upload view closed.'); };
     try {
-      const formData = new FormData();
-      formData.append('audio', file);
-      formData.append('title', title);
-      formData.append('tags', tags.join(','));
-      formData.append('duration', duration.toString());
-
+      guard();
+      setIsUploading(true);
       setProgress(30);
 
       const { data, error } = await db.functions.invoke('upload-sound', {
         body: { title, tags, duration },
       });
+      guard();
 
       setProgress(80);
 
-      if (error || !data) {
-        toast.message('Sound upload is coming soon — try again after the next update.');
+      // This endpoint currently has no audio transport. A domain-error object
+      // is not a durable upload receipt, even when HTTP transport succeeded.
+      if (error || !data || data.ok !== true || typeof data.sound_id !== 'string' || !data.sound_id) {
+        toast.message('Sound upload is not available yet. Your file has not been uploaded.');
         return null;
       }
-
-      const result = data;
-      setProgress(100);
-
-      // Invalidate sounds queries to show the new sound
-      queryClient.invalidateQueries({ queryKey: ['sounds'] });
-
-      toast.success('Sound uploaded! +10 XP 🎵');
-      return result;
+      // Metadata-only requests cannot prove the selected file was stored.
+      // Keep this closed until a real binary upload/verified receipt exists.
+      toast.message('The audio upload could not be confirmed. Your file is still selected.');
+      return null;
     } catch (error: any) {
+      try { guard(); } catch { return null; }
       console.error('Upload sound error:', error);
       toast.error(error.message || 'Failed to upload sound');
       return null;
     } finally {
-      setIsUploading(false);
-      setProgress(0);
+      try { guard(); setIsUploading(false); setProgress(0); } catch { /* Retired account/view. */ }
     }
-  }, [user, queryClient]);
+  }, [user]);
 
   return { uploadSound, isUploading, progress };
 }

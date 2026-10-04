@@ -780,11 +780,10 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
         disabled={!captureEnabled}
       />
 
-      <div className={cn(!captureEnabled && 'pointer-events-none opacity-40')} aria-hidden={!captureEnabled}>
-
       {/* Bottom chrome — YouTube-Studio–inspired stack */}
       <div className="absolute bottom-0 left-0 right-0 z-30 pointer-events-none">
         <div className="pointer-events-auto bg-gradient-to-t from-black via-black/90 to-transparent pt-14 pb-safe">
+          <fieldset disabled={!captureEnabled} className={cn(!captureEnabled && 'pointer-events-none opacity-40')}>
           <CreateFilterModeToggle
             mode={filterMode}
             onChange={setFilterMode}
@@ -797,6 +796,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
               <CameraFilterCarousel currentFilter={currentFilter} onFilterChange={setCurrentFilter} />
             )}
           </div>
+          </fieldset>
 
           <div className="flex items-center justify-center gap-6 px-6 pb-2 pt-1">
             <motion.button
@@ -808,7 +808,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
                 'border border-white/20 bg-white/10 touch-manipulation',
                 (selectedSound || selectedTrack) && 'border-white/50 bg-white/20',
               )}
-              aria-label="Add sound"
+              aria-label="Browse music previews"
             >
               <Music2 className="h-5 w-5 text-white" />
             </motion.button>
@@ -819,6 +819,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
               maxDuration={MAX_RECORDING_DURATION}
               onCaptureStart={handleCaptureStart}
               onCaptureEnd={handleCaptureEnd}
+              disabled={!captureEnabled}
             />
 
             {mode === 'multi' && capturedFiles.length > 0 ? (
@@ -826,6 +827,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
                 type="button"
                 whileTap={{ scale: 0.92 }}
                 onClick={handleMultiDone}
+                disabled={!captureEnabled}
                 className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-sm font-bold text-black touch-manipulation"
               >
                 Done
@@ -835,6 +837,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
                 type="button"
                 whileTap={{ scale: 0.92 }}
                 onClick={() => setShowGalleryDrawer(true)}
+                disabled={!captureEnabled}
                 className="h-12 w-12 overflow-hidden rounded-full border border-white/35 touch-manipulation"
                 aria-label="Upload from gallery"
               >
@@ -849,6 +852,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
             )}
           </div>
 
+          <fieldset disabled={!captureEnabled} className={cn(!captureEnabled && 'pointer-events-none opacity-40')}>
           <CreateModeSelector currentMode={mode} onModeChange={handleModeChange} />
 
           <AnimatePresence>
@@ -865,8 +869,8 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
               </motion.p>
             )}
           </AnimatePresence>
+          </fieldset>
         </div>
-      </div>
       </div>
 
       {/* Gallery Drawer */}

@@ -20,9 +20,7 @@ interface SoundPlayerProps {
 export function SoundPlayer({ soundId, onClose, onUse, className }: SoundPlayerProps) {
   const { data: sound } = useSound(soundId);
   const trackPlay = useTrackSoundPlay();
-  const audioPlayer = useAudioPlayer(sound?.audio_url || '');
-  const [volume, setVolume] = useState(0.8);
-  const [isMuted, setIsMuted] = useState(false);
+  const audioPlayer = useAudioPlayer(sound?.preview_url || sound?.audio_url || '');
 
   // Track play events
   useEffect(() => {
@@ -136,6 +134,8 @@ export function SoundPlayer({ soundId, onClose, onUse, className }: SoundPlayerP
                 )}
               </div>
 
+              {audioPlayer.error && <p role="alert" className="text-sm">{audioPlayer.error}</p>}
+              {audioPlayer.isLoading && <p role="status" className="text-sm">Starting audio…</p>}
               {/* Controls */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -143,6 +143,7 @@ export function SoundPlayer({ soundId, onClose, onUse, className }: SoundPlayerP
                     variant="ghost"
                     size="icon"
                     onClick={audioPlayer.toggle}
+                    aria-label={audioPlayer.isPlaying || audioPlayer.isLoading ? "Pause audio" : "Play audio"}
                     className="h-8 w-8"
                   >
                     {audioPlayer.isPlaying ? (
@@ -155,10 +156,11 @@ export function SoundPlayer({ soundId, onClose, onUse, className }: SoundPlayerP
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => setIsMuted(!isMuted)}
+                    aria-label={audioPlayer.isMuted ? "Unmute audio" : "Mute audio"}
+                    onClick={() => audioPlayer.setMuted(!audioPlayer.isMuted)}
                     className="h-8 w-8"
                   >
-                    {isMuted ? (
+                    {audioPlayer.isMuted ? (
                       <VolumeX className="h-4 w-4" />
                     ) : (
                       <Volume2 className="h-4 w-4" />
@@ -191,11 +193,12 @@ export function SoundPlayer({ soundId, onClose, onUse, className }: SoundPlayerP
 
                   <Button
                     size="sm"
-                    onClick={() => onUse(soundId)}
+                    disabled
+                    title="Adding music to videos is not available yet"
                     className="ml-2"
                   >
                     <Camera className="h-3 w-3 mr-1" />
-                    Use
+                    Preview only
                   </Button>
                 </div>
               </div>

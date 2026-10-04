@@ -28,6 +28,10 @@ export async function themeRelationship(db, tx, a, b) {
     ]);
     return { blocked: !aBlock.empty || !bBlock.empty, friends: !outgoing.empty || !incoming.empty };
 }
+/** Reuse only reads from one transaction and one already-verified viewer. */
+export function themeAdmissionCache() {
+    return { owners: new Map(), relationships: new Map() };
+}
 function creatorSummary(row) {
     const text = (value, max) => {
         try {
@@ -63,13 +67,16 @@ export function sharedThemeDto(id, row, creator) {
         throw new HttpsError('failed-precondition', 'This theme contains unsupported settings.');
     }
 }
-export async function admitSharedTheme(db, tx, viewer, id) {
+export async function admitSharedTheme(db, tx, viewer, id, cache = themeAdmissionCache()) {
     const [snapshot, authority] = await Promise.all([tx.get(db.doc(`shared_themes/${id}`)), tx.get(db.doc(`_shared_theme_authority/${id}`))]);
     const row = snapshot.data();
     const proof = authority.data();
     if (!row || row.deleted_at || row.is_deleted === true)
         throw new HttpsError('not-found', 'This theme is unavailable.');
-    const owner = await resolveIdentity(db, tx, themeId(row.creator_id));
+    const ownerId = themeId(row.creator_id);
+    if (!cache.owners.has(ownerId))
+        cache.owners.set(ownerId, resolveIdentity(db, tx, ownerId));
+    const owner = await cache.owners.get(ownerId);
     if (!owner || !owner.aliases.includes(row.creator_id))
         throw new HttpsError('failed-precondition', 'Theme ownership cannot be verified.');
     let visibility = row.is_public === true ? 'public' : 'private';
@@ -90,7 +97,9 @@ export async function admitSharedTheme(db, tx, viewer, id) {
     if (viewer.uid !== owner.uid) {
         if (visibility === 'private')
             throw new HttpsError('permission-denied', 'This theme is private.');
-        const relationship = await themeRelationship(db, tx, viewer, owner);
+        if (!cache.relationships.has(owner.uid))
+            cache.relationships.set(owner.uid, themeRelationship(db, tx, viewer, owner));
+        const relationship = await cache.relationships.get(owner.uid);
         if (relationship.blocked || (visibility === 'friends' && (!relationship.friends || !recipients.some(item => item.uid === viewer.uid && item.profileId === viewer.profileId)))) {
             throw new HttpsError('permission-denied', 'This theme is no longer shared with you.');
         }

@@ -25,6 +25,8 @@ Production web hosting is **Lovable**, with custom domain **`vybehub.app`**. Lov
 
 Do not run bare `firebase deploy`, `firebase deploy --only functions`, or `npm --prefix functions run deploy`: that npm script deploys every function. `functions/src/index.ts` still exports pending implementations from `stubs.ts` (Runway, music-provider sync, sound upload and auth email hook). **Leave `auth2faRequest` undeployed under the current WORKLOG restriction.** Do not change authentication configuration or secrets as a side effect of a release.
 
+The current stability checkpoint adds/changes these named resources: `manageSharedTheme`, `readMusicCatalog`, `phoneVerificationState`, `phoneVerifyRequest`, `phoneVerifyConfirm`, `auth2faVerifyPhone`, `authLoginApproval`, and the existing `matchContacts` dependency. Review prior pending Notes/theme resources in WORKLOG too. Deploy the theme reader and matching client with owner-only raw rules and `_shared_theme_cursors.expireAt` TTL; older clients that directly query public themes are incompatible. The TTL does not grant access: expired cursors are rejected immediately even before managed deletion. Phone resources require the existing Twilio secrets and real SMS QA; this release does not change their values or Auth provider settings. Approved preview media must be provisioned deliberately; never deploy local QA records as a music catalog. See [contact/phone contracts](docs/CONTACT_DISCOVERY.md) and [music preview limits](docs/MUSIC_PREVIEWS.md).
+
 Publishing requires access to the appropriate project. Verify current access; do not assume it exists or claim a publish occurred because a build or push passed.
 
 ---

@@ -59,11 +59,11 @@ export default function SoundDetailPage() {
   };
 
   const handleUseSound = () => {
-    navigate('/upload', { state: { selectedSoundId: soundId } });
+    toast.message('Music previews work here. Adding audio to video exports is not available yet.');
   };
 
   const handleRemix = () => {
-    navigate('/upload', { state: { selectedSoundId: soundId, mode: 'remix' } });
+    toast.message('Audio remix exports are not available yet. You can preview this sound here.');
   };
 
   const handleSaveSound = async () => {
@@ -202,6 +202,7 @@ export default function SoundDetailPage() {
                 <Button
                   size="icon"
                   onClick={handlePlay}
+                  aria-label={audioPlayer.isPlaying || audioPlayer.isLoading ? 'Pause audio' : 'Play audio'}
                   className="absolute inset-0 m-auto w-16 h-16 rounded-full bg-primary/90 hover:bg-primary shadow-2xl"
                 >
                   {audioPlayer.isPlaying ? (
@@ -214,6 +215,8 @@ export default function SoundDetailPage() {
 
               {/* Sound Info */}
               <div className="flex-1 text-center lg:text-left space-y-4">
+                {audioPlayer.error && <p role="alert">{audioPlayer.error}</p>}
+                {audioPlayer.isLoading && <p role="status">Starting audio…</p>}
                 <div>
                   <h2 className="text-3xl font-bold mb-2">{sound.title}</h2>
                   <p className="text-xl text-muted-foreground">by {sound.artist}</p>
@@ -325,7 +328,7 @@ export default function SoundDetailPage() {
                 <Camera className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
                 <p className="text-muted-foreground text-lg mb-2">No videos yet</p>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Be the first to create a video with this sound!
+                  Music attachment and remix exports are not available yet.
                 </p>
                 <Button onClick={handleUseSound}>
                   <Camera className="h-4 w-4 mr-2" />

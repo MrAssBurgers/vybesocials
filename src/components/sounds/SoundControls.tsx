@@ -27,9 +27,7 @@ export const SoundControls = memo(function SoundControls({
   className,
   compact = false
 }: SoundControlsProps) {
-  const [volume, setVolume] = useState(0.8);
-  const [isMuted, setIsMuted] = useState(false);
-  const audioPlayer = useAudioPlayer(sound.audio_url);
+  const audioPlayer = useAudioPlayer(sound.preview_url || sound.audio_url);
 
   const maxDuration = Math.min(60, sound.duration); // Max 60 seconds for videos
   const endTime = Math.min(startTime + 30, sound.duration); // 30 second clips
@@ -59,6 +57,7 @@ export const SoundControls = memo(function SoundControls({
             variant="ghost"
             size="icon"
             onClick={audioPlayer.toggle}
+                    aria-label={audioPlayer.isPlaying || audioPlayer.isLoading ? "Pause audio" : "Play audio"}
             className="h-8 w-8 shrink-0"
           >
             {audioPlayer.isPlaying ? (
@@ -87,6 +86,7 @@ export const SoundControls = memo(function SoundControls({
           )}
         </div>
 
+        {audioPlayer.error && <p role="alert" className="text-sm">{audioPlayer.error}</p>}
         {/* Waveform with trim indicator */}
         {sound.waveform_data && (
           <div className="mt-2 relative">
@@ -182,12 +182,15 @@ export const SoundControls = memo(function SoundControls({
           </div>
         )}
 
-        {/* Controls */}
+        {audioPlayer.error && <p role="alert" className="text-sm">{audioPlayer.error}</p>}
+              {audioPlayer.isLoading && <p role="status" className="text-sm">Starting audio…</p>}
+              {/* Controls */}
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
             size="icon"
             onClick={audioPlayer.toggle}
+                    aria-label={audioPlayer.isPlaying || audioPlayer.isLoading ? "Pause audio" : "Play audio"}
             className="h-10 w-10"
           >
             {audioPlayer.isPlaying ? (
@@ -200,10 +203,11 @@ export const SoundControls = memo(function SoundControls({
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setIsMuted(!isMuted)}
+            aria-label={audioPlayer.isMuted ? "Unmute audio" : "Mute audio"}
+                    onClick={() => audioPlayer.setMuted(!audioPlayer.isMuted)}
             className="h-10 w-10"
           >
-            {isMuted ? (
+            {audioPlayer.isMuted ? (
               <VolumeX className="h-4 w-4" />
             ) : (
               <Volume2 className="h-4 w-4" />
@@ -215,12 +219,13 @@ export const SoundControls = memo(function SoundControls({
           </div>
         </div>
 
-        {/* Trim Controls */}
+        <p className="text-xs text-muted-foreground">Preview controls only. Music is not attached to video exports yet.</p>
+        {/* Preview start controls */}
         <div className="space-y-3">
           <div className="flex items-center justify-between text-sm">
             <span className="flex items-center gap-1">
               <Scissors className="h-3 w-3" />
-              Clip Start Time
+              Preview Start Time
             </span>
             <span className="text-muted-foreground">{formatTime(startTime)}</span>
           </div>
@@ -234,7 +239,7 @@ export const SoundControls = memo(function SoundControls({
           />
 
           <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Clip: {formatTime(startTime)} - {formatTime(endTime)}</span>
+            <span>Preview: {formatTime(startTime)} - {formatTime(endTime)}</span>
             <span>{formatTime(endTime - startTime)} duration</span>
           </div>
         </div>

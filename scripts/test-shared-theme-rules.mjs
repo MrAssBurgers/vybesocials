@@ -30,15 +30,16 @@ try {
     for (const visibility of ['public', 'private', 'friends', 'unlisted']) await setDoc(doc(db, 'shared_themes', `share-${visibility}`), { creator_id: 'share-owner-profile', theme_name: 'Fixture', description: null, theme_tokens: {}, visibility, is_public: visibility === 'public' });
     await setDoc(doc(db, 'shared_themes', 'share-legacy-uid'), { creator_id: 'share-owner', theme_name: 'Legacy', is_public: false });
     for (const name of ['saved_themes', 'theme_likes']) await setDoc(doc(db, name, 'share-ref'), { user_id: 'share-owner-profile', shared_theme_id: 'share-public' });
-    for (const name of ['_shared_theme_authority', '_shared_theme_receipts', '_theme_codes', '_theme_code_receipts']) await setDoc(doc(db, name, 'share-secret'), { owner_uid: 'share-owner' });
+    for (const name of ['_shared_theme_authority', '_shared_theme_receipts', '_shared_theme_cursors', '_theme_codes', '_theme_code_receipts']) await setDoc(doc(db, name, 'share-secret'), { owner_uid: 'share-owner' });
+    await setDoc(doc(db, 'blocked_users', 'share-block'), { blocker_id: 'share-owner', blocked_id: 'share-recipient-profile' });
   });
   for (const visibility of ['public', 'private', 'friends', 'unlisted']) {
     await good(getDoc(doc(owner, 'shared_themes', `share-${visibility}`)));
     await bad(getDoc(doc(guest, 'shared_themes', `share-${visibility}`)));
-    if (visibility === 'public') await good(getDoc(doc(recipient, 'shared_themes', `share-${visibility}`)));
-    else await bad(getDoc(doc(recipient, 'shared_themes', `share-${visibility}`)));
+    await bad(getDoc(doc(recipient, 'shared_themes', `share-${visibility}`)));
   }
-  await good(getDocs(query(collection(recipient, 'shared_themes'), where('is_public', '==', true))));
+  await bad(getDocs(query(collection(recipient, 'shared_themes'), where('is_public', '==', true))));
+  await bad(getDocs(query(collection(owner, 'shared_themes'), where('is_public', '==', true))));
   await good(getDocs(query(collection(owner, 'shared_themes'), where('creator_id', '==', 'share-owner-profile'))));
   await good(getDoc(doc(owner, 'shared_themes', 'share-legacy-uid')));
   await bad(getDocs(collection(recipient, 'shared_themes')));
@@ -59,7 +60,7 @@ try {
       await bad(deleteDoc(doc(client, name, 'share-ref')));
     }
   }
-  for (const name of ['_shared_theme_authority', '_shared_theme_receipts', '_theme_codes', '_theme_code_receipts']) {
+  for (const name of ['_shared_theme_authority', '_shared_theme_receipts', '_shared_theme_cursors', '_theme_codes', '_theme_code_receipts']) {
     for (const client of [owner, recipient, guest, staff]) {
       await bad(getDoc(doc(client, name, 'share-secret')));
       await bad(setDoc(doc(client, name, 'share-secret'), { owner_uid: 'share-owner', visibility: 'public' }));

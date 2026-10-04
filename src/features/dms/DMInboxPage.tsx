@@ -14,6 +14,7 @@ import { isDmLeaveSuppressActive } from '@/lib/leaveDmConversation';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import { useAuth } from '@/lib/auth';
 import { useReportAccountSession } from '@/hooks/useReportAccountSession';
+import { InboxNotes } from './InboxNotes';
 
 export function DMInboxPage() {
   const { user } = useAuth();
@@ -127,6 +128,7 @@ function DMInboxContent() {
           />
         )}
         <DMConversationList
+          header={<InboxNotes />}
           rows={inbox.rows}
           displayRows={inbox.displayRows}
           profileId={inbox.profileId}

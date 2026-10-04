@@ -65,3 +65,17 @@ it('exposes GIF transport errors with retry rather than a false empty result', a
   await waitFor(() => expect(screen.getByRole('button', { name: 'Retry GIFs' })).toBeInTheDocument());
   expect(screen.queryByText('No GIFs found')).not.toBeInTheDocument();
 });
+it('does not submit when Enter commits an input-method composition', () => {
+  render(<NotesRow />); fireEvent.click(screen.getByRole('button', { name: 'Edit your note' }));
+  const editor = screen.getByRole('textbox', { name: 'Your note' });
+  fireEvent.keyDown(editor, { key: 'Enter', isComposing: true });
+  expect(mock.save).not.toHaveBeenCalled();
+  fireEvent.keyDown(editor, { key: 'Enter', isComposing: false });
+  expect(mock.save).toHaveBeenCalledTimes(1);
+});
+it('exposes the full friend note to assistive technology despite visual truncation', () => {
+  mock.friends.data = [{ id: 'friend-note', content: 'The full note is available even when the bubble is narrow', gif_url: null,
+    profile: { id: 'friend-profile', username: 'friend', display_name: 'Friend name', avatar_url: null } }];
+  render(<NotesRow />);
+  expect(screen.getByRole('button', { name: /View Friend name's profile.*The full note is available even when the bubble is narrow/ })).toBeInTheDocument();
+});

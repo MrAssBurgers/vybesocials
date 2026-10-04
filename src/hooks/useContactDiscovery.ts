@@ -4,6 +4,7 @@ import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 import { captureContactActor, contactDiscoveryState, contactFailureMessage, matchDeviceContacts, type ContactDiscoveryState, type ContactSearchResult } from '@/lib/contactDiscoveryService';
 import { readDeviceContacts } from '@/lib/nativeContacts';
 import { profileFriendshipAction } from '@/lib/profileFriendshipAction';
+import { PHONE_VERIFIED_EVENT } from '@/lib/phoneVerificationEvents';
 
 type Search = { phase: 'idle' | 'reading' | 'matching' | 'complete' | 'error'; result?: ContactSearchResult; error?: string };
 interface View { key: string; settings?: ContactDiscoveryState; settingsError?: string; loadingSettings: boolean; saving: boolean; search: Search; sent: string[]; adding: string | null; friendError?: string }
@@ -16,6 +17,8 @@ export function useContactDiscovery() {
   const key = `${user?.id || ''}:${profile?.id || ''}:${profile?.user_id || ''}:${session.epoch}:${ready}`;
   const live = useRef({ key, mounted: true }); live.current.key = key;
   const operations = useRef({ settings: 0, search: 0, friend: 0 });
+  const settingsWrite = useRef<object | null>(null);
+  const refreshAfterWrite = useRef(false);
   const [stored, setStored] = useState<View>(() => initial(key));
   const view = ready && stored.key === key ? stored : initial(key);
   const actor = () => {
@@ -30,7 +33,7 @@ export function useContactDiscovery() {
     const operation = ++operations.current.settings;
     let current: ReturnType<typeof actor>;
     try { current = actor(); } catch { return; }
-    update(old => ({ ...old, loadingSettings: true, settings: undefined, settingsError: undefined }));
+    update(old => ({ ...old, loadingSettings: true, saving: false, settings: undefined, settingsError: undefined }));
     try {
       const settings = await contactDiscoveryState(current); current.guard();
       if (operation === operations.current.settings) update(old => ({ ...old, settings, loadingSettings: false }));
@@ -40,11 +43,23 @@ export function useContactDiscovery() {
     }
   };
   useEffect(() => { live.current.mounted = true; return () => { live.current.mounted = false; operations.current.search++; }; }, []);
-  useEffect(() => { setStored(initial(key)); if (ready) void loadSettings(); }, [key, ready]);
+  useEffect(() => { settingsWrite.current = null; refreshAfterWrite.current = false; setStored(initial(key)); if (ready) void loadSettings(); }, [key, ready]);
+  const latestLoadSettings = useRef(loadSettings); latestLoadSettings.current = loadSettings;
+  useEffect(() => {
+    const refresh = () => {
+      // A request already being saved may finish after a fresh read. Wait for
+      // its acknowledgement, then read the current linked-phone authority.
+      if (settingsWrite.current) { refreshAfterWrite.current = true; return; }
+      void latestLoadSettings.current();
+    };
+    window.addEventListener(PHONE_VERIFIED_EVENT, refresh);
+    return () => { window.removeEventListener(PHONE_VERIFIED_EVENT, refresh); };
+  }, []);
   const setDiscoverable = async (enabled: boolean) => {
     if (view.saving) return;
     let current: ReturnType<typeof actor>; try { current = actor(); } catch { return; }
     const operation = ++operations.current.settings;
+    const write = {}; settingsWrite.current = write;
     update(old => ({ ...old, saving: true, settingsError: undefined }));
     try {
       const settings = await contactDiscoveryState(current, enabled); current.guard();
@@ -52,6 +67,11 @@ export function useContactDiscovery() {
     } catch (error) {
       try { current.guard(); } catch { return; }
       if (operation === operations.current.settings) update(old => ({ ...old, saving: false, settingsError: contactFailureMessage(error) }));
+    } finally {
+      if (settingsWrite.current === write) {
+        settingsWrite.current = null;
+        if (refreshAfterWrite.current) { refreshAfterWrite.current = false; void latestLoadSettings.current(); }
+      }
     }
   };
   const discoverFriends = async () => {

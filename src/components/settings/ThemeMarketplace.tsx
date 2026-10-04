@@ -281,6 +281,7 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search themes..."
+                maxLength={80}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9"
@@ -337,6 +338,7 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
           </div>
 
           {/* Sort */}
+          <p className="text-xs text-muted-foreground">Style filters and sorting apply to the current page.</p>
           <div className="flex gap-2">
             {SORT_OPTIONS.map(opt => {
               const Icon = opt.icon;
@@ -359,7 +361,7 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
       {/* Theme Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {publicQuery.isError ? (
-          <div className="col-span-full py-10 text-center"><p>Could not load themes.</p><Button variant="ghost" onClick={() => void publicQuery.refetch()}>Retry</Button></div>
+          <div className="col-span-full py-10 text-center"><p>Could not load themes.</p><Button variant="ghost" onClick={() => void publicQuery.restart()}>Retry</Button></div>
         ) : isLoading || publicQuery.isFetching ? (
           // Skeleton loading
           Array.from({ length: 4 }).map((_, i) => (
@@ -374,7 +376,7 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
         ) : filteredThemes.length === 0 ? (
           <div className="col-span-2 text-center py-12">
             <Palette className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No themes found</p>
+            <p className="text-muted-foreground">{publicQuery.hasNextPage || publicQuery.hasPreviousPage ? 'No matching themes on this page' : 'No themes found'}</p>
           </div>
         ) : (
           filteredThemes.map(theme => (
@@ -392,6 +394,13 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
           ))
         )}
       </div>
+      {!publicQuery.isError && (publicQuery.hasNextPage || publicQuery.hasPreviousPage) && (
+        <nav aria-label="Theme pages" className="flex items-center justify-between gap-3">
+          <Button variant="outline" disabled={!publicQuery.hasPreviousPage || publicQuery.isFetching || isLoading} onClick={publicQuery.previousPage}>Previous page</Button>
+          <span className="text-sm text-muted-foreground">Page {publicQuery.page}</span>
+          <Button variant="outline" disabled={!publicQuery.hasNextPage || publicQuery.isFetching || isLoading} onClick={publicQuery.nextPage}>Next page</Button>
+        </nav>
+      )}
     </div>
   );
 });

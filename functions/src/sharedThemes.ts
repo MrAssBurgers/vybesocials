@@ -5,6 +5,7 @@ import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js
 import { resolveIdentity } from './_shared/profileAudienceAuthority.js';
 import { admitSharedTheme, sharedThemeDto, themeActor, themeHash, themeId, themeRelationship, themeRequestId, type ThemeRow } from './_shared/sharedThemeAuthority.js';
 import { normalizeSharedThemeLayout, normalizeSharedThemeTokens, THEME_VISIBILITIES, themeRecord, themeText, type ThemeVisibility } from './_shared/sharedThemeSchema.js';
+import { listPublicThemes, listSavedThemeReferences } from './_shared/sharedThemeListing.js';
 
 const OPTIONS = { region: 'us-central1', cpu: 0.083, concurrency: 1, maxInstances: 20 } as const;
 function inputRow(raw: unknown, uid: string, allowed: string[]) {
@@ -27,13 +28,15 @@ async function references(db: Firestore, tx: Transaction, collection: string, ve
 }
 
 export async function runManageSharedTheme(database: Firestore, uid: string, raw: unknown) {
-  const input = inputRow(raw, uid, ['action', 'requestId', 'themeId', 'themeIds', 'themeName', 'themeTokens', 'layoutSettings', 'description', 'tags', 'category', 'visibility', 'recipientProfileIds']);
+  const input = inputRow(raw, uid, ['action', 'requestId', 'themeId', 'themeIds', 'themeName', 'themeTokens', 'layoutSettings', 'description', 'tags', 'category', 'visibility', 'recipientProfileIds', 'cursor', 'search']);
   const profileId = themeId(input.expectedProfileId);
   const action = input.action;
-  if (!['create', 'read', 'readMany', 'save', 'unsave', 'like', 'unlike'].includes(action as string)) throw new HttpsError('invalid-argument', 'Unsupported theme action.');
+  if (!['create', 'read', 'readMany', 'list', 'listSaved', 'save', 'unsave', 'like', 'unlike'].includes(action as string)) throw new HttpsError('invalid-argument', 'Unsupported theme action.');
   const actionKeys = action === 'create' ? ['requestId', 'themeName', 'themeTokens', 'layoutSettings', 'description', 'tags', 'category', 'visibility', 'recipientProfileIds']
-    : action === 'read' ? ['themeId'] : action === 'readMany' ? ['themeIds'] : ['requestId', 'themeId'];
+    : action === 'read' ? ['themeId'] : action === 'readMany' ? ['themeIds'] : action === 'list' ? ['search', 'cursor'] : action === 'listSaved' ? ['cursor'] : ['requestId', 'themeId'];
   if (Object.keys(input).some(key => !['action', 'expectedOwnerUid', 'expectedProfileId', ...actionKeys].includes(key))) throw new HttpsError('invalid-argument', 'Unsupported details for this theme action.');
+  if (action === 'list') return listPublicThemes(database, uid, profileId, input.search, input.cursor);
+  if (action === 'listSaved') return listSavedThemeReferences(database, uid, profileId, input.cursor);
   if (action === 'readMany') {
     if (!Array.isArray(input.themeIds) || input.themeIds.length < 1 || input.themeIds.length > 20) throw new HttpsError('invalid-argument', 'Select between one and twenty themes.');
     const ids = input.themeIds.map(themeId);
@@ -213,7 +216,7 @@ export async function runUseThemeCode(database: Firestore, uid: string, raw: unk
 
 export const manageSharedTheme = onCall(OPTIONS, async request => {
   const uid = requireAuth(request); enforceRateLimit(await rateLimit(`theme-manage:${uid}`, 90, 60));
-  if (request.data?.action === 'readMany') enforceRateLimit(await rateLimit(`theme-bulk:${uid}`, 20, 60));
+  if (request.data?.action === 'readMany' || request.data?.action === 'list') enforceRateLimit(await rateLimit(`theme-bulk:${uid}`, 20, 60));
   return runManageSharedTheme(db, uid, request.data);
 });
 export const generateThemeCode = onCall(OPTIONS, async request => {

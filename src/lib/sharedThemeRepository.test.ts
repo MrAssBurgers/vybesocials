@@ -14,6 +14,9 @@ const tokens = { colorPrimary: '220 80% 50%', colorSecondary: '270 70% 40%', col
 const theme = (id: string, extra = {}) => ({ id, creator_id: 'creator-profile', theme_name: id, theme_tokens: tokens, is_public: true, ...extra });
 const receipt = (value: unknown) => ({ theme: value, ownerUid: actor.uid, profileId: actor.profileId });
 const reference = (id: string, themeId: string, createdAt = '') => ({ id, shared_theme_id: themeId, user_id: actor.profileId, created_at: createdAt });
+const entry = (savedId: string, themeId: string | null, createdAt = '', unavailable = false) => ({ savedId, themeId, createdAt, theme: unavailable || !themeId ? null : theme(themeId) });
+const page = (values: unknown[], nextCursor: string | null = null, saved = true) => ({ ownerUid: actor.uid, profileId: actor.profileId, nextCursor, [saved ? 'references' : 'themes']: values });
+const cursor = 'a'.repeat(48);
 beforeEach(() => {
   vi.clearAllMocks(); mocks.getDocuments.mockResolvedValue([]);
   mocks.request.mockImplementation(async (_actor, _name, input) => receipt(theme(input.themeId)));
@@ -21,28 +24,29 @@ beforeEach(() => {
 
 describe('current shared-theme admission', () => {
   it('deduplicates owned references and admits every detail before returning its contents', async () => {
-    mocks.getDocuments.mockResolvedValue([reference('a', 'one', '2025-01'), reference('b', 'two', '2025-02'), reference('c', 'one', '2025-03')]);
+    mocks.request.mockResolvedValueOnce(page([entry('a', 'one', '2025-01'), entry('b', 'two', '2025-02')], cursor))
+      .mockResolvedValueOnce(page([entry('c', 'one', '2025-03')]));
     const result = await loadSavedThemes(actor.profileId, options);
     expect(result.themes.map(row => [row.id, row.saved_id])).toEqual([['one', 'c'], ['two', 'b']]);
     expect(mocks.request).toHaveBeenCalledTimes(2);
-    expect(mocks.request).toHaveBeenCalledWith(actor, 'manage-shared-theme', { action: 'read', themeId: 'one' }, undefined);
+    expect(mocks.request).toHaveBeenCalledWith(actor, 'manage-shared-theme', { action: 'listSaved', cursor }, undefined);
+    expect(mocks.getDocuments).not.toHaveBeenCalled();
   });
   it('counts checked unavailable contents and malformed references without admitting old snapshots', async () => {
-    mocks.getDocuments.mockResolvedValue([reference('a', 'visible'), reference('b', 'deleted'), reference('c', 'revoked'), reference('d', '../invalid')]);
-    mocks.request.mockImplementation(async (_a, _n, input) => receipt(input.themeId === 'visible' ? theme('visible') : null));
+    mocks.request.mockResolvedValue(page([entry('a', 'visible'), entry('b', 'deleted', '', true), entry('c', 'revoked', '', true), entry('d', null)]));
     expect(await loadSavedThemes(actor.profileId, options)).toMatchObject({ themes: [{ id: 'visible' }], unavailableCount: 3 });
   });
   it.each(['not-found', 'unavailable', 'permission-denied'])('does not label a %s service error as an empty library', async code => {
     mocks.getDocuments.mockResolvedValue([reference('a', 'one')]); mocks.request.mockRejectedValue({ code });
     await expect(loadSavedThemes(actor.profileId, options)).rejects.toMatchObject({ code });
   });
-  it('keeps library query failures retryable', async () => {
-    mocks.getDocuments.mockRejectedValue(new Error('Offline'));
-    await expect(loadSavedThemes(actor.profileId, options)).rejects.toThrow('Offline'); expect(mocks.request).not.toHaveBeenCalled();
+  it('does not return a partial library after a later page fails', async () => {
+    mocks.request.mockResolvedValueOnce(page([entry('a', 'one')], cursor)).mockRejectedValueOnce(new Error('Offline'));
+    await expect(loadSavedThemes(actor.profileId, options)).rejects.toThrow('Offline'); expect(mocks.getDocuments).not.toHaveBeenCalled();
   });
-  it('ignores foreign references and refuses an unexpected detail receipt', async () => {
-    mocks.getDocuments.mockResolvedValue([{ ...reference('a', 'private'), user_id: 'other' }]);
-    expect(await loadSavedThemes(actor.profileId, options)).toEqual({ themes: [], unavailableCount: 0 });
+  it('refuses a foreign library and an unexpected detail receipt', async () => {
+    await expect(loadSavedThemes('other', options)).rejects.toThrow('identify');
+    expect(mocks.request).not.toHaveBeenCalled();
     mocks.request.mockResolvedValue(receipt(theme('wrong')));
     await expect(loadSharedTheme('one', options)).rejects.toThrow('verified');
   });
@@ -68,19 +72,54 @@ describe('current shared-theme admission', () => {
       expect(normalizeSharedTheme(theme('one', { theme_tokens: { ...tokens, ...bad } }), 'one')).toBeNull();
     }
   });
-  it('treats raw public rows only as candidates and never displays a denied creator or stale payload', async () => {
-    mocks.getDocuments.mockResolvedValue([theme('allowed', { theme_name: 'Old unsafe snapshot' }), theme('blocked')]);
-    mocks.request.mockResolvedValue({ ownerUid: actor.uid, profileId: actor.profileId, themes: [theme('allowed', { theme_name: 'Current checked name' })] });
+  it('never reads raw public documents and loads only one checked page at a time', async () => {
+    mocks.request.mockResolvedValue(page([theme('allowed', { theme_name: 'Current checked name' })], cursor, false));
     const result = await loadPublicSharedThemes(actor);
-    expect(result.map(row => row.theme_name)).toEqual(['Current checked name']);
-    expect(mocks.request).toHaveBeenCalledWith(actor, 'manage-shared-theme', { action: 'readMany', themeIds: ['allowed', 'blocked'] }, undefined);
+    expect(result.themes.map(row => row.theme_name)).toEqual(['Current checked name']); expect(result.nextCursor).toBe(cursor);
+    expect(mocks.request).toHaveBeenCalledWith(actor, 'manage-shared-theme', { action: 'list', search: '' }, undefined);
+    expect(mocks.request).toHaveBeenCalledTimes(1); expect(mocks.getDocuments).not.toHaveBeenCalled();
   });
   it('refuses extra/private public-list receipts and propagates admission failure', async () => {
-    mocks.getDocuments.mockResolvedValue([theme('one')]);
-    mocks.request.mockResolvedValue({ ownerUid: actor.uid, profileId: actor.profileId, themes: [theme('one', { is_public: false })] });
+    mocks.request.mockResolvedValue(page([theme('one', { is_public: false })], null, false));
     await expect(loadPublicSharedThemes(actor)).rejects.toThrow('verified');
     mocks.request.mockRejectedValue(new Error('Unavailable'));
     await expect(loadPublicSharedThemes(actor)).rejects.toThrow('Unavailable');
+  });
+  it('continues search explicitly and rejects a repeated or foreign cursor receipt', async () => {
+    mocks.request.mockResolvedValue(page([theme('Ocean glow')], null, false));
+    expect((await loadPublicSharedThemes(actor, 'Ocean', undefined, cursor)).themes).toHaveLength(1);
+    expect(mocks.request).toHaveBeenCalledWith(actor, 'manage-shared-theme', { action: 'list', search: 'Ocean', cursor }, undefined);
+    mocks.request.mockResolvedValue(page([], cursor, false));
+    await expect(loadPublicSharedThemes(actor, '', undefined, cursor)).rejects.toThrow('advance');
+    mocks.request.mockResolvedValue({ ...page([], null, false), ownerUid: 'other' });
+    await expect(loadPublicSharedThemes(actor)).rejects.toThrow('verified');
+  });
+  it('drains a saved library larger than the former individual-read quota without truncation', async () => {
+    for (let offset = 0; offset < 250; offset += 50) mocks.request.mockResolvedValueOnce(page(
+      Array.from({ length: 50 }, (_, index) => entry(`save-${offset + index}`, `theme-${offset + index}`)),
+      offset < 200 ? String(offset / 50 + 1).repeat(48) : null,
+    ));
+    const result = await loadSavedThemes(actor.profileId, options);
+    expect(result.themes).toHaveLength(250); expect(result.unavailableCount).toBe(0); expect(mocks.request).toHaveBeenCalledTimes(5);
+    expect(mocks.getDocuments).not.toHaveBeenCalled();
+  });
+  it('rejects duplicate references, repeating cursors and mismatched saved theme receipts', async () => {
+    for (const invalid of [page([entry('a', 'one'), entry('a', 'one')]), page([{ ...entry('a', 'one'), theme: theme('wrong') }]), { ...page([]), profileId: 'other' }]) {
+      mocks.request.mockResolvedValue(invalid); await expect(loadSavedThemes(actor.profileId, options)).rejects.toThrow('verified');
+    }
+    mocks.request.mockResolvedValue(page([], cursor));
+    await expect(loadSavedThemes(actor.profileId, options)).rejects.toThrow('advance');
+  });
+  it('cancels between saved pages without exposing partial contents or reading ahead', async () => {
+    const controller = new AbortController();
+    mocks.request.mockImplementation(async () => { controller.abort(); return page([entry('a', 'one')], cursor); });
+    await expect(loadSavedThemes(actor.profileId, { actor, signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' });
+    expect(mocks.request).toHaveBeenCalledTimes(1);
+  });
+  it('honors a later revoked admission even when an earlier duplicate has the newer bookmark date', async () => {
+    mocks.request.mockResolvedValueOnce(page([entry('new-reference', 'one', '2026-10-04')], cursor))
+      .mockResolvedValueOnce(page([entry('old-reference', 'one', '2026-09-01', true)]));
+    expect(await loadSavedThemes(actor.profileId, options)).toEqual({ themes: [], unavailableCount: 1 });
   });
 
 });

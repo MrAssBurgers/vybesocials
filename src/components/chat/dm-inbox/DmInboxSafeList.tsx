@@ -10,6 +10,7 @@ import { DMConversationList } from '@/features/dms/DMConversationList';
 import { useDMInbox } from '@/features/dms/useDMInbox';
 import { db } from '@/lib/firebase';
 import { isDmLeaveSuppressActive } from '@/lib/leaveDmConversation';
+import { InboxNotes } from '@/features/dms/InboxNotes';
 
 export function DmInboxSafeList() {
   const navigate = useNavigate();
@@ -65,6 +66,7 @@ export function DmInboxSafeList() {
           }}
         />
         <DMConversationList
+          header={<InboxNotes />}
           rows={inbox.rows}
           displayRows={inbox.displayRows}
           profileId={inbox.profileId}

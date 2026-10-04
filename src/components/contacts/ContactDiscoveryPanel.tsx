@@ -18,7 +18,7 @@ export function ContactDiscoveryPanel({ settings = false, onComplete }: { settin
       <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-medium" id="contact-discoverable-label">Let friends find me by phone</p>
         {contact.loadingSettings ? <p role="status" className="text-xs text-muted-foreground">Checking phone eligibility…</p>
           : contact.settings?.eligible ? <p className="text-xs text-muted-foreground">Verified linked phone {contact.settings.maskedPhone}</p>
-          : contact.settings && <p className="text-xs text-muted-foreground">Your phone is not eligible for discovery yet. {contact.settings.legacyPhoneNeedsVerification ? 'Previous SMS verification does not link your phone to your sign-in account.' : 'Discovery needs a verified phone linked to your sign-in account.'} You can still search your contacts. Phone linking is not available here yet.</p>}
+          : contact.settings && <p className="text-xs text-muted-foreground">Your phone is not eligible for discovery yet. {contact.settings.legacyPhoneNeedsVerification ? 'Your previously saved number needs verification again.' : 'Discovery needs a verified phone linked to your account.'} Verify your number under Phone number in Settings → Security, then choose whether friends can find you here. You can still search your contacts.</p>}
       </div><Switch aria-labelledby="contact-discoverable-label" checked={contact.settings?.discoverable ?? false}
         disabled={!contact.ready || !contact.settings || (!contact.settings.eligible && !contact.settings.discoverable) || contact.saving || contact.loadingSettings}
         onCheckedChange={value => { void contact.setDiscoverable(value); }} /></div>

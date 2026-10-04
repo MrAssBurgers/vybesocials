@@ -59,8 +59,27 @@ it('does not begin matching when a picker resolves after its screen unmounts', a
 it('does not show an opt-in until acknowledged and explains legacy phone ineligibility', async () => {
   mock.state.mockResolvedValueOnce({ ...settings, eligible: false, maskedPhone: null, legacyPhoneNeedsVerification: true });
   render(<ContactDiscoveryPanel settings />);
-  expect(await screen.findByText(/Previous SMS verification does not link/)).toBeInTheDocument(); expect(screen.getByRole('switch')).toBeDisabled();
+  expect(await screen.findByText(/Your previously saved number needs verification again/)).toBeInTheDocument(); expect(screen.getByRole('switch')).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Choose contacts' })).toBeEnabled();
+});
+it('refreshes eligibility after verified linkage without automatically enabling discovery', async () => {
+  mock.state.mockResolvedValueOnce({ ...settings, eligible: false, maskedPhone: null, legacyPhoneNeedsVerification: true });
+  render(<ContactDiscoveryPanel settings />);
+  await screen.findByText(/Your previously saved number needs verification again/);
+  act(() => window.dispatchEvent(new Event('vybe-phone-verified')));
+  await waitFor(() => expect(screen.getByRole('switch')).toBeEnabled());
+  expect(screen.getByRole('switch')).not.toBeChecked();
+  expect(mock.state.mock.calls[1]).toHaveLength(1);
+});
+it('waits for an in-flight preference save before refreshing the linked phone state', async () => {
+  render(<ContactDiscoveryPanel settings />); await waitFor(() => expect(screen.getByRole('switch')).toBeEnabled());
+  const save = deferred<unknown>(); mock.state.mockReturnValueOnce(save.promise);
+  fireEvent.click(screen.getByRole('switch')); expect(screen.getByText('Saving preference…')).toBeInTheDocument();
+  act(() => window.dispatchEvent(new Event('vybe-phone-verified')));
+  expect(mock.state).toHaveBeenCalledTimes(2); expect(screen.getByRole('switch')).toBeDisabled();
+  await act(async () => { save.resolve({ ...settings, discoverable: true }); });
+  await waitFor(() => expect(screen.getByRole('switch')).toBeEnabled()); expect(mock.state).toHaveBeenCalledTimes(3);
+  expect(screen.queryByText('Saving preference…')).not.toBeInTheDocument(); expect(screen.getByRole('switch')).not.toBeChecked();
 });
 it('keeps failed preference off, and does not falsely confirm a failed friend request', async () => {
   mock.match.mockResolvedValue({ ...empty, matches: [bob] }); render(<ContactDiscoveryPanel settings />);

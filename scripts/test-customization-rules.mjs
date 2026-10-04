@@ -70,7 +70,7 @@ try {
       await setDoc(doc(context.firestore(), 'shared_themes', privateId), shared(owner));
     });
     await allowed(`${label} private snapshot stays readable by owner`, () => getDoc(doc(alice, 'shared_themes', privateId)));
-    await allowed(`${label} public theme stays readable by another signed-in account`, () => getDoc(doc(bob, 'shared_themes', publicId)));
+    await denied(`${label} public theme content requires current callable admission for nonowners`, () => getDoc(doc(bob, 'shared_themes', publicId)));
     await denied(`${label} private snapshot is not readable by another account`, () => getDoc(doc(bob, 'shared_themes', privateId)));
     await denied(`${label} snapshot cannot be overwritten by another account`, () => setDoc(doc(bob, 'shared_themes', privateId), shared(otherUid)));
     await allowed(`${label} owner can rename shared theme`, () => updateDoc(doc(alice, 'shared_themes', publicId), { theme_name: 'Renamed' }));

@@ -1,3 +1,5 @@
+import { TWILIO_SECRETS, getTwilioConfig, twilioVerifyStart, twilioVerifyCheck } from './_shared/twilioVerify.js';
+import { verifiedAuthPhone } from './_shared/phoneVerificationAuthority.js';
 import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -326,12 +328,6 @@ export const auth2faPreauth = onCall(async (request) => {
   return { ok: true, expires_in: 300 };
 });
 
-const TWILIO_SECRETS = [
-  'TWILIO_ACCOUNT_SID',
-  'TWILIO_AUTH_TOKEN',
-  'TWILIO_VERIFY_SERVICE_SID',
-] as const;
-
 function maskPhone(phoneE164: string): string {
   const digits = phoneE164.replace(/\D/g, '');
   if (digits.length < 4) return '***';
@@ -339,17 +335,11 @@ function maskPhone(phoneE164: string): string {
 }
 
 async function resolveVerifiedPhoneForUid(uid: string): Promise<string | null> {
-  const direct = await db.collection('profiles').doc(uid).get();
-  const directPhone = asString(direct.data()?.phone_number);
-  if (direct.data()?.phone_verified && directPhone?.startsWith('+')) return directPhone;
-
-  const byUser = await db.collection('profiles').where('user_id', '==', uid).limit(3).get();
-  for (const doc of byUser.docs) {
-    const row = doc.data() as { phone_verified?: boolean; phone_number?: string };
-    const phone = asString(row.phone_number);
-    if (row.phone_verified && phone?.startsWith('+')) return phone;
+  try { return verifiedAuthPhone(await auth.getUser(uid)); }
+  catch (error) {
+    if ((error as { code?: string })?.code === 'auth/user-not-found') return null;
+    throw new HttpsError('unavailable', 'Phone verification is unavailable. Please retry.');
   }
-  return null;
 }
 
 /** auth-2fa-verify-phone — verify phone OTP (Twilio Verify when configured). */
@@ -365,11 +355,9 @@ export const auth2faVerifyPhone = onCall(
   const challengeId = asString(payload.challengeId);
   const uid = request.auth?.uid;
 
-  if (!provided || provided.length < 4) {
+  if (!provided || !/^\d{6}$/.test(provided)) {
     throw new HttpsError('invalid-argument', 'code required');
   }
-
-  enforceRateLimit(await rateLimit(`2fa-phone-verify:${challengeId || uid || 'anon'}`, 10, 600));
 
   const challengeDocId = challengeId
     || (uid ? `${uid}_phone` : null);
@@ -377,10 +365,12 @@ export const auth2faVerifyPhone = onCall(
     throw new HttpsError('unauthenticated', 'Sign in or provide challengeId');
   }
 
+  if (!/^[A-Za-z0-9_-]{1,160}$/.test(challengeDocId)) throw new HttpsError('invalid-argument', 'Invalid challenge.');
   const ref = db.collection('auth_challenges').doc(challengeDocId);
   const data = (await ref.get()).data() as {
     expires_at?: number | string;
     code_hash?: string;
+    channel?: string;
     phone_e164?: string;
     user_id?: string;
     provider?: string;
@@ -410,30 +400,26 @@ export const auth2faVerifyPhone = onCall(
     throw new HttpsError('failed-precondition', 'Challenge already resolved');
   }
 
+  enforceRateLimit(await rateLimit(`2fa-phone-verify:${challengeDocId}`, 10, 600));
+
   const meta = (data.metadata || {}) as Record<string, unknown>;
   const phoneE164 = (
     asString(data.phone_e164) ||
     asString(meta.phone_e164) ||
-    asString(payload.phone) ||
     ''
   ).trim();
   const twilio = getTwilioConfig();
   const provider = data.provider || asString(meta.sms_provider);
 
-  if (provider === 'twilio_verify' || (twilio && !data.code_hash)) {
-    if (!twilio) {
-      throw new HttpsError('failed-precondition', 'twilio_not_configured');
-    }
-    if (!phoneE164.startsWith('+')) {
-      throw new HttpsError('invalid-argument', 'invalid_phone');
-    }
-    const check = await twilioVerifyCheck(twilio, phoneE164, provided);
-    if (!check.ok) {
-      throw new HttpsError('permission-denied', 'Invalid code');
-    }
-  } else if (!data.code_hash || data.code_hash !== provided) {
-    throw new HttpsError('permission-denied', 'Invalid code');
+  if (!challengeUid || data.challenge_type !== 'login_approval' || data.status !== 'pending'
+    || data.channel !== 'sms' || provider !== 'twilio_verify' || meta.switched_to !== 'sms_code'
+    || await resolveVerifiedPhoneForUid(challengeUid) !== phoneE164) {
+    throw new HttpsError('permission-denied', 'This SMS login request is no longer valid.');
   }
+  if (!twilio) throw new HttpsError('failed-precondition', 'SMS verification is unavailable.');
+  const check = await twilioVerifyCheck(twilio, phoneE164, provided);
+  if (!check.ok) throw new HttpsError('permission-denied', 'Incorrect code.');
+  if (await resolveVerifiedPhoneForUid(challengeUid) !== phoneE164) throw new HttpsError('permission-denied', 'Your verified phone changed. Start sign-in again.');
 
   const now = new Date().toISOString();
   const isLoginGate =
@@ -448,184 +434,23 @@ export const auth2faVerifyPhone = onCall(
       console.error('[auth2faVerifyPhone] createCustomToken failed', err);
       throw new HttpsError('internal', 'Could not mint session token');
     }
-    await ref.set({
-      status: 'approved',
-      resolved_at: now,
-      metadata: {
-        ...meta,
-        resolved_by: 'sms_code',
-        custom_token: customToken,
-      },
-    }, { merge: true });
+    await db.runTransaction(async tx => {
+      const current = (await tx.get(ref)).data();
+      if (!current || current.user_id !== challengeUid || current.challenge_type !== 'login_approval'
+        || current.status !== 'pending' || current.provider !== 'twilio_verify' || current.channel !== 'sms'
+        || current.metadata?.switched_to !== 'sms_code'
+        || current.phone_e164 !== phoneE164 || current.expires_at !== data.expires_at
+        || challengeExpired(current.expires_at)) throw new HttpsError('permission-denied', 'This SMS login request is no longer valid.');
+      tx.update(ref, { status: 'approved', resolved_at: now,
+        metadata: { ...current.metadata, resolved_by: 'sms_code', custom_token: customToken } });
+    });
     return { ok: true, customToken, status: 'approved', phone: phoneE164 || undefined };
   }
 
-  if (!uid) {
-    throw new HttpsError('unauthenticated', 'Sign in required');
-  }
-
-  await ref.delete().catch(() => undefined);
-
-  const update: Record<string, unknown> = {
-    phone_verified: true,
-    updated_at: now,
-  };
-  if (phoneE164.startsWith('+')) {
-    const { createHash } = await import('crypto');
-    update.phone_number = phoneE164;
-    update.phone_e164_sha256 = createHash('sha256').update(phoneE164.toLowerCase()).digest('hex');
-  }
-  await db.collection('profiles').doc(uid).set(update, { merge: true });
-  const byUser = await db.collection('profiles').where('user_id', '==', uid).limit(1).get();
-  for (const doc of byUser.docs) {
-    if (doc.id !== uid) await doc.ref.set(update, { merge: true });
-  }
-  return { ok: true, phone: phoneE164 || undefined };
+  throw new HttpsError('failed-precondition', 'Open phone settings to verify a phone number.');
 });
 
-type TwilioConfig = {
-  accountSid: string;
-  authToken: string;
-  verifyServiceSid: string;
-};
 
-function getTwilioConfig(): TwilioConfig | null {
-  const accountSid = String(process.env.TWILIO_ACCOUNT_SID || '').trim();
-  const authToken = String(process.env.TWILIO_AUTH_TOKEN || '').trim();
-  const verifyServiceSid = String(process.env.TWILIO_VERIFY_SERVICE_SID || '').trim();
-  if (!accountSid || !authToken || !verifyServiceSid) return null;
-  if (!accountSid.startsWith('AC')) return null;
-  if (!verifyServiceSid.startsWith('VA')) return null;
-  return { accountSid, authToken, verifyServiceSid };
-}
-
-async function twilioVerifyStart(
-  cfg: TwilioConfig,
-  phoneE164: string,
-): Promise<{ ok: true } | { ok: false; error: string; detail?: string }> {
-  const url = `https://verify.twilio.com/v2/Services/${encodeURIComponent(cfg.verifyServiceSid)}/Verifications`;
-  const auth = Buffer.from(`${cfg.accountSid}:${cfg.authToken}`).toString('base64');
-  const body = new URLSearchParams({ To: phoneE164, Channel: 'sms' });
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${auth}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body,
-  });
-  const text = await res.text();
-  let json: { status?: string; code?: number; message?: string } = {};
-  try {
-    json = text ? (JSON.parse(text) as typeof json) : {};
-  } catch {
-    /* ignore */
-  }
-  if (!res.ok) {
-    const msg = String(json.message || text || res.status).slice(0, 160);
-    if (/valid.*phone|not a valid/i.test(msg)) {
-      return { ok: false, error: 'invalid_phone_for_twilio', detail: msg };
-    }
-    if (/blocked|blacklist|unreachable/i.test(msg)) {
-      return { ok: false, error: 'phone_blocked', detail: msg };
-    }
-    if (json.code === 20003 || /authenticate/i.test(msg)) {
-      return { ok: false, error: 'twilio_account_sid_invalid', detail: msg };
-    }
-    if (json.code === 20404 || /service/i.test(msg)) {
-      return { ok: false, error: 'twilio_verify_service_sid_invalid', detail: msg };
-    }
-    return { ok: false, error: 'sms_send_failed', detail: msg };
-  }
-  return { ok: true };
-}
-
-async function twilioVerifyCheck(
-  cfg: TwilioConfig,
-  phoneE164: string,
-  code: string,
-): Promise<{ ok: boolean }> {
-  const url = `https://verify.twilio.com/v2/Services/${encodeURIComponent(cfg.verifyServiceSid)}/VerificationCheck`;
-  const auth = Buffer.from(`${cfg.accountSid}:${cfg.authToken}`).toString('base64');
-  const body = new URLSearchParams({ To: phoneE164, Code: code });
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${auth}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body,
-  });
-  const text = await res.text();
-  let json: { status?: string; valid?: boolean } = {};
-  try {
-    json = text ? (JSON.parse(text) as typeof json) : {};
-  } catch {
-    /* ignore */
-  }
-  const approved = json.status === 'approved' || json.valid === true;
-  return { ok: res.ok && approved };
-}
-
-/**
- * phone-verify-request — send SMS via Twilio Verify.
- * Returns `{ ok:false, error:'twilio_not_configured' }` when secrets are missing
- * so the client can show a clear message (never pretend a code was texted).
- */
-export const phoneVerifyRequest = onCall(
-  { cors: true, secrets: [...TWILIO_SECRETS] },
-  async (request) => {
-  const uid = requireAuth(request);
-  enforceRateLimit(await rateLimit(`phone-req:${uid}`, 3, 600));
-  const { phone } = (request.data || {}) as { phone?: string };
-  const phoneE164 = typeof phone === 'string' ? phone.trim() : '';
-  if (!phoneE164.startsWith('+') || phoneE164.length < 10 || phoneE164.length > 16) {
-    return { ok: false, error: 'invalid_phone' };
-  }
-
-  const twilio = getTwilioConfig();
-  if (!twilio) {
-    console.error('[phoneVerifyRequest] Twilio secrets missing');
-    return { ok: false, error: 'twilio_not_configured' };
-  }
-
-  // Reject if another profile already verified this number.
-  const { createHash } = await import('crypto');
-  const phoneHash = createHash('sha256').update(phoneE164.toLowerCase()).digest('hex');
-  const taken = await db
-    .collection('profiles')
-    .where('phone_e164_sha256', '==', phoneHash)
-    .where('phone_verified', '==', true)
-    .limit(2)
-    .get();
-  for (const doc of taken.docs) {
-    const row = doc.data() as { user_id?: string };
-    if (doc.id !== uid && row.user_id !== uid) {
-      return { ok: false, error: 'phone_in_use' };
-    }
-  }
-
-  const started = await twilioVerifyStart(twilio, phoneE164);
-  if (!started.ok) {
-    return { ok: false, error: started.error, detail: started.detail };
-  }
-
-  const challengeId = `${uid}_phone`;
-  await db.collection('auth_challenges').doc(challengeId).set({
-    user_id: uid,
-    channel: 'sms',
-    provider: 'twilio_verify',
-    phone_e164: phoneE164,
-    expires_at: Date.now() + 10 * 60 * 1000,
-    created_at: new Date().toISOString(),
-  });
-  return {
-    ok: true,
-    challengeId,
-  };
-});
-
-export const phoneVerifyConfirm = auth2faVerifyPhone;
 
 import { dispatchOneSignalToProfile, resolvePushTargetProfileId } from './_shared/onesignalPush.js';
 
@@ -655,10 +480,8 @@ async function loadChallenge(challengeId: string): Promise<Record<string, unknow
 }
 
 function challengeExpired(expiresAt: unknown): boolean {
-  const raw = asString(expiresAt);
-  if (!raw) return true;
-  const ms = Date.parse(raw);
-  return !ms || ms <= Date.now();
+  const ms = typeof expiresAt === 'number' ? expiresAt : typeof expiresAt === 'string' ? Date.parse(expiresAt) : NaN;
+  return !Number.isFinite(ms) || ms <= Date.now();
 }
 
 /** auth-login-approval — poll/respond to pending device login (trusted device flow). */

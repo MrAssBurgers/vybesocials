@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mock = vi.hoisted(() => ({
   actor: { uid: 'alice', profileId: 'alice-profile', epoch: 1 },
-  query: { data: [] as unknown[], isError: false, isLoading: false, isFetching: false, refetch: vi.fn() },
+  query: { data: [] as unknown[], isError: false, isLoading: false, isFetching: false, refetch: vi.fn(), restart: vi.fn(), page: 1, hasNextPage: false, hasPreviousPage: false, nextPage: vi.fn(), previousPage: vi.fn() },
   importCode: vi.fn(), equip: vi.fn(), importPending: false, equipPending: false,
 }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: mock.actor.uid }, profile: { id: mock.actor.profileId, user_id: mock.actor.uid } }) }));
@@ -34,13 +34,28 @@ function startImport() {
 }
 beforeEach(() => {
   vi.clearAllMocks(); mock.actor = { uid: 'alice', profileId: 'alice-profile', epoch: mock.actor.epoch + 1 };
-  mock.query = { data: [], isError: false, isLoading: false, isFetching: false, refetch: vi.fn() };
+  mock.query = { data: [], isError: false, isLoading: false, isFetching: false, refetch: vi.fn(), restart: vi.fn(), page: 1, hasNextPage: false, hasPreviousPage: false, nextPage: vi.fn(), previousPage: vi.fn() };
   mock.importPending = false; mock.equipPending = false;
   mock.importCode.mockResolvedValue(theme); mock.equip.mockResolvedValue(theme);
 });
 afterEach(cleanup);
 
 describe('theme marketplace confirmed outcomes', () => {
+  it('keeps continuation available on an empty filtered page and requires an explicit click', () => {
+    mock.query.hasNextPage = true;
+    render(<Marketplace />);
+    expect(screen.getByText('No matching themes on this page')).toBeInTheDocument();
+    expect(mock.query.nextPage).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
+    expect(mock.query.nextPage).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Previous page' })).toBeDisabled();
+  });
+  it('hides page controls after failure and restarts from the first page on Retry', () => {
+    mock.query.isError = true; mock.query.page = 3; mock.query.hasPreviousPage = true;
+    render(<Marketplace />);
+    expect(screen.queryByRole('navigation', { name: 'Theme pages' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' })); expect(mock.query.restart).toHaveBeenCalledTimes(1);
+  });
   it.each(['Neon', 'Minimal', 'Glass', 'Vibrant'])('filters the %s category using the saved category or tags', category => {
     mock.query.data = [{ ...theme, id: 'matching', theme_name: 'Matching theme', tags: [category.toLowerCase()] },
       { ...theme, id: 'other', theme_name: 'Other theme', category: 'unrelated' }];
@@ -53,7 +68,7 @@ describe('theme marketplace confirmed outcomes', () => {
     mock.query.isError = true; render(<Marketplace />);
     expect(screen.getByText('Could not load themes.')).toBeInTheDocument();
     expect(screen.queryByText('No themes found')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' })); expect(mock.query.refetch).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' })); expect(mock.query.restart).toHaveBeenCalledTimes(1);
   });
 
   it('waits for confirmed equip before closing the import dialog', async () => {

@@ -467,6 +467,7 @@
       ] }
   ],
   "fieldOverrides": [
+    { "collectionGroup": "_shared_theme_cursors", "fieldPath": "expireAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "_social_feed_cursors", "fieldPath": "expires_at", "ttl": true, "indexes": [] }
   ]
 }

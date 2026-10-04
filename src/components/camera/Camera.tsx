@@ -698,9 +698,10 @@ export function Camera({
         )}
       </AnimatePresence>
 
+      </div>
       {/* ─── RIGHT SIDE TOOLS ─── Snapchat style with labels */}
       <div className="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-3">
-        <button onClick={() => setFlash(!flash)} className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform">
+        <button disabled={!captureEnabled} onClick={() => setFlash(!flash)} className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform disabled:opacity-40">
           <div className={cn(
             "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-xl border border-white/10",
             flash ? "bg-yellow-400/30 border-yellow-400/40" : "bg-black/35"
@@ -711,6 +712,8 @@ export function Camera({
         </button>
         
         <button 
+          type="button"
+          aria-label="Browse music previews"
           className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
           onClick={() => { triggerHaptic('light'); setShowMusicGallery(true); }}
         >
@@ -723,6 +726,7 @@ export function Camera({
           <span className="text-[9px] text-white/70 font-medium">Sounds</span>
         </button>
 
+        <fieldset disabled={!captureEnabled} className={cn('flex flex-col gap-3', !captureEnabled && 'pointer-events-none opacity-40')}>
         <button 
           onClick={cycleTimer}
           className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
@@ -765,8 +769,10 @@ export function Camera({
           </div>
           <span className="text-[9px] text-white/70 font-medium">HDR</span>
         </button>
+        </fieldset>
       </div>
 
+      <div className={cn(!captureEnabled && 'pointer-events-none opacity-40')} aria-hidden={!captureEnabled}>
       {/* ─── FILTER NAME TOAST ─── */}
       <AnimatePresence>
         {filterName && (

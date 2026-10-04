@@ -13,7 +13,7 @@ const env = await initializeTestEnvironment({ projectId, firestore: { host, port
 let checks = 0;
 try {
   await env.clearFirestore();
-  for (const namespace of ['_contact_discovery', '_contact_discovery_phones', '_contact_discovery_limits']) {
+  for (const namespace of ['_contact_discovery', '_contact_discovery_phones', '_contact_discovery_limits', '_phone_verifications', '_phone_verification_limits']) {
     const id = namespace === '_contact_discovery_phones' ? 'a'.repeat(64) : 'contacts-owner';
     await env.withSecurityRulesDisabled(context => setDoc(doc(context.firestore(), namespace, id), { version: 1, owner_uid: 'contacts-owner', owner_profile_id: 'profile-owner', phone_hash: 'a'.repeat(64), discoverable: true }));
     for (const [name, client] of [['owner', env.authenticatedContext('contacts-owner')], ['other', env.authenticatedContext('contacts-other')], ['staff', env.authenticatedContext('contacts-admin', { admin: true })], ['guest', env.unauthenticatedContext()]]) {

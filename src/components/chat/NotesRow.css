@@ -1,0 +1,14 @@
+/* Keep existing note tap feedback optional for both motion preferences. */
+@media (prefers-reduced-motion: reduce) {
+  .dm-notes-row .dm-note-avatar,
+  .dm-notes-row button:active .dm-note-avatar {
+    transition: none;
+    transform: none;
+  }
+}
+
+.reduce-motion .dm-notes-row .dm-note-avatar,
+.reduce-motion .dm-notes-row button:active .dm-note-avatar {
+  transition: none;
+  transform: none;
+}

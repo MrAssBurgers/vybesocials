@@ -29,6 +29,8 @@ export * from './aiExtras.js';
 export * from './aiKeys.js';
 export * from './aiDetectText.js';
 export * from './auth.js';
+export * from './phoneVerification.js';
+export { readMusicCatalog } from './musicCatalog.js';
 export * from './briefs.js';
 export * from './email.js';
 export * from './reportNotify.js';

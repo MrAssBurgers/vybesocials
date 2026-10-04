@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState, type UIEvent } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState, type ReactNode, type UIEvent } from 'react';
 import { MessageCircle, RefreshCw, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SwipeableDmConversationRow } from '@/components/chat/dm-inbox/SwipeableDmConversationRow';
@@ -26,6 +26,7 @@ import { DMRequestRow } from './DMRequestRow';
 import { DMNearbyPeerRow } from './DMNearbyPeerRow';
 
 interface DMConversationListProps {
+  header?: ReactNode;
   rows: DMInboxRow[];
   displayRows: DMInboxRow[];
   profileId?: string;
@@ -136,6 +137,7 @@ function asFilterId(tab?: DmInboxTabId): DmInboxFilterId {
 }
 
 export function DMConversationList({
+  header,
   rows,
   displayRows,
   profileId,
@@ -267,6 +269,7 @@ export function DMConversationList({
           role="tabpanel"
           aria-labelledby={`dm-inbox-tab-${activeTab || filterId}`}
         >
+        {header}
         {showSkeleton || showNearbySkeleton ? (
           <DMInboxSkeleton />
         ) : showListBody ? (

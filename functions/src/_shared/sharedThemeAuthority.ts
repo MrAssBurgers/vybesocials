@@ -28,6 +28,10 @@ export async function themeRelationship(db: Firestore, tx: Transaction, a: Audie
   ]);
   return { blocked: !aBlock.empty || !bBlock.empty, friends: !outgoing.empty || !incoming.empty };
 }
+/** Reuse only reads from one transaction and one already-verified viewer. */
+export function themeAdmissionCache() {
+  return { owners: new Map<string, ReturnType<typeof resolveIdentity>>(), relationships: new Map<string, ReturnType<typeof themeRelationship>>() };
+}
 function creatorSummary(row: ThemeRow) {
   const text = (value: unknown, max: number) => {
     try { return typeof value === 'string' ? themeText(value.slice(0, max), max) || null : null; } catch { return null; }
@@ -51,11 +55,13 @@ export function sharedThemeDto(id: string, row: ThemeRow, creator?: ThemeRow) {
     };
   } catch { throw new HttpsError('failed-precondition', 'This theme contains unsupported settings.'); }
 }
-export async function admitSharedTheme(db: Firestore, tx: Transaction, viewer: AudienceIdentity, id: string) {
+export async function admitSharedTheme(db: Firestore, tx: Transaction, viewer: AudienceIdentity, id: string, cache = themeAdmissionCache()) {
   const [snapshot, authority] = await Promise.all([tx.get(db.doc(`shared_themes/${id}`)), tx.get(db.doc(`_shared_theme_authority/${id}`))]);
   const row = snapshot.data(); const proof = authority.data();
   if (!row || row.deleted_at || row.is_deleted === true) throw new HttpsError('not-found', 'This theme is unavailable.');
-  const owner = await resolveIdentity(db, tx, themeId(row.creator_id));
+  const ownerId = themeId(row.creator_id);
+  if (!cache.owners.has(ownerId)) cache.owners.set(ownerId, resolveIdentity(db, tx, ownerId));
+  const owner = await cache.owners.get(ownerId)!;
   if (!owner || !owner.aliases.includes(row.creator_id as string)) throw new HttpsError('failed-precondition', 'Theme ownership cannot be verified.');
   let visibility: ThemeVisibility = row.is_public === true ? 'public' : 'private';
   let recipients: { uid: string; profileId: string }[] = [];
@@ -72,7 +78,8 @@ export async function admitSharedTheme(db: Firestore, tx: Transaction, viewer: A
   }
   if (viewer.uid !== owner.uid) {
     if (visibility === 'private') throw new HttpsError('permission-denied', 'This theme is private.');
-    const relationship = await themeRelationship(db, tx, viewer, owner);
+    if (!cache.relationships.has(owner.uid)) cache.relationships.set(owner.uid, themeRelationship(db, tx, viewer, owner));
+    const relationship = await cache.relationships.get(owner.uid)!;
     if (relationship.blocked || (visibility === 'friends' && (!relationship.friends || !recipients.some(item => item.uid === viewer.uid && item.profileId === viewer.profileId)))) {
       throw new HttpsError('permission-denied', 'This theme is no longer shared with you.');
     }

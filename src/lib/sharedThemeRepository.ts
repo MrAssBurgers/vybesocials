@@ -1,4 +1,4 @@
-import { getDocumentsFromServer, where, orderBy, firestoreLimit } from '@/lib/firebase/firestoreDb';
+import { getDocumentsFromServer, where, firestoreLimit } from '@/lib/firebase/firestoreDb';
 import type { SharedTheme } from '@/hooks/useSharedThemes';
 import { normalizeSharedThemeTokens, normalizeSharedThemeLayout, themeHttpsUrl } from '@/lib/sharedThemeSchema';
 import type { ThemeTokens } from '@/hooks/useCustomTheme';
@@ -67,28 +67,38 @@ export async function loadSharedTheme(id: string, options?: ReadOptions): Promis
   return theme;
 }
 
-/** Raw public rows identify candidates only; current admission supplies all rendered content. */
-export async function loadPublicSharedThemes(actor: ThemeActor, search = '', signal?: AbortSignal): Promise<SharedTheme[]> {
-  const candidates = await getDocumentsFromServer<Row>('shared_themes', [where('is_public', '==', true), orderBy('likes_count', 'desc'), firestoreLimit(50)]);
-  checkRead({ signal });
-  const ids = [...new Set(candidates.map(row => row.id).filter(validId))];
-  const admitted: SharedTheme[] = [];
-  for (let offset = 0; offset < ids.length; offset += 20) {
-    const batch = ids.slice(offset, offset + 20);
-    const result = await themeAuthorityRequest(actor, 'manage-shared-theme', { action: 'readMany', themeIds: batch }, signal);
-    checkRead({ signal });
-    if (result.ownerUid !== actor.uid || result.profileId !== actor.profileId || !Array.isArray(result.themes) || result.themes.length > batch.length) throw new Error('Themes could not be verified. Please retry.');
-    const seen = new Set<string>();
-    for (const value of result.themes) {
-      if (!value || typeof value !== 'object' || !batch.includes(value.id) || seen.has(value.id)) throw new Error('Themes could not be verified. Please retry.');
-      seen.add(value.id);
-      const theme = normalizeSharedTheme(value, value.id);
-      if (!theme || !theme.is_public) throw new Error('Themes could not be verified. Please retry.');
-      admitted.push(theme);
-    }
+function pageCursor(result: Row, actor: ThemeActor, previous: Set<string>): string | null {
+  const cursor = result.nextCursor;
+  if (result.ownerUid !== actor.uid || result.profileId !== actor.profileId || !(cursor === null || (typeof cursor === 'string' && /^[a-f0-9]{48}$/.test(cursor)))) throw new Error('Themes could not be verified. Please retry.');
+  if (typeof cursor === 'string') {
+    if (previous.has(cursor)) throw new Error('Theme pagination did not advance. Please retry.');
+    previous.add(cursor);
+    return cursor;
   }
-  const query = search.trim().toLocaleLowerCase();
-  return admitted.filter(theme => !query || theme.theme_name.toLocaleLowerCase().includes(query));
+  return null;
+}
+export interface PublicThemePage { themes: SharedTheme[]; nextCursor: string | null }
+
+/** Only checked server DTOs cross the browser boundary, including candidate selection. */
+export async function loadPublicSharedThemes(actor: ThemeActor, search = '', signal?: AbortSignal, cursor?: string | null): Promise<PublicThemePage> {
+  checkRead({ signal });
+  const query = search.trim();
+  if (query.length > 80) throw new Error('Use up to eighty characters to search themes.');
+  const admitted: SharedTheme[] = [];
+  const seen = new Set<string>(); const cursors = new Set<string>(cursor ? [cursor] : []);
+  const result = await themeAuthorityRequest(actor, 'manage-shared-theme', { action: 'list', search: query, ...(cursor ? { cursor } : {}) }, signal);
+  checkRead({ signal });
+  const nextCursor = pageCursor(result, actor, cursors);
+  if (!Array.isArray(result.themes) || result.themes.length > 50) throw new Error('Themes could not be verified. Please retry.');
+  for (const value of result.themes) {
+    if (!value || typeof value !== 'object' || !validId(value.id) || seen.has(value.id)) throw new Error('Themes could not be verified. Please retry.');
+    seen.add(value.id);
+    const theme = normalizeSharedTheme(value, value.id);
+    if (!theme || !theme.is_public || (query && !theme.theme_name.toLocaleLowerCase('en-US').includes(query.toLocaleLowerCase('en-US')))) throw new Error('Themes could not be verified. Please retry.');
+    admitted.push(theme);
+  }
+  checkRead({ signal });
+  return { themes: admitted, nextCursor };
 }
 
 export async function hasSavedTheme(ownerId: string, themeId: string): Promise<boolean> {
@@ -96,36 +106,39 @@ export async function hasSavedTheme(ownerId: string, themeId: string): Promise<b
   return rows.some(row => row.user_id === ownerId && row.shared_theme_id === themeId);
 }
 
-/** Resolve explicit owned references instead of the unsupported nested SQL join. */
+/** Drain bounded server pages so large or migrated libraries never truncate silently. */
 export async function loadSavedThemes(ownerId: string, options?: ReadOptions): Promise<SavedThemeCollection> {
   checkRead(options);
-  if (!validId(ownerId)) throw new Error('Could not identify your theme library');
-  const owners = [...new Set([ownerId, ...(options?.actor ? [options.actor.uid] : [])])];
-  const rows = (await Promise.all(owners.map(owner => getDocumentsFromServer<Row>('saved_themes', [where('user_id', '==', owner)])))).flat();
-  checkRead(options);
-  // Sort locally so imported references without created_at are still visible.
-  rows.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
-  const references = new Map<string, string>();
-  let unavailableCount = 0;
-  for (const row of rows) {
-    if (!owners.includes(String(row.user_id))) continue;
-    if (!validId(row.shared_theme_id) || !validId(row.id)) { unavailableCount++; continue; }
-    if (!references.has(row.shared_theme_id)) references.set(row.shared_theme_id, row.id);
-  }
-  const themes: SavedTheme[] = [];
-  // Keep read concurrency bounded for large migrated collections.
-  const entries = [...references];
-  for (let offset = 0; offset < entries.length; offset += 8) {
+  const actor = options?.actor;
+  if (!actor || ![actor.uid, actor.profileId].includes(ownerId)) throw new Error('Could not identify your theme library');
+  const cursors = new Set<string>(); const savedIds = new Set<string>();
+  const latestAdmissions = new Map<string, SharedTheme | null>();
+  const references: { savedId: string; themeId: string | null; createdAt: string; theme: SharedTheme | null }[] = [];
+  let cursor: string | null = null;
+  do {
+    const result = await themeAuthorityRequest(actor, 'manage-shared-theme', { action: 'listSaved', ...(cursor ? { cursor } : {}) }, options.signal);
     checkRead(options);
-    const resolved = await Promise.all(entries.slice(offset, offset + 8).map(async ([id, savedId]) => {
-      const theme = await loadSharedTheme(id, options);
-      return theme ? { ...theme, saved_id: savedId } : null;
-    }));
-    checkRead(options);
-    for (const theme of resolved) {
-      if (theme) themes.push(theme);
-      else unavailableCount++;
+    cursor = pageCursor(result, actor, cursors);
+    if (!Array.isArray(result.references) || result.references.length > 50) throw new Error('Your theme library could not be verified. Please retry.');
+    for (const value of result.references) {
+      if (!value || typeof value !== 'object' || !validId(value.savedId) || savedIds.has(value.savedId) || !(value.themeId === null || validId(value.themeId))
+        || typeof value.createdAt !== 'string' || value.createdAt.length > 100 || !(value.theme === null || (value.theme && typeof value.theme === 'object' && value.theme.id === value.themeId))) throw new Error('Your theme library could not be verified. Please retry.');
+      const theme = value.theme === null ? null : normalizeSharedTheme(value.theme, value.themeId);
+      if (value.theme !== null && !theme) throw new Error('This theme contains unsupported settings.');
+      if (value.themeId) latestAdmissions.set(value.themeId, theme);
+      savedIds.add(value.savedId); references.push({ savedId: value.savedId, themeId: value.themeId, createdAt: value.createdAt, theme });
     }
+  } while (cursor);
+  checkRead(options);
+  references.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const seen = new Set<string>(); const themes: SavedTheme[] = []; let unavailableCount = 0;
+  for (const reference of references) {
+    if (!reference.themeId) { unavailableCount++; continue; }
+    if (seen.has(reference.themeId)) continue;
+    seen.add(reference.themeId);
+    const currentTheme = latestAdmissions.get(reference.themeId);
+    if (currentTheme) themes.push({ ...currentTheme, saved_id: reference.savedId });
+    else unavailableCount++;
   }
   return { themes, unavailableCount };
 }

@@ -2,13 +2,13 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useEquipSharedTheme, useMySharedThemes, useSavedThemes, useSharedThemeById, type SharedTheme } from './useSharedThemes';
+import { useEquipSharedTheme, useMySharedThemes, useSavedThemes, useSharedThemeById, usePublicThemes, type SharedTheme } from './useSharedThemes';
 
 const mocks = vi.hoisted(() => ({
   uid: 'alice-auth' as string | undefined, profileId: 'alice-profile' as string | undefined,
   liveUid: 'alice-auth' as string | undefined,
   session: { uid: 'alice-auth' as string | undefined, epoch: 1 }, collection: vi.fn(),
-  saved: vi.fn(), own: vi.fn(), detail: vi.fn(), hasSaved: vi.fn(), upsert: vi.fn(), insert: vi.fn(),
+  saved: vi.fn(), own: vi.fn(), detail: vi.fn(), public: vi.fn(), hasSaved: vi.fn(), upsert: vi.fn(), insert: vi.fn(),
   equip: vi.fn(), setTheme: vi.fn(), rpc: vi.fn(), success: vi.fn(), error: vi.fn(), warning: vi.fn(),
 }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: mocks.uid ? { id: mocks.uid } : null, profile: mocks.profileId ? { id: mocks.profileId, user_id: mocks.uid } : null }) }));
@@ -22,7 +22,7 @@ vi.mock('@/lib/reportModerationService', () => ({
 vi.mock('@/lib/themeSharingService', () => ({ changeThemeCollection: mocks.collection, createAndDeliverTheme: vi.fn() }));
 vi.mock('@/lib/theme', () => ({ useTheme: () => ({ setTheme: mocks.setTheme }) }));
 vi.mock('@/lib/firebase/authService', () => ({ firebaseAuth: { getUser: async () => ({ data: { user: mocks.liveUid ? { id: mocks.liveUid } : null } }) } }));
-vi.mock('@/lib/sharedThemeRepository', () => ({ loadSavedThemes: mocks.saved, loadOwnSharedThemes: mocks.own, loadSharedTheme: mocks.detail, hasSavedTheme: mocks.hasSaved }));
+vi.mock('@/lib/sharedThemeRepository', () => ({ loadSavedThemes: mocks.saved, loadOwnSharedThemes: mocks.own, loadSharedTheme: mocks.detail, loadPublicSharedThemes: mocks.public, hasSavedTheme: mocks.hasSaved }));
 vi.mock('@/lib/firebase', () => ({ db: { from: () => ({ upsert: mocks.upsert, insert: mocks.insert }), rpc: mocks.rpc } }));
 vi.mock('@/hooks/useCustomTheme', () => ({ equipTheme: mocks.equip }));
 vi.mock('sonner', () => ({ toast: { success: mocks.success, error: mocks.error, warning: mocks.warning } }));
@@ -47,11 +47,70 @@ beforeEach(() => {
   client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   mocks.saved.mockResolvedValue({ themes: [{ ...theme, saved_id: 'save-one' }], unavailableCount: 0 });
   mocks.own.mockResolvedValue([theme]); mocks.detail.mockResolvedValue(theme);
+  mocks.public.mockResolvedValue({ themes: [theme], nextCursor: 'a'.repeat(48) });
   mocks.hasSaved.mockResolvedValue(false); mocks.collection.mockResolvedValue(undefined);
   mocks.upsert.mockResolvedValue({ error: null }); mocks.insert.mockResolvedValue({ error: null });
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 afterEach(() => { cleanup(); client.clear(); vi.restoreAllMocks(); });
+
+describe('public theme page admission', () => {
+  it('loads pages only on request and rechecks previous pages rather than showing retained snapshots', async () => {
+    const hook = renderHook(() => usePublicThemes(), { wrapper });
+    await waitFor(() => expect(hook.result.current.data).toEqual([theme]));
+    expect(mocks.public).toHaveBeenCalledTimes(1);
+    const next = deferred<{ themes: SharedTheme[]; nextCursor: null }>(); mocks.public.mockReturnValueOnce(next.promise);
+    act(() => hook.result.current.nextPage());
+    expect(hook.result.current.data).toBeUndefined(); expect(hook.result.current.page).toBe(2);
+    await act(async () => { next.resolve({ themes: [{ ...theme, id: 'next-theme' }], nextCursor: null }); });
+    await waitFor(() => expect(hook.result.current.data?.[0].id).toBe('next-theme'));
+    mocks.public.mockResolvedValueOnce({ themes: [], nextCursor: null });
+    act(() => hook.result.current.previousPage());
+    expect(hook.result.current.data).toBeUndefined();
+    await waitFor(() => expect(hook.result.current.data).toEqual([]));
+    expect(mocks.public).toHaveBeenCalledTimes(3);
+  });
+  it('resets page positions across account epochs and suppresses late old-page contents', async () => {
+    const hook = renderHook(() => usePublicThemes(), { wrapper });
+    await waitFor(() => expect(hook.result.current.data).toEqual([theme]));
+    const oldPage = deferred<{ themes: SharedTheme[]; nextCursor: null }>(); mocks.public.mockReturnValueOnce(oldPage.promise);
+    act(() => hook.result.current.nextPage());
+    await waitFor(() => expect(mocks.public).toHaveBeenCalledTimes(2));
+    const oldSignal = mocks.public.mock.calls[1][2] as AbortSignal;
+    mocks.public.mockResolvedValue({ themes: [], nextCursor: null });
+    switchAccount('bob-auth', 'bob-profile'); hook.rerender();
+    expect(hook.result.current.page).toBe(1); expect(hook.result.current.data).toBeUndefined();
+    await waitFor(() => expect(hook.result.current.data).toEqual([]));
+    expect(oldSignal.aborted).toBe(true);
+    await act(async () => oldPage.resolve({ themes: [theme], nextCursor: null }));
+    expect(hook.result.current.data).toEqual([]);
+    expect(mocks.public.mock.calls.at(-1)?.[3]).toBeNull();
+  });
+  it('hides changed-search contents immediately and starts from its first page', async () => {
+    const hook = renderHook(({ search }) => usePublicThemes(search), { wrapper, initialProps: { search: '' } });
+    await waitFor(() => expect(hook.result.current.data).toEqual([theme]));
+    act(() => hook.result.current.nextPage());
+    await waitFor(() => expect(hook.result.current.data).toEqual([theme]));
+    mocks.public.mockResolvedValue({ themes: [], nextCursor: null });
+    hook.rerender({ search: 'new search' });
+    expect(hook.result.current.data).toBeUndefined();
+    await waitFor(() => expect(hook.result.current.data).toEqual([]));
+    expect(hook.result.current.page).toBe(1); expect(mocks.public.mock.calls.at(-1)?.[1]).toBe('new search');
+    expect(mocks.public.mock.calls.at(-1)?.[3]).toBeNull();
+  });
+  it('hides a failed refreshed page and restarts safely after cursor expiry', async () => {
+    const hook = renderHook(() => usePublicThemes(), { wrapper });
+    await waitFor(() => expect(hook.result.current.data).toEqual([theme]));
+    act(() => hook.result.current.nextPage());
+    await waitFor(() => expect(hook.result.current.data).toEqual([theme]));
+    mocks.public.mockRejectedValueOnce(new Error('Cursor expired'));
+    await act(async () => { await hook.result.current.refetch(); });
+    await waitFor(() => expect(hook.result.current.isError).toBe(true)); expect(hook.result.current.data).toBeUndefined();
+    mocks.public.mockResolvedValue({ themes: [], nextCursor: null });
+    act(() => { hook.result.current.restart(); });
+    await waitFor(() => expect(hook.result.current.data).toEqual([])); expect(hook.result.current.page).toBe(1);
+  });
+});
 
 describe('private theme account isolation', () => {
   it('never shows the previous account collection or private detail while the next account loads', async () => {
