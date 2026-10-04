@@ -2,6 +2,26 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Godot desktop capture host example
+
+### What changed
+- Added sdk/examples/godot: pinned Godot 4.5.1 .NET/net8 project, scene and concrete capture UI. Separate 1280x720 game viewport excludes account controls from capture, with PNG preview, caption, explicit device connect/browser approval, private upload, same-key retry, review/discard and disconnect.
+- HTTP operations marshal callbacks to engine-thread queue; cancellation/expiry remains responsive during host pause. Hide/exit/relink clear screenshot buffers/textures and caption; exit cancels and drops queued callbacks. Unconfirmed revoke directs player to Vybe Settings. Demo has soft circles, rounded buttons and a pause-animation option. Defaults are unconfigured and make no requests.
+- CI compiles the Godot project. SDK READMEs link setup/limits; workspace outputs/vybe-godot-capture-example.zip contains 14 source files including the referenced .NET SDK, no credentials/binaries.
+- Fixed previous eb06e7a0 creator CI failure: report-authority fixture still expected direct draft writes. It now seeds privileged fixtures and asserts checked-save requirements. Added real backend hold tests proving private creation/correction works without releasing active/malformed publication holds.
+
+### Verification
+- Godot project compiled with zero warnings/errors. Official portable 4.5.1 .NET engine downloaded from Godot's archive into ignored work/godot-tools. Headless editor import and engine smoke passed: scene/disabled default controls, dedicated viewport dimensions, PNG encoding/zeroing, engine-thread dispatch, request cancellation and hide cleanup. A smoke-test compile ambiguity between Godot.Environment and System.Environment was corrected, then rebuilt/retested.
+- 46 compiled .NET SDK checks passed; app 309 files / 2,930 tests and build passed. Scoped changed-script lint and whitespace checks passed. Logs work/godot-*.log. Generated offline/version churn restored.
+- Isolated emulator rerun: 303 report authority rules and 12 draft backend checks passed; initial invocation rejected the wrong demo project name before mutation, then reran on allowed demo-vybe-creator-qa with separate 8386/9396/hub/tmp and clean shutdown. Prior eb06e7a0 main CI succeeded; creator CI failed only at the stale report rule expectations addressed here. Prior 3a95642e both succeeded.
+
+### Next 3 tasks and limits
+1. Verify CI and render the actual Godot scene/gameplay screenshot; perform complete engine-to-emulator consent/upload/review/retry/disconnect flow. Headless codec/lifecycle checks do not prove GPU readback, visual layout or real host HTTP flow. No engine certification claimed.
+2. Extend concrete engine/mod browsing/gallery/video adapters; continue mini-app isolation/retention and remaining audience/media reader migrations.
+3. Physical-device validation and selective production rollout remain pending. Broad goal active and incomplete; no production deployment in this checkpoint.
+
+---
+
 ## ACTIVE (2026-10-04) - Checked studio saves and draft rule enforcement
 
 ### What changed

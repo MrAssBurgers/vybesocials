@@ -50,6 +50,7 @@ jobs:
         run: |
           dotnet run --project sdk/dotnet/Vybe.Integration.Checks -c Release
           dotnet pack sdk/dotnet/Vybe.Integration/Vybe.Integration.csproj -c Release -o work/dotnet-package
+          dotnet build sdk/examples/godot/VybeGodot.csproj -c Debug
 
       - name: Unit tests
         run: npm run test
