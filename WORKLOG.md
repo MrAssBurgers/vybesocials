@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Story poster fallback and accessible creation
+
+### What changed
+- Investigated the preview's white Your story tile: its rendered image was fully loaded with natural dimensions **1 x 1**, belonging to the existing synthetic private-story fixture. It was not a stalled loader. Preserved valid story content rather than treating a white image as corrupt.
+- Fixed the actual missing-thumbnail path: story posters retain a soft theme-colored gradient and initial until an image loads, fade decoded media in, and return to the fallback on failure. Changing poster URLs resets the image lifecycle. Unviewed stories retain their opaque privacy veil. Viewed frames use a subtle theme border rather than a black outline. Upload pulsing now uses CSS so existing reduced-motion overrides apply.
+- Split the story tile and add-story affordance into sibling buttons. The add control now has an accessible name, keyboard activation and focus styling; no nested interactive elements or click-only add div remain.
+
+### Verification
+- **305 files / 2,868 tests passed**. App build, typecheck, full lint and CSS/boot checks passed; lint has **0 errors / 5 inherited warnings**. Entry **app-Db8x02xM.js: 1068.1 KiB raw / 321.8 KiB gzip**, within budget.
+- Browser: Enter on Add a story opened Create Story; closing it and choosing Your story opened the existing private story viewer. Temporarily set only the synthetic fixture's thumbnail to a missing local Storage object. The real UI reached `data-poster-state=failed`, removed the broken image and displayed the soft fallback. Screenshot: workspace outputs `vybe-story-fallback.png`. Restored the exact original thumbnail using the saved local recovery record afterward. No production data or media changed.
+- Lifecycle tests cover placeholder-to-decoded transition, failure, URL replacement and preservation of the unviewed veil. The prior Local checkpoint **975dc065** passed CI **37201199323** and Rules QA **37201199326**.
+
+### Next 3 tasks and limits
+1. Continue remaining direct post/profile/explore/ranked/share-preview audience migrations and controlled media/age work.
+2. Complete embedded feed consent and native game/mod adapters with lifecycle/device checks.
+3. Continue mini-app and visual/accessibility audits, then selective staging and physical-device verification. No production publish occurred; the original universal-app goal remains active and unfulfilled.
+
+---
+
 ## ACTIVE (2026-10-04) - Explicit, audience-checked Local sharing
 
 ### What changed

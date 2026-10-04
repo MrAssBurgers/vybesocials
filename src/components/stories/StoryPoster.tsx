@@ -1,5 +1,4 @@
-import { memo } from 'react';
-import { motion } from 'framer-motion';
+import { memo, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 import { storyRingGradient, storyCoverGradient } from '@/lib/storyThemeRing';
@@ -40,27 +39,22 @@ export const StoryPoster = memo(function StoryPoster({
   children,
 }: StoryPosterProps) {
 
-  const imgLoading = priority ? 'eager' : 'lazy';
-  const imgDecoding = priority ? 'sync' : 'async';
-  const imgFetchPriority = priority ? 'high' : 'auto';
   const ringGradient = storyRingGradient(themeGradient ?? null);
   const coverGradient = storyCoverGradient(themeGradient ?? null);
 
   if (isUploading) {
     return (
       <div className="relative flex-shrink-0" style={{ width: width + 4, height: height + 4 }}>
-        <motion.div
-          className="absolute inset-0"
+        <div
+          className="absolute inset-0 animate-pulse"
           style={{
             borderRadius,
             background: ringGradient,
             padding: 2,
           }}
-          animate={{ opacity: [0.7, 1, 0.7] }}
-          transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
         >
           <div className="h-full w-full bg-background" style={{ borderRadius: borderRadius - 2 }} />
-        </motion.div>
+        </div>
         <div
           className="absolute inset-[2px] overflow-hidden bg-muted"
           style={{ borderRadius: borderRadius - 2 }}
@@ -74,7 +68,7 @@ export const StoryPoster = memo(function StoryPoster({
   if (!hasStory) {
     return (
       <div
-        className="relative flex-shrink-0 overflow-hidden border-2 border-dashed border-muted-foreground/35 bg-muted/40"
+        className="relative flex-shrink-0 overflow-hidden border border-foreground/10 bg-muted/40"
         style={{ width, height, borderRadius }}
       >
         {children}
@@ -120,25 +114,7 @@ export const StoryPoster = memo(function StoryPoster({
             style={{ background: coverGradient }}
             aria-hidden
           />
-          {posterUrl ? (
-            <img
-              src={posterUrl}
-              alt=""
-              className="h-full w-full object-cover scale-110 blur-2xl opacity-20"
-              loading={imgLoading}
-              decoding={imgDecoding}
-              // @ts-expect-error fetchpriority is valid HTML; React types still prefer camelCase
-              fetchpriority={imgFetchPriority}
-              draggable={false}
-            />
-          ) : (
-            <div
-              className="flex h-full w-full items-center justify-center text-lg font-semibold text-white/80"
-              style={{ background: coverGradient }}
-            >
-              {fallbackInitial?.charAt(0).toUpperCase() || '?'}
-            </div>
-          )}
+          <PosterImage key={posterUrl || 'empty'} url={posterUrl} initial={fallbackInitial} background={coverGradient} priority={priority} veiled />
           {children}
         </div>
       </div>
@@ -153,32 +129,14 @@ export const StoryPoster = memo(function StoryPoster({
         height: height + 4,
         padding: 2,
         borderRadius: borderRadius + 2,
-        background: '#000000',
+        background: 'hsl(var(--foreground) / .08)',
       }}
     >
       <div
-        className="relative h-full w-full overflow-hidden bg-black"
+        className="relative h-full w-full overflow-hidden bg-card"
         style={{ borderRadius }}
       >
-        {posterUrl ? (
-          <img
-            src={posterUrl}
-            alt=""
-            className="h-full w-full object-cover"
-            loading={imgLoading}
-            decoding={imgDecoding}
-            // @ts-expect-error fetchpriority is valid HTML; React types still prefer camelCase
-            fetchpriority={imgFetchPriority}
-            draggable={false}
-          />
-        ) : (
-          <div
-            className="flex h-full w-full items-center justify-center text-lg font-semibold text-white/90"
-            style={{ background: coverGradient }}
-          >
-            {fallbackInitial?.charAt(0).toUpperCase() || '?'}
-          </div>
-        )}
+        <PosterImage key={posterUrl || 'empty'} url={posterUrl} initial={fallbackInitial} background={coverGradient} priority={priority} />
         {children}
       </div>
     </div>
@@ -187,4 +145,23 @@ export const StoryPoster = memo(function StoryPoster({
 
 export function getStoryPosterDimensions() {
   return { width: POSTER_WIDTH, height: POSTER_HEIGHT, borderRadius: POSTER_RADIUS };
+}
+
+/** Keep a visible surface until decoding succeeds; a broken URL never becomes an empty tile. */
+function PosterImage({ url, initial, background, priority, veiled = false }: {
+  url?: string | null; initial?: string; background: string; priority: boolean; veiled?: boolean;
+}) {
+  const [status, setStatus] = useState<'loading' | 'loaded' | 'failed'>('loading');
+  return <div className="relative h-full w-full" data-poster-state={!url ? 'empty' : status}>
+    <div aria-hidden className="absolute inset-0 flex items-center justify-center text-lg font-semibold text-white/90" style={{ background }}>
+      <span className="rounded-full bg-black/15 px-3 py-2 backdrop-blur-sm">{initial?.charAt(0).toUpperCase() || 'V'}</span>
+    </div>
+    {url && status !== 'failed' && <img src={url} alt="" draggable={false}
+      className={cn('relative h-full w-full object-cover transition-opacity duration-300', veiled && 'scale-110 blur-2xl')}
+      style={{ opacity: status === 'loaded' ? veiled ? .2 : 1 : 0 }}
+      onLoad={event => setStatus(event.currentTarget.naturalWidth > 0 ? 'loaded' : 'failed')}
+      onError={() => setStatus('failed')} loading={priority ? 'eager' : 'lazy'} decoding="async"
+      // @ts-expect-error fetchpriority is valid HTML; React types still prefer camelCase
+      fetchpriority={priority ? 'high' : 'auto'} />}
+  </div>;
 }

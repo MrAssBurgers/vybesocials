@@ -243,13 +243,14 @@ const StoryTile = memo(function StoryTile({
   const resolvedPoster = signedPosterUrl || posterUrl || undefined;
 
   return (
-    <motion.button
-      onClick={onClick}
-      whileTap={{ scale: 0.94 }}
-      className="flex flex-col items-center gap-2 flex-shrink-0 transition-transform"
+    <div
+      className="flex flex-col items-center gap-2 flex-shrink-0"
       style={{ width: posterSize.width + 6 }}
     >
       <div className="relative">
+        <motion.button type="button" aria-label={isUploading ? 'Posting story' : label || displayName || username || 'View story'}
+          onClick={onClick} whileTap={{ scale: 0.96 }} className="block rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          style={{ borderRadius: posterSize.borderRadius + 3 }}>
         <StoryPoster
           width={posterSize.width}
           height={posterSize.height}
@@ -285,22 +286,23 @@ const StoryTile = memo(function StoryTile({
             </div>
           )}
         </StoryPoster>
+        </motion.button>
 
         {showAddButton && !isUploading && (
-          <div
+          <button type="button" aria-label="Add a story"
             onClick={handleAddClick}
-            className="absolute -bottom-1 -right-1 z-20 bg-accent rounded-full p-1 border-2 border-background cursor-pointer active:scale-95 transition-transform shadow-[0_1px_4px_rgba(0,0,0,0.3)]"
+            className="absolute -bottom-1 -right-1 z-20 bg-accent rounded-full p-1 border-2 border-background cursor-pointer active:scale-95 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 shadow-[0_1px_4px_rgba(0,0,0,0.3)]"
           >
             <Plus className="h-4 w-4 text-accent-foreground" strokeWidth={3} />
-          </div>
+          </button>
         )}
       </div>
-      <span
+      <span aria-hidden="true"
         className="text-[11px] font-semibold text-foreground truncate text-center leading-snug min-h-[2rem] flex items-center justify-center drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
         style={{ width: posterSize.width + 4, maxWidth: posterSize.width + 8 }}
       >
         {isUploading ? 'Posting...' : label || displayName || username}
       </span>
-    </motion.button>
+    </div>
   );
 });
