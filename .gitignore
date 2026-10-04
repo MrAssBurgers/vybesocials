@@ -13,6 +13,8 @@ dist-ssr
 /work/
 /artifacts/
 *.local
+sdk/dotnet/**/bin/
+sdk/dotnet/**/obj/
 
 # Editor directories and files
 .vscode/*

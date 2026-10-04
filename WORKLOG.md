@@ -2,6 +2,27 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Compiled C# partner integration for native hosts
+
+### What changed
+- Added `sdk/dotnet/Vybe.Integration`, a locally packaged .NET 8 partner client with device consent, private encoded capture upload in checksummed 8 MiB chunks, same-key recovery, status, discard and revocation. It uses no Firebase or third-party runtime packages and never publishes a social post. Public DTOs omit bearer/device secrets; review/consent links are rebuilt against the official origin.
+- Added bounded streaming responses, request/body cancellation deadlines, redirect/cookie rejection, in-memory session/account generation checks, safe error messages, bounded transient retries and the longer HTTP/body Retry-After. Uploads snapshot caller bytes, normalize Unicode tags/captions like the backend, and retain an early capture receipt for recovery. Disconnect, expiry and disposal cannot turn stale work into success.
+- Added buildable protocol checks, a guarded real-emulator fixture, integration/lifecycle documentation and a .NET build/check/package CI step. Local package deliverable: workspace outputs `Vybe.Integration.0.1.0-pilot.nupkg`; no registry publication.
+
+### Verification
+- **26 compiled C# checks passed**, including multi-chunk byte snapshots, checksum acknowledgements, lost finish response retry, cancellation, concurrent polling, relink races, expiry, normalization, long quota waits, malformed/oversized responses, revocation uncertainty and disposal. A real loopback HTTP listener verifies the public client's cookie blocking and redirect rejection.
+- Real retained demo backend: registered only synthetic `local-dotnet-mod`, consented as demo Alice through the actual callable, uploaded a PNG using the compiled public C# client, verified same-key recovery and status, discarded a separate capture and revoked the connection. One ready private capture remains: `cec9d93044fef9cf473818c5983041a34f1f0b2671e650fb`. No post was published; local quotas were not reset. Fixture output: ignored `work/dotnet-preview/result.json`.
+- Browser: signed in as synthetic Alice, opened that capture, verified the Local .NET Mod source, trimmed caption, deduplicated Unicode tags, private-until-published explanation and decoded 1x1 synthetic image after the mod connection was revoked. Screenshot: workspace outputs `vybe-dotnet-capture-review.png`. The previous Vite process was confirmed absent; restarted the isolated 8082 preview without changing 8081 or production.
+- App **305 files / 2,876 tests passed**; app build and lint passed (**0 errors / 5 inherited warnings**). Entry remains **app-CqIufOOX.js: 1068.1 KiB raw / 321.8 KiB gzip**, within budget. Logs: ignored `work/dotnet-app-tests.log`, `work/dotnet-app-build.log`, `work/dotnet-lint.log`, `work/dotnet-native-checks.log`.
+- Release package restored into a separate .NET 8 consumer with an isolated package directory; installed archive hash matched the built archive, and public API checks passed. Prior mini-app checkpoint `fdecfa4e` passed CI **37202551622** and Creator Platform Rules QA **37202551650**.
+
+### Next 3 tasks and limits
+1. Add native capture-gallery parity, host/engine lifecycle adapters and real game/mod-loader certification. This .NET 8 pilot is not a Unity/Mono drop-in, does not record/encode gameplay or supply a native overlay, and has no general social feed/messages yet.
+2. Continue mini-app execution isolation/quotas and remaining content-reader audience/media/age migrations. Existing documented platform privacy and sandbox limits remain release work.
+3. Continue physical-device/visual audits and selective staging. No production deployment, Lovable Publish or NuGet publication occurred. The broad universal-app goal remains active and unfulfilled.
+
+---
+
 ## ACTIVE (2026-10-04) - Mini-app library continuation
 
 ### What changed

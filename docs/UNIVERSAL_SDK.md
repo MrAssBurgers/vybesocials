@@ -1,5 +1,7 @@
 # VYBE integration SDK for apps, games, mods and tools
 
+Native .NET 8 game/mod/tool hosts can now use the compiled [C# partner library](../sdk/dotnet/README.md). It supports device consent, private image/video staging, same-key retries, status, discard and revocation without Firebase credentials. It is a local NuGet pilot, not engine certification or a Unity/Mono-compatible assembly; native overlays, engine adapters and gallery parity remain follow-up work.
+
 VYBE's partner protocol is usable by any registered application, game, game mod or tool that can call HTTPS and supply an encoded image or video. The new `sdk/universal` facade supplies a consistent host lifecycle around that protocol. This is a locally buildable pilot package, not a published registry package or a claim of native-engine certification.
 
 It provides explicit account linking, private capture upload, retry with the original media, capture status/discard, connection revocation and official VYBE browser entry points. It now includes an opt-in [embedded capture gallery](PARTNER_CAPTURE_GALLERY.md) for trusted host UI. A general social feed, messages, automatic posting, native overlay implementation and browser-frame authentication bridge remain separate work. Open VYBE in the user's browser for full browsing and publishing.
