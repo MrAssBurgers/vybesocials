@@ -2,6 +2,24 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Close shared-post menu media bypass
+
+### What changed
+- Found that the checked bubble could hide a private post while its hold menu still exposed Save/Save Sticker using the copied message URL. Shared-post menus now suppress these attachment actions and raw ID copy/edit actions; the parent also withholds download/sticker handlers and rejects direct-media taps for shared references.
+- Direct chat attachments retain download/sticker support. Reply, reactions, report, delete and keeping the message reference remain available. Keeping the message does not authorize post media.
+- Added mounted-provider lifecycle checks for account, epoch, profile, conversation and readiness changes, late prior-account replies and pagehide/pageshow refresh.
+
+### Verification
+- Local retained Alice/Bob chat: right-clicked the synthetic owner-only shared post with a copied image URL. Actual menu exposes Reply, keep message, Delete for me and Report message, without Save, Save Sticker, Copy or Edit. Screenshot outputs/vybe-shared-post-menu.png. No production mutations.
+- All 315 files / 2,983 tests, typecheck, scoped lint and production build passed. New menu tests exercise image/GIF/video snapshots, empty-media shared IDs and preserved direct-image actions. Logs work/shared-menu-*.log. Generated app version/offline churn restored.
+
+### Next 3 tasks and limits
+1. Migrate remaining detail/profile/explore post readers and review forwarding/reply summaries. Current fixes do not globally close raw Firestore paths or recall delivered bytes.
+2. Continue native game/mod adapters and mini-app runtime isolation/operation retention. Prior engine automation restriction remains; full native upload walkthrough remains unverified.
+3. Stage the named preview function with the matching client, run physical-device checks and publish through Lovable. Broad goal remains active and incomplete; no production rollout this turn.
+
+---
+
 ## ACTIVE (2026-10-04) - Checked shared-post bubbles in direct messages
 
 ### What changed

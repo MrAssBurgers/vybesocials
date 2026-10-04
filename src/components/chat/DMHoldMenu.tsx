@@ -15,6 +15,7 @@ export interface DMHoldMenuProps {
   open: boolean;
   onClose: () => void;
   messageContent?: string | null;
+  messageType?: string | null;
   mediaUrl?: string | null;
   mediaType?: string | null;
   isOwn: boolean;
@@ -37,6 +38,7 @@ export const DMHoldMenu = memo(function DMHoldMenu({
   open,
   onClose,
   messageContent,
+  messageType,
   mediaUrl,
   mediaType,
   isOwn,
@@ -69,8 +71,10 @@ export const DMHoldMenu = memo(function DMHoldMenu({
     return () => window.clearTimeout(timeout);
   }, [open]);
 
-  const isMediaMessage = mediaUrl && (mediaType === 'image' || mediaType === 'gif');
-  const isVideoMessage = mediaUrl && mediaType === 'video';
+  // Shared-post snapshots are references, never standalone attachments or editable text.
+  const isSharedPost = messageType === 'shared_post';
+  const isMediaMessage = !isSharedPost && mediaUrl && (mediaType === 'image' || mediaType === 'gif');
+  const isVideoMessage = !isSharedPost && mediaUrl && mediaType === 'video';
 
   const handleReaction = useCallback((emoji: string) => {
     onReaction(emoji);
@@ -142,7 +146,7 @@ export const DMHoldMenu = memo(function DMHoldMenu({
               </>
             )}
 
-            {messageContent && (
+            {!isSharedPost && messageContent && (
               <>
                 <MenuDivider />
                 <MenuRow icon={Copy} label="Copy" onClick={copyToClipboard} />
@@ -163,7 +167,7 @@ export const DMHoldMenu = memo(function DMHoldMenu({
               </>
             )}
 
-            {isOwn && messageContent && !mediaUrl && onEdit && (
+            {!isSharedPost && isOwn && messageContent && !mediaUrl && onEdit && (
               <>
                 <MenuDivider />
                 <MenuRow icon={Edit3} label="Edit" onClick={() => handleAction(onEdit)} />

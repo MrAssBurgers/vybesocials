@@ -2518,7 +2518,7 @@ const MessageBubble = memo(function MessageBubble({
 
   const handleMediaTap = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isContextMenuOpen) return;
+    if (isContextMenuOpen || message.message_type === 'shared_post') return;
     if (message.media_url && (message.media_type === 'image' || message.media_type === 'gif' || message.media_type === 'video')) {
       setViewerMedia({
         url: message.media_url,
@@ -2527,7 +2527,7 @@ const MessageBubble = memo(function MessageBubble({
         timestamp: message.created_at,
       });
     }
-  }, [isContextMenuOpen, message.media_url, message.media_type, message.created_at, isOwn, sender?.username]);
+  }, [isContextMenuOpen, message.message_type, message.media_url, message.media_type, message.created_at, isOwn, sender?.username]);
 
   // Check if this is an audio message for proper sizing
   const isAudioMessage = message.media_url && message.media_type === 'audio';
@@ -3020,6 +3020,7 @@ const MessageBubble = memo(function MessageBubble({
           open={isContextMenuOpen}
           onClose={closeContextMenu}
           messageContent={message.content}
+          messageType={message.message_type}
           mediaUrl={message.media_url}
           mediaType={message.media_type}
           isOwn={isOwn}
@@ -3033,7 +3034,7 @@ const MessageBubble = memo(function MessageBubble({
             closeContextMenu();
           }}
           onReport={onReport}
-          onSave={(isMediaMessage || isVideoMessage) && message.media_url ? async () => {
+          onSave={!isSharedPost && (isMediaMessage || isVideoMessage) && message.media_url ? async () => {
             try {
               const { getSignedUrl, needsSigning } = await import('@/lib/signedUrlCache');
               const resolvedUrl = needsSigning(message.media_url!) ? await getSignedUrl(message.media_url!) : message.media_url!;
@@ -3052,7 +3053,7 @@ const MessageBubble = memo(function MessageBubble({
               toast.error('Failed to save');
             }
           } : undefined}
-          onSaveSticker={isMediaMessage && message.media_url && onSaveSticker ? () => onSaveSticker(message.media_url!) : undefined}
+          onSaveSticker={!isSharedPost && isMediaMessage && message.media_url && onSaveSticker ? () => onSaveSticker(message.media_url!) : undefined}
           onToggleKeep={onToggleSaved ? () => { onToggleSaved(); closeContextMenu(); } : undefined}
           isKept={mySaved}
         />

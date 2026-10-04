@@ -23,6 +23,10 @@ rendered content; late responses cannot restore a hidden or stopped session.
 Failed reads show an explicit retry state, never copied captions or media.
 Chat idle preloading also skips shared-post message snapshots. Video previews
 use checked thumbnails rather than fetching video metadata automatically.
+Shared-post hold menus cannot download copied message media, create stickers
+from it, or copy/edit the stored post ID as ordinary text. Reply, reactions and
+keeping the message reference remain available; keeping a reference grants no
+new post access.
 
 Detail pages and other legacy readers still require migration. Browser timer
 throttling can delay rechecks, and multiple tabs can hit the account rate limit;
