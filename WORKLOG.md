@@ -19,6 +19,10 @@ Use this file as the Lovable -> Cursor handoff each session.
 - Production sharePreview health returned 200; livekitToken and aiCatchUp returned 401 UNAUTHENTICATED. These prove endpoint/gate availability only, not calls, AI success, provider setup or deployment currency.
 - Real local browser signed in as synthetic Alice; Watch fixture qa-top-comments-20261004 changed from Newest comment first to Older popular comment first using Top comments, displayed 2 Comments and no stray zero text. Screenshot outputs/vybe-top-comments-verified.png. External video remains blocked by intentional local CSP, so playback is not certified. Closed only new audit tab 31; existing unsaved tabs preserved.
 
+### Concurrent remote changes integrated
+- Initial push was rejected because origin/main advanced to a5510143 with feed/report fallback, challenge-claim and Android session fixes. Merged without overwriting remote changes; only WORKLOG conflicted and both entries were preserved.
+- Merged client passes 325 files / 3,060 tests, production build and typecheck. Full lint exits successfully with 0 errors and 5 unused-disable warnings. Logs work/stability-merged-*.log. Backend/rules did not change in this merge; the seven-suite result remains applicable to that unchanged backend.
+- Newly merged fallback behavior still needs end-to-end authority review, especially Local feed filtering (readClientSocialFeed currently selects general/following RPCs without passing locality). Do not equate successful fallback loading or unit tests with production privacy/feature certification.
 ### Next 3 tasks (fixes/tests only)
 1. Triage the missing targets by actual reachable flow, starting with privacy reset/account functions and theme sharing; implement correct Firebase authority or repair obsolete callers without faking success.
 2. Verify remaining existing flows end to end: DM/calls/media, onboarding/settings/customization, games/mods and mini apps; close known rule/runtime/provider gaps. No claim that everything works yet.
@@ -8933,6 +8937,7 @@ All eight migration phases complete. See `.lovable/plan.md` for per-phase detail
 1. Run the iOS manual checklist above on an iPhone build and collect screenshots/recording for each auth flow.
 2. If iOS deep-link takeover is still flaky on QR camera scans, verify associated domains/Universal Link entitlement for `vybehub.app` in the native shell.
 3. Push to `origin/main`, then run Lovable Publish and production smoke test on `vybehub.app`.
+
 
 
 
