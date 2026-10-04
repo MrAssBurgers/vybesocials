@@ -287,12 +287,14 @@ service cloud.firestore {
       allow create: if signedIn() && userId == uid()
         && request.resource.data.user_id == uid()
         && request.resource.data.get('id', userId) == userId
-        && !request.resource.data.keys().hasAny(['stripe_customer_id', 'stripe_account_id']);
+        && !request.resource.data.keys().hasAny(['stripe_customer_id', 'stripe_account_id',
+          'is_verified', 'is_premium', 'premium_status', 'premium_expires_at', 'coins_balance']);
       allow update: if signedIn() && (ownsProfileId(userId) || isAdmin())
         && request.resource.data.get('user_id', userId) == resource.data.get('user_id', userId)
         && request.resource.data.get('id', userId) == resource.data.get('id', userId)
         && !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['stripe_customer_id', 'stripe_account_id']);
+          .hasAny(['stripe_customer_id', 'stripe_account_id',
+            'is_verified', 'is_premium', 'premium_status', 'premium_expires_at', 'coins_balance']);
       allow delete: if isAdmin();
     }
     // Sensitive owner-only profile fields. Public profile documents are broadly
@@ -347,13 +349,19 @@ service cloud.firestore {
         ownsProfileId(docId) ||
         docId == uid()
       );
-      allow create: if signedIn() && (willOwnUserField('user_id') || willOwnProfile('user_id'));
-      allow update: if signedIn() && (
-        resource.data.user_id == uid() ||
-        resource.data.user_id == profileId() ||
-        ownsProfileId(docId)
-      );
-      allow delete: if isAdmin();
+      // Existing client bootstrap can create only its canonical zero balance.
+      // Earned XP, level changes, and migrations belong to trusted functions.
+      allow create: if signedIn() && docId == profileId()
+        && request.resource.data.keys().hasOnly([
+          'id', 'user_id', 'profile_id', 'current_level', 'total_xp',
+          'unclaimed_rewards', 'created_at', 'updated_at'
+        ]) && request.resource.data.id == docId
+        && request.resource.data.user_id == uid()
+        && request.resource.data.profile_id == profileId()
+        && request.resource.data.current_level == 1
+        && request.resource.data.total_xp == 0
+        && request.resource.data.unclaimed_rewards == [];
+      allow update, delete: if false;
     }
     match /login_streaks/{docId} {
       allow read, write: if signedIn() && (
@@ -372,7 +380,8 @@ service cloud.firestore {
       allow write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
     match /challenge_progress/{docId} {
-      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+      allow read: if ownsUserField('user_id') || isAdmin();
+      allow write: if false;
     }
     match /challenge_rewards/{docId} {
       allow read: if signedIn() && (
@@ -380,10 +389,7 @@ service cloud.firestore {
         resource.data.user_id == profileId() ||
         isAdmin()
       );
-      allow create, update: if signedIn() && (
-        willOwnUserField('user_id') || ownsUserField('user_id') || isAdmin()
-      );
-      allow delete: if isAdmin();
+      allow write: if false;
     }
     // VYBE Score (Snapscore-style) — public read for authed users; writes via triggers/Functions only
     match /vybe_scores/{docId} {
@@ -457,8 +463,16 @@ service cloud.firestore {
     // ---------- user badges / locations / prefs ----------
     match /user_badges/{docId} {
       allow read: if signedIn();
-      allow create: if willOwnUserField('user_id');
-      allow update, delete: if ownsUserField('user_id') || isAdmin();
+      allow create, delete: if false;
+      allow update: if ownsUserField('user_id')
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['is_pinned', 'pin_order', 'is_primary', 'show_effect', 'updated_at'])
+        && request.resource.data.get('is_pinned', false) is bool
+        && request.resource.data.get('is_primary', false) is bool
+        && request.resource.data.get('show_effect', true) is bool
+        && (request.resource.data.get('pin_order', null) == null ||
+          (request.resource.data.pin_order is int && request.resource.data.pin_order >= 0
+            && request.resource.data.pin_order <= 100));
     }
     match /user_locations/{docId} {
       allow read: if signedIn();
@@ -1253,13 +1267,16 @@ service cloud.firestore {
       allow update, delete: if isOwner('owner_id') || isAdmin();
     }
     match /channels/{id} {
-      allow read: if signedIn();
-      allow write: if isAdmin();
+      allow read: if communityChannelVisible(id);
+      allow write: if false;
     }
     match /channel_messages/{id} {
-      allow read: if signedIn();
-      allow create: if willOwn('author_id');
-      allow update, delete: if isOwner('author_id') || isAdmin();
+      allow read: if communityChannelVisible(resource.data.channel_id);
+      allow write: if false;
+    }
+    match /channel_permissions/{id} {
+      allow read: if communityChannelVisible(resource.data.channel_id);
+      allow write: if false;
     }
     match /group_members/{id} {
       allow read: if signedIn();
@@ -1282,25 +1299,56 @@ service cloud.firestore {
 
     // ---------- Discord-style servers ----------
     function isServerMember(serverId) {
-      return signedIn() && (
-        exists(/databases/$(database)/documents/server_members/$(serverId + '_' + profileId())) ||
-        exists(/databases/$(database)/documents/server_members/$(serverId + '_' + uid()))
+      let server = get(/databases/$(database)/documents/servers/$(serverId));
+      let grant = get(/databases/$(database)/documents/community_admissions/$(uid())/grants/$(serverId));
+      return signedIn() && server != null && server.data.get('deleted_at', null) == null && (
+        ownsProfileId(server.data.owner_id) ||
+        (grant != null && grant.data.get('server_id', '') == serverId &&
+          grant.data.get('auth_uid', '') == uid() && grant.data.get('active', false) == true &&
+          grant.data.get('role', '') in ['owner', 'admin', 'moderator', 'member'])
       );
+    }
+    function communityRole(serverId) {
+      let server = get(/databases/$(database)/documents/servers/$(serverId));
+      let grant = get(/databases/$(database)/documents/community_admissions/$(uid())/grants/$(serverId));
+      return ownsProfileId(server.data.owner_id) ? 'owner' :
+        (grant != null && grant.data.get('role', '') in ['admin', 'moderator'] ? grant.data.role : 'member');
+    }
+    function communityChannelVisible(channelId) {
+      let channel = get(/databases/$(database)/documents/channels/$(channelId));
+      return signedIn() && channel != null && channel.data.get('deleted_at', null) == null &&
+        isServerMember(channel.data.server_id) && communityChannelRoleVisible(channelId, channel.data);
+    }
+    function communityChannelRoleVisible(channelId, channel) {
+      let role = communityRole(channel.server_id);
+      let permission = get(/databases/$(database)/documents/channel_permissions/$(channelId + '_' + role));
+      let scoped = permission != null && permission.data.get('channel_id', '') == channelId && permission.data.get('role', '') == role;
+      return role in ['owner', 'admin'] ||
+        (scoped && 'can_view' in permission.data ? permission.data.can_view == true : channel.get('is_private', false) == false);
     }
     match /servers/{docId} {
       allow read: if signedIn() && (
-        resource.data.get('is_public', false) == true ||
+        (resource.data.get('is_public', false) == true && resource.data.get('deleted_at', null) == null) ||
         ownsProfileId(resource.data.owner_id) ||
-        isServerMember(docId) ||
-        isStaffModerator()
+        isServerMember(docId)
       );
-      allow create: if willOwnProfile('owner_id');
-      allow update, delete: if ownsProfileId(resource.data.owner_id) || isStaffModerator();
+      allow write: if false;
     }
     match /server_members/{docId} {
-      allow read: if signedIn();
-      allow create: if willOwnProfile('user_id');
-      allow update, delete: if ownsProfileId(resource.data.user_id) || isStaffModerator();
+      // Legacy client-mutable admissions are quarantined, never upgraded by a
+      // browser write. Owners recover and members rejoin through the service.
+      allow read, write: if false;
+    }
+    match /community_admissions/{authUid}/grants/{serverId} {
+      allow read: if signedIn() && authUid == uid();
+      allow write: if false;
+    }
+    match /community_rosters/{serverId}/members/{authUid} {
+      allow read: if signedIn() && isServerMember(serverId);
+      allow write: if false;
+    }
+    match /community_invites/{hash} {
+      allow read, write: if false;
     }
 
     // ---------- commerce ----------
@@ -1374,10 +1422,12 @@ service cloud.firestore {
     match /business_orders/{id}    { allow read: if isOwner('buyer_id') || isOwner('seller_id') || isAdmin(); allow write: if isAdmin(); }
     match /gifted_premium/{id} {
       allow read: if ownsUserField('user_id') || ownsUserField('gifted_by') || isAdmin();
-      allow create: if willOwnUserField('gifted_by') || isAdmin();
-      allow update: if ownsUserField('user_id') || ownsUserField('gifted_by') || isAdmin();
-      allow delete: if isAdmin();
+      // Historical records require review; they no longer authorize benefits.
+      allow create, update, delete: if false;
     }
+    match /premium_grants/{id} { allow read, write: if false; }
+    match /_premium_gift_requests/{id} { allow read, write: if false; }
+    match /subscriptions/{id} { allow read, write: if false; }
     match /vybe_tokens/{docId} {
       allow read: if ownsUserField('user_id') || ownsProfileId(docId) || isAdmin();
       // Balance writes restricted to Cloud Functions (admin SDK) to prevent self-minting.

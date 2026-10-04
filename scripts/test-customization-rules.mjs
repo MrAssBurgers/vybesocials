@@ -9,7 +9,7 @@ assert.ok(projectId.startsWith('demo-'), 'Use a demo- project for emulator-only 
 assert.match(process.env.FIRESTORE_EMULATOR_HOST || '', /^(127\.0\.0\.1|localhost):\d+$/, 'Use an isolated local Firestore emulator');
 const require = createRequire(path.resolve(process.env.FIREBASE_TEST_TOOLS_ROOT || '.', 'package.json'));
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@firebase/rules-unit-testing');
-const { doc, collection, setDoc, getDoc, getDocs, query, where, updateDoc, deleteDoc } = require('firebase/firestore');
+const { doc, collection, setDoc, getDoc, getDocs, query, where, updateDoc, deleteDoc, runTransaction, writeBatch } = require('firebase/firestore');
 const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
 const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile('firestore.rules', 'utf8') } });
 let checks = 0;
@@ -100,5 +100,35 @@ try {
   await denied('unfiltered background-library enumeration rejected', () => getDocs(collection(bob, 'user_backgrounds')));
   await denied('background with forged auth UID rejected on create', () => setDoc(doc(bob, 'user_backgrounds', 'forged-auth'), background(uid, false)));
   await denied('background with forged legacy profile rejected on create', () => setDoc(doc(bob, 'user_backgrounds', 'forged-profile'), background(profileId, false)));
+
+  const pointer = doc(alice, 'profiles', uid, 'settings', 'background');
+  const legacyPointer = doc(alice, 'profiles', profileId, 'settings', 'background');
+  await allowed('owner may read absent private activation pointer for the first transaction', () => getDoc(pointer));
+  await denied('outsider cannot preallocate another UID activation pointer', () => setDoc(doc(bob, pointer.path), { active_background_id: 'foreign' }));
+  await allowed('owner may initialize canonical UID activation pointer', () => setDoc(pointer, { active_background_id: null }));
+  await allowed('owner may read canonical activation pointer', () => getDoc(pointer));
+  await allowed('legacy alias remains an owned private settings path', () => setDoc(legacyPointer, { active_background_id: null }));
+  await denied('outsider cannot read UID activation pointer', () => getDoc(doc(bob, pointer.path)));
+  await denied('outsider cannot read legacy profile activation pointer', () => getDoc(doc(bob, legacyPointer.path)));
+  await denied('guest cannot read activation pointer', () => getDoc(doc(guest, pointer.path)));
+  await allowed('activation transaction can update both owned aliases and create a new selected row', () => runTransaction(alice, async tx => {
+    await tx.get(pointer);
+    const oldUid = doc(alice, 'user_backgrounds', `active-${uid}`);
+    const oldProfile = doc(alice, 'user_backgrounds', `active-${profileId}`);
+    await tx.get(oldUid); await tx.get(oldProfile);
+    tx.update(oldUid, { is_active: false }); tx.update(oldProfile, { is_active: false });
+    tx.set(doc(alice, 'user_backgrounds', 'atomic-new-background'), background(profileId, true));
+    tx.set(pointer, { active_background_id: 'atomic-new-background' });
+  }));
+  await denied('another account cannot replace pointer and create its own row as one transaction', () => {
+    const batch = writeBatch(bob);
+    batch.set(doc(bob, pointer.path), { active_background_id: 'bob-forged-pointer-row' });
+    batch.set(doc(bob, 'user_backgrounds', 'bob-forged-pointer-row'), background(otherUid, true));
+    return batch.commit();
+  });
+  assert.equal((await getDoc(pointer)).data().active_background_id, 'atomic-new-background'); checks++;
+  console.log('PASS rejected pointer takeover preserves the previous selection');
+  await denied('outsider cannot delete activation pointer', () => deleteDoc(doc(bob, pointer.path)));
+  await allowed('owner may clear the private pointer', () => setDoc(pointer, { active_background_id: null }));
   console.log(`Customization rules: ${checks} checks passed`);
 } finally { await env.cleanup(); }

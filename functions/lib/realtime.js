@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { db, requireAuth } from './_shared/admin.js';
 import { resolveProfileIdFromAuth } from './_shared/aiQuota.js';
 import { isConversationPairBlocked, validDocumentId, withConversationAccess } from './_shared/conversationMembership.js';
+import { channelAccess } from './_shared/communityPolicy.js';
 const SECRETS = ['LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'LIVEKIT_URL'];
 async function loadProfileForAuth(authUid) {
     const profileId = await resolveProfileIdFromAuth(authUid);
@@ -52,22 +53,15 @@ async function assertCallParticipant(callId, profileId, authUid) {
 }
 /** Verify caller is a member of a community server before minting a voice-channel token. */
 async function assertServerMember(serverId, channelId, profileId, authUid) {
-    await db.runTransaction(async (tx) => {
-        const [byProfile, byAuth, channel] = await Promise.all([
-            tx.get(db.collection('server_members').doc(`${serverId}_${profileId}`)),
-            tx.get(db.collection('server_members').doc(`${serverId}_${authUid}`)),
-            tx.get(db.collection('channels').doc(channelId)),
-        ]);
-        if (!((byProfile.data()?.server_id === serverId && byProfile.data()?.user_id === profileId)
-            || (byAuth.data()?.server_id === serverId && byAuth.data()?.user_id === authUid))) {
-            throw new HttpsError('permission-denied', 'Not a member of this community');
-        }
-        const channelData = channel.data();
+    return db.runTransaction(async (tx) => {
+        const access = await channelAccess(tx, channelId, { uid: authUid, profileId });
+        const channelData = access.channel;
         // Match the existing client classifier for migrated live rooms.
         const voice = channelData?.type === 'voice' || channelData?.room_type === 'live';
-        if (channelData?.server_id !== serverId || !voice) {
+        if (access.serverId !== serverId || !voice || !access.permissions.can_view) {
             throw new HttpsError('permission-denied', 'Voice channel is not part of this community');
         }
+        return { canPublish: access.permissions.can_send };
     });
 }
 /** livekit-token — mint a LiveKit access token for a 1:1 or group call. */
@@ -134,13 +128,13 @@ export const communityVoiceToken = onCall({ secrets: SECRETS }, async (request) 
         throw new HttpsError('failed-precondition', 'LIVEKIT not configured');
     const { profileId } = await loadProfileForAuth(authUid);
     // Enforce community membership before minting a join-capable token.
-    await assertServerMember(serverId, channelId, profileId, authUid);
+    const permissions = await assertServerMember(serverId, channelId, profileId, authUid);
     const { AccessToken } = await import('livekit-server-sdk');
     // Hash a structured tuple: concatenating caller-controlled IDs with an
     // underscore allowed different server/channel pairs to share one room.
     const roomName = `comm_v2_${createHash('sha256').update(JSON.stringify([serverId, channelId])).digest('hex')}`;
     const at = new AccessToken(apiKey, apiSecret, { identity: profileId, ttl: 60 * 60 });
-    at.addGrant({ room: roomName, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true });
+    at.addGrant({ room: roomName, roomJoin: true, canPublish: permissions.canPublish, canSubscribe: true, canPublishData: permissions.canPublish });
     return { token: await at.toJwt(), url: wsUrl, room: roomName, roomName };
 });
 /** spaces-token — alias used by audio spaces UI. */

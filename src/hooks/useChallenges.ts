@@ -192,13 +192,13 @@ export function useChallengesWithProgress() {
 
   // Fetch claimed rewards to know which completed challenges have been claimed
   const { data: claimedRewards } = useQuery({
-    queryKey: ['claimed-rewards', authUserId],
+    queryKey: ['claimed-rewards', authUserId, profile?.id],
     queryFn: async () => {
       if (!authUserId) return [];
       const { data, error } = await db
         .from('challenge_rewards')
         .select('challenge_id, is_claimed')
-        .eq('user_id', authUserId);
+        .in('user_id', [...new Set([authUserId, profile?.id].filter((id): id is string => !!id))]);
       if (error) throw error;
       return data || [];
     },
@@ -214,8 +214,7 @@ export function useChallengesWithProgress() {
 
   const combined = challengeList.map(challenge => {
     const userProgress = progressList.find(p => p.challenge_id === challenge.id);
-    const reward = claimedList.find(r => r.challenge_id === challenge.id);
-    const isClaimed = reward?.is_claimed === true;
+    const isClaimed = claimedList.some(r => r.challenge_id === challenge.id && r.is_claimed === true);
     
     return {
       ...challenge,

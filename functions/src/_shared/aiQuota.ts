@@ -1,5 +1,6 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 import { db } from './admin.js';
+import { premiumIdentity, premiumStatusForUid } from './premiumAuthority.js';
 
 export type AiFeature = 'chat' | 'assist' | 'smart_replies' | 'image_gen';
 
@@ -34,20 +35,8 @@ export async function resolveProfileIdFromAuth(authUid: string): Promise<string>
 }
 
 export async function isPremiumProfile(profileId: string): Promise<boolean> {
-  const gifted = await db
-    .collection('gifted_premium')
-    .where('recipient_id', '==', profileId)
-    .where('active', '==', true)
-    .limit(1)
-    .get();
-  if (!gifted.empty) return true;
-
-  const prof = await db.collection('profiles').doc(profileId).get();
-  const authUid = prof.data()?.user_id as string | undefined;
-  if (!authUid) return false;
-
-  const sub = await db.collection('subscriptions').doc(authUid).get();
-  return sub.exists && (sub.data()?.status as string) === 'active';
+  const identity = await premiumIdentity(profileId);
+  return identity ? (await premiumStatusForUid(identity.uid, false)).active : false;
 }
 
 export async function getUserAiApiKey(

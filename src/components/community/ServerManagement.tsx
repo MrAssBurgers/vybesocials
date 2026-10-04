@@ -1,4 +1,7 @@
-import { useState, memo, useRef, useCallback } from 'react';
+import { CommunityAvatarImage as AvatarImage } from './CommunityAvatarImage';
+import { useCommunityRequest } from '@/hooks/useCommunityRequest';
+import { useCommunityMutation } from '@/hooks/useCommunityMutation';
+import { useEffect, useState, memo, useRef, useCallback } from 'react';
 import {
   Settings, Trash2, RefreshCw, Globe, Lock, Copy, Check, Users, Hash,
   Camera, Loader2, Plus, Shield, Crown, ChevronRight, X, Megaphone,
@@ -11,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -44,6 +47,7 @@ import { CreateChannelDialog } from './CreateChannelDialog';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useQueryClient } from '@tanstack/react-query';
 
 type ManagementTab = 'overview' | 'members' | 'channels' | 'roles' | 'moderation' | 'invites' | 'safety';
 
@@ -72,7 +76,9 @@ export const ServerManagement = memo(function ServerManagement({
   myRole,
   onServerDeleted,
 }: ServerManagementProps) {
+  const communityRequest = useCommunityRequest();
   const { data: server } = useServer(serverId);
+  const queryClient = useQueryClient();
   const { data: members = [] } = useServerMembers(serverId);
   const { data: channels = [] } = useChannels(serverId);
 
@@ -102,13 +108,13 @@ export const ServerManagement = memo(function ServerManagement({
   const canManage = myRole === 'owner' || myRole === 'admin';
 
   // Sync state when server loads
-  useState(() => {
+  useEffect(() => {
     if (server) {
       setName(server.name || '');
       setDescription(server.description || '');
       setIsPublic(server.is_public);
     }
-  });
+  }, [server?.id]);
 
   const handleIconChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -162,6 +168,15 @@ export const ServerManagement = memo(function ServerManagement({
   const handleChangeRole = async (userId: string, role: ServerRole) => {
     await updateRole.mutateAsync({ serverId, userId, role });
   };
+  const transfer = useCommunityMutation({
+    mutationFn: (userId: string) => communityRequest('community-manage', { action: 'transferOwnership', serverId, userId }),
+    onSuccess: () => {
+      ['my-servers', 'my-communities', 'server', 'community', 'server-members', 'community-members', 'my-server-role', 'my-community-role'].forEach(key => { queryClient.invalidateQueries({ queryKey: [key] }); });
+      toast.success('Ownership transferred. Your account is now a member.');
+    },
+    onError: error => { toast.error(error.message || 'Could not transfer ownership'); },
+  });
+  const handleTransfer = (userId: string) => { transfer.mutate(userId); };
 
   const handleDeleteChannel = async (channelId: string) => {
     await deleteChannel.mutateAsync({ channelId, serverId });
@@ -273,7 +288,7 @@ export const ServerManagement = memo(function ServerManagement({
                     <AlertDialogContent>
                       <AlertDialogHeader>
                         <AlertDialogTitle>Delete Server?</AlertDialogTitle>
-                        <AlertDialogDescription>This action cannot be undone. All channels and messages will be permanently deleted.</AlertDialogDescription>
+                        <AlertDialogDescription>Archiving closes this community and its invitations. Stored messages are retained.</AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -358,6 +373,7 @@ export const ServerManagement = memo(function ServerManagement({
                       isOwner={isOwner}
                       handleKickMember={handleKickMember}
                       handleChangeRole={handleChangeRole}
+                      handleTransfer={handleTransfer}
                       roleBadgeVariant={roleBadgeVariant}
                     />
                   )}
@@ -494,7 +510,7 @@ function OverviewTab({ server, name, setName, description, setDescription, isPub
 }
 
 // ─── MEMBERS TAB ─────────────────────────────────────────────────────
-function MembersTab({ members, canManage, isOwner, handleKickMember, handleChangeRole, roleBadgeVariant }: any) {
+function MembersTab({ members, canManage, isOwner, handleKickMember, handleChangeRole, handleTransfer, roleBadgeVariant }: any) {
   const [search, setSearch] = useState('');
   const filtered = members.filter((m: any) => {
     const name = (m.profile?.display_name || m.profile?.username || '').toLowerCase();
@@ -530,6 +546,14 @@ function MembersTab({ members, canManage, isOwner, handleKickMember, handleChang
 
             {canManage && member.role !== 'owner' && (
               <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                {isOwner && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild><Button variant="outline" size="sm" className="h-7 text-xs">Make owner</Button></AlertDialogTrigger>
+                    <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Transfer community ownership?</AlertDialogTitle>
+                      <AlertDialogDescription>{member.profile?.display_name || member.profile?.username} will become the owner. You will become a member and can then leave the community.</AlertDialogDescription>
+                    </AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleTransfer(member.user_id)}>Transfer ownership</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                  </AlertDialog>
+                )}
                 {isOwner && (
                   <Select value={member.role} onValueChange={(v) => handleChangeRole(member.user_id, v)}>
                     <SelectTrigger className="h-7 w-[100px] text-[11px] rounded-lg">
@@ -604,7 +628,7 @@ function ChannelsTab({ channels, handleDeleteChannel, setShowCreateChannel }: an
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogTitle>Delete #{channel.name}?</AlertDialogTitle>
-                      <AlertDialogDescription>This will permanently delete the channel and all messages.</AlertDialogDescription>
+                      <AlertDialogDescription>This will archive the channel and hide its messages from members.</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -625,7 +649,7 @@ function ChannelsTab({ channels, handleDeleteChannel, setShowCreateChannel }: an
                   transition={{ duration: 0.2 }}
                   className="overflow-hidden"
                 >
-                  <ChannelPermissionEditor channelId={channel.id} />
+                  <ChannelPermissionEditor channelId={channel.id} announcement={channel.type === 'announcement' || channel.room_type === 'announcements'} />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -638,15 +662,14 @@ function ChannelsTab({ channels, handleDeleteChannel, setShowCreateChannel }: an
 }
 
 // ─── CHANNEL PERMISSION EDITOR ───────────────────────────────────────
-function ChannelPermissionEditor({ channelId }: { channelId: string }) {
+function ChannelPermissionEditor({ channelId, announcement }: { channelId: string; announcement: boolean }) {
   const { data: permissions = [] } = useChannelPermissions(channelId);
   const updatePerm = useUpdateChannelPermission();
 
-  const editableRoles = ['admin', 'moderator', 'member'];
+  const editableRoles = ['moderator', 'member'];
   const permFields = [
     { key: 'can_view', label: 'View', icon: Eye },
     { key: 'can_send', label: 'Send', icon: Hash },
-    { key: 'can_manage', label: 'Manage', icon: Settings },
     { key: 'can_pin', label: 'Pin', icon: Sparkles },
     { key: 'can_attach_media', label: 'Media', icon: Camera },
   ] as const;
@@ -660,10 +683,10 @@ function ChannelPermissionEditor({ channelId }: { channelId: string }) {
   return (
     <div className="px-3 py-3 border-t border-border/20 bg-muted/10 space-y-2">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Role Permissions</p>
-      <p className="text-[10px] text-muted-foreground mb-3">Owner always has full access</p>
+      <p className="text-[10px] text-muted-foreground mb-3">Owners and administrators have full access. Moderators can pin. Announcement posting requires a moderator or higher role.</p>
       
       {/* Header */}
-      <div className="grid grid-cols-6 gap-1 text-[9px] text-muted-foreground uppercase tracking-wider font-semibold px-1">
+      <div className="grid grid-cols-5 gap-1 text-[9px] text-muted-foreground uppercase tracking-wider font-semibold px-1">
         <span>Role</span>
         {permFields.map(f => (
           <span key={f.key} className="text-center">{f.label}</span>
@@ -673,9 +696,13 @@ function ChannelPermissionEditor({ channelId }: { channelId: string }) {
       {editableRoles.map(role => {
         const perm = permissions.find((p: any) => p.role === role);
         if (!perm) return null;
+        const effective = { can_view: perm.can_view === true,
+          can_send: perm.can_view === true && perm.can_send !== false && !(announcement && role === 'member'),
+          can_pin: perm.can_view === true && (role === 'moderator' || perm.can_pin === true),
+          can_attach_media: perm.can_view === true && perm.can_attach_media !== false };
 
         return (
-          <div key={role} className="grid grid-cols-6 gap-1 items-center py-1.5 px-1 rounded-lg hover:bg-muted/20 transition-colors">
+          <div key={role} className="grid grid-cols-5 gap-1 items-center py-1.5 px-1 rounded-lg hover:bg-muted/20 transition-colors">
             <span className={cn(
               "text-xs font-medium capitalize",
               role === 'admin' ? 'text-red-400' : role === 'moderator' ? 'text-blue-400' : 'text-muted-foreground'
@@ -685,7 +712,8 @@ function ChannelPermissionEditor({ channelId }: { channelId: string }) {
             {permFields.map(f => (
               <div key={f.key} className="flex justify-center">
                 <Switch
-                  checked={perm[f.key]}
+                  checked={effective[f.key]}
+                  disabled={updatePerm.isPending || (f.key !== 'can_view' && !effective.can_view) || (f.key === 'can_pin' && role === 'moderator') || (f.key === 'can_send' && announcement && role === 'member')}
                   onCheckedChange={(checked) => {
                     updatePerm.mutate({
                       channelId,
@@ -842,7 +870,7 @@ function InvitesTab({ server, canManage, copiedInvite, handleCopyInvite, handleR
             Regenerate
           </Button>
         )}
-        <p className="text-[10px] text-muted-foreground">Share this code to let others join your server.</p>
+        <p className="text-[10px] text-muted-foreground">Share this code to let others join your server. {server?.invite_expires_at ? `Expires ${new Date(server.invite_expires_at).toLocaleString()}.` : 'Restore the community to create a new invitation.'}</p>
       </div>
 
       <div className="rounded-xl border border-border/40 p-4 space-y-3">
@@ -856,10 +884,10 @@ function InvitesTab({ server, canManage, copiedInvite, handleCopyInvite, handleR
           </div>
         </div>
         <div className="flex gap-2">
-          <Input value={server?.invite_code ? `vybehub.app/community?join=${server.invite_code}` : ''} readOnly className="text-xs font-mono rounded-xl" />
+          <Input value={server?.invite_code ? `https://vybehub.app/community?join=${server.invite_code}` : ''} readOnly className="text-xs font-mono rounded-xl" />
           <Button variant="outline" size="icon" className="shrink-0 rounded-xl" onClick={() => {
             if (server?.invite_code) {
-              navigator.clipboard.writeText(`vybehub.app/community?join=${server.invite_code}`);
+              navigator.clipboard.writeText(`https://vybehub.app/community?join=${server.invite_code}`);
               toast.success('Link copied!');
             }
           }}>

@@ -1,6 +1,8 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCommunityRequest } from '@/hooks/useCommunityRequest';
+import { useCommunityMutation } from '@/hooks/useCommunityMutation';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
-import { useMyServerRole } from '@/hooks/useServers';
+import { useAuth } from '@/lib/auth';
 
 export interface ChannelPermission {
   id: string;
@@ -14,67 +16,55 @@ export interface ChannelPermission {
 }
 
 export function useChannelPermissions(channelId: string | undefined) {
+  const communityRequest = useCommunityRequest();
+  const profileId = useAuth().user?.id;
   return useQuery({
-    queryKey: ['channel-permissions', channelId],
+    queryKey: ['channel-permissions', channelId, profileId],
     queryFn: async () => {
       if (!channelId) return [];
-      const { data, error } = await db
-        .from('channel_permissions')
-        .select('*')
-        .eq('channel_id', channelId)
-        .order('role');
-      if (error) throw error;
-      return (data || []) as ChannelPermission[];
+      const { permissions } = await communityRequest<{ permissions: ChannelPermission[] }>('community-manage', { action: 'listPermissions', channelId });
+      return permissions;
     },
-    enabled: !!channelId,
+    enabled: !!channelId && !!profileId,
   });
 }
 
 /** Get the current user's effective permissions for a channel */
 export function useMyChannelPermissions(channelId: string | undefined, serverId: string | undefined) {
-  const { data: myRole } = useMyServerRole(serverId);
+  const communityRequest = useCommunityRequest();
+  const profileId = useAuth().user?.id;
 
   return useQuery({
-    queryKey: ['my-channel-permissions', channelId, myRole],
+    queryKey: ['my-channel-permissions', channelId, profileId],
     queryFn: async () => {
-      if (!channelId || !myRole) return null;
-      // Owner always has full permissions
-      if (myRole === 'owner') {
-        return { can_view: true, can_send: true, can_manage: true, can_pin: true, can_attach_media: true };
-      }
-      const { data, error } = await db
-        .from('channel_permissions')
-        .select('can_view, can_send, can_manage, can_pin, can_attach_media')
-        .eq('channel_id', channelId)
-        .eq('role', myRole)
-        .single();
-      if (error) return { can_view: true, can_send: true, can_manage: false, can_pin: false, can_attach_media: true };
-      return data as Pick<ChannelPermission, 'can_view' | 'can_send' | 'can_manage' | 'can_pin' | 'can_attach_media'>;
+      if (!channelId || !profileId) return null;
+      const { permissions } = await communityRequest<{ permissions: Pick<ChannelPermission, 'can_view' | 'can_send' | 'can_manage' | 'can_pin' | 'can_attach_media'> }>('community-manage', { action: 'permissions', channelId });
+      return permissions;
     },
-    enabled: !!channelId && !!myRole,
+    enabled: !!channelId && !!profileId && !!serverId,
   });
 }
 
 export function useUpdateChannelPermission() {
+  const communityRequest = useCommunityRequest();
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useCommunityMutation({
     mutationFn: async ({ channelId, role, field, value }: {
       channelId: string;
       role: string;
       field: 'can_view' | 'can_send' | 'can_manage' | 'can_pin' | 'can_attach_media';
       value: boolean;
     }) => {
-      const { error } = await db
-        .from('channel_permissions')
-        .update({ [field]: value, updated_at: new Date().toISOString() } as never)
-        .eq('channel_id', channelId)
-        .eq('role', role);
-      if (error) throw error;
+      const { data: channel, error } = await db.from('channels').select('server_id').eq('id', channelId).single();
+      if (error || !channel?.server_id) throw new Error('Channel unavailable');
+      await communityRequest('community-manage', { action: 'setPermission', serverId: channel.server_id, channelId, role, field, value });
     },
     onSuccess: (_, { channelId }) => {
       queryClient.invalidateQueries({ queryKey: ['channel-permissions', channelId] });
       queryClient.invalidateQueries({ queryKey: ['my-channel-permissions', channelId] });
+      queryClient.invalidateQueries({ queryKey: ['rooms'] });
+      queryClient.invalidateQueries({ queryKey: ['channels'] });
     },
   });
 }

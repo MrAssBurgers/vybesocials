@@ -78,7 +78,7 @@ function CommunityShellInner({
   const [showMembers, setShowMembers] = useState(true);
 
   const selectedRoom = rooms.find((r) => r.id === selectedRoomId);
-  const canManage = myRole === 'owner' || myRole === 'moderator';
+  const canManage = myRole === 'owner' || myRole === 'admin';
   const communityCover = useSignedUrl(selectedCommunity.cover_url || selectedCommunity.banner_url);
   const communityIcon = useSignedUrl(selectedCommunity.icon_url);
 
@@ -402,7 +402,7 @@ function CommunityShellInner({
       {selectedCommunityId && myRole && (
         <ServerManagement
           serverId={selectedCommunityId}
-          myRole={myRole === 'moderator' ? 'admin' : myRole}
+          myRole={myRole}
           open={showSettings}
           onOpenChange={setShowSettings}
           onServerDeleted={onBackToList}

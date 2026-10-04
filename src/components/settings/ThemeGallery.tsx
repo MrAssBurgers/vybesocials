@@ -1,4 +1,4 @@
-import { useState, useMemo, memo, useCallback } from 'react';
+import { useState, useMemo, memo, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { Heart, Download, Bookmark, BookmarkCheck, Trash2, Share2, User, TrendingUp, Pencil, Check, X } from 'lucide-react';
 
@@ -17,14 +17,13 @@ import {
   useUserThemeLikes,
   useDeleteSharedTheme,
   useUpdateSharedTheme,
+  useEquipSharedTheme,
   SharedTheme,
 } from '@/hooks/useSharedThemes';
-import { persistEquippedUserTheme } from '@/hooks/useCustomTheme';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
-import { useTheme } from '@/lib/theme';
-import { useQueryClient } from '@tanstack/react-query';
+import { readDevicePreference } from '@/lib/devicePreferences';
 
 interface ThemeCardProps {
   theme: SharedTheme;
@@ -39,6 +38,7 @@ interface ThemeCardProps {
   onDelete?: () => void;
   onSelect: () => void;
   onRename?: (newName: string) => void;
+  equipPending?: boolean;
 }
 
 
@@ -55,7 +55,8 @@ const ThemeCard = memo(function ThemeCard({
   onUnsave, 
   onDelete,
   onSelect,
-  onRename
+  onRename,
+  equipPending,
 }: ThemeCardProps) {
 
   const [isEditing, setIsEditing] = useState(false);
@@ -79,7 +80,7 @@ const ThemeCard = memo(function ThemeCard({
   return (
     <div className="relative group">
       <div
-        onClick={onSelect}
+        onClick={() => { if (!equipPending) onSelect(); }}
         className={cn(
           "p-3.5 rounded-2xl border backdrop-blur-xl transition-all cursor-pointer active:scale-[0.98]",
           isActive
@@ -109,28 +110,32 @@ const ThemeCard = memo(function ThemeCard({
         )}
 
         {/* Theme Preview */}
-        <div
-          className="h-24 rounded-xl mb-2.5 relative overflow-hidden shadow-inner"
+        <button
+          type="button"
+          aria-label={`Equip ${theme.theme_name}`}
+          disabled={equipPending}
+          onClick={(event) => { event.stopPropagation(); onSelect(); }}
+          className="block w-full h-24 rounded-xl mb-2.5 relative overflow-hidden shadow-inner focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60"
           style={{
             background: `linear-gradient(135deg, hsl(${tokens.bgMain || '240 10% 4%'}), hsl(${tokens.bgCard || '240 10% 6%'}))`
           }}
         >
           {/* Accent colors */}
-          <div className="absolute bottom-2 left-2 right-2 flex gap-1">
-            <div
+          <span className="absolute bottom-2 left-2 right-2 flex gap-1">
+            <span
               className="h-2.5 flex-1 rounded-full"
               style={{ background: `hsl(${tokens.colorPrimary || '330 100% 60%'})` }}
             />
-            <div
+            <span
               className="h-2.5 flex-1 rounded-full"
               style={{ background: `hsl(${tokens.colorSecondary || '240 10% 12%'})` }}
             />
-            <div
+            <span
               className="h-2.5 flex-1 rounded-full"
               style={{ background: `hsl(${tokens.colorAccent || '185 100% 50%'})` }}
             />
-          </div>
-        </div>
+          </span>
+        </button>
 
         {/* Theme Info */}
         <div className="space-y-2">
@@ -245,7 +250,7 @@ const ThemeCard = memo(function ThemeCard({
 
 function ThemeGridSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-2 gap-3" role="status" aria-label="Loading themes">
       {[1, 2, 3, 4].map((i) => (
         <div key={i} className="p-4 rounded-xl border border-border">
           <Skeleton className="h-24 rounded-lg mb-3" />
@@ -257,14 +262,21 @@ function ThemeGridSkeleton() {
   );
 }
 
+function ThemeLoadError({ retry }: { retry: () => void }) {
+  return <div role="alert" className="py-10 text-center space-y-3">
+    <p className="text-sm">Your themes could not be loaded. Please try again.</p>
+    <button type="button" onClick={retry} className="rounded-lg border px-4 py-2 text-sm">Try again</button>
+  </div>;
+}
+
 export function ThemeGallery() {
   const { profile, user } = useAuth();
-  const queryClient = useQueryClient();
   const { triggerTransition } = useThemeTransition();
-  const { setTheme: setGlobalTheme } = useTheme();
 
-  const { data: savedThemes, isLoading: loadingSaved } = useSavedThemes();
-  const { data: myThemes, isLoading: loadingMy } = useMySharedThemes();
+  const savedQuery = useSavedThemes();
+  const myQuery = useMySharedThemes();
+  const savedThemes = savedQuery.data?.themes;
+  const myThemes = myQuery.data;
   const { data: likedIds } = useUserThemeLikes();
 
   const saveTheme = useSaveSharedTheme();
@@ -273,13 +285,21 @@ export function ThemeGallery() {
   const unlikeTheme = useUnlikeTheme();
   const deleteTheme = useDeleteSharedTheme();
   const updateTheme = useUpdateSharedTheme();
+  const equipTheme = useEquipSharedTheme();
 
-  const [activeThemeId, setActiveThemeId] = useState<string | null>(() => {
-    return localStorage.getItem('vybe-equipped-theme-id');
-  });
+  const [activeTheme, setActiveTheme] = useState<{ userId: string; id: string | null } | null>(null);
+  const accountRef = useRef({ userId: user?.id });
+  if (accountRef.current.userId !== user?.id) accountRef.current = { userId: user?.id };
+  useEffect(() => {
+    setActiveTheme(user?.id ? { userId: user.id, id: readDevicePreference(`vybe-equipped-theme-id:${user.id}`) } : null);
+  }, [user?.id]);
+  const activeThemeId = activeTheme?.userId === user?.id ? activeTheme?.id : null;
 
   // Single action: clicking a theme applies and persists it
   const handleSelectTheme = useCallback((theme: SharedTheme) => {
+    const userId = user?.id;
+    const account = accountRef.current;
+    if (!userId || equipTheme.isPending) return;
     if (!theme.theme_tokens?.colorPrimary) {
       toast.error('This theme is missing color data and cannot be applied.');
       return;
@@ -288,24 +308,12 @@ export function ThemeGallery() {
     const accentColor = theme.theme_tokens.colorAccent || '330 80% 60%';
     
     triggerTransition(primaryColor, accentColor, () => {
-      try {
-        const targetMode = theme.theme_tokens?.mode === 'light' ? 'light' : 'dark';
-        setGlobalTheme(targetMode);
-        persistEquippedUserTheme(theme.theme_tokens, {
-          themeId: theme.id,
-          queryClient,
-          userId: user?.id,
-          basePreset: 'shared',
-          themeName: theme.theme_name,
-          silent: true,
-        });
-        setActiveThemeId(theme.id);
-        toast.success(`Theme "${theme.theme_name}" equipped!`);
-      } catch (error) {
-        console.error('Error applying theme:', error);
-      }
+      if (accountRef.current !== account) return;
+      void equipTheme.mutateAsync(theme).then(() => {
+        if (accountRef.current === account) setActiveTheme({ userId, id: theme.id });
+      }).catch(() => { /* The mutation reports current-account failures. */ });
     });
-  }, [triggerTransition, setGlobalTheme, queryClient, user?.id]);
+  }, [triggerTransition, equipTheme, user?.id]);
 
 
   const handleLike = useCallback((themeId: string, isLiked: boolean) => {
@@ -331,6 +339,8 @@ export function ThemeGallery() {
     [savedThemes],
   );
 
+  if (!user) return <p className="py-10 text-center text-sm text-muted-foreground">Sign in to view your themes.</p>;
+
   return (
     <div className="space-y-4">
       <Tabs defaultValue="mine" className="w-full">
@@ -350,8 +360,10 @@ export function ThemeGallery() {
         </TabsList>
 
         <TabsContent value="mine" className="mt-4">
-          {loadingMy ? (
+          {myQuery.isPending ? (
             <ThemeGridSkeleton />
+          ) : myQuery.isError ? (
+            <ThemeLoadError retry={() => { void myQuery.refetch(); }} />
           ) : validMyThemes.length ? (
             <div className="grid grid-cols-2 gap-3">
               {validMyThemes.map((theme) => (
@@ -362,6 +374,7 @@ export function ThemeGallery() {
                   isSaved={savedThemeIds.includes(theme.id)}
                   isOwn={true}
                   isActive={activeThemeId === theme.id}
+                  equipPending={equipTheme.isPending}
                   onLike={() => handleLike(theme.id, likedIds?.includes(theme.id) || false)}
                   onSave={() => saveTheme.mutate(theme.id)}
                   onUnsave={() => unsaveTheme.mutate(theme.id)}
@@ -381,8 +394,13 @@ export function ThemeGallery() {
         </TabsContent>
 
         <TabsContent value="saved" className="mt-4">
-          {loadingSaved ? (
+          {!!savedQuery.data?.unavailableCount && !savedQuery.isError && <p className="mb-3 text-sm text-muted-foreground" role="status">
+            {savedQuery.data.unavailableCount === 1 ? 'One saved theme is no longer available.' : `${savedQuery.data.unavailableCount} saved themes are no longer available.`}
+          </p>}
+          {savedQuery.isPending ? (
             <ThemeGridSkeleton />
+          ) : savedQuery.isError ? (
+            <ThemeLoadError retry={() => { void savedQuery.refetch(); }} />
           ) : validSavedThemes.length ? (
             <div className="grid grid-cols-2 gap-3">
               {validSavedThemes.map((theme) => (
@@ -393,6 +411,7 @@ export function ThemeGallery() {
                   isSaved={true}
                   isOwn={theme.creator_id === profile?.id}
                   isActive={activeThemeId === theme.id}
+                  equipPending={equipTheme.isPending}
                   onLike={() => handleLike(theme.id, likedIds?.includes(theme.id) || false)}
                   onSave={() => {}}
                   onUnsave={() => unsaveTheme.mutate(theme.id)}
@@ -404,8 +423,8 @@ export function ThemeGallery() {
           ) : (
             <div className="text-center py-12 text-muted-foreground">
               <Bookmark className="h-12 w-12 mx-auto mb-3 opacity-40" />
-              <p className="text-sm font-medium">No saved themes</p>
-              <p className="text-xs mt-1">Save themes you like to use later</p>
+              <p className="text-sm font-medium">{savedQuery.data?.unavailableCount ? 'No available saved themes' : 'No saved themes'}</p>
+              <p className="text-xs mt-1">{savedQuery.data?.unavailableCount ? 'A theme may have been removed or its sharing settings changed.' : 'Save themes you like to use later'}</p>
             </div>
           )}
         </TabsContent>

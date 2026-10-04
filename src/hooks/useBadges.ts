@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { db } from '@/lib/firebase';
+import { db, getFirebaseAuth } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 export interface Badge {
@@ -123,7 +123,7 @@ export function useUserPrimaryBadge(userId: string | undefined) {
  */
 export function useUpdateBadgeSettings() {
   const queryClient = useQueryClient();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
 
   return useMutation({
     mutationFn: async ({
@@ -133,12 +133,12 @@ export function useUpdateBadgeSettings() {
       badgeId: string;
       updates: { is_pinned?: boolean; pin_order?: number; show_effect?: boolean };
     }) => {
-      if (!profile) throw new Error('Not authenticated');
+      if (!profile || !user || getFirebaseAuth()?.currentUser?.uid !== user.id) throw new Error('Not authenticated');
       
       const { error } = await db
         .from('user_badges')
         .update(updates)
-        .eq('user_id', profile.id)
+        .in('user_id', [...new Set([profile.id, user.id])])
         .eq('badge_id', badgeId);
       
       if (error) throw error;
@@ -155,6 +155,7 @@ export function useUpdateBadgeSettings() {
  */
 export function useAwardBadge() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async ({
@@ -166,6 +167,7 @@ export function useAwardBadge() {
       badgeId: string;
       expiresAt?: string;
     }) => {
+      if (!user || getFirebaseAuth()?.currentUser?.uid !== user.id) throw new Error('Sign in again before changing badges');
       const { data, error } = await db
         .rpc('award_badge', {
           p_user_id: userId,
@@ -173,11 +175,15 @@ export function useAwardBadge() {
           p_expires_at: expiresAt || null,
         });
       
+      if (getFirebaseAuth()?.currentUser?.uid !== user.id) throw new Error('Account changed');
       if (error) throw error;
-      return data;
+      if (!data || data.success !== true) throw new Error('Badge award was not confirmed');
+      return { ...data, actorUid: user.id };
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (data, variables) => {
+      if (getFirebaseAuth()?.currentUser?.uid !== data.actorUid) return;
       queryClient.invalidateQueries({ queryKey: ['user-badges', variables.userId] });
+      queryClient.invalidateQueries({ queryKey: ['user-primary-badge', variables.userId] });
     },
   });
 }
@@ -187,6 +193,7 @@ export function useAwardBadge() {
  */
 export function useRemoveBadge() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async ({
@@ -196,16 +203,18 @@ export function useRemoveBadge() {
       userId: string;
       badgeId: string;
     }) => {
-      const { error } = await db
-        .from('user_badges')
-        .delete()
-        .eq('user_id', userId)
-        .eq('badge_id', badgeId);
+      if (!user || getFirebaseAuth()?.currentUser?.uid !== user.id) throw new Error('Sign in again before changing badges');
+      const { data, error } = await db.rpc('revoke_badge', { p_user_id: userId, p_badge_id: badgeId });
       
+      if (getFirebaseAuth()?.currentUser?.uid !== user.id) throw new Error('Account changed');
       if (error) throw error;
+      if (!data || data.success !== true) throw new Error('Badge removal was not confirmed');
+      return { actorUid: user.id };
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (data, variables) => {
+      if (getFirebaseAuth()?.currentUser?.uid !== data.actorUid) return;
       queryClient.invalidateQueries({ queryKey: ['user-badges', variables.userId] });
+      queryClient.invalidateQueries({ queryKey: ['user-primary-badge', variables.userId] });
     },
   });
 }

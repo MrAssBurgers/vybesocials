@@ -18,6 +18,7 @@ import { useMyChannelPermissions } from '@/hooks/useChannelPermissions';
 import { useAuth } from '@/lib/auth';
 import { format, isToday, isYesterday } from 'date-fns';
 import { toast } from 'sonner';
+import { useCommunityMessageActions } from './useCommunityMessageActions';
 
 interface ChannelChatProps {
   channelId: string;
@@ -26,7 +27,7 @@ interface ChannelChatProps {
 }
 
 export const ChannelChat = memo(function ChannelChat({ channelId, channelName, serverId }: ChannelChatProps) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { data: messages = [], isLoading } = useChannelMessages(channelId);
   const sendMessage = useSendChannelMessage();
   const { data: myRole } = useMyServerRole(serverId);
@@ -34,7 +35,7 @@ export const ChannelChat = memo(function ChannelChat({ channelId, channelName, s
   const [messageText, setMessageText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const canSend = myPerms?.can_send !== false;
+  const canSend = myPerms?.can_send === true;
   const canModerate = myRole === 'owner' || myRole === 'admin' || myRole === 'moderator';
 
   // Scroll to bottom on new messages
@@ -46,12 +47,10 @@ export const ChannelChat = memo(function ChannelChat({ channelId, channelName, s
     if (!messageText.trim() || sendMessage.isPending) return;
 
     const text = messageText.trim();
-    setMessageText('');
-
-    await sendMessage.mutateAsync({
-      channelId,
-      content: text,
-    });
+    try {
+      await sendMessage.mutateAsync({ channelId, content: text });
+      setMessageText('');
+    } catch { /* Keep the draft; the mutation displays the error. */ }
   }, [messageText, channelId, sendMessage]);
 
   const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
@@ -130,7 +129,7 @@ export const ChannelChat = memo(function ChannelChat({ channelId, channelName, s
                     <div key={message.id} className={cn(spacingClass, index === 0 && 'pt-0')}>
                       <MessageItem
                         message={message}
-                        isOwn={message.sender_id === profile?.id}
+                        isOwn={message.sender_id === profile?.id && (message.author_id === user?.id || message.author_id === profile?.id)}
                         showFullHeader={showFullHeader}
                         canModerate={canModerate}
                       />
@@ -208,6 +207,7 @@ const MessageItem = memo(function MessageItem({
   showFullHeader: boolean;
   canModerate: boolean;
 }) {
+  const actions = useCommunityMessageActions(message);
   const copyToClipboard = () => {
     if (message.content) {
       navigator.clipboard.writeText(message.content);
@@ -216,6 +216,7 @@ const MessageItem = memo(function MessageItem({
   };
 
   return (
+    <>
     <div className={cn(
       "group flex gap-2 sm:gap-3 hover:bg-muted/20 -mx-1 sm:-mx-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl transition-colors active:bg-muted/30",
       !showFullHeader && "pl-10 sm:pl-14"
@@ -278,13 +279,13 @@ const MessageItem = memo(function MessageItem({
                 Copy
               </DropdownMenuItem>
               {isOwn && (
-                <DropdownMenuItem className="gap-2">
+                <DropdownMenuItem className="gap-2" onSelect={actions.edit}>
                   <Edit3 className="h-4 w-4" />
                   Edit
                 </DropdownMenuItem>
               )}
               {(isOwn || canModerate) && (
-                <DropdownMenuItem className="text-destructive gap-2">
+                <DropdownMenuItem className="text-destructive gap-2" onSelect={actions.remove}>
                   <Trash2 className="h-4 w-4" />
                   Delete
                 </DropdownMenuItem>
@@ -305,5 +306,7 @@ const MessageItem = memo(function MessageItem({
         )}
       </div>
     </div>
+    {actions.dialog}
+    </>
   );
 });

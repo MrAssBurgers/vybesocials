@@ -53,6 +53,9 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { ColorMatchPrompt } from './ColorMatchPrompt';
+import { BackgroundAccountChangedError, useBackgroundAccount } from '@/hooks/useBackgroundAccount';
+import { getSignedUrl, needsSigning } from '@/lib/signedUrlCache';
+import { SignedImage } from '@/components/ui/SignedMedia';
 
 export interface ExtractedColors {
   primary: string;
@@ -119,7 +122,7 @@ function extractColorsFromImage(imageUrl: string): Promise<ExtractedColors> {
       img.crossOrigin = 'anonymous';
     }
     
-    img.onload = () => {
+    img.onload = () => { try {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       if (!ctx) { reject(new Error('Could not get canvas context')); return; }
@@ -179,14 +182,14 @@ function extractColorsFromImage(imageUrl: string): Promise<ExtractedColors> {
         accent: `${accentHsl[0]} ${Math.min(100, accentHsl[1] + 20)}% ${Math.min(70, Math.max(40, accentHsl[2]))}%`,
         background: `${bgHsl[0]} ${Math.min(30, bgHsl[1])}% ${Math.min(10, bgHsl[2])}%`,
       });
-    };
+    } catch (error) { reject(error); } };
 
     img.onerror = () => reject(new Error('Failed to load image for color extraction'));
     img.src = imageUrl;
   });
 }
 
-export function BackgroundCustomizer({
+function BackgroundCustomizerSession({
   currentBackground,
   backgroundOpacity,
   backgroundBlur,
@@ -195,7 +198,7 @@ export function BackgroundCustomizer({
   onBlurChange,
   onColorsExtracted,
 }: BackgroundCustomizerProps) {
-  const { user, profile } = useAuth();
+  const { profile } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -217,7 +220,7 @@ export function BackgroundCustomizer({
   const [editName, setEditName] = useState('');
 
   // Hooks for background management
-  const { data: userBackgrounds = [], isLoading: isLoadingBackgrounds } = useUserBackgrounds();
+  const { data: userBackgrounds = [], isLoading: isLoadingBackgrounds, isError: backgroundsError, refetch: retryBackgrounds } = useUserBackgrounds();
   const addBackground = useAddBackground();
   const setActiveBackground = useSetActiveBackground();
   const deleteBackground = useDeleteBackground();
@@ -227,7 +230,7 @@ export function BackgroundCustomizer({
   // Get AppBackground context for immediate visual updates
   const appBackground = useAppBackgroundSafe();
 
-  const userId = profile?.id || user?.id;
+
 
   // Clear error after 5 seconds
   useEffect(() => {
@@ -237,29 +240,24 @@ export function BackgroundCustomizer({
     }
   }, [uploadError]);
 
-  // Extract colors when background changes
-  const handleColorExtraction = useCallback(async (imageUrl: string) => {
-    setIsExtracting(true);
-    try {
-      const colors = await extractColorsFromImage(imageUrl);
-      setExtractedColors(colors);
-    } catch (error) {
-      console.error('[ColorExtraction] Failed:', error);
-      setExtractedColors(null);
-    } finally {
-      setIsExtracting(false);
-    }
-  }, []);
-
+  // Each source change cancels pending color work, including component unmount.
   useEffect(() => {
-    if (currentBackground) {
-      handleColorExtraction(currentBackground);
-      setImageLoadError(false);
-    } else {
-      setExtractedColors(null);
-    }
-  }, [currentBackground, handleColorExtraction]);
-
+    let cancelled = false;
+    setExtractedColors(null);
+    setImageLoadError(false);
+    if (!currentBackground) { setIsExtracting(false); return; }
+    setIsExtracting(true);
+    void (async () => {
+      try {
+        const url = needsSigning(currentBackground) ? await getSignedUrl(currentBackground) : currentBackground;
+        if (!url || cancelled) return;
+        const colors = await extractColorsFromImage(url);
+        if (!cancelled) setExtractedColors(colors);
+      } catch { /* Color extraction is optional. */ }
+      finally { if (!cancelled) setIsExtracting(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [currentBackground]);
   const validateFile = useCallback((file: File): string | null => {
     if (!ACCEPTED_TYPES.includes(file.type)) {
       return `Unsupported format. Please use: JPG, PNG, GIF, WebP, SVG, or BMP`;
@@ -270,211 +268,141 @@ export function BackgroundCustomizer({
     return null;
   }, []);
 
-  const uploadFile = useCallback(async (file: File) => {
-    if (!userId) {
-      setUploadError('Please sign in to upload backgrounds');
-      return;
-    }
+  const busyRef = useRef(false);
+  const [isWorking, setIsWorking] = useState(false);
+  const { account, isCurrent, assertCurrent } = useBackgroundAccount();
+  const startAction = () => {
+    if (busyRef.current) return false;
+    busyRef.current = true; setIsWorking(true); return true;
+  };
+  const finishAction = () => {
+    if (!isCurrent()) return;
+    busyRef.current = false; setIsWorking(false);
+  };
+  const resolveImage = async (url: string) => {
+    const resolved = needsSigning(url) ? await getSignedUrl(url) : url;
+    await assertCurrent();
+    if (!resolved || resolved.startsWith('gs://')) throw new Error('The background image is not available. Please try again.');
+    return resolved;
+  };
+  const offerColors = async (url: string) => {
+    if (!onColorsExtracted) return;
+    try {
+      const colors = await extractColorsFromImage(url);
+      if (!isCurrent()) return;
+      setPendingExtractedColors(colors); setShowColorMatchPrompt(true);
+    } catch { /* Color matching is optional; the saved background is still usable. */ }
+  };
 
+  const uploadFile = async (file: File) => {
+    if (!account.authUid || !account.profileId) { setUploadError('Please sign in to upload backgrounds'); return; }
     const validationError = validateFile(file);
-    if (validationError) {
-      setUploadError(validationError);
-      toast.error(validationError);
-      return;
-    }
-
-    setIsUploading(true);
-    setUploadError(null);
-
+    if (validationError) { setUploadError(validationError); toast.error(validationError); return; }
+    if (!startAction()) return;
+    setIsUploading(true); setUploadError(null);
     try {
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-      const storagePath = `backgrounds/${userId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
-
-      // Upload to storage
-      const { error: uploadError } = await db.storage
-        .from('media')
-        .upload(storagePath, file, { upsert: true, contentType: file.type });
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: { publicUrl } } = db.storage
-        .from('media')
-        .getPublicUrl(storagePath);
-
-      // Save to database and set as active
-      await addBackground.mutateAsync({
-        imageUrl: publicUrl,
-        name: file.name.replace(/\.[^/.]+$/, ''), // Remove extension for name
-        storagePath,
-        setActive: true,
-      });
-
-      // Apply background immediately via AppBackground context
-      appBackground?.setBackgroundImage(publicUrl);
-      onBackgroundChange(publicUrl);
-      toast.success('Background applied!');
-      
-      // Extract colors and show prompt to ask if user wants to match
-      if (onColorsExtracted) {
-        try {
-          const colors = await extractColorsFromImage(publicUrl);
-          setPendingExtractedColors(colors);
-          setShowColorMatchPrompt(true);
-        } catch (err) {
-          console.error('[ColorExtraction] Failed:', err);
-        }
-      }
-    } catch (error: any) {
-      console.error('[BackgroundUpload] Error:', error);
-      const message = error.message || 'Failed to upload background';
-      setUploadError(message);
-      toast.error(message);
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  }, [userId, validateFile, onBackgroundChange, addBackground, onColorsExtracted, appBackground]);
-
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) uploadFile(file);
-  }, [uploadFile]);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) uploadFile(file);
-  }, [uploadFile]);
-
-  const handleGenerateBackground = useCallback(async (prompt: string, styleId?: string) => {
-    if (!prompt.trim()) {
-      toast.error('Please enter a description or select a style');
-      return;
-    }
-
-    setIsGenerating(true);
-    setSelectedStyle(styleId || null);
-
-    try {
-      const { data, error } = await db.functions.invoke('generate-background', {
-        body: { prompt, style: styleId },
-      });
-
+      await assertCurrent();
+      const ext = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg', 'image/bmp': 'bmp' } as Record<string, string>)[file.type];
+      const storagePath = `${account.authUid}/backgrounds/${crypto.randomUUID()}.${ext}`;
+      const { error } = await db.storage.from('media').upload(storagePath, file, { upsert: false, contentType: file.type });
       if (error) throw error;
-      if (data.error) throw new Error(data.error);
-
-      if (data.imageUrl) {
-        // Save to library and apply
-        await addBackground.mutateAsync({
-          imageUrl: data.imageUrl,
-          name: styleId ? AI_BACKGROUND_STYLES.find(s => s.id === styleId)?.label : 'AI Generated',
-          setActive: true,
-        });
-        // Apply immediately via AppBackground context
-        appBackground?.setBackgroundImage(data.imageUrl);
-        onBackgroundChange(data.imageUrl);
-        toast.success('Background generated!');
-        
-        // Extract colors and show prompt to ask if user wants to match
-        if (onColorsExtracted) {
-          try {
-            const colors = await extractColorsFromImage(data.imageUrl);
-            setPendingExtractedColors(colors);
-            setShowColorMatchPrompt(true);
-          } catch (err) {
-            console.error('[ColorExtraction] Failed:', err);
-          }
-        }
-      } else {
-        throw new Error('No image generated');
-      }
-    } catch (error: any) {
-      console.error('Generation error:', error);
-      if (error.message?.includes('Rate limit')) {
-        toast.error('Too many requests. Please wait a moment.');
-      } else if (error.message?.includes('credits')) {
-        toast.error('AI credits exhausted.');
-      } else {
-        toast.error('Failed to generate background');
-      }
+      await assertCurrent();
+      const { data: { publicUrl } } = db.storage.from('media').getPublicUrl(storagePath);
+      const displayUrl = await resolveImage(publicUrl);
+      await addBackground.mutateAsync({ imageUrl: publicUrl, name: file.name.replace(/\.[^/.]+$/, ''), storagePath, setActive: true });
+      await assertCurrent();
+      appBackground?.setBackgroundImage(publicUrl); onBackgroundChange(displayUrl);
+      toast.success('Background applied!');
+      void offerColors(displayUrl);
+    } catch (error) {
+      if (!isCurrent() || error instanceof BackgroundAccountChangedError) return;
+      const message = error instanceof Error ? error.message : 'Failed to upload background';
+      setUploadError(message); toast.error(message);
     } finally {
-      setIsGenerating(false);
-      setSelectedStyle(null);
+      if (isCurrent()) { setIsUploading(false); if (fileInputRef.current) fileInputRef.current.value = ''; }
+      finishAction();
     }
-  }, [onBackgroundChange, addBackground, onColorsExtracted, appBackground]);
+  };
 
-  const handleSelectBackground = useCallback(async (bg: UserBackground) => {
-    await setActiveBackground.mutateAsync(bg.id);
-    // Apply immediately via AppBackground context
-    appBackground?.setBackgroundImage(bg.image_url);
-    onBackgroundChange(bg.image_url);
-  }, [setActiveBackground, onBackgroundChange, appBackground]);
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; if (file) void uploadFile(file);
+  };
+  const handleDragOver = (event: React.DragEvent) => { event.preventDefault(); event.stopPropagation(); setIsDragging(true); };
+  const handleDragLeave = (event: React.DragEvent) => { event.preventDefault(); event.stopPropagation(); setIsDragging(false); };
+  const handleDrop = (event: React.DragEvent) => {
+    event.preventDefault(); event.stopPropagation(); setIsDragging(false);
+    const file = event.dataTransfer.files?.[0]; if (file) void uploadFile(file);
+  };
 
-  const handleDeleteBackground = useCallback(async () => {
-    if (!deleteConfirmId) return;
-    const bg = userBackgrounds.find(b => b.id === deleteConfirmId);
-    if (!bg) return;
-
-    await deleteBackground.mutateAsync({ id: bg.id, storagePath: bg.storage_path });
-    
-    // If this was the active background, clear it
-    if (bg.is_active) {
-      appBackground?.setBackgroundImage(null);
-      onBackgroundChange(null);
-    }
-    setDeleteConfirmId(null);
-  }, [deleteConfirmId, userBackgrounds, deleteBackground, onBackgroundChange, appBackground]);
-
-  const handleRenameBackground = useCallback(async (id: string) => {
-    if (!editName.trim()) return;
-    await renameBackground.mutateAsync({ id, name: editName.trim() });
-    setEditingId(null);
-    setEditName('');
-  }, [editName, renameBackground]);
-
-  const removeBackground = useCallback(async () => {
-    // 1. Optimistic: clear body styles + context state instantly
-    appBackground?.setBackgroundImage(null);
-    appBackground?.setBackgroundOpacity(1);
-    appBackground?.setBackgroundBlur(0);
-    onOpacityChange(100);
-    onBlurChange(0);
-    onBackgroundChange(null);
-    setExtractedColors(null);
-    setPendingExtractedColors(null);
-    setImageLoadError(false);
-
-    // 2. Persist
+  const handleGenerateBackground = async (prompt: string, styleId?: string) => {
+    if (!prompt.trim()) { toast.error('Please enter a description or select a style'); return; }
+    if (!startAction()) return;
+    setIsGenerating(true); setSelectedStyle(styleId || null);
     try {
-      await clearActiveBackground.mutateAsync();
-      toast.success('Default background restored');
-    } catch (e) {
-      toast.error('Could not save — applied locally');
+      await assertCurrent();
+      const { data, error } = await db.functions.invoke('generate-background', { body: { prompt, style: styleId } });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      await assertCurrent();
+      const imageUrl = data?.url || data?.imageUrl;
+      if (typeof imageUrl !== 'string' || !imageUrl) throw new Error('No image generated');
+      const displayUrl = await resolveImage(imageUrl);
+      await addBackground.mutateAsync({ imageUrl, name: styleId ? AI_BACKGROUND_STYLES.find(style => style.id === styleId)?.label : 'AI Generated', setActive: true });
+      await assertCurrent();
+      appBackground?.setBackgroundImage(imageUrl); onBackgroundChange(displayUrl);
+      toast.success('Background generated!');
+      void offerColors(displayUrl);
+    } catch (error) {
+      if (isCurrent() && !(error instanceof BackgroundAccountChangedError)) toast.error(error instanceof Error ? error.message : 'Failed to generate background');
+    } finally {
+      if (isCurrent()) { setIsGenerating(false); setSelectedStyle(null); }
+      finishAction();
     }
+  };
 
-    // 3. If a cosmetic theme is still equipped, surface a note
-    const equippedTheme = (profile as any)?.equipped_profile_theme;
-    if (equippedTheme) {
-      toast.message('Cosmetic theme still equipped', {
-        description: 'Unequip it in your Locker to fully clear.',
-      });
-    }
-  }, [clearActiveBackground, onBackgroundChange, onOpacityChange, onBlurChange, appBackground, profile]);
+  const handleSelectBackground = async (bg: UserBackground) => {
+    if (!startAction()) return;
+    try {
+      await assertCurrent();
+      const displayUrl = await resolveImage(bg.image_url);
+      await setActiveBackground.mutateAsync(bg.id);
+      await assertCurrent();
+      appBackground?.setBackgroundImage(bg.image_url); onBackgroundChange(displayUrl);
+    } catch (error) { if (isCurrent() && !(error instanceof BackgroundAccountChangedError)) toast.error(error instanceof Error ? error.message : 'Could not apply background'); }
+    finally { finishAction(); }
+  };
+  const handleDeleteBackground = async () => {
+    const bg = userBackgrounds.find(item => item.id === deleteConfirmId);
+    if (!bg || !startAction()) return;
+    try {
+      const result = await deleteBackground.mutateAsync({ id: bg.id });
+      await assertCurrent();
+      // Use committed state, not the card's potentially stale is_active value.
+      if (result.wasActive) { if (appBackground) await appBackground.refreshBackground(); else onBackgroundChange(null); await assertCurrent(); }
+      setDeleteConfirmId(null);
+    } catch { /* Keep saved state when deletion fails. */ }
+    finally { finishAction(); }
+  };
+  const handleRenameBackground = async (id: string) => {
+    if (!editName.trim() || !startAction()) return;
+    try {
+      await renameBackground.mutateAsync({ id, name: editName.trim() }); await assertCurrent();
+      setEditingId(null); setEditName('');
+    } catch { /* The hook shows the write failure. */ }
+    finally { finishAction(); }
+  };
+  const removeBackground = async () => {
+    if (!startAction()) return;
+    try {
+      await clearActiveBackground.mutateAsync(); await assertCurrent();
+      appBackground?.setBackgroundImage(null); appBackground?.setBackgroundOpacity(1); appBackground?.setBackgroundBlur(0);
+      onOpacityChange(100); onBlurChange(0); onBackgroundChange(null);
+      setExtractedColors(null); setPendingExtractedColors(null); setImageLoadError(false);
+      toast.success('Default background restored');
+      if ((profile as { equipped_profile_theme?: string | null } | null)?.equipped_profile_theme) toast.message('Cosmetic theme still equipped', { description: 'Unequip it in your Locker to fully clear.' });
+    } catch { /* A rejected save must keep the current background visible. */ }
+    finally { finishAction(); }
+  };
 
   // Handle applying colors from prompt
   const handleApplyColorsFromPrompt = useCallback(() => {
@@ -500,9 +428,8 @@ export function BackgroundCustomizer({
 
   const handleImageError = useCallback(() => {
     setImageLoadError(true);
-    toast.error('Background image failed to load. Falling back to default.');
-    onBackgroundChange(null);
-  }, [onBackgroundChange]);
+    toast.error('Background preview could not load. Your saved background has not changed.');
+  }, []);
 
   return (
     <div className="space-y-6 px-1">
@@ -520,7 +447,7 @@ export function BackgroundCustomizer({
           <Label className="text-sm font-semibold">Current Background</Label>
           {currentBackground && (
             <button
-              onClick={removeBackground}
+              onClick={removeBackground} disabled={isWorking}
               className="text-xs text-muted-foreground hover:text-foreground active:scale-95 transition flex items-center gap-1"
             >
               <X className="h-3.5 w-3.5" />
@@ -541,8 +468,8 @@ export function BackgroundCustomizer({
         >
           {currentBackground && !imageLoadError ? (
             <>
-              <img
-                src={currentBackground}
+              <SignedImage
+                key={currentBackground} src={currentBackground}
                 alt="Background preview"
                 className="absolute inset-0 w-full h-full object-cover"
                 style={{
@@ -606,7 +533,7 @@ export function BackgroundCustomizer({
               <div className="flex items-center justify-center py-10">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
-            ) : userBackgrounds.length > 0 ? (
+            ) : backgroundsError ? (<div role="alert" className="text-center py-8 text-sm"><p>Could not load your backgrounds.</p><Button variant="outline" onClick={() => void retryBackgrounds()}>Try again</Button></div>) : userBackgrounds.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {userBackgrounds.map((bg) => (
                   <div
@@ -616,9 +543,9 @@ export function BackgroundCustomizer({
                       'transition-all hover:ring-2 hover:ring-primary/50',
                       bg.is_active && 'ring-2 ring-primary'
                     )}
-                    onClick={() => handleSelectBackground(bg)}
+                    onClick={() => void handleSelectBackground(bg)}
                   >
-                    <img
+                    <SignedImage
                       src={bg.image_url}
                       alt={bg.name || 'Background'}
                       className="w-full h-full object-cover"
@@ -716,7 +643,7 @@ export function BackgroundCustomizer({
                     <button
                       key={style.id}
                       onClick={() => handleGenerateBackground(style.prompt, style.id)}
-                      disabled={isGenerating}
+                      disabled={isWorking}
                       className={cn(
                         'p-2.5 rounded-xl border text-center transition-all',
                         'hover:border-primary/50 hover:bg-primary/5',
@@ -744,11 +671,11 @@ export function BackgroundCustomizer({
                   value={customPrompt}
                   onChange={(e) => setCustomPrompt(e.target.value)}
                   className="flex-1"
-                  disabled={isGenerating}
+                  disabled={isWorking}
                 />
                 <Button
                   onClick={() => handleGenerateBackground(customPrompt)}
-                  disabled={!customPrompt.trim() || isGenerating}
+                  disabled={!customPrompt.trim() || isWorking}
                   className="gap-1.5"
                 >
                   {isGenerating && !selectedStyle ? (
@@ -854,7 +781,7 @@ export function BackgroundCustomizer({
         type="file"
         accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.bmp,image/*"
         onChange={handleFileSelect}
-        className="hidden"
+        className="hidden" aria-label="Upload background image" disabled={isWorking}
       />
 
       {/* Color Match Prompt Modal */}
@@ -872,12 +799,12 @@ export function BackgroundCustomizer({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Background?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove this background from your library. This action cannot be undone.
+              This removes the background from your library. If it is active, your default background will return.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteBackground} className="bg-destructive hover:bg-destructive/90">
+            <AlertDialogAction onClick={handleDeleteBackground} disabled={isWorking} className="bg-destructive hover:bg-destructive/90">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -906,4 +833,9 @@ export function BackgroundCustomizer({
       </AlertDialog>
     </div>
   );
+}
+
+export function BackgroundCustomizer(props: BackgroundCustomizerProps) {
+  const { user, profile } = useAuth();
+  return <BackgroundCustomizerSession key={`${user?.id || 'signed-out'}:${profile?.id || ''}`} {...props} />;
 }

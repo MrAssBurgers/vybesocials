@@ -5,7 +5,7 @@ import {
   Save, X, Loader2, UserMinus
 } from 'lucide-react';
 import { useAllBadges, useAwardBadge, useRemoveBadge, Badge } from '@/hooks/useBadges';
-import { db } from '@/lib/firebase';
+import { db, getFirebaseAuth } from '@/lib/firebase';
 import { GlassCard } from '@/components/ui/glass/GlassCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -147,6 +147,8 @@ export function AdminBadgeManager() {
   });
 
   const handleRemoveBadge = async (holder: BadgeHolder) => {
+    const staffUid = getFirebaseAuth()?.currentUser?.uid;
+    if (!staffUid) return;
     if (!confirm(`Remove badge from @${holder.username}?`)) return;
     
     try {
@@ -154,6 +156,7 @@ export function AdminBadgeManager() {
         userId: holder.user_id,
         badgeId: holder.badge_id,
       });
+      if (getFirebaseAuth()?.currentUser?.uid !== staffUid) return;
       
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ['badge-holders', holder.badge_id] });
@@ -163,6 +166,7 @@ export function AdminBadgeManager() {
       toast.success(`Badge removed from @${holder.username}`);
       refetchHolders();
     } catch (err: any) {
+      if (getFirebaseAuth()?.currentUser?.uid !== staffUid) return;
       toast.error(err.message);
     }
   };
@@ -279,6 +283,8 @@ export function AdminBadgeManager() {
 
   const handleAwardBadge = async () => {
     if (!selectedBadgeForManage) return;
+    const staffUid = getFirebaseAuth()?.currentUser?.uid;
+    if (!staffUid) return;
     
     // Use selected user from dropdown, or search by username if typed manually
     let targetProfile = selectedUser;
@@ -289,6 +295,7 @@ export function AdminBadgeManager() {
         .select('id, user_id, username, display_name, avatar_url')
         .or(`username.ilike.${awardUsername.trim()},display_name.ilike.${awardUsername.trim()}`)
         .maybeSingle();
+      if (getFirebaseAuth()?.currentUser?.uid !== staffUid) return;
       
       if (error || !data) {
         toast.error('User not found');
@@ -310,6 +317,7 @@ export function AdminBadgeManager() {
         userId: targetUserId,
         badgeId: selectedBadgeForManage.id,
       });
+      if (getFirebaseAuth()?.currentUser?.uid !== staffUid) return;
       
       // Invalidate both the target user's badges and display style
       queryClient.invalidateQueries({ queryKey: ['user-badges', targetProfile.id] });
@@ -322,6 +330,7 @@ export function AdminBadgeManager() {
       setSelectedUser(null);
       refetchHolders();
     } catch (err: any) {
+      if (getFirebaseAuth()?.currentUser?.uid !== staffUid) return;
       toast.error(err.message);
     }
   };

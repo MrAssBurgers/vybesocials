@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { db, requireAuth } from './_shared/admin.js';
 import { resolveProfileIdFromAuth } from './_shared/aiQuota.js';
 import { isConversationPairBlocked, validDocumentId, withConversationAccess } from './_shared/conversationMembership.js';
+import { channelAccess } from './_shared/communityPolicy.js';
 
 const SECRETS = ['LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'LIVEKIT_URL'];
 
@@ -74,23 +75,16 @@ async function assertServerMember(
   channelId: string,
   profileId: string,
   authUid: string,
-): Promise<void> {
-  await db.runTransaction(async tx => {
-    const [byProfile, byAuth, channel] = await Promise.all([
-      tx.get(db.collection('server_members').doc(`${serverId}_${profileId}`)),
-      tx.get(db.collection('server_members').doc(`${serverId}_${authUid}`)),
-      tx.get(db.collection('channels').doc(channelId)),
-    ]);
-    if (!((byProfile.data()?.server_id === serverId && byProfile.data()?.user_id === profileId)
-      || (byAuth.data()?.server_id === serverId && byAuth.data()?.user_id === authUid))) {
-      throw new HttpsError('permission-denied', 'Not a member of this community');
-    }
-    const channelData = channel.data();
+): Promise<{ canPublish: boolean }> {
+  return db.runTransaction(async tx => {
+    const access = await channelAccess(tx, channelId, { uid: authUid, profileId });
+    const channelData = access.channel;
     // Match the existing client classifier for migrated live rooms.
     const voice = channelData?.type === 'voice' || channelData?.room_type === 'live';
-    if (channelData?.server_id !== serverId || !voice) {
+    if (access.serverId !== serverId || !voice || !access.permissions.can_view) {
       throw new HttpsError('permission-denied', 'Voice channel is not part of this community');
     }
+    return { canPublish: access.permissions.can_send };
   });
 }
 
@@ -173,14 +167,14 @@ export const communityVoiceToken = onCall({ secrets: SECRETS }, async (request) 
   const { profileId } = await loadProfileForAuth(authUid);
 
   // Enforce community membership before minting a join-capable token.
-  await assertServerMember(serverId, channelId, profileId, authUid);
+  const permissions = await assertServerMember(serverId, channelId, profileId, authUid);
 
   const { AccessToken } = await import('livekit-server-sdk');
   // Hash a structured tuple: concatenating caller-controlled IDs with an
   // underscore allowed different server/channel pairs to share one room.
   const roomName = `comm_v2_${createHash('sha256').update(JSON.stringify([serverId, channelId])).digest('hex')}`;
   const at = new AccessToken(apiKey, apiSecret, { identity: profileId, ttl: 60 * 60 });
-  at.addGrant({ room: roomName, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true });
+  at.addGrant({ room: roomName, roomJoin: true, canPublish: permissions.canPublish, canSubscribe: true, canPublishData: permissions.canPublish });
   return { token: await at.toJwt(), url: wsUrl, room: roomName, roomName };
 });
 

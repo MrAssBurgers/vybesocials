@@ -4,6 +4,9 @@ import { Sparkles, Crown, Heart, Settings as SettingsIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CustomerCenter } from '@/components/premium/CustomerCenter';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
+import { usePendingPremiumGift } from '@/hooks/usePendingPremiumGift';
+import { PremiumGiftNotification } from '@/components/premium/PremiumGiftNotification';
+import { useAuth } from '@/lib/auth';
 
 /**
  * Subscription section — temporarily replaced with a "VYBE+ coming soon"
@@ -11,12 +14,29 @@ import { usePremiumStatus } from '@/hooks/usePremiumStatus';
  * subscribers still see the CustomerCenter so they can manage / cancel.
  */
 export function SubscriptionSection() {
+  const { user } = useAuth();
+  return <AccountSubscriptionSection key={user?.id || 'signed-out'} />;
+}
+
+function AccountSubscriptionSection() {
   const { isOwner, isGifted, customerInfo } = usePremiumStatus();
+  const { data: pendingGift, error: giftError, refetch: retryGift } = usePendingPremiumGift();
+  const [reviewGift, setReviewGift] = useState(false);
   const [centerOpen, setCenterOpen] = useState(false);
   const hasLegacySubscription = !!(customerInfo?.entitlements?.active && Object.keys(customerInfo.entitlements.active).length > 0);
 
   return (
     <div className="space-y-6">
+      {giftError && <div role="alert" className="rounded-2xl border border-border p-4 text-sm">
+        Gift status is temporarily unavailable.
+        <Button variant="link" onClick={() => void retryGift()}>Retry</Button>
+      </div>}
+      {pendingGift && <div className="rounded-2xl border border-primary/25 bg-primary/5 p-4 space-y-2">
+        <p className="font-semibold">You have a Premium gift</p>
+        <p className="text-sm text-muted-foreground">From @{pendingGift.gifterUsername}. Review it when you are ready.</p>
+        <Button onClick={() => setReviewGift(true)}>Review gift</Button>
+      </div>}
+      {reviewGift && pendingGift && <PremiumGiftNotification giftId={pendingGift.id} gifterUsername={pendingGift.gifterUsername} onDismiss={() => setReviewGift(false)} />}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Link2, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,17 +9,21 @@ import { useJoinServer } from '@/hooks/useServers';
 interface JoinServerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialCode?: string;
+  onJoined?: (serverId: string) => void;
 }
 
-export function JoinServerDialog({ open, onOpenChange }: JoinServerDialogProps) {
+export function JoinServerDialog({ open, onOpenChange, initialCode = '', onJoined }: JoinServerDialogProps) {
   const [inviteCode, setInviteCode] = useState('');
   const joinServer = useJoinServer();
+  useEffect(() => { if (open && initialCode) setInviteCode(initialCode); }, [open, initialCode]);
 
   const handleJoin = async () => {
     if (!inviteCode.trim() || joinServer.isPending) return;
 
     try {
-      await joinServer.mutateAsync(inviteCode.trim());
+      const server = await joinServer.mutateAsync(inviteCode.trim());
+      onJoined?.(server.id);
       onOpenChange(false);
       setInviteCode('');
     } catch (error) {
@@ -70,7 +74,7 @@ export function JoinServerDialog({ open, onOpenChange }: JoinServerDialogProps) 
             {/* Description */}
             <div className="text-center">
               <p className="text-muted-foreground">
-                Enter an invite code to join an existing server
+                Enter a current invitation code or VYBE link to join a community
               </p>
             </div>
 
@@ -79,7 +83,7 @@ export function JoinServerDialog({ open, onOpenChange }: JoinServerDialogProps) 
               <Label htmlFor="invite-code">Invite Code</Label>
               <Input
                 id="invite-code"
-                placeholder="e.g., abc123xy"
+                placeholder="Paste an invitation code or link"
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value)}
                 className="h-12 font-mono"

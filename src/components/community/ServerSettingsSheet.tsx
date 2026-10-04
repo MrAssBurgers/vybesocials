@@ -1,4 +1,5 @@
-import { useState, memo, useRef } from 'react';
+import { CommunityAvatarImage as AvatarImage } from './CommunityAvatarImage';
+import { useEffect, useState, memo, useRef } from 'react';
 import { Settings, Trash2, RefreshCw, Globe, Lock, Copy, Check, Users, Hash, Camera, Loader2, Plus } from 'lucide-react';
 import { CreateChannelDialog } from './CreateChannelDialog';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Sheet,
   SheetContent,
@@ -71,13 +72,13 @@ export const ServerSettingsSheet = memo(function ServerSettingsSheet({
   const canManage = myRole === 'owner' || myRole === 'admin';
 
   // Sync state when server loads
-  useState(() => {
+  useEffect(() => {
     if (server) {
       setName(server.name || '');
       setDescription(server.description || '');
       setIsPublic(server.is_public);
     }
-  });
+  }, [server?.id]);
 
   const handleIconChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -306,6 +307,7 @@ export const ServerSettingsSheet = memo(function ServerSettingsSheet({
             {/* Invite Code */}
             <div className="space-y-2">
               <Label>Invite Code</Label>
+              <p className="text-xs text-muted-foreground">{server?.invite_expires_at ? `Expires ${new Date(server.invite_expires_at).toLocaleString()}` : 'Restore this community to create a new invitation.'}</p>
               <div className="flex gap-2">
                 <Input
                   value={server?.invite_code || ''}
@@ -379,7 +381,7 @@ export const ServerSettingsSheet = memo(function ServerSettingsSheet({
                     <AlertDialogHeader>
                       <AlertDialogTitle>Delete Server?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This action cannot be undone. All channels and messages will be permanently deleted.
+                        Archiving closes this community and its invitations. Stored messages are retained.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

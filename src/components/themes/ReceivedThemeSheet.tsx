@@ -8,6 +8,7 @@ import { useEquipSharedTheme, useSaveSharedTheme, type SharedTheme } from '@/hoo
 import { useAuth } from '@/lib/auth';
 import { useNavigate } from 'react-router-dom';
 import type { ThemeTokens } from '@/hooks/useCustomTheme';
+import { useRef } from 'react';
 
 interface ReceivedThemeSheetProps {
   open: boolean;
@@ -22,22 +23,29 @@ export function ReceivedThemeSheet({ open, theme, onClose, asPage = false }: Rec
   const navigate = useNavigate();
   const equip = useEquipSharedTheme();
   const save = useSaveSharedTheme();
+  const viewRef = useRef({ userId: user?.id, themeId: theme?.id, open });
+  if (viewRef.current.userId !== user?.id || viewRef.current.themeId !== theme?.id || viewRef.current.open !== open) {
+    viewRef.current = { userId: user?.id, themeId: theme?.id, open };
+  }
 
   const handleEquip = async () => {
     if (!theme) return;
     if (!user) { navigate('/auth'); return; }
-    await equip.mutateAsync({
-      id: theme.id,
-      theme_tokens: theme.theme_tokens as ThemeTokens,
-      theme_name: theme.theme_name,
-    });
-    onClose();
+    const view = viewRef.current;
+    try {
+      await equip.mutateAsync({
+        id: theme.id,
+        theme_tokens: theme.theme_tokens as ThemeTokens,
+        theme_name: theme.theme_name,
+      });
+      if (viewRef.current === view) onClose();
+    } catch { /* Keep the preview open; the mutation displays the failure. */ }
   };
 
   const handleSave = async () => {
     if (!theme) return;
     if (!user) { navigate('/auth'); return; }
-    await save.mutateAsync(theme.id);
+    try { await save.mutateAsync(theme.id); } catch { /* The mutation displays the failure. */ }
   };
 
   const content = theme && (

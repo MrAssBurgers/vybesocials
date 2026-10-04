@@ -7,6 +7,7 @@ import { sendPasswordResetEmail } from './_shared/passwordResetEmail.js';
 import { claimProfileByEmailForUid } from './_shared/claimProfileByEmail.js';
 import { gateKnownSession, shouldExpireStaleLoginChallenge } from './_shared/loginNotifyGuards.js';
 import { renderAuthEmail, AUTH_EMAIL_SUBJECTS } from './_shared/emailTemplates/index.js';
+import { premiumStatusForRequest } from './_shared/premiumAuthority.js';
 /** Must match Firebase Console Google web client (public). Used by native-callback exchange. */
 const GOOGLE_WEB_CLIENT_ID = '728651793473-71p1iahdr79ali0o7en8ktirklfjf3pf.apps.googleusercontent.com';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -2177,17 +2178,9 @@ export const getAuthUsersCount = onCall({ cors: true }, async (request) => {
     } while (pageToken);
     return total;
 });
-/** check-premium-subscription — read RevenueCat-mirrored doc or gifted_premium grants. */
+/** check-premium-subscription — shared server-owned subscription/gift authority. */
 export const checkPremiumSubscription = onCall(async (request) => {
-    const uid = requireAuth(request);
-    const [sub, gifted] = await Promise.all([
-        db.collection('subscriptions').doc(uid).get(),
-        db.collection('gifted_premium').where('recipient_id', '==', uid).where('active', '==', true).limit(1).get(),
-    ]);
-    const subData = sub.exists ? sub.data() : null;
-    const giftedActive = !gifted.empty;
-    const active = giftedActive || (subData?.status === 'active');
-    return { active, source: giftedActive ? 'gift' : subData?.source || null, expires_at: subData?.expires_at || null };
+    return premiumStatusForRequest(request);
 });
 /** check-debug-secrets — admin-only runtime secret probe (requires secret bindings). */
 export const checkDebugSecrets = onCall({

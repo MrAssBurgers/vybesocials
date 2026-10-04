@@ -1,10 +1,12 @@
-import { useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCommunityRequest } from '@/hooks/useCommunityRequest';
+import { useCommunityMutation } from '@/hooks/useCommunityMutation';
+import { useEffect, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
-import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { toast } from 'sonner';
+import { communityJoinBody, type CommunityJoinInput } from '@/lib/communityService';
 
 export type ServerRole = 'owner' | 'admin' | 'moderator' | 'member';
 export type ChannelType = 'text' | 'voice' | 'announcement';
@@ -17,6 +19,10 @@ export interface Server {
   banner_url: string | null;
   owner_id: string;
   invite_code: string;
+  invite_expires_at?: string;
+  requiresRecovery?: boolean;
+  cover_url?: string | null;
+  active_now_count?: number;
   is_public: boolean;
   member_count: number;
   created_at: string;
@@ -52,6 +58,7 @@ export interface ChannelMessage {
   id: string;
   channel_id: string;
   sender_id: string;
+  author_id?: string;
   content: string | null;
   media_url: string | null;
   media_type: string | null;
@@ -70,39 +77,16 @@ export interface ChannelMessage {
 
 // Fetch user's servers
 export function useMyServers() {
-  const profileId = useAuthProfileId();
+  const communityRequest = useCommunityRequest();
+  const profileId = useAuth().user?.id;
 
   return useQuery({
     queryKey: ['my-servers', profileId],
     queryFn: async () => {
       if (!profileId) return [];
 
-      const { data: memberships, error: memberError } = await db
-        .from('server_members')
-        .select('server_id, role')
-        .eq('user_id', profileId);
-
-      if (memberError) throw memberError;
-      const rows = memberships || [];
-      if (!rows.length) return [];
-
-      const serverIds = [...new Set(rows.map((r: { server_id: string }) => r.server_id).filter(Boolean))];
-      const { data: servers, error: serverError } = await db
-        .from('servers')
-        .select('*')
-        .in('id', serverIds);
-
-      if (serverError) throw serverError;
-
-      const serverMap = new Map((servers || []).map((s: Server) => [s.id, s]));
-      return serverIds
-        .map((id) => {
-          const server = serverMap.get(id) as Server | undefined;
-          const membership = rows.find((r: { server_id: string }) => r.server_id === id);
-          if (!server?.id || !server?.name) return null;
-          return { ...server, myRole: membership?.role ?? 'member' } as Server & { myRole: ServerRole };
-        })
-        .filter(Boolean) as (Server & { myRole: ServerRole })[];
+      const { servers } = await communityRequest<{ servers: (Server & { myRole: ServerRole })[] }>('community-manage', { action: 'listMine' });
+      return servers;
     },
     enabled: !!profileId,
     networkMode: 'always',
@@ -111,8 +95,9 @@ export function useMyServers() {
 
 // Fetch a single server
 export function useServer(serverId: string | undefined) {
+  const accountId = useAuth().user?.id;
   return useQuery({
-    queryKey: ['server', serverId],
+    queryKey: ['server', serverId, accountId],
     queryFn: async () => {
       if (!serverId) return null;
 
@@ -125,81 +110,51 @@ export function useServer(serverId: string | undefined) {
       if (error) throw error;
       return data as Server;
     },
-    enabled: !!serverId,
+    enabled: !!serverId && !!accountId,
   });
 }
 
 // Fetch server members
 export function useServerMembers(serverId: string | undefined) {
+  const communityRequest = useCommunityRequest();
+  const accountId = useAuth().user?.id;
   return useQuery({
-    queryKey: ['server-members', serverId],
+    queryKey: ['server-members', serverId, accountId],
     queryFn: async () => {
       if (!serverId) return [];
 
-      const { data, error } = await db
-        .from('server_members')
-        .select(`
-          *,
-          profile:profiles!server_members_user_id_fkey(id, username, display_name, avatar_url)
-        `)
-        .eq('server_id', serverId)
-        .order('role', { ascending: true });
-
-      if (error) throw error;
-      return (data || []) as unknown as ServerMember[];
+      const { members } = await communityRequest<{ members: ServerMember[] }>('community-manage', { action: 'listMembers', serverId });
+      return members;
     },
-    enabled: !!serverId,
+    enabled: !!serverId && !!accountId,
   });
 }
 
 // Fetch channels for a server (with realtime updates)
 export function useChannels(serverId: string | undefined) {
-  const queryClient = useQueryClient();
-
-  // Subscribe to realtime channel changes
-  useEffect(() => {
-    if (!serverId) return;
-
-    const channel = subscribePostgresChannel(`channels-realtime-${serverId}`, [
-      {
-        event: '*',
-        table: 'channels',
-        filter: `server_id=eq.${serverId}`,
-        callback: () => {
-          queryClient.invalidateQueries({ queryKey: ['channels', serverId] });
-        },
-      },
-    ]);
-
-    return () => {
-      removeRealtimeChannel(channel);
-    };
-  }, [serverId, queryClient]);
+  const communityRequest = useCommunityRequest();
+  const accountId = useAuth().user?.id;
 
   return useQuery({
-    queryKey: ['channels', serverId],
+    queryKey: ['channels', serverId, accountId],
     queryFn: async () => {
       if (!serverId) return [];
 
-      const { data, error } = await db
-        .from('channels')
-        .select('*')
-        .eq('server_id', serverId)
-        .order('position', { ascending: true });
-
-      if (error) throw error;
-      return (data || []) as Channel[];
+      const { channels } = await communityRequest<{ channels: Channel[] }>('community-manage', { action: 'listChannels', serverId });
+      return channels;
     },
-    enabled: !!serverId,
+    refetchInterval: 15000,
+    enabled: !!serverId && !!accountId,
   });
 }
 
 // Fetch messages for a channel
 export function useChannelMessages(channelId: string | undefined) {
+  const accountId = useAuth().user?.id;
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: ['channel-messages', channelId],
+    queryKey: ['channel-messages', channelId, accountId],
     queryFn: async () => {
       if (!channelId) return [];
 
@@ -217,7 +172,7 @@ export function useChannelMessages(channelId: string | undefined) {
       if (error) throw error;
       return (data || []) as unknown as ChannelMessage[];
     },
-    enabled: !!channelId,
+    enabled: !!channelId && !!accountId,
   });
 
   useEffect(() => {
@@ -244,50 +199,24 @@ export function useChannelMessages(channelId: string | undefined) {
 
 // Create a server
 export function useCreateServer() {
+  const communityRequest = useCommunityRequest();
+  const creationRequest = useRef<{ key: string; id: string } | null>(null);
   const queryClient = useQueryClient();
   const { profile } = useAuth();
 
-  return useMutation({
+  return useCommunityMutation({
     mutationFn: async ({ name, description, isPublic }: { name: string; description?: string; isPublic?: boolean }) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      // Create server
-      const { data: server, error: serverError } = await db
-        .from('servers')
-        .insert({
-          name,
-          description: description?.trim() || null,
-          owner_id: profile.id,
-          is_public: isPublic ?? true,
-        })
-        .select()
-        .single();
-
-      if (serverError) throw serverError;
-
-      // Add owner as member
-      await db
-        .from('server_members')
-        .insert({
-          server_id: server.id,
-          user_id: profile.id,
-          role: 'owner',
-        });
-
-      // Create default general channel
-      await db
-        .from('channels')
-        .insert({
-          server_id: server.id,
-          name: 'general',
-          type: 'text',
-          position: 0,
-        });
-
-      return server as Server;
+      const key = JSON.stringify([profile.id, name.trim(), description?.trim() || '', isPublic !== false]);
+      if (creationRequest.current?.key !== key) creationRequest.current = { key, id: crypto.randomUUID() };
+      const { server } = await communityRequest<{ server: Server }>('community-create', { name, description, isPublic, requestId: creationRequest.current.id });
+      return server;
     },
     onSuccess: () => {
+      creationRequest.current = null;
       queryClient.invalidateQueries({ queryKey: ['my-servers'] });
+      queryClient.invalidateQueries({ queryKey: ['my-communities'] });
       toast.success('Server created!');
     },
     onError: (error: Error) => {
@@ -298,47 +227,20 @@ export function useCreateServer() {
 
 // Join a server by invite code
 export function useJoinServer() {
+  const communityRequest = useCommunityRequest();
   const queryClient = useQueryClient();
   const { profile } = useAuth();
 
-  return useMutation({
-    mutationFn: async (inviteCode: string) => {
+  return useCommunityMutation({
+    mutationFn: async (target: CommunityJoinInput) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      // Find server by invite code
-      const { data: server, error: findError } = await db
-        .from('servers')
-        .select('id, name')
-        .eq('invite_code', inviteCode)
-        .single();
-
-      if (findError || !server) throw new Error('Invalid invite code');
-
-      // Check if already a member
-      const { data: existing } = await db
-        .from('server_members')
-        .select('id')
-        .eq('server_id', server.id)
-        .eq('user_id', profile.id)
-        .single();
-
-      if (existing) throw new Error('Already a member of this server');
-
-      // Join server
-      const { error: joinError } = await db
-        .from('server_members')
-        .insert({
-          server_id: server.id,
-          user_id: profile.id,
-          role: 'member',
-        });
-
-      if (joinError) throw joinError;
-
+      const { server } = await communityRequest<{ server: Server }>('community-join', communityJoinBody(target));
       return server;
     },
     onSuccess: (server) => {
       queryClient.invalidateQueries({ queryKey: ['my-servers'] });
+      queryClient.invalidateQueries({ queryKey: ['my-communities'] });
       toast.success(`Joined ${server.name}!`);
     },
     onError: (error: Error) => {
@@ -349,23 +251,19 @@ export function useJoinServer() {
 
 // Leave a server
 export function useLeaveServer() {
+  const communityRequest = useCommunityRequest();
   const queryClient = useQueryClient();
   const { profile } = useAuth();
 
-  return useMutation({
+  return useCommunityMutation({
     mutationFn: async (serverId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { error } = await db
-        .from('server_members')
-        .delete()
-        .eq('server_id', serverId)
-        .eq('user_id', profile.id);
-
-      if (error) throw error;
+      await communityRequest('community-manage', { action: 'leave', serverId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-servers'] });
+      queryClient.invalidateQueries({ queryKey: ['my-communities'] });
       toast.success('Left server');
     },
     onError: () => {
@@ -376,22 +274,13 @@ export function useLeaveServer() {
 
 // Create a channel
 export function useCreateChannel() {
+  const communityRequest = useCommunityRequest();
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: async ({ serverId, name, type }: { serverId: string; name: string; type?: ChannelType }) => {
-      const { data, error } = await db
-        .from('channels')
-        .insert({
-          server_id: serverId,
-          name,
-          type: type || 'text',
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data as Channel;
+  return useCommunityMutation({
+    mutationFn: async ({ serverId, name, type, isPrivate }: { serverId: string; name: string; type?: ChannelType; isPrivate?: boolean }) => {
+      const { channel } = await communityRequest<{ channel: Channel }>('community-manage', { action: 'createChannel', serverId, name, type, isPrivate });
+      return channel;
     },
     onSuccess: (_, { serverId }) => {
       queryClient.invalidateQueries({ queryKey: ['channels', serverId] });
@@ -406,34 +295,28 @@ export function useCreateChannel() {
 
 // Send a message to a channel
 export function useSendChannelMessage() {
+  const sendRequest = useRef<{ key: string; id: string } | null>(null);
+  const communityRequest = useCommunityRequest();
   const queryClient = useQueryClient();
   const { profile } = useAuth();
 
-  return useMutation({
-    mutationFn: async ({ channelId, content, mediaUrl, mediaType }: {
+  return useCommunityMutation({
+    mutationFn: async ({ channelId, content, mediaUrl, mediaType, replyToId }: {
       channelId: string;
       content?: string;
       mediaUrl?: string;
       mediaType?: string;
+      replyToId?: string;
     }) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { data, error } = await db
-        .from('channel_messages')
-        .insert({
-          channel_id: channelId,
-          sender_id: profile.id,
-          content,
-          media_url: mediaUrl,
-          media_type: mediaType,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      const key = JSON.stringify([profile.id, channelId, content || '', mediaUrl || '', mediaType || '', replyToId || '']);
+      if (sendRequest.current?.key !== key) sendRequest.current = { key, id: crypto.randomUUID() };
+      const { message } = await communityRequest<{ message: ChannelMessage }>('community-send-message', { channelId, content, mediaUrl, mediaType, replyToId, clientMessageId: sendRequest.current.id });
+      return message;
     },
     onSuccess: (_, { channelId }) => {
+      sendRequest.current = null;
       queryClient.invalidateQueries({ queryKey: ['channel-messages', channelId] });
     },
     onError: () => {
@@ -444,20 +327,20 @@ export function useSendChannelMessage() {
 
 // Update member role
 export function useUpdateServerMemberRole() {
+  const communityRequest = useCommunityRequest();
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useCommunityMutation({
     mutationFn: async ({ serverId, userId, role }: { serverId: string; userId: string; role: ServerRole }) => {
-      const { error } = await db
-        .from('server_members')
-        .update({ role })
-        .eq('server_id', serverId)
-        .eq('user_id', userId);
-
-      if (error) throw error;
+      await communityRequest('community-manage', { action: 'setRole', serverId, userId, role });
     },
     onSuccess: (_, { serverId }) => {
       queryClient.invalidateQueries({ queryKey: ['server-members', serverId] });
+      queryClient.invalidateQueries({ queryKey: ['community-members', serverId] });
+      queryClient.invalidateQueries({ queryKey: ['my-servers'] });
+      queryClient.invalidateQueries({ queryKey: ['my-communities'] });
+      queryClient.invalidateQueries({ queryKey: ['my-server-role'] });
+      queryClient.invalidateQueries({ queryKey: ['my-community-role'] });
       toast.success('Role updated');
     },
     onError: () => {
@@ -468,20 +351,20 @@ export function useUpdateServerMemberRole() {
 
 // Kick/ban member
 export function useRemoveServerMember() {
+  const communityRequest = useCommunityRequest();
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useCommunityMutation({
     mutationFn: async ({ serverId, userId }: { serverId: string; userId: string }) => {
-      const { error } = await db
-        .from('server_members')
-        .delete()
-        .eq('server_id', serverId)
-        .eq('user_id', userId);
-
-      if (error) throw error;
+      await communityRequest('community-manage', { action: 'removeMember', serverId, userId });
     },
     onSuccess: (_, { serverId }) => {
       queryClient.invalidateQueries({ queryKey: ['server-members', serverId] });
+      queryClient.invalidateQueries({ queryKey: ['community-members', serverId] });
+      queryClient.invalidateQueries({ queryKey: ['my-servers'] });
+      queryClient.invalidateQueries({ queryKey: ['my-communities'] });
+      queryClient.invalidateQueries({ queryKey: ['my-server-role'] });
+      queryClient.invalidateQueries({ queryKey: ['my-community-role'] });
       toast.success('Member removed');
     },
     onError: () => {
@@ -492,22 +375,16 @@ export function useRemoveServerMember() {
 
 // Get my role in a server
 export function useMyServerRole(serverId: string | undefined) {
-  const profileId = useAuthProfileId();
+  const communityRequest = useCommunityRequest();
+  const profileId = useAuth().user?.id;
 
   return useQuery({
     queryKey: ['my-server-role', serverId, profileId],
     queryFn: async () => {
       if (!serverId || !profileId) return null;
 
-      const { data, error } = await db
-        .from('server_members')
-        .select('role')
-        .eq('server_id', serverId)
-        .eq('user_id', profileId)
-        .single();
-
-      if (error) return null;
-      return data?.role as ServerRole | null;
+      const { servers } = await communityRequest<{ servers: (Server & { myRole: ServerRole })[] }>('community-manage', { action: 'listMine' });
+      return servers.find(server => server.id === serverId)?.myRole ?? null;
     },
     enabled: !!serverId && !!profileId,
   });
@@ -515,24 +392,12 @@ export function useMyServerRole(serverId: string | undefined) {
 
 // Fetch all public servers
 export function usePublicServers(search?: string) {
+  const communityRequest = useCommunityRequest();
   return useQuery({
     queryKey: ['public-servers', search],
     queryFn: async () => {
-      let query = db
-        .from('servers')
-        .select('*')
-        .eq('is_public', true)
-        .order('member_count', { ascending: false })
-        .limit(50);
-
-      if (search && search.trim()) {
-        query = query.ilike('name', `%${search.trim()}%`);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      return (data || []) as Server[];
+      const { servers } = await communityRequest<{ servers: Server[] }>('community-manage', { action: 'discover', search });
+      return servers;
     },
     staleTime: 30000,
   });

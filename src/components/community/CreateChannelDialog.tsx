@@ -4,6 +4,7 @@ import { X, Hash, Volume2, Megaphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useCreateChannel, ChannelType } from '@/hooks/useServers';
 import { cn } from '@/lib/utils';
@@ -17,6 +18,7 @@ interface CreateChannelDialogProps {
 export function CreateChannelDialog({ open, onOpenChange, serverId }: CreateChannelDialogProps) {
   const [name, setName] = useState('');
   const [type, setType] = useState<ChannelType>('text');
+  const [isPrivate, setIsPrivate] = useState(false);
   const createChannel = useCreateChannel();
 
   const handleCreate = async () => {
@@ -27,10 +29,12 @@ export function CreateChannelDialog({ open, onOpenChange, serverId }: CreateChan
         serverId,
         name: name.trim().toLowerCase().replace(/\s+/g, '-'),
         type,
+        isPrivate,
       });
       onOpenChange(false);
       setName('');
       setType('text');
+      setIsPrivate(false);
     } catch (error) {
       // Error handled by mutation
     }
@@ -69,6 +73,7 @@ export function CreateChannelDialog({ open, onOpenChange, serverId }: CreateChan
 
           {/* Content */}
           <div className="p-6 space-y-6">
+            <p className="text-xs text-muted-foreground">Each community supports 100 channels in total, including archived channels.</p>
             {/* Channel type */}
             <div className="space-y-3">
               <Label>Channel Type</Label>
@@ -134,6 +139,11 @@ export function CreateChannelDialog({ open, onOpenChange, serverId }: CreateChan
               <p className="text-xs text-muted-foreground">
                 Channel names can't contain spaces
               </p>
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <div><Label htmlFor="private-channel">Private channel</Label><p className="text-xs text-muted-foreground">Only owners and admins initially. Grant other roles access in channel settings.</p></div>
+              <Switch id="private-channel" checked={isPrivate} onCheckedChange={setIsPrivate} />
             </div>
 
             {/* Create button */}

@@ -5,9 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
+import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import { createPremiumGift, revokePremiumGift, listPremiumGifts, isPremiumAccountCurrent } from '@/lib/premiumGiftService';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +32,11 @@ interface SearchResult {
 
 export function GiftPremiumSection() {
   const { user } = useAuth();
+  const { canManageGifts } = usePremiumStatus();
+  return user && canManageGifts ? <GiftPremiumSectionForAccount key={user.id} uid={user.id} /> : null;
+}
+
+function GiftPremiumSectionForAccount({ uid }: { uid: string }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [selectedUser, setSelectedUser] = useState<SearchResult | null>(null);
@@ -37,28 +44,24 @@ export function GiftPremiumSection() {
   const [gifting, setGifting] = useState(false);
 
   // Search users
-  const { data: results = [], isLoading: searching } = useQuery({
-    queryKey: ['gift-premium-search', search],
+  const { data: results = [], isLoading: searching, error: searchError } = useQuery({
+    queryKey: ['gift-premium-search', uid, search],
     queryFn: async () => {
       if (search.length < 2) return [];
-      const { data } = await db
+      const { data, error } = await db
         .from('profiles')
         .select('id, user_id, username, display_name, avatar_url')
-        .neq('user_id', user!.id)
+        .neq('user_id', uid)
         .or(`username.ilike.%${search}%,display_name.ilike.%${search}%`)
         .limit(8);
 
+      if (error) throw error;
       if (!data || data.length === 0) return [];
 
       // Check which ones already have premium
       const userIds = data.map(d => d.user_id);
-      const { data: giftedData } = await db
-        .from('gifted_premium')
-        .select('user_id, is_active, status')
-        .in('user_id', userIds)
-        .is('revoked_at', null);
-
-      const giftedMap = new Map<string, any>((giftedData || []).map((g: any) => [g.user_id, g]));
+      const giftedData = await listPremiumGifts(uid, userIds);
+      const giftedMap = new Map(giftedData.filter(g => !g.is_expired && g.status !== 'revoked').map(g => [g.user_id, g]));
 
       return data.map(d => ({
         id: d.id,
@@ -74,23 +77,20 @@ export function GiftPremiumSection() {
   });
 
   // Recent gifts
-  const { data: recentGifts = [] } = useQuery({
-    queryKey: ['recent-premium-gifts'],
+  const { data: recentGifts = [], error: recentError, refetch: retryRecent } = useQuery({
+    queryKey: ['recent-premium-gifts', uid],
     queryFn: async () => {
-      const { data } = await db
-        .from('gifted_premium')
-        .select('id, user_id, status, is_active, created_at, accepted_at')
-        .is('revoked_at', null)
-        .order('created_at', { ascending: false })
-        .limit(5);
+      const data = (await listPremiumGifts(uid)).filter(g => !g.is_expired && g.status !== 'revoked').slice(0, 5);
 
       if (!data || data.length === 0) return [];
 
       const userIds = data.map(d => d.user_id);
-      const { data: profiles } = await db
+      const { data: profiles, error } = await db
         .from('profiles')
         .select('user_id, username, avatar_url')
         .in('user_id', userIds);
+      if (error) throw error;
+      if (!isPremiumAccountCurrent(uid)) throw new Error('Your account changed.');
 
       const profileMap = new Map<string, any>((profiles || []).map((p: any) => [p.user_id, p]));
 
@@ -103,72 +103,33 @@ export function GiftPremiumSection() {
   });
 
   const handleGift = async () => {
-    if (!selectedUser || !user) return;
+    if (!selectedUser || !isPremiumAccountCurrent(uid)) return;
     setGifting(true);
     try {
-      // Remove any previously revoked gift so we can re-gift
-      await db
-        .from('gifted_premium')
-        .delete()
-        .eq('user_id', selectedUser.user_id)
-        .not('revoked_at', 'is', null);
-
-      // Insert gift as pending (is_active = false, status = 'pending')
-      const { error } = await db
-        .from('gifted_premium')
-        .insert({
-          user_id: selectedUser.user_id,
-          gifted_by: user.id,
-          is_active: false,
-          status: 'pending',
-        });
-
-      if (error) {
-        if (error.code === '23505') throw new Error('User already has a pending or active gift');
-        throw error;
-      }
-
-      // Send notification
-      const { data: profile } = await db
-        .from('profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (profile) {
-        await db.from('notifications').insert({
-          user_id: selectedUser.id, // profile id for notification
-          type: 'premium_gift',
-          actor_id: profile.id,
-        });
-      }
-
-      toast.success(`Premium gift sent to @${selectedUser.username}! They'll see a popup to accept it.`);
+      await createPremiumGift(uid, selectedUser.user_id, crypto.randomUUID());
+      if (!isPremiumAccountCurrent(uid)) return;
+      toast.success(`Gift ready for @${selectedUser.username} to review in Settings.`);
       setSelectedUser(null);
       setSearch('');
       queryClient.invalidateQueries({ queryKey: ['recent-premium-gifts'] });
       queryClient.invalidateQueries({ queryKey: ['gift-premium-search'] });
     } catch (err: any) {
-      toast.error(err.message || 'Failed to gift premium');
+      if (isPremiumAccountCurrent(uid)) toast.error(err.message || 'Failed to gift premium');
     } finally {
       setGifting(false);
       setConfirmOpen(false);
     }
   };
 
-  const handleRevoke = async (giftId: string, username: string) => {
+  const handleRevoke = async (giftId: string, recipientUid: string, username: string) => {
     try {
-      const { error } = await db
-        .from('gifted_premium')
-        .update({ is_active: false, status: 'revoked', revoked_at: new Date().toISOString() })
-        .eq('id', giftId);
-
-      if (error) throw error;
+      await revokePremiumGift(uid, recipientUid, giftId);
+      if (!isPremiumAccountCurrent(uid)) return;
       toast.success(`Premium revoked from @${username}`);
       queryClient.invalidateQueries({ queryKey: ['recent-premium-gifts'] });
       queryClient.invalidateQueries({ queryKey: ['db-premium-status'] });
     } catch {
-      toast.error('Failed to revoke');
+      if (isPremiumAccountCurrent(uid)) toast.error('Failed to revoke');
     }
   };
 
@@ -222,6 +183,8 @@ export function GiftPremiumSection() {
                 <div className="flex items-center justify-center py-4">
                   <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                 </div>
+              ) : searchError ? (
+                <p role="alert" className="text-xs text-destructive py-3">Could not check gift eligibility. Try searching again.</p>
               ) : results.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-3">No users found</p>
               ) : (
@@ -273,6 +236,7 @@ export function GiftPremiumSection() {
       </div>
 
       {/* Recent Gifts */}
+      {recentError && <div role="alert" className="text-sm text-destructive">Gift history is unavailable. <Button variant="link" onClick={() => void retryRecent()}>Retry</Button></div>}
       {recentGifts.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Recent Gifts</p>
@@ -310,7 +274,7 @@ export function GiftPremiumSection() {
                   )}
                 </Badge>
                 <button
-                  onClick={() => handleRevoke(gift.id, gift.username)}
+                  onClick={() => handleRevoke(gift.id, gift.user_id, gift.username)}
                   className="text-[11px] text-destructive font-medium hover:underline shrink-0 px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors"
                 >
                   Revoke
@@ -330,7 +294,7 @@ export function GiftPremiumSection() {
               Gift Premium
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Send free VYBE Premium to <strong>@{selectedUser?.username}</strong>? They'll get a popup notification to accept it with all 40+ premium perks.
+              Send a VYBE Premium cosmetic preview to <strong>@{selectedUser?.username}</strong>? They can review and accept it in Settings. Core features are already free for everyone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

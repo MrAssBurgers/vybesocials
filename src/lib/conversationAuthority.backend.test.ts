@@ -82,6 +82,10 @@ const call = (extra: Row = {}) => startDmCall.run({ ...actor, data: { conversati
 const room = (data: Row) => livekitToken.run({ ...actor, data } as Parameters<typeof livekitToken.run>[0]);
 const community = (data: Row = {}) => communityVoiceToken.run({ ...actor, data: { serverId: 'server-one', channelId: 'voice-one', ...data } } as Parameters<typeof communityVoiceToken.run>[0]);
 const communityRoom = (serverId = 'server-one', channelId = 'voice-one') => `comm_v2_${createHash('sha256').update(JSON.stringify([serverId, channelId])).digest('hex')}`;
+function trustedCommunity(serverId = 'server-one') {
+  state.rows.set(`servers/${serverId}`, { owner_id: 'profile-b', is_public: false });
+  state.rows.set(`community_admissions/auth-a/grants/${serverId}`, { server_id: serverId, auth_uid: 'auth-a', user_id: 'profile-a', active: true, role: 'member' });
+}
 function parent(members = ['profile-a', 'profile-b'], id = CID, isGroup = false) {
   state.rows.set(`conversations/${id}`, { id, member_ids: members, is_group: isGroup, created_by: 'profile-a' });
 }
@@ -95,6 +99,7 @@ beforeEach(() => {
     state.rows.set(`user_auth_index/auth-${suffix}`, { profile_id: `profile-${suffix}` });
   }
   parent();
+  state.rows.set('servers/server-one', { owner_id: 'profile-b', is_public: false });
   state.rows.set('channels/voice-one', { server_id: 'server-one', type: 'voice' });
   vi.stubEnv('LIVEKIT_API_KEY', 'mock-key'); vi.stubEnv('LIVEKIT_API_SECRET', 'mock-secret'); vi.stubEnv('LIVEKIT_URL', 'wss://example.invalid');
 });
@@ -299,26 +304,28 @@ describe('room tokens require verified authority before minting', () => {
     await expect(community()).rejects.toMatchObject({ code: 'permission-denied' });
     expect(state.mints).toBe(0);
   });
-  it.each(['profile-a', 'auth-a'])('accepts a correctly scoped server member %s', async id => {
+  it.each(['profile-a', 'auth-a'])('requires a trusted admission in addition to a legacy tuple %s', async id => {
     state.rows.set(`server_members/server-one_${id}`, { server_id: 'server-one', user_id: id });
+    await expect(community()).rejects.toMatchObject({ code: 'permission-denied' });
+    trustedCommunity();
     await expect(community()).resolves.toMatchObject({ room: communityRoom() });
   });
   it.each([undefined, 'text', 'voice'])('supports migrated live rooms with type %s', async type => {
-    state.rows.set('server_members/server-one_profile-a', { server_id: 'server-one', user_id: 'profile-a' });
+    trustedCommunity();
     state.rows.set('channels/voice-one', { server_id: 'server-one', room_type: 'live', ...(type ? { type } : {}) });
     await expect(community()).resolves.toMatchObject({ room: communityRoom() });
     expect(state.mints).toBe(1);
   });
   it.each([undefined, { server_id: 'different', type: 'voice' }, { server_id: 'different', room_type: 'live' }, { server_id: 'server-one', type: 'text' }])('rejects a missing, cross-server or nonvoice channel %j', async row => {
-    state.rows.set('server_members/server-one_profile-a', { server_id: 'server-one', user_id: 'profile-a' });
+    trustedCommunity();
     if (row) state.rows.set('channels/voice-one', row); else state.rows.delete('channels/voice-one');
-    await expect(community()).rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(community()).rejects.toHaveProperty('code', row === undefined ? 'not-found' : row.server_id !== 'server-one' ? 'not-found' : 'permission-denied');
     expect(state.mints).toBe(0); expect(state.writes).toEqual([]);
   });
   it('keeps ambiguous underscore server/channel pairs in distinct rooms across both issuers', async () => {
     const cases = [['server_sub', 'voice'], ['server', 'sub_voice']];
     for (const [serverId, channelId] of cases) {
-      state.rows.set(`server_members/${serverId}_profile-a`, { server_id: serverId, user_id: 'profile-a' });
+      trustedCommunity(serverId);
       state.rows.set(`channels/${channelId}`, { server_id: serverId, type: 'voice' });
       const canonical = await community({ serverId, channelId });
       const alias = await spacesToken.run({ ...actor, data: { serverId, channelId } } as Parameters<typeof spacesToken.run>[0]);
@@ -329,13 +336,26 @@ describe('room tokens require verified authority before minting', () => {
     expect(state.grants[0].room).not.toBe('comm_server_sub_voice');
   });
   it('rechecks a community membership revocation before token mint', async () => {
-    state.rows.set('server_members/server-one_profile-a', { server_id: 'server-one', user_id: 'profile-a' });
+    trustedCommunity();
     state.afterRead = path => {
-      if (path !== 'server_members/server-one_profile-a') return;
+      if (path !== 'community_admissions/auth-a/grants/server-one') return;
       state.afterRead = null; state.rows.delete(path);
     };
     await expect(community()).rejects.toMatchObject({ code: 'permission-denied' });
     expect(state.mints).toBe(0);
+  });
+  it.each([null, 'true', 1, false])('rejects nontrue explicit voice visibility %j', async canView => {
+    trustedCommunity();
+    state.rows.set('channel_permissions/voice-one_member', { channel_id: 'voice-one', role: 'member', can_view: canView });
+    await expect(community()).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(state.mints).toBe(0);
+  });
+  it('requires explicit private-channel access and scopes listening-only tokens', async () => {
+    trustedCommunity(); state.rows.get('channels/voice-one')!.is_private = true;
+    await expect(community()).rejects.toMatchObject({ code: 'permission-denied' });
+    state.rows.set('channel_permissions/voice-one_member', { channel_id: 'voice-one', role: 'member', can_view: true, can_send: false });
+    await expect(community()).resolves.toHaveProperty('token');
+    expect(state.grants[0]).toMatchObject({ canPublish: false, canPublishData: false, canSubscribe: true });
   });
   it.each([{ conversationId: '../other' }, { callId: { arbitrary: true } }, { conversationId: 'x'.repeat(201) }])('rejects invalid token targets %j without minting', async data => {
     await expect(room(data)).rejects.toMatchObject({ code: 'invalid-argument' });

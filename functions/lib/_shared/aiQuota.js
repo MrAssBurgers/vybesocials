@@ -1,5 +1,6 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 import { db } from './admin.js';
+import { premiumIdentity, premiumStatusForUid } from './premiumAuthority.js';
 /** Re-export cost routing — use modelForTier / TOKEN_BUDGET from aiModels.ts */
 export { CHEAP_CHAT_MODEL, QUALITY_CHAT_MODEL } from './aiModels.js';
 const LIMITS = {
@@ -26,20 +27,8 @@ export async function resolveProfileIdFromAuth(authUid) {
     return authUid;
 }
 export async function isPremiumProfile(profileId) {
-    const gifted = await db
-        .collection('gifted_premium')
-        .where('recipient_id', '==', profileId)
-        .where('active', '==', true)
-        .limit(1)
-        .get();
-    if (!gifted.empty)
-        return true;
-    const prof = await db.collection('profiles').doc(profileId).get();
-    const authUid = prof.data()?.user_id;
-    if (!authUid)
-        return false;
-    const sub = await db.collection('subscriptions').doc(authUid).get();
-    return sub.exists && sub.data()?.status === 'active';
+    const identity = await premiumIdentity(profileId);
+    return identity ? (await premiumStatusForUid(identity.uid, false)).active : false;
 }
 export async function getUserAiApiKey(profileId, provider = 'google', authUid) {
     const readKey = async (id) => {

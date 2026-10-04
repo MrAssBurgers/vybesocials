@@ -1,5 +1,10 @@
+import { useCommunityRequest } from '@/hooks/useCommunityRequest';
+import { useAuth } from '@/lib/auth';
+import { useCommunityMutation } from '@/hooks/useCommunityMutation';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AppLayout } from '@/components/layout/AppLayout';
 import {
@@ -31,6 +36,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 export default function Community() {
+  const accountId = useAuth().user?.id;
+  return <CommunityAccountView key={accountId || 'signed-out'} />;
+}
+
+function CommunityAccountView() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(
     searchParams.get('community') || searchParams.get('server'),
@@ -39,7 +49,8 @@ export default function Community() {
     searchParams.get('room') || searchParams.get('channel'),
   );
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showJoinDialog, setShowJoinDialog] = useState(false);
+  const [inviteFromLink] = useState(() => searchParams.get('join') || '');
+  const [showJoinDialog, setShowJoinDialog] = useState(() => !!searchParams.get('join'));
   const [activeTab, setActiveTab] = useState<'my' | 'discover'>('my');
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
@@ -82,6 +93,11 @@ export default function Community() {
   }, []);
 
   const myRole = communities.find((c) => c.id === selectedCommunityId)?.myRole;
+  const needsRecovery = communities.find((c) => c.id === selectedCommunityId)?.requiresRecovery;
+
+  if (selectedCommunityId && needsRecovery) {
+    return <AppLayout><CommunityRecovery serverId={selectedCommunityId} onBack={handleBackToList} /></AppLayout>;
+  }
 
   if (selectedCommunityId && selectedCommunity) {
     return (
@@ -237,7 +253,7 @@ export default function Community() {
                           <PublicCommunityCard
                             key={community.id}
                             community={community}
-                            onJoin={() => joinCommunity.mutate(community.invite_code)}
+                            onJoin={() => joinCommunity.mutate({ serverId: community.id }, { onSuccess: joined => handleSelectCommunity(joined.id) })}
                             isJoining={joinCommunity.isPending}
                             index={i}
                           />
@@ -252,10 +268,29 @@ export default function Community() {
         </div>
 
         <CreateServerDialog open={showCreateDialog} onOpenChange={setShowCreateDialog} />
-        <JoinServerDialog open={showJoinDialog} onOpenChange={setShowJoinDialog} />
+        <JoinServerDialog open={showJoinDialog} onOpenChange={setShowJoinDialog} initialCode={inviteFromLink} onJoined={handleSelectCommunity} />
       </AppLayout>
     </TooltipProvider>
   );
+}
+
+function CommunityRecovery({ serverId, onBack }: { serverId: string; onBack: () => void }) {
+  const communityRequest = useCommunityRequest();
+  const client = useQueryClient();
+  const recovery = useCommunityMutation({
+    mutationFn: () => communityRequest('community-manage', { action: 'recoverOwner', serverId }),
+    onSuccess: async () => {
+      await Promise.all(['my-communities', 'my-servers', 'community', 'server', 'rooms', 'channels'].map(key => client.invalidateQueries({ queryKey: [key] })));
+      toast.success('Community restored. Share its new invitation with your members.');
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  return <div className="max-w-lg mx-auto p-6 space-y-4">
+    <h1 className="text-xl font-semibold">Restore your community</h1>
+    <p className="text-sm text-muted-foreground">Your rooms and messages are preserved. Restore access to create a fresh invitation, then invite your members back. Previous member roles need to be assigned again.</p>
+    <Button disabled={recovery.isPending} onClick={() => recovery.mutate()}>{recovery.isPending ? 'Restoring…' : 'Restore community access'}</Button>
+    <Button variant="ghost" onClick={onBack}>Back to communities</Button>
+  </div>;
 }
 
 function CommunityEmptyPanel({

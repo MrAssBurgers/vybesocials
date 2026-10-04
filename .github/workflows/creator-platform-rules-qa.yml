@@ -14,6 +14,24 @@ on:
       - 'scripts/test-account-authority-rules.mjs'
       - 'scripts/test-commerce-authority-rules.mjs'
       - 'scripts/test-dm-membership-authority.mjs'
+      - 'scripts/test-premium-authority-rules.mjs'
+      - 'scripts/test-reward-authority-rules.mjs'
+      - 'scripts/test-community-authority-rules.mjs'
+      - 'scripts/test-reward-authority-backend.mjs'
+      - 'scripts/test-premium-authority-backend.mjs'
+      - 'functions/package.json'
+      - 'functions/package-lock.json'
+      - 'functions/src/premiumGifts.ts'
+      - 'functions/src/_shared/premiumAuthority.ts'
+      - 'functions/src/_shared/challengeRewardAuthority.ts'
+      - 'functions/src/challengeProgress.ts'
+      - 'functions/src/badgeAuthority.ts'
+      - 'functions/src/community.ts'
+      - 'functions/src/_shared/communityPolicy.ts'
+      - 'src/lib/userBackgroundRepository*'
+      - 'src/lib/sharedThemeRepository*'
+      - 'src/lib/communityService*'
+      - 'src/lib/premiumGiftService*'
       - 'functions/src/_shared/admin.ts'
       - 'functions/src/_shared/stripe*.ts'
       - 'functions/src/_shared/conversation*.ts'
@@ -57,6 +75,24 @@ on:
       - 'scripts/test-account-authority-rules.mjs'
       - 'scripts/test-commerce-authority-rules.mjs'
       - 'scripts/test-dm-membership-authority.mjs'
+      - 'scripts/test-premium-authority-rules.mjs'
+      - 'scripts/test-reward-authority-rules.mjs'
+      - 'scripts/test-community-authority-rules.mjs'
+      - 'scripts/test-reward-authority-backend.mjs'
+      - 'scripts/test-premium-authority-backend.mjs'
+      - 'functions/package.json'
+      - 'functions/package-lock.json'
+      - 'functions/src/premiumGifts.ts'
+      - 'functions/src/_shared/premiumAuthority.ts'
+      - 'functions/src/_shared/challengeRewardAuthority.ts'
+      - 'functions/src/challengeProgress.ts'
+      - 'functions/src/badgeAuthority.ts'
+      - 'functions/src/community.ts'
+      - 'functions/src/_shared/communityPolicy.ts'
+      - 'src/lib/userBackgroundRepository*'
+      - 'src/lib/sharedThemeRepository*'
+      - 'src/lib/communityService*'
+      - 'src/lib/premiumGiftService*'
       - 'functions/src/_shared/admin.ts'
       - 'functions/src/_shared/stripe*.ts'
       - 'functions/src/_shared/conversation*.ts'
@@ -129,6 +165,11 @@ jobs:
           --no-audit --no-fund --save-exact
           firebase-tools@15.28.2 @firebase/rules-unit-testing@5.0.2 firebase@12.19.0
 
+      - name: Build isolated callable fixtures
+        run: |
+          npm ci --prefix functions
+          npm run build --prefix functions
+
       - name: Check test entry points
         run: |
           node --check scripts/test-creator-platform-rules.mjs
@@ -137,6 +178,11 @@ jobs:
           node --check scripts/test-account-authority-rules.mjs
           node --check scripts/test-commerce-authority-rules.mjs
           node --check scripts/test-dm-membership-authority.mjs
+          node --check scripts/test-premium-authority-rules.mjs
+          node --check scripts/test-reward-authority-rules.mjs
+          node --check scripts/test-community-authority-rules.mjs
+          node --check scripts/test-reward-authority-backend.mjs
+          node --check scripts/test-premium-authority-backend.mjs
 
       # Explicit demo project + QA-only config prevents the repository's
       # production default in .firebaserc from being selected.
@@ -150,7 +196,12 @@ jobs:
           node scripts/test-customization-rules.mjs &&
           node scripts/test-account-authority-rules.mjs &&
           node scripts/test-commerce-authority-rules.mjs &&
-          node scripts/test-dm-membership-authority.mjs"
+          node scripts/test-dm-membership-authority.mjs &&
+          node scripts/test-premium-authority-rules.mjs &&
+          node scripts/test-reward-authority-rules.mjs &&
+          node scripts/test-community-authority-rules.mjs &&
+          node scripts/test-reward-authority-backend.mjs &&
+          node scripts/test-premium-authority-backend.mjs"
 
       - name: Upload emulator diagnostics
         if: always()

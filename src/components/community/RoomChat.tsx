@@ -16,6 +16,8 @@ import { useChannelMessages, useSendChannelMessage, ChannelMessage, useMyServerR
 import { useAuth } from '@/lib/auth';
 import { format, isToday, isYesterday } from 'date-fns';
 import { toast } from 'sonner';
+import { useCommunityMessageActions } from './useCommunityMessageActions';
+import { useMyChannelPermissions } from '@/hooks/useChannelPermissions';
 import { RoomType } from '@/hooks/useCommunities';
 import { navVisibility } from '@/lib/navVisibility';
 
@@ -32,7 +34,7 @@ export const RoomChat = memo(function RoomChat({
   roomType,
   communityId 
 }: RoomChatProps) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { data: messages = [], isLoading } = useChannelMessages(roomId);
   const sendMessage = useSendChannelMessage();
   const { data: myRole } = useMyServerRole(communityId);
@@ -42,7 +44,8 @@ export const RoomChat = memo(function RoomChat({
 
   const canModerate = myRole === 'owner' || myRole === 'admin' || myRole === 'moderator';
   const isAnnouncement = roomType === 'announcements';
-  const canPost = !isAnnouncement || canModerate;
+  const { data: permissions } = useMyChannelPermissions(roomId, communityId);
+  const canPost = permissions?.can_send === true;
 
   // Handle input focus to hide nav on mobile keyboard (shell owns immersive nav)
   const handleInputFocus = useCallback(() => {
@@ -62,13 +65,11 @@ export const RoomChat = memo(function RoomChat({
     if (!messageText.trim() || sendMessage.isPending || !canPost) return;
 
     const text = messageText.trim();
-    setMessageText('');
+    try {
+      await sendMessage.mutateAsync({ channelId: roomId, content: text });
+      setMessageText('');
+    } catch { return; /* Keep the draft; the mutation displays the error. */ }
 
-    await sendMessage.mutateAsync({
-      channelId: roomId,
-      content: text,
-    });
-    
     // Refocus input
     inputRef.current?.focus();
   }, [messageText, roomId, sendMessage, canPost]);
@@ -142,7 +143,7 @@ export const RoomChat = memo(function RoomChat({
                       <MessageBubble
                         key={message.id}
                         message={message}
-                        isOwn={message.sender_id === profile?.id}
+                        isOwn={message.sender_id === profile?.id && (message.author_id === user?.id || message.author_id === profile?.id)}
                         showFullHeader={showFullHeader}
                         canModerate={canModerate}
                         isAnnouncement={isAnnouncement}
@@ -200,7 +201,7 @@ export const RoomChat = memo(function RoomChat({
         </div>
       ) : (
         <div className="shrink-0 px-4 py-3 border-t border-border/50 bg-card/95 backdrop-blur-md text-center text-sm text-foreground/70 pb-safe z-10">
-          Only moderators can post in announcements
+          You do not have permission to post in this room
         </div>
       )}
     </div>
@@ -221,6 +222,7 @@ const MessageBubble = memo(function MessageBubble({
   canModerate: boolean;
   isAnnouncement: boolean;
 }) {
+  const actions = useCommunityMessageActions(message);
   // All hooks at the top
   const [showMenu, setShowMenu] = useState(false);
   const longPressRef = useRef<NodeJS.Timeout | null>(null);
@@ -253,6 +255,7 @@ const MessageBubble = memo(function MessageBubble({
   }, []);
 
   return (
+    <>
     <div className={cn(
       "group px-2 py-1 rounded-xl transition-colors",
       showFullHeader ? "pt-3" : "pt-0.5",
@@ -317,13 +320,14 @@ const MessageBubble = memo(function MessageBubble({
                   {isOwn && (
                     <button
                       className="w-full px-4 py-2.5 text-left text-sm hover:bg-muted flex items-center gap-3"
+                      onClick={() => { setShowMenu(false); actions.edit(); }}
                     >
                       <Edit3 className="h-4 w-4" />
                       Edit
                     </button>
                   )}
                   {(isOwn || canModerate) && (
-                    <button className="w-full px-4 py-2.5 text-left text-sm hover:bg-muted text-destructive flex items-center gap-3">
+                    <button className="w-full px-4 py-2.5 text-left text-sm hover:bg-muted text-destructive flex items-center gap-3" onClick={() => { setShowMenu(false); actions.remove(); }}>
                       <Trash2 className="h-4 w-4" />
                       Delete
                     </button>
@@ -348,13 +352,13 @@ const MessageBubble = memo(function MessageBubble({
                   Copy
                 </DropdownMenuItem>
                 {isOwn && (
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onSelect={actions.edit}>
                     <Edit3 className="h-4 w-4 mr-2" />
                     Edit
                   </DropdownMenuItem>
                 )}
                 {(isOwn || canModerate) && (
-                  <DropdownMenuItem className="text-destructive">
+                  <DropdownMenuItem className="text-destructive" onSelect={actions.remove}>
                     <Trash2 className="h-4 w-4 mr-2" />
                     Delete
                   </DropdownMenuItem>
@@ -376,6 +380,8 @@ const MessageBubble = memo(function MessageBubble({
         </div>
       </div>
     </div>
+    {actions.dialog}
+    </>
   );
 });
 

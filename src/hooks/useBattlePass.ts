@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
-import { db } from '@/lib/firebase';
+import { db, getFirebaseAuth } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
@@ -51,21 +51,33 @@ export interface ChallengeReward {
   };
 }
 
+export function unclaimedChallengeRewards(rows: ChallengeReward[], ownerIds: string[]): ChallengeReward[] {
+  const own = rows.filter(row => ownerIds.includes(row.user_id));
+  const claimed = new Set(own.filter(row => row.is_claimed === true).map(row => row.challenge_id));
+  const unique = new Map<string, ChallengeReward>();
+  for (const row of own) {
+    if (row.is_claimed !== false || claimed.has(row.challenge_id)) continue;
+    const key = row.challenge_id || row.id;
+    if (!unique.has(key)) unique.set(key, row);
+  }
+  return [...unique.values()];
+}
+
 /**
  * Fetch user's level and XP
  */
 export function useUserLevel() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
 
   return useQuery({
-    queryKey: ['user-level', profile?.user_id],
+    queryKey: ['user-level', user?.id, profile?.id],
     queryFn: async () => {
-      if (!profile) return null;
+      if (!profile || !user || profile.user_id !== user.id || getFirebaseAuth().currentUser?.uid !== user.id) return null;
       
       const { data, error } = await db
         .from('user_levels')
         .select('*')
-        .eq('user_id', profile.user_id)
+        .in('user_id', [...new Set([user.id, profile.id])])
         .maybeSingle();
       
       if (error) throw error;
@@ -73,11 +85,14 @@ export function useUserLevel() {
       // If no record exists, ask the server to provision one safely (RPC), then re-fetch.
       if (!data) {
         try {
-          await db.rpc('ensure_user_level');
+          if (getFirebaseAuth().currentUser?.uid !== user.id) throw new Error('Account changed');
+          const { error: ensureError } = await db.rpc('ensure_user_level');
+          if (ensureError) throw ensureError;
+          if (getFirebaseAuth().currentUser?.uid !== user.id) throw new Error('Account changed');
           const { data: retryData } = await db
             .from('user_levels')
             .select('*')
-            .eq('user_id', profile.user_id)
+            .in('user_id', [...new Set([user.id, profile.id])])
             .maybeSingle();
           if (retryData) {
             return {
@@ -97,7 +112,7 @@ export function useUserLevel() {
         unclaimed_rewards: (Array.isArray(data.unclaimed_rewards) ? data.unclaimed_rewards : []) as unknown as BattlePassReward[],
       } as UserLevel;
     },
-    enabled: !!profile,
+    enabled: !!profile && !!user && profile.user_id === user.id,
     staleTime: 1000 * 60 * 2,
   });
 }
@@ -125,12 +140,12 @@ export function useBattlePassTiers() {
  * Fetch unclaimed challenge rewards
  */
 export function useUnclaimedRewards() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
 
   return useQuery({
-    queryKey: ['unclaimed-rewards', profile?.id],
+    queryKey: ['unclaimed-rewards', profile?.id, user?.id],
     queryFn: async () => {
-      if (!profile) return [];
+      if (!profile || !user || profile.user_id !== user.id || getFirebaseAuth().currentUser?.uid !== user.id) return [];
       
       const { data, error } = await db
         .from('challenge_rewards')
@@ -138,14 +153,13 @@ export function useUnclaimedRewards() {
           *,
           challenge:challenges(title, description)
         `)
-        .eq('user_id', profile.id)
-        .eq('is_claimed', false)
+        .in('user_id', [...new Set([user.id, profile.id])])
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data as ChallengeReward[];
+      return unclaimedChallengeRewards((data || []) as ChallengeReward[], [user.id, profile.id]);
     },
-    enabled: !!profile,
+    enabled: !!profile && !!user && profile.user_id === user.id,
     staleTime: 1000 * 30,
   });
 }
@@ -155,14 +169,13 @@ export function useUnclaimedRewards() {
  */
 export function useClaimReward() {
   const queryClient = useQueryClient();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
 
   return useMutation({
     mutationFn: async (rewardId: string) => {
-      if (!profile) throw new Error('Not authenticated');
+      if (!profile || !user || profile.user_id !== user.id || getFirebaseAuth().currentUser?.uid !== user.id) throw new Error('Not authenticated');
       
       const { data, error } = await db.rpc('claim_challenge_reward', {
-        p_user_id: profile.user_id,
         p_reward_id: rewardId,
       });
       
@@ -180,12 +193,14 @@ export function useClaimReward() {
         };
       };
       
-      return result;
+      return { ...result, actorUid: user.id, profileId: profile.id };
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards', profile?.id] });
-      queryClient.invalidateQueries({ queryKey: ['user-level', profile?.id] });
-      queryClient.invalidateQueries({ queryKey: ['user-badges', profile?.id] });
+      if (getFirebaseAuth().currentUser?.uid !== data.actorUid) return;
+      queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards', data.profileId, data.actorUid] });
+      queryClient.invalidateQueries({ queryKey: ['user-level', data.actorUid] });
+      queryClient.invalidateQueries({ queryKey: ['user-badges', data.profileId] });
+      queryClient.invalidateQueries({ queryKey: ['claimed-rewards', data.actorUid] });
       
       if (data.level_result?.level_up) {
         toast.success(`🎉 Level Up! You're now level ${data.level_result.new_level}!`, {
@@ -200,23 +215,26 @@ export function useClaimReward() {
  * Real-time subscription for new challenge rewards
  */
 export function useRealtimeChallengeRewards(onNewReward?: (reward: ChallengeReward) => void) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const queryClient = useQueryClient();
   const callbackRef = useRef(onNewReward);
   callbackRef.current = onNewReward;
 
   useEffect(() => {
-    if (!profile) return;
+    if (!profile || !user || profile.user_id !== user.id) return;
+    let active = true;
+    const seen = new Set<string>();
+    const ownerIds = [...new Set([user.id, profile.id])];
 
-    const channel = subscribePostgresChannel(`challenge-rewards-${profile.id}`, [
-      {
-        event: 'INSERT',
+    const channel = subscribePostgresChannel(`challenge-rewards-${user.id}-${profile.id}`, ownerIds.map(ownerId => ({
+        event: '*',
         table: 'challenge_rewards',
-        filter: `user_id=eq.${profile.id}`,
+        filter: `user_id=eq.${ownerId}`,
         callback: async (payload) => {
-          if (import.meta.env.DEV) {
-            console.log('[BattlePass] New reward received:', payload);
-          }
+          if (!active || getFirebaseAuth().currentUser?.uid !== user.id) return;
+          queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards', profile.id, user.id] });
+          queryClient.invalidateQueries({ queryKey: ['claimed-rewards', user.id] });
+          if (payload.eventType !== 'INSERT' || payload.new.is_claimed !== false) return;
           
           // Fetch the full reward with challenge info
           const { data: reward } = await db
@@ -225,8 +243,8 @@ export function useRealtimeChallengeRewards(onNewReward?: (reward: ChallengeRewa
             .eq('id', payload.new.id)
             .single();
           
-          if (reward) {
-            queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards', profile.id] });
+          if (active && getFirebaseAuth().currentUser?.uid === user.id && reward && reward.is_claimed === false && ownerIds.includes(reward.user_id) && !seen.has(reward.challenge_id)) {
+            seen.add(reward.challenge_id);
             callbackRef.current?.(reward as ChallengeReward);
             
             // Show toast notification
@@ -244,43 +262,39 @@ export function useRealtimeChallengeRewards(onNewReward?: (reward: ChallengeRewa
             );
           }
         },
-      },
-    ]);
+      })));
 
     return () => {
+      active = false;
       removeRealtimeChannel(channel);
     };
-  }, [profile?.id, queryClient]);
+  }, [profile?.id, profile?.user_id, user?.id, queryClient]);
 }
 
 /**
  * Real-time subscription for level updates
  */
 export function useRealtimeLevelUpdates() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!profile) return;
+    if (!profile || !user || profile.user_id !== user.id) return;
 
-    const channel = subscribePostgresChannel(`user-level-${profile.id}`, [
-      {
-        event: 'UPDATE',
+    const channel = subscribePostgresChannel(`user-level-${user.id}-${profile.id}`, [...new Set([user.id, profile.id])].map(ownerId => ({
+        event: '*',
         table: 'user_levels',
-        filter: `user_id=eq.${profile.id}`,
-        callback: (payload) => {
-          if (import.meta.env.DEV) {
-            console.log('[BattlePass] Level updated:', payload);
-          }
-          queryClient.invalidateQueries({ queryKey: ['user-level', profile.id] });
+        filter: `user_id=eq.${ownerId}`,
+        callback: () => {
+          if (getFirebaseAuth().currentUser?.uid !== user.id) return;
+          queryClient.invalidateQueries({ queryKey: ['user-level', user.id] });
         },
-      },
-    ]);
+      })));
 
     return () => {
       removeRealtimeChannel(channel);
     };
-  }, [profile?.id, queryClient]);
+  }, [profile?.id, profile?.user_id, user?.id, queryClient]);
 }
 
 /**

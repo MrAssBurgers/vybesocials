@@ -6,8 +6,9 @@
  * The browser's native background-image on <body> is the most efficient approach.
  */
 
-import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
-import { db } from '@/lib/firebase';
+import { createContext, useContext, useState, useCallback, useEffect, useLayoutEffect, useRef, ReactNode } from 'react';
+import { loadUserBackgrounds } from '@/lib/userBackgroundRepository';
+import { useBackgroundAccount } from '@/hooks/useBackgroundAccount';
 import { useAuth } from '@/lib/auth';
 import { getSignedUrl, needsSigning } from '@/lib/signedUrlCache';
 import { THEME_IMAGES } from '@/lib/cosmeticConstants';
@@ -77,7 +78,9 @@ function analyzeLuminance(imageUrl: string): Promise<number> {
 }
 
 /** Apply or clear background styles on document.body */
+let bodyBackgroundVersion = 0;
 function applyBodyBackground(state: BackgroundState) {
+  const version = ++bodyBackgroundVersion;
   const { imageUrl, opacity, blur } = state;
   const body = document.body;
 
@@ -92,6 +95,7 @@ function applyBodyBackground(state: BackgroundState) {
     body.style.removeProperty('--bg-blur');
     document.documentElement.dataset.hasBgImage = 'false';
     document.documentElement.style.removeProperty('--bg-luminance');
+    delete document.documentElement.dataset.bgContrast;
     body.classList.remove('has-custom-bg');
     return;
   }
@@ -117,6 +121,7 @@ function applyBodyBackground(state: BackgroundState) {
   
   // Analyze luminance for auto-contrast
   analyzeLuminance(imageUrl).then(lum => {
+    if (version !== bodyBackgroundVersion) return;
     document.documentElement.style.setProperty('--bg-luminance', String(lum));
     // Set contrast mode: light bg needs dark text boost, dark bg needs light text boost
     document.documentElement.dataset.bgContrast = lum > 0.55 ? 'light' : lum < 0.35 ? 'dark' : 'mid';
@@ -137,165 +142,94 @@ export function hardResetBodyBackground() {
 }
 
 export function AppBackgroundProvider({ children }: { children: ReactNode }) {
-  const { user, profile } = useAuth();
-  const [background, setBackground] = useState<BackgroundState>({
-    imageUrl: null,
-    opacity: 0.85,
-    blur: 0,
-  });
+  const { profile } = useAuth();
+  const { account, isCurrent } = useBackgroundAccount();
+  const [background, setBackground] = useState<BackgroundState>({ imageUrl: null, opacity: 0.85, blur: 0 });
   const [hasUserWallpaper, setHasUserWallpaper] = useState(false);
   const [isBackgroundResolved, setIsBackgroundResolved] = useState(false);
-  const hasLoadedRef = useRef(false);
   const rawUrlRef = useRef<string | null>(null);
-  const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Monotonic token: every apply/refresh increments. Stale async resolutions
-  // (e.g. slow signed-URL fetches that finish after the user has navigated
-  // away from a foreign profile) are dropped if the token has moved on.
   const applyTokenRef = useRef(0);
+  const stateOwnerRef = useRef(account);
+  const sameAccount = stateOwnerRef.current === account;
+  const equippedTheme = (profile as { equipped_profile_theme?: string | null } | null)?.equipped_profile_theme;
 
-  // Sign the raw URL and update state
   const signAndApply = useCallback(async (rawUrl: string | null, token: number) => {
-    if (!rawUrl) {
-      if (token !== applyTokenRef.current) return;
-      setBackground(prev => ({ ...prev, imageUrl: null }));
-      return;
-    }
-    if (needsSigning(rawUrl)) {
-      const signed = await getSignedUrl(rawUrl);
-      if (token !== applyTokenRef.current) return; // stale — drop
-      setBackground(prev => ({ ...prev, imageUrl: signed }));
-    } else {
-      if (token !== applyTokenRef.current) return;
-      setBackground(prev => ({ ...prev, imageUrl: rawUrl }));
-    }
-  }, []);
+    const url = rawUrl && needsSigning(rawUrl) ? await getSignedUrl(rawUrl) : rawUrl;
+    if (!isCurrent() || token !== applyTokenRef.current) return;
+    setBackground(prev => ({ ...prev, imageUrl: url }));
+  }, [isCurrent]);
 
-  // Load the LOGGED-IN user's own background and apply it globally
-  // (home, messages, settings, etc). Profile pages may temporarily override
-  // when viewing other users; they should call refreshBackground() on unmount
-  // to restore the owner's background.
   const refreshBackground = useCallback(async () => {
+    if (!isCurrent()) return;
     const token = ++applyTokenRef.current;
-    const profileId = profile?.id;
-    if (!profileId) {
-      rawUrlRef.current = null;
-      hasLoadedRef.current = false;
-      setHasUserWallpaper(false);
-      setBackground(prev => ({ ...prev, imageUrl: null }));
-      clearBodyBackground();
-      setIsBackgroundResolved(true);
-      return;
-    }
-
-    // Keep prior hasUserWallpaper until fetch completes — avoids aurora/wallpaper flicker.
-
-    // 1. Equipped profile themes are profile cosmetics — do not replace the app-shell aurora
-    const equippedTheme = (profile as unknown as { equipped_profile_theme?: string | null })?.equipped_profile_theme;
-    if (equippedTheme && THEME_IMAGES[equippedTheme]) {
-      rawUrlRef.current = null;
-      setHasUserWallpaper(false);
-      setBackground(prev => ({ ...prev, imageUrl: null }));
-      clearBodyBackground();
-      setIsBackgroundResolved(true);
-      return;
-    }
-
-    // 2. Active user_backgrounds upload — explicit custom wallpaper; hides liquid aurora
+    const current = () => isCurrent() && token === applyTokenRef.current;
     try {
-      const { data, error } = await db
-        .from('user_backgrounds')
-        .select('image_url')
-        .eq('user_id', profileId)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (error) {
-        if (import.meta.env.DEV) {
-          console.warn('[AppBackground] user_backgrounds query failed:', error.message);
-        }
-        if (token !== applyTokenRef.current) return;
-        rawUrlRef.current = null;
-        setHasUserWallpaper(false);
-        setBackground(prev => ({ ...prev, imageUrl: null }));
-        setIsBackgroundResolved(true);
-        return;
-      }
-
-      const url = data?.image_url ?? null;
+      const rows = account.authUid && account.profileId && !(equippedTheme && THEME_IMAGES[equippedTheme])
+        ? await loadUserBackgrounds(account) : [];
+      // Check before touching the raw URL too: the refresh timer reuses it.
+      if (!current()) return;
+      const url = rows.find(row => row.is_active)?.image_url ?? null;
       rawUrlRef.current = url;
       setHasUserWallpaper(Boolean(url));
       await signAndApply(url, token);
-      hasLoadedRef.current = true;
-      setIsBackgroundResolved(true);
+      if (current()) setIsBackgroundResolved(true);
     } catch {
-      if (token !== applyTokenRef.current) return;
+      if (!current()) return;
       rawUrlRef.current = null;
       setHasUserWallpaper(false);
       setBackground(prev => ({ ...prev, imageUrl: null }));
       setIsBackgroundResolved(true);
     }
-  }, [profile?.id, signAndApply]);
+  }, [account, equippedTheme, isCurrent, signAndApply]);
 
-  // Auto-load own background whenever auth/profile changes
-  useEffect(() => {
-    refreshBackground();
-  }, [refreshBackground]);
+  useLayoutEffect(() => {
+    stateOwnerRef.current = account;
+    ++applyTokenRef.current;
+    rawUrlRef.current = null;
+    setBackground({ imageUrl: null, opacity: 0.85, blur: 0 });
+    setHasUserWallpaper(false);
+    setIsBackgroundResolved(false);
+    clearBodyBackground();
+    return () => { ++applyTokenRef.current; rawUrlRef.current = null; clearBodyBackground(); };
+  }, [account]);
 
-  // Re-sign every 45 minutes to prevent expiry
+  useEffect(() => { void refreshBackground(); }, [refreshBackground]);
   useEffect(() => {
-    refreshTimerRef.current = setInterval(() => {
-      if (rawUrlRef.current && needsSigning(rawUrlRef.current)) {
-        signAndApply(rawUrlRef.current, ++applyTokenRef.current);
+    const timer = setInterval(() => {
+      const raw = rawUrlRef.current;
+      if (isCurrent() && raw && needsSigning(raw)) {
+        void signAndApply(raw, ++applyTokenRef.current).catch(() => { /* Retain current image until next refresh. */ });
       }
     }, 45 * 60 * 1000);
-    return () => {
-      if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
-    };
-  }, [signAndApply]);
-
-  // Apply body styles whenever background state changes
-  useEffect(() => {
-    applyBodyBackground(background);
-  }, [background]);
-
-  // Clear on unmount (logout / provider removed)
-  useEffect(() => {
-    return () => clearBodyBackground();
-  }, []);
+    return () => clearInterval(timer);
+  }, [isCurrent, signAndApply]);
+  useLayoutEffect(() => {
+    if (sameAccount) applyBodyBackground(background);
+  }, [background, sameAccount]);
 
   const setBackgroundImage = useCallback((url: string | null) => {
+    if (!isCurrent()) return;
     rawUrlRef.current = url;
-    setHasUserWallpaper(url !== null);
+    setHasUserWallpaper(Boolean(url));
     const token = ++applyTokenRef.current;
-    if (url === null) {
-      clearBodyBackground();
-    } else {
-      stripLiquidShellDocumentState();
-    }
-    signAndApply(url, token);
-  }, [signAndApply]);
-
+    if (!url) clearBodyBackground();
+    else stripLiquidShellDocumentState();
+    void signAndApply(url, token).catch(() => {
+      if (!isCurrent() || token !== applyTokenRef.current) return;
+      setBackground(prev => ({ ...prev, imageUrl: null }));
+    });
+  }, [isCurrent, signAndApply]);
   const setBackgroundOpacity = useCallback((opacity: number) => {
-    setBackground(prev => ({ ...prev, opacity }));
-  }, []);
-
+    if (isCurrent()) setBackground(prev => ({ ...prev, opacity }));
+  }, [isCurrent]);
   const setBackgroundBlur = useCallback((blur: number) => {
-    setBackground(prev => ({ ...prev, blur }));
-  }, []);
+    if (isCurrent()) setBackground(prev => ({ ...prev, blur }));
+  }, [isCurrent]);
 
-  const contextValue: BackgroundContextType = {
-    background,
-    hasUserWallpaper,
-    isBackgroundResolved,
-    setBackgroundImage,
-    setBackgroundOpacity,
-    setBackgroundBlur,
-    refreshBackground,
-  };
-
-  return (
-    <BackgroundContext.Provider value={contextValue}>
-      {children}
-    </BackgroundContext.Provider>
-  );
+  return <BackgroundContext.Provider value={{
+    background: sameAccount ? background : { imageUrl: null, opacity: 0.85, blur: 0 },
+    hasUserWallpaper: sameAccount && hasUserWallpaper,
+    isBackgroundResolved: sameAccount && isBackgroundResolved,
+    setBackgroundImage, setBackgroundOpacity, setBackgroundBlur, refreshBackground,
+  }}>{children}</BackgroundContext.Provider>;
 }

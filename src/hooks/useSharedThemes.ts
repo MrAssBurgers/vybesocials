@@ -3,7 +3,12 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { toast } from 'sonner';
-import { ThemeTokens } from './useCustomTheme';
+import type { ThemeTokens } from './useCustomTheme';
+import { useEffect, useRef } from 'react';
+import { firebaseAuth } from '@/lib/firebase/authService';
+import { hasSavedTheme, loadOwnSharedThemes, loadSavedThemes, loadSharedTheme } from '@/lib/sharedThemeRepository';
+import { useTheme } from '@/lib/theme';
+import { writeDevicePreference } from '@/lib/devicePreferences';
 
 export interface SharedTheme {
   id: string;
@@ -69,61 +74,32 @@ export function usePublicThemes(searchQuery?: string) {
 
 // Fetch user's saved themes
 export function useSavedThemes() {
+  const { user } = useAuth();
   const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['saved-themes', profileId],
-    queryFn: async () => {
-      if (!profileId) return [];
-
-      const { data, error } = await db
-        .from('saved_themes')
-        .select(`
-          id,
-          created_at,
-          shared_theme:shared_themes(
-            *,
-            creator:profiles!shared_themes_creator_id_fkey(display_name, avatar_url, username)
-          )
-        `)
-        .eq('user_id', profileId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return (data?.map(d => ({ ...d.shared_theme, saved_id: d.id })) || []) as unknown as (SharedTheme & { saved_id: string })[];
-    },
-    enabled: !!profileId,
+    queryKey: ['saved-themes', user?.id, profileId],
+    queryFn: ({ signal }) => loadSavedThemes(profileId!, { signal }),
+    enabled: !!user?.id && !!profileId,
     networkMode: 'always',
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
-    placeholderData: (prev) => prev,
     refetchOnWindowFocus: false,
   });
 }
 
 // Fetch user's own shared themes
 export function useMySharedThemes() {
+  const { user } = useAuth();
   const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['my-shared-themes', profileId],
-    queryFn: async () => {
-      if (!profileId) return [];
-
-      const { data, error } = await db
-        .from('shared_themes')
-        .select('*')
-        .eq('creator_id', profileId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return (data || []) as unknown as SharedTheme[];
-    },
-    enabled: !!profileId,
+    queryKey: ['my-shared-themes', user?.id, profileId],
+    queryFn: ({ signal }) => loadOwnSharedThemes(profileId!, { signal }),
+    enabled: !!user?.id && !!profileId,
     networkMode: 'always',
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
-    placeholderData: (prev) => prev,
     refetchOnWindowFocus: false,
   });
 }
@@ -216,94 +192,110 @@ export function useShareTheme() {
   });
 }
 
-// Equip a shared theme: apply tokens live + persist active + auto-save to gallery
+class ThemeAccountChangedError extends Error {
+  constructor() { super('Your account changed. Please select the theme again.'); }
+}
+
+type EquipThemeInput = Pick<SharedTheme, 'id' | 'theme_tokens' | 'theme_name'>;
+type ThemeAccount = { userId: string | undefined; profileId: string | undefined };
+
+// Persist first; a failed write must not paint or claim an equipped account theme.
 export function useEquipSharedTheme() {
   const { profile, user } = useAuth();
   const queryClient = useQueryClient();
+  const { setTheme } = useTheme();
+  const accountRef = useRef<ThemeAccount>({ userId: user?.id, profileId: profile?.id });
+  if (accountRef.current.userId !== user?.id || accountRef.current.profileId !== profile?.id) {
+    accountRef.current = { userId: user?.id, profileId: profile?.id };
+  }
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+  const isCurrent = (account: ThemeAccount) => mountedRef.current && accountRef.current === account;
+  const assertCurrent = async (account: ThemeAccount) => {
+    if (!isCurrent(account)) throw new ThemeAccountChangedError();
+    const { data: { user: liveUser } } = await firebaseAuth.getUser();
+    if (!isCurrent(account) || liveUser?.id !== account.userId) throw new ThemeAccountChangedError();
+  };
 
-  return useMutation({
-    mutationFn: async (theme: { id: string; theme_tokens: ThemeTokens; theme_name: string }) => {
-      if (!user?.id) throw new Error('Not authenticated');
-
+  const mutation = useMutation({
+    mutationFn: async ({ input, account }: { input: EquipThemeInput; account: ThemeAccount }) => {
+      if (!account.userId) throw new Error('Not authenticated');
+      await assertCurrent(account);
+      // Recheck visibility against the server; stale gallery/detail cache is not authority.
+      const theme = await loadSharedTheme(input.id);
+      await assertCurrent(account);
+      if (!theme) throw new Error('This theme is no longer available');
       const { equipTheme } = await import('@/hooks/useCustomTheme');
-      equipTheme(theme.theme_tokens, {
-        userId: user.id,
-        themeId: theme.id,
-        silent: true,
-      });
-
-      await db.from('user_themes').upsert(
+      await assertCurrent(account);
+      const savedTheme = {
+        user_id: account.userId,
+        theme_name: theme.theme_name,
+        theme_tokens: theme.theme_tokens,
+        base_preset: 'shared', is_active: true,
+        updated_at: new Date().toISOString(),
+      };
+      const { error } = await db.from('user_themes').upsert(
         {
-          user_id: user.id,
-          theme_name: theme.theme_name,
-          theme_tokens: theme.theme_tokens as any,
-          base_preset: 'shared',
-          is_active: true,
-          updated_at: new Date().toISOString(),
+          ...savedTheme,
         },
         { onConflict: 'user_id' }
       );
+      if (error) throw error;
+      await assertCurrent(account);
 
-      if (profile?.id) {
-        await db
-          .from('saved_themes')
-          .insert({ user_id: profile.id, shared_theme_id: theme.id })
-          .then(() => {}, () => {});
-        await db.rpc('increment_theme_downloads', { theme_id: theme.id }).then(() => {}, () => {});
+      let saveFailed = false;
+      if (account.profileId) {
+        try {
+          const alreadySaved = await hasSavedTheme(account.profileId, theme.id);
+          await assertCurrent(account);
+          if (!alreadySaved) {
+            const { error: saveError } = await db.from('saved_themes')
+              .insert({ user_id: account.profileId, shared_theme_id: theme.id });
+            saveFailed = Boolean(saveError);
+          }
+        } catch (saveError) {
+          if (saveError instanceof ThemeAccountChangedError) throw saveError;
+          saveFailed = true;
+        }
       }
+      await assertCurrent(account);
+      setTheme(theme.theme_tokens.mode === 'light' ? 'light' : 'dark');
+      equipTheme(theme.theme_tokens, { userId: account.userId, themeId: theme.id, silent: true, skipAutoSave: true });
+      writeDevicePreference(`vybe-equipped-theme-id:${account.userId}`, theme.id);
+      queryClient.setQueryData(['user-theme', account.userId], savedTheme);
+      return { account, theme, saveFailed };
     },
-    onSuccess: (_data, theme) => {
-      const uid = user?.id;
-      if (uid) {
-        queryClient.setQueryData(['user-theme', uid], {
-          user_id: uid,
-          theme_name: theme.theme_name,
-          theme_tokens: theme.theme_tokens,
-          base_preset: 'shared',
-          is_active: true,
-        });
-      }
-      queryClient.invalidateQueries({ queryKey: ['saved-themes'] });
-      toast.success('Equipped ✨');
+    onSuccess: ({ account, saveFailed }) => {
+      if (!isCurrent(account)) return;
+      queryClient.invalidateQueries({ queryKey: ['saved-themes', account.userId, account.profileId] });
+      if (saveFailed) toast.warning('Theme equipped, but it could not be added to Saved.');
+      else toast.success('Equipped ✨');
     },
-    onError: (e: any) => {
+    onError: (e: unknown, { account }) => {
+      if (!isCurrent(account) || e instanceof ThemeAccountChangedError) return;
       console.error('Equip failed', e);
       toast.error('Could not equip theme');
     },
   });
+  // Capture the actor synchronously when clicked, before React Query awaits any
+  // lifecycle callbacks. A switch away and back still invalidates that actor.
+  return {
+    ...mutation,
+    mutate: (input: EquipThemeInput) => mutation.mutate({ input, account: accountRef.current }),
+    mutateAsync: (input: EquipThemeInput) => mutation.mutateAsync({ input, account: accountRef.current }),
+  };
 }
 
-// Lookup any shared theme by id (handles unlisted via SECURITY DEFINER RPC)
+// Rule-gated detail lookup: public and owned private themes only.
 export function useSharedThemeById(id: string | null | undefined) {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ['shared-theme', id],
-    queryFn: async () => {
-      if (!id) return null;
-      const { data, error } = await db.rpc('get_shared_theme_by_id', { p_theme_id: id });
-      if (error) throw error;
-      const row = Array.isArray(data) ? data[0] : (data as any);
-      if (!row) return null;
-      return {
-        id: row.id,
-        creator_id: row.creator_id,
-        theme_name: row.theme_name,
-        theme_tokens: row.theme_tokens,
-        layout_settings: row.layout_settings,
-        description: row.description,
-        likes_count: row.likes_count,
-        downloads_count: row.downloads_count,
-        is_public: row.is_public,
-        created_at: row.created_at,
-        tags: row.tags,
-        category: row.category,
-        creator: {
-          display_name: row.creator_display_name,
-          avatar_url: row.creator_avatar_url,
-          username: row.creator_username,
-        },
-      } as SharedTheme;
-    },
-    enabled: !!id,
+    queryKey: ['shared-theme', user?.id, id],
+    queryFn: ({ signal }) => loadSharedTheme(id!, { signal }),
+    enabled: !!user?.id && !!id,
     staleTime: 60_000,
   });
 }

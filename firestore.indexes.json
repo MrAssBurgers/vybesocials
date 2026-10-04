@@ -1,5 +1,30 @@
 {
   "indexes": [
+    { "collectionGroup": "challenge_rewards", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "user_id", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ] },
+    { "collectionGroup": "stories", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "author_id", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "conversations", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "created_by", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "challenge_rewards", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "user_id", "order": "ASCENDING" },
+        { "fieldPath": "challenge_id", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "user_badges", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "user_id", "order": "ASCENDING" },
+        { "fieldPath": "badge_id", "order": "ASCENDING" }
+      ] },
     { "collectionGroup": "posts", "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "author_id", "order": "ASCENDING" },

@@ -1,4 +1,6 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCommunityRequest } from '@/hooks/useCommunityRequest';
+import { useCommunityMutation } from '@/hooks/useCommunityMutation';
+import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
@@ -7,10 +9,11 @@ import { toast } from 'sonner';
  * Update server settings (name, description, visibility, icon)
  */
 export function useUpdateServer() {
+  const communityRequest = useCommunityRequest();
   const queryClient = useQueryClient();
   const { profile } = useAuth();
 
-  return useMutation({
+  return useCommunityMutation({
     mutationFn: async ({ 
       serverId, 
       name, 
@@ -26,23 +29,15 @@ export function useUpdateServer() {
     }) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const updates: Record<string, any> = {};
-      if (name !== undefined) updates.name = name;
-      if (description !== undefined) updates.description = description;
-      if (isPublic !== undefined) updates.is_public = isPublic;
-      if (iconUrl !== undefined) updates.icon_url = iconUrl;
-
-      const { error } = await db
-        .from('servers')
-        .update(updates as never)
-        .eq('id', serverId);
-
-      if (error) throw error;
+      await communityRequest('community-manage', { action: 'updateServer', serverId, name, description, isPublic, iconUrl });
       return serverId;
     },
     onSuccess: (serverId) => {
       queryClient.invalidateQueries({ queryKey: ['server', serverId] });
+      queryClient.invalidateQueries({ queryKey: ['community', serverId] });
       queryClient.invalidateQueries({ queryKey: ['my-servers'] });
+      queryClient.invalidateQueries({ queryKey: ['my-communities'] });
+      queryClient.invalidateQueries({ queryKey: ['public-communities'] });
       toast.success('Server updated');
     },
     onError: (error: Error) => {
@@ -55,15 +50,15 @@ export function useUpdateServer() {
  * Upload server icon
  */
 export function useUploadServerIcon() {
-  const { profile } = useAuth();
+  const { user } = useAuth();
 
-  return useMutation({
+  return useCommunityMutation({
     mutationFn: async ({ serverId, file }: { serverId: string; file: File }) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      if (!user?.id) throw new Error('Not authenticated');
 
       const fileExt = file.name.split('.').pop();
       const fileName = `${serverId}-${Date.now()}.${fileExt}`;
-      const filePath = `server-icons/${fileName}`;
+      const filePath = `${user.id}/server-icons/${fileName}`;
 
       const { error: uploadError } = await db.storage
         .from('media')
@@ -87,23 +82,20 @@ export function useUploadServerIcon() {
  * Delete a server (owner only)
  */
 export function useDeleteServer() {
+  const communityRequest = useCommunityRequest();
   const queryClient = useQueryClient();
   const { profile } = useAuth();
 
-  return useMutation({
+  return useCommunityMutation({
     mutationFn: async (serverId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { error } = await db
-        .from('servers')
-        .delete()
-        .eq('id', serverId)
-        .eq('owner_id', profile.id);
-
-      if (error) throw error;
+      await communityRequest('community-manage', { action: 'deleteServer', serverId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-servers'] });
+      queryClient.invalidateQueries({ queryKey: ['my-communities'] });
+      queryClient.invalidateQueries({ queryKey: ['public-communities'] });
       toast.success('Server deleted');
     },
     onError: () => {
@@ -116,23 +108,17 @@ export function useDeleteServer() {
  * Regenerate invite code
  */
 export function useRegenerateInviteCode() {
+  const communityRequest = useCommunityRequest();
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useCommunityMutation({
     mutationFn: async (serverId: string) => {
-      // Generate new invite code
-      const newCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-      
-      const { error } = await db
-        .from('servers')
-        .update({ invite_code: newCode })
-        .eq('id', serverId);
-
-      if (error) throw error;
-      return newCode;
+      const { inviteCode } = await communityRequest<{ inviteCode: string }>('community-invite', { action: 'regenerate', serverId });
+      return inviteCode;
     },
     onSuccess: (newCode, serverId) => {
       queryClient.invalidateQueries({ queryKey: ['server', serverId] });
+      queryClient.invalidateQueries({ queryKey: ['community', serverId] });
       toast.success('New invite code generated');
     },
     onError: () => {
@@ -145,16 +131,12 @@ export function useRegenerateInviteCode() {
  * Delete a channel
  */
 export function useDeleteChannel() {
+  const communityRequest = useCommunityRequest();
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useCommunityMutation({
     mutationFn: async ({ channelId, serverId }: { channelId: string; serverId: string }) => {
-      const { error } = await db
-        .from('channels')
-        .delete()
-        .eq('id', channelId);
-
-      if (error) throw error;
+      await communityRequest('community-manage', { action: 'deleteChannel', serverId, channelId });
       return serverId;
     },
     onSuccess: (serverId) => {

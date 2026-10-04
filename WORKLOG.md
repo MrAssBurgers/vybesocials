@@ -2,6 +2,39 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-03) - Community, reward, premium gift, and customization repair
+
+### What changed
+- Community creation, admission, invites, roles, ownership transfer, messages, replies, edits, deletion and pinning now use verified transactional callables. Private channels and new voice tokens share admission/permission checks. Creation and unchanged message retries are idempotent; permission failures have no direct-write fallback. Both community UI families, icon resolution and account-switch/unmount guards are migrated.
+- Historical client-writable community membership is quarantined. Existing owners can recover their community and rotate invitations; members rejoin and receive verified roles. This is a coordinated source migration, not a production data change. See docs/COMMUNITY_AUTHORITY.md.
+- Challenge progress derives from retained owned source activity, actual Firestore creation time and valid targets. A new hashed protected ledger authorizes atomic once-only XP/badge claims. Historical balances remain intact; unprovable claims require reconciliation. Badge grant/revoke has trusted staff callables, badge appearance does not confer staff authority, and migrated BattlePass accounts read/invalidate/subscribe using both identity aliases. Five query indexes were added. See docs/REWARD_AUTHORITY.md.
+- Premium gifts use a new server-owned grant and request-receipt namespace. Staff issue/revoke and recipient acceptance compare the current grant version transactionally. Historical client-writable gifts no longer authorize benefits. Gift management has its own verified capability; cosmetic owner preview alone does not expose denied controls. Known expiry clears cosmetic access immediately, and active status refreshes every minute. Profile verification, premium flags and coin balance cannot be edited by browsers. See docs/PREMIUM_GIFT_AUTHORITY.md.
+- Gift review is opt-in in Settings; the global gift popup stays disabled, core features remain free, and the previously removed upgrade notice remains removed.
+- Saved themes load explicit owned references, deduplicate missing/private entries, show truthful loading/retry states and persist before equip. Background uploads use the Firebase UID namespace and resolve storage references. Atomic selection preserves the previous wallpaper on failure; account changes cancel stale image hydration, signing, refresh, callbacks and cache effects. Owned file cleanup follows committed metadata deletion.
+- GitHub rules QA now includes community/reward/premium namespaces and real callable transaction fixtures, with isolated Functions dependencies/build.
+
+### Verification
+- Full Vitest: **167 files / 1,341 tests passed**. App and standalone SDK typechecks passed. Functions build passed. Full lint: **0 errors**, the same 5 inherited unused-disable warnings. Final diff whitespace check passed.
+- Firestore/Storage demo emulators: **871 rules checks passed**: 164 creator, 22 game post, 112 customization, 115 account, 98 commerce, 85 conversation/call, 99 premium, 92 reward, 84 community. Four separate inherited role-read-budget probes remain confirmed, not counted as fixed behavior.
+- **20 real Firestore transaction checks passed**: 8 reward/badge and 12 premium. Latest built premium capability and reward fixture timing changes were rerun successfully. Only premium recipient Auth lookup is stubbed; all role, receipt, quota and transaction reads/writes use the local demo emulator. Storage emits its known EOF shutdown exception after successful test exit.
+- Final production build passed: entry app-jFGJ45Qo.js approximately **1,083.8 KB raw / 316.5 KB gzip**, below 1,125 / 335 KB budgets. CSS/boot checks and static DM/inbox/camera contracts passed. No service-account DM-send or production mutation tests were run.
+- Signed-in preview Settings renders the free-feature section and a truthful gift-service unavailable/Retry state until the new callable is deployed. Public developer portal and the user's live preview remain available. No real posts/messages, gifts, purchases, roles, account approvals or live audio sessions were changed.
+
+### Release limits and remaining risks
+- Source-only checkpoint. **No production Functions/rules deployment. Never deploy all Functions or alter production auth2faRequest.** Lovable Publish after Git sync updates vybehub.app and store bundles. Compatible clients, selective callable/rules rollout, new indexes, owner recovery and communicated member rejoining must be staged together.
+- Existing voice JWTs/connected participants are not retroactively revoked by membership changes. Storage download URLs retain prior access behavior; private channel text does not guarantee private media delivery. Provider revocation and a private media Storage migration remain necessary.
+- Community limits: 100 lifetime channel identities including archived channels; 200 members per current roster response; bounded discovery and owned lists. Creation/message receipt retention and larger-community pagination remain operational work.
+- Historical gifts, profile flags/coins, badges, XP and subscriptions are not certified or rewritten. Gifts require verified reissue. Subscription expiry/provider mirroring needs staging review; existing subscription-center visibility remains RevenueCat-only, with verified Stripe billing management still incomplete. Role alias/custom-claim lifecycle limitations from previous checkpoints remain.
+- Background upload followed by failed metadata persistence can leave an unused owned file; the active wallpaper remains intact. Legacy files outside the new owned path are not automatically deleted. Theme friend-sharing grants and missing import/link RPCs are still unfinished.
+- Partner native/GCS certification, mini-app runtime/network/abuse limits, paid catalog/settlement, marketplace/boost authority, remaining RPCs and native/two-device verification still apply. The goal remains active; the app is not declared perfected or release-ready.
+
+### Next 3 tasks
+1. Repair remaining marketplace/boost and billing authority with coherent server purchase/entitlement flows; review historical trust and staff-role projection.
+2. Add private community media delivery and provider-side session revocation, then stage owner recovery/rejoining and larger-community pagination.
+3. Continue game/mini-app operational and native certification plus responsive interaction/animation testing in an isolated test environment, keeping the signed-in owner's production data untouched.
+
+---
+
 ## ACTIVE (2026-10-03) — Account authority, private conversations, and voice reliability
 
 ### What changed

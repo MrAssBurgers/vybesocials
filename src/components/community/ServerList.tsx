@@ -1,3 +1,4 @@
+import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { memo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Settings, Hash, Volume2, ChevronDown, Users, Crown, Shield, DoorOpen } from 'lucide-react';
@@ -100,6 +101,7 @@ const ServerIcon = memo(function ServerIcon({
   onClick: () => void;
   unreadCount: number;
 }) {
+  const resolvedIcon = useSignedUrl(server.icon_url);
   return (
     <TooltipProvider>
       <Tooltip>
@@ -125,7 +127,7 @@ const ServerIcon = memo(function ServerIcon({
             >
               {server.icon_url ? (
                 <img
-                  src={server.icon_url}
+                  src={resolvedIcon || undefined}
                   alt={server.name}
                   className="h-full w-full object-cover"
                 />

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
-import { db } from '@/lib/firebase';
+import { pendingPremiumGift } from '@/lib/premiumGiftService';
 
 export function usePendingPremiumGift() {
   const { user } = useAuth();
@@ -10,30 +10,7 @@ export function usePendingPremiumGift() {
     queryFn: async () => {
       if (!user?.id) return null;
 
-      const { data } = await db
-        .from('gifted_premium')
-        .select('id, gifted_by, created_at')
-        .eq('user_id', user.id)
-        .eq('status', 'pending')
-        .eq('is_active', false)
-        .is('revoked_at', null)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (!data) return null;
-
-      // Get gifter's username
-      const { data: gifterProfile } = await db
-        .from('profiles')
-        .select('username')
-        .eq('user_id', data.gifted_by)
-        .maybeSingle();
-
-      return {
-        id: data.id,
-        gifterUsername: gifterProfile?.username || 'Someone',
-      };
+      return pendingPremiumGift(user.id);
     },
     enabled: !!user?.id,
     staleTime: 30_000,
