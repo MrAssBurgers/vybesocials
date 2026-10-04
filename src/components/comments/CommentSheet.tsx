@@ -1,3 +1,4 @@
+import { useDraftContinuationGuard } from '@/hooks/useDraftContinuationGuard';
 import { CommentLoadError } from './CommentLoadError';
 import { useState, useRef, useCallback, useEffect, memo, forwardRef, useImperativeHandle } from 'react';
 import { motion, AnimatePresence, PanInfo, useDragControls } from 'framer-motion';
@@ -55,6 +56,7 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
   const [replyingTo, setReplyingTo] = useState<{ id: string; username: string } | null>(null);
   const [gifUrl, setGifUrl] = useState<string | null>(null);
   const [showGifPicker, setShowGifPicker] = useState(false);
+  const captureSend = useDraftContinuationGuard(JSON.stringify([postId, text, gifUrl, replyingTo]));
   const [sheetHeight, setSheetHeight] = useState(0.6);
 
   // Like a comment
@@ -147,6 +149,9 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
 
     if (!text.trim() && !gifUrl) return;
 
+    if (createComment.isPending) return;
+    const current = captureSend();
+    if (!current()) return;
     try {
       await createComment.mutateAsync({
         postId,
@@ -155,13 +160,14 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
         imageUrl: gifUrl || undefined,
       });
 
+      if (!current()) return;
       setText('');
       setGifUrl(null);
       setReplyingTo(null);
     } catch (error) {
       // Error handled in mutation
     }
-  }, [profile, text, gifUrl, postId, authorId, createComment]);
+  }, [profile, text, gifUrl, postId, authorId, createComment, captureSend]);
 
   const handleReply = useCallback((commentId: string, username: string) => {
     setReplyingTo({ id: commentId, username });

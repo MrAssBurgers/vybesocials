@@ -1,5 +1,6 @@
+import { useDraftContinuationGuard } from '@/hooks/useDraftContinuationGuard';
 import { CommentLoadError } from './CommentLoadError';
-import { useState, useRef, useCallback, memo } from 'react';
+import { useState, useRef, useCallback, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Image, Send, Loader2, X, SortAsc, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -48,11 +49,18 @@ export const InlineComments = memo(function InlineComments({
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<'image' | 'gif' | null>(null);
   const [showGifPicker, setShowGifPicker] = useState(false);
+  const captureSend = useDraftContinuationGuard(JSON.stringify([postId, text, mediaUrl, replyingTo]));
   const [isUploading, setIsUploading] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [displayCount, setDisplayCount] = useState(5);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadAttempt = useRef(0);
+  const captureUpload = useDraftContinuationGuard(postId);
+  useEffect(() => {
+    uploadAttempt.current++;
+    setIsUploading(false);
+  }, [postId, profile?.id, profile?.user_id]);
 
   const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -68,6 +76,10 @@ export const InlineComments = memo(function InlineComments({
       return;
     }
 
+    const active = captureUpload();
+    if (!active()) return;
+    const attempt = ++uploadAttempt.current;
+    const current = () => active() && attempt === uploadAttempt.current;
     setIsUploading(true);
     try {
       const fileExt = file.name.split('.').pop();
@@ -77,6 +89,7 @@ export const InlineComments = memo(function InlineComments({
         .from('media')
         .upload(fileName, file);
 
+      if (!current()) return;
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = db.storage
@@ -86,21 +99,28 @@ export const InlineComments = memo(function InlineComments({
       setMediaUrl(publicUrl);
       setMediaType('image');
     } catch (error) {
+      if (!current()) return;
       console.error('Failed to upload image:', error);
       toast.error('Failed to upload image');
     } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (current()) {
+        setIsUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
     }
-  }, [profile]);
+  }, [profile, captureUpload]);
 
   const handleGifSelect = useCallback((gifUrl: string) => {
+    uploadAttempt.current++;
+    setIsUploading(false);
     setMediaUrl(gifUrl);
     setMediaType('gif');
     setShowGifPicker(false);
   }, []);
 
   const clearMedia = useCallback(() => {
+    uploadAttempt.current++;
+    setIsUploading(false);
     setMediaUrl(null);
     setMediaType(null);
   }, []);
@@ -113,6 +133,9 @@ export const InlineComments = memo(function InlineComments({
 
     if (!text.trim() && !mediaUrl) return;
 
+    if (createComment.isPending) return;
+    const current = captureSend();
+    if (!current()) return;
     try {
       await createComment.mutateAsync({
         postId,
@@ -121,6 +144,7 @@ export const InlineComments = memo(function InlineComments({
         imageUrl: mediaUrl || undefined,
       });
 
+      if (!current()) return;
       setText('');
       setMediaUrl(null);
       setMediaType(null);
@@ -128,7 +152,7 @@ export const InlineComments = memo(function InlineComments({
     } catch (error) {
       // Error handled in mutation
     }
-  }, [profile, text, mediaUrl, postId, authorId, createComment]);
+  }, [profile, text, mediaUrl, postId, authorId, createComment, captureSend]);
 
   const handleReply = useCallback((commentId: string, username: string) => {
     setReplyingTo({ id: commentId, username });

@@ -2,6 +2,23 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Preserve comment drafts across async completion
+
+### What changed
+- Added a mounted/account/draft-revision continuation guard to all three comment composers. Successful older sends no longer clear a changed draft, including edits away and back; stale account completions cannot clear text or show PostDetail success feedback.
+- Inline image uploads check account/post ownership and attempt identity after awaiting storage. A newer GIF selection/removal supersedes the pending attachment. Late failures do not show stale notifications or reset newer upload state. This suppresses UI effects; it does not cancel/remove already accepted storage writes.
+- PostDetail catches failed comment sends, retaining the draft instead of leaking an unhandled promise rejection. Draft persistence and account-switch clearing remain separate work.
+
+### Verification
+- Full 323 files / 3,053 tests, production build, typecheck and scoped lint passed. Six guard cases cover stable drafts, changed-and-restored text, unmount, away-and-back accounts and invalid ownership. Logs work/comment-drafts-*.log.
+- Local PostDetail: sent synthetic Local composer lifecycle check and confirmed it appeared; entered a subsequent unsent draft. Screenshot outputs/vybe-comment-draft-verified.png. Browser timing does not prove a delayed-send race; that lifecycle guard is covered by automated checks. No production changes.
+
+### Updated direction / next 3 tasks
+1. User expanded the goal: interest-based feeds/UI and optional category apps, gaming SDK surfaced through onboarding, art/DIY publishing and category-specific experiences; allow later manual activation and combined interests. Inspect existing onboarding/Hub before implementation.
+2. Continue server-side comment visibility/likes authority, universal adapters and mini-app isolation alongside the expanded experience work.
+3. Publish completed client through Lovable and stage named backend/rules separately. Broad goal remains active.
+
+---
 ## ACTIVE (2026-10-04) - Account-scoped comment reads and explicit retry
 
 ### What changed
@@ -8871,6 +8888,7 @@ All eight migration phases complete. See `.lovable/plan.md` for per-phase detail
 1. Run the iOS manual checklist above on an iPhone build and collect screenshots/recording for each auth flow.
 2. If iOS deep-link takeover is still flaky on QR camera scans, verify associated domains/Universal Link entitlement for `vybehub.app` in the native shell.
 3. Push to `origin/main`, then run Lovable Publish and production smoke test on `vybehub.app`.
+
 
 
 
