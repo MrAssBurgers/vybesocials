@@ -4,6 +4,8 @@ The universal SDK can display the current connection's private captures inside a
 
 ## Use the gallery
 
+For native .NET 8 hosts, the [C# pilot](../sdk/dotnet/README.md#native-capture-gallery-02-pilot) offers `ListCapturesAsync`, `GetCapturePreviewAsync` and `CheckCapturePreviewAsync`. It verifies the assembled media digest and exposes a disposable encoded-buffer lease. The host supplies its own native UI/decoder and clears decoded copies on lifecycle changes. The browser component below remains the ready-made WebView UI option.
+
 ```ts
 import { VybeIntegration } from '@vybe/integration-sdk';
 import { mountCaptureGallery } from '@vybe/integration-sdk/gallery';

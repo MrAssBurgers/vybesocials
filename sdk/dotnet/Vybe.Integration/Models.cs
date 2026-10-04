@@ -8,6 +8,30 @@ public sealed record CaptureReceipt(string CaptureId, string Status, string Game
     string ContentType, int ByteSize, string Caption, IReadOnlyList<string> Tags,
     DateTimeOffset ExpiresAt, string? PostId, Uri ReviewUri);
 public sealed record CaptureProgress(string Phase, int UploadedBytes, int TotalBytes);
+public sealed record CapturePage(IReadOnlyList<CaptureReceipt> Captures, string? NextCursor);
+
+/// <summary>One in-memory encoded preview. Dispose when hidden; the client also clears it on disconnect or replacement.</summary>
+public sealed class CapturePreview : IDisposable
+{
+    private readonly object gate = new();
+    private readonly Func<DateTimeOffset> now;
+    private readonly DateTimeOffset authorizationExpiresAt;
+    private byte[]? bytes;
+    private readonly Timer expiryTimer;
+    public CaptureReceipt Capture { get; }
+    internal CapturePreview(CaptureReceipt capture, byte[] bytes, DateTimeOffset expiresAt, Func<DateTimeOffset> now)
+    {
+        Capture = capture; this.bytes = bytes; authorizationExpiresAt = expiresAt; this.now = now;
+        expiryTimer = new Timer(_ => Dispose(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        var remaining = expiresAt - now();
+        expiryTimer.Change(remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero, Timeout.InfiniteTimeSpan);
+    }
+    public ReadOnlyMemory<byte> Bytes
+    {
+        get { lock (gate) { if (now() >= authorizationExpiresAt) Dispose(); ObjectDisposedException.ThrowIf(bytes == null, this); return bytes; } }
+    }
+    public void Dispose() { lock (gate) { expiryTimer.Dispose(); if (bytes != null) Array.Clear(bytes); bytes = null; } }
+}
 
 /// <summary>A sanitized protocol failure. Response bodies and underlying transport exceptions are never exposed.</summary>
 public sealed class VybeException : Exception

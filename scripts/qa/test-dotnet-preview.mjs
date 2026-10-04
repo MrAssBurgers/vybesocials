@@ -36,7 +36,7 @@ try {
         assert.match(event.userCode, /^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/);
         const approved = await fetch('http://127.0.0.1:5101/demo-vybe-preview/us-central1/approveGamePartnerLink', {
           method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${account.idToken}` },
-          body: JSON.stringify({ data: { userCode: event.userCode } }),
+          body: JSON.stringify({ data: { userCode: event.userCode, approvedScopes: ['capture:write', 'capture:status', 'capture:preview'] } }),
         });
         assert.equal(approved.status, 200, 'Synthetic approval failed');
       } else { assert.equal(event.eventType, 'complete'); result = event; }

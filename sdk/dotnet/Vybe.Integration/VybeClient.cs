@@ -18,6 +18,7 @@ public sealed class VybeClient : IDisposable
     private readonly object gate = new();
     private readonly HttpClient http;
     private readonly string endpoint, clientId;
+    private readonly string[] requestedScopes;
     private readonly Func<DateTimeOffset> now;
     private readonly Func<TimeSpan, CancellationToken, Task> delay;
     private readonly CancellationTokenSource lifetime = new();
@@ -30,16 +31,21 @@ public sealed class VybeClient : IDisposable
     { internal readonly string Code = code; internal readonly DeviceLink Link = link; internal readonly long Generation = generation; internal bool Polling; }
     private Session? session;
     private Pending? pending;
+    private CapturePreview? preview;
+    private bool previewRunning;
 
     public VybeClient(string apiBaseUrl, string clientId, bool allowInsecureLoopback = false)
+        : this(apiBaseUrl, clientId, allowInsecureLoopback, previewCaptures: false) { }
+
+    public VybeClient(string apiBaseUrl, string clientId, bool allowInsecureLoopback, bool previewCaptures)
         : this(apiBaseUrl, clientId, allowInsecureLoopback,
             new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false, UseDefaultCredentials = false },
-            () => DateTimeOffset.UtcNow, Task.Delay)
+            () => DateTimeOffset.UtcNow, Task.Delay, previewCaptures)
     { }
 
     // Test-only transport/time seam; public callers cannot accidentally supply an auto-redirecting handler.
     internal VybeClient(string apiBaseUrl, string clientId, bool allowInsecureLoopback,
-        HttpMessageHandler handler, Func<DateTimeOffset> now, Func<TimeSpan, CancellationToken, Task> delay)
+        HttpMessageHandler handler, Func<DateTimeOffset> now, Func<TimeSpan, CancellationToken, Task> delay, bool previewCaptures = false)
     {
         if (!Uri.TryCreate(apiBaseUrl, UriKind.Absolute, out var uri) || uri.UserInfo.Length != 0
             || uri.Query.Length != 0 || uri.Fragment.Length != 0
@@ -48,23 +54,24 @@ public sealed class VybeClient : IDisposable
             || !Match(clientId, "^[a-z0-9][a-z0-9_-]{2,63}$"))
         { handler.Dispose(); throw new VybeException("invalid_request"); }
         endpoint = uri.AbsoluteUri.TrimEnd('/'); this.clientId = clientId; this.now = now; this.delay = delay;
+        requestedScopes = previewCaptures ? [.. Scopes, "capture:preview"] : [.. Scopes];
         http = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
     }
 
     public Authorization? Authorization
     {
-        get { lock (gate) { if (disposed || session?.Authorization.ExpiresAt <= now()) session = null; return session?.Authorization; } }
+        get { lock (gate) { if (disposed || session?.Authorization.ExpiresAt <= now()) ForgetSession(); return session?.Authorization; } }
     }
 
     /// <summary>Forget local credentials. This does not claim to revoke the connection on the server.</summary>
-    public void ClearLocalAuthorization() { lock (gate) { EnsureAlive(); generation++; session = null; pending = null; } }
+    public void ClearLocalAuthorization() { lock (gate) { EnsureAlive(); generation++; ForgetSession(); pending = null; } }
 
     public async Task<DeviceLink> StartLinkAsync(CancellationToken cancellationToken = default)
     {
         long epoch;
-        lock (gate) { EnsureAlive(); epoch = ++generation; session = null; pending = null; }
+        lock (gate) { EnsureAlive(); epoch = ++generation; ForgetSession(); pending = null; }
         var data = await RequestAsync("/v1/device/code", HttpMethod.Post, epoch, null,
-            new { clientId }, cancellationToken: cancellationToken).ConfigureAwait(false);
+            requestedScopes.Length == 3 ? new { clientId, scopes = requestedScopes } : (object)new { clientId }, cancellationToken: cancellationToken).ConfigureAwait(false);
         var code = Text(data, "deviceCode"); var userCode = Text(data, "userCode");
         var expires = Integer(data, "expiresIn"); var interval = Integer(data, "interval");
         Require(Match(code, "^vyd_[A-Za-z0-9_-]{43}$") && Match(userCode, "^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$")
@@ -103,10 +110,10 @@ public sealed class VybeClient : IDisposable
                 catch (VybeException error) when (error.Code is "slow_down" or "rate_limited" or "network_error" or "unavailable")
                 { interval = Math.Max(interval + (error.Code == "slow_down" ? 5 : 0), error.RetryAfterSeconds ?? 5); continue; }
                 var token = Text(data, "accessToken"); var connection = Text(data, "connectionId");
-                var expires = Integer(data, "expiresIn"); var expiry = Timestamp(data, "expiresAt"); var scopes = Strings(data, "scopes", 2, 32);
+                var expires = Integer(data, "expiresIn"); var expiry = Timestamp(data, "expiresAt"); var scopes = Strings(data, "scopes", 3, 32);
                 Require(Match(token, "^vyp_[A-Za-z0-9_-]{43}$") && Text(data, "tokenType") == "Bearer"
                     && Match(connection, "^[a-f0-9]{32}$") && expires is > 0 and <= 600 && expiry > now()
-                    && scopes.Count == 2 && scopes.Order().SequenceEqual(Scopes.Order()));
+                    && scopes.Count == requestedScopes.Length && scopes.Order().SequenceEqual(requestedScopes.Order()));
                 var auth = new Authorization(connection, expiry < now().AddSeconds(expires) ? expiry : now().AddSeconds(expires), scopes);
                 lock (gate) { Check(device.Generation); cancellationToken.ThrowIfCancellationRequested(); session = new Session(token, auth, device.Generation); pending = null; }
                 return auth;
@@ -168,6 +175,7 @@ public sealed class VybeClient : IDisposable
         var data = await RequestAsync($"/v1/captures/{captureId}", HttpMethod.Delete, active.Generation, active,
             cancellationToken: cancellationToken).ConfigureAwait(false);
         Require(data.TryGetProperty("ok", out var ok) && ok.ValueKind == JsonValueKind.True);
+        lock (gate) { if (ReferenceEquals(session, active) && preview?.Capture.CaptureId == captureId) { preview.Dispose(); preview = null; } }
     }
     public async Task RevokeAsync(CancellationToken cancellationToken = default)
     {
@@ -178,20 +186,133 @@ public sealed class VybeClient : IDisposable
             new { }, cancellationToken: cancellationToken).ConfigureAwait(false);
             Require(data.TryGetProperty("ok", out var ok) && ok.ValueKind == JsonValueKind.True);
         }
-        finally { lock (gate) { if (ReferenceEquals(session, active)) { generation++; session = null; pending = null; } } }
+        finally { lock (gate) { if (ReferenceEquals(session, active)) { generation++; ForgetSession(); pending = null; } } }
     }
     public static Uri GetReviewUri(string captureId) { ValidId(captureId); return new Uri("https://vybehub.app/game-capture/" + captureId); }
+
+    /// <summary>Load this connection's receipt page. Empty pages may still have a continuation cursor.</summary>
+    public async Task<CapturePage> ListCapturesAsync(string? cursor = null, CancellationToken cancellationToken = default)
+    {
+        if (cursor != null) ValidId(cursor);
+        var active = RequireSession();
+        var data = await RequestAsync("/v1/captures" + (cursor == null ? "" : "?cursor=" + cursor), HttpMethod.Get,
+            active.Generation, active, retry: true, cancellationToken: cancellationToken).ConfigureAwait(false);
+        Require(data.TryGetProperty("captures", out var rows) && rows.ValueKind == JsonValueKind.Array && rows.GetArrayLength() <= 20);
+        Require(data.TryGetProperty("nextCursor", out var nextValue));
+        var next = nextValue.ValueKind == JsonValueKind.Null ? null : Text(data, "nextCursor");
+        Require(next == null || (Match(next, "^[a-f0-9]{48}$") && string.CompareOrdinal(next, cursor ?? "") > 0));
+        var captures = new List<CaptureReceipt>(); var previous = cursor ?? "";
+        foreach (var row in rows.EnumerateArray())
+        {
+            Require(row.ValueKind == JsonValueKind.Object); var capture = Receipt(row);
+            Require(string.CompareOrdinal(capture.CaptureId, previous) > 0 && (next == null || string.CompareOrdinal(capture.CaptureId, next) <= 0));
+            captures.Add(capture); previous = capture.CaptureId;
+        }
+        Check(active.Generation, active); cancellationToken.ThrowIfCancellationRequested();
+        return new(captures.AsReadOnly(), next);
+    }
+
+    /// <summary>Download one verified encoded preview after explicit player permission. No decoding or persistent cache.</summary>
+    public async Task<CapturePreview> GetCapturePreviewAsync(string captureId, CancellationToken cancellationToken = default)
+    {
+        ValidId(captureId); var active = RequirePreviewSession();
+        lock (gate)
+        {
+            Check(active.Generation, active); if (previewRunning) throw new VybeException("invalid_request");
+            previewRunning = true; preview?.Dispose(); preview = null;
+        }
+        byte[]? bytes = null;
+        try
+        {
+            var capture = await GetCaptureAsync(captureId, cancellationToken).ConfigureAwait(false); Check(active.Generation, active);
+            if (capture.Status != "ready") throw new VybeException("not_found");
+            bytes = new byte[capture.ByteSize]; string? checksum = null;
+            for (var offset = 0; offset < bytes.Length; offset += ChunkBytes)
+            {
+                var part = await ReadPreviewAsync(active, capture, offset, false, cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    Require(checksum == null || checksum == part.Checksum); checksum = part.Checksum;
+                    part.Bytes.CopyTo(bytes, offset);
+                }
+                finally { Array.Clear(part.Bytes); }
+            }
+            Require(Hash(bytes) == checksum);
+            lock (gate)
+            {
+                Check(active.Generation, active); cancellationToken.ThrowIfCancellationRequested();
+                preview = new CapturePreview(capture, bytes, active.Authorization.ExpiresAt, now); bytes = null; return preview;
+            }
+        }
+        finally { if (bytes != null) Array.Clear(bytes); lock (gate) previewRunning = false; }
+    }
+
+    /// <summary>Revalidate before playback and periodically while visible. Failed checks clear the retained encoded preview.</summary>
+    public async Task CheckCapturePreviewAsync(string captureId, CancellationToken cancellationToken = default)
+    {
+        ValidId(captureId); var active = RequirePreviewSession();
+        try { await ReadPreviewAsync(active, null, 0, true, cancellationToken, captureId).ConfigureAwait(false); }
+        catch { lock (gate) { if (ReferenceEquals(session, active) && preview?.Capture.CaptureId == captureId) { preview.Dispose(); preview = null; } } throw; }
+    }
+
+    private Session RequirePreviewSession()
+    { var active = RequireSession(); if (!active.Authorization.Scopes.Contains("capture:preview")) throw new VybeException("insufficient_scope"); return active; }
+
+    private async Task<(byte[] Bytes, string? Checksum)> ReadPreviewAsync(Session active, CaptureReceipt? capture, int offset,
+        bool head, CancellationToken cancellationToken, string? captureId = null)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetime.Token);
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        try
+        {
+            Check(active.Generation, active); cancellationToken.ThrowIfCancellationRequested();
+            var path = $"/v1/captures/{capture?.CaptureId ?? captureId}/preview" + (head ? "" : "?chunk=" + offset / ChunkBytes);
+            using var request = new HttpRequestMessage(head ? HttpMethod.Head : HttpMethod.Get, endpoint + path);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", active.Token);
+            request.Headers.CacheControl = new CacheControlHeaderValue { NoStore = true };
+            using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
+            Check(active.Generation, active); cancellationToken.ThrowIfCancellationRequested();
+            var status = (int)response.StatusCode;
+            if (status is >= 300 and < 400 || (response.RequestMessage?.RequestUri != null && response.RequestMessage.RequestUri != request.RequestUri)) throw new VybeException("invalid_response", status);
+            if (status == 401) { lock (gate) { if (ReferenceEquals(session, active)) ForgetSession(); } }
+            if (!response.IsSuccessStatusCode)
+            {
+                // HEAD intentionally has no body. Status + Retry-After are sufficient for recovery UI.
+                var code = status switch { 401 => "invalid_token", 403 => "insufficient_scope", 404 => "not_found", 410 => "expired_capture", 429 => "rate_limited", >= 500 => "unavailable", _ => "invalid_response" };
+                throw new VybeException(code, status, RetryAfter(default, response));
+            }
+            if (head) { Require(status == 204); return ([], null); }
+            var expected = Math.Min(ChunkBytes, capture!.ByteSize - offset);
+            var checksum = response.Headers.TryGetValues("X-Capture-SHA256", out var values) ? string.Join(",", values) : "";
+            Require(status == 200 && response.Content.Headers.ContentLength == expected
+                && response.Content.Headers.ContentType?.ToString() == capture.ContentType
+                && response.Content.Headers.ContentRange?.ToString() == $"bytes {offset}-{offset + expected - 1}/{capture.ByteSize}"
+                && Match(checksum, "^[a-f0-9]{64}$"));
+            var bytes = new byte[expected];
+            try
+            {
+                using var stream = await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false);
+                var read = 0;
+                while (read < bytes.Length) { var count = await stream.ReadAsync(bytes.AsMemory(read), timeout.Token).ConfigureAwait(false); Require(count > 0); read += count; }
+                var overflow = new byte[1]; Require(await stream.ReadAsync(overflow, timeout.Token).ConfigureAwait(false) == 0);
+                Check(active.Generation, active); cancellationToken.ThrowIfCancellationRequested(); return (bytes, checksum);
+            }
+            catch { Array.Clear(bytes); throw; }
+        }
+        catch (Exception error) when (error is HttpRequestException or IOException or OperationCanceledException)
+        { Check(active.Generation, active); cancellationToken.ThrowIfCancellationRequested(); throw new VybeException("network_error"); }
+    }
 
     private CaptureReceipt Receipt(JsonElement data, string? expectedId = null)
     {
         var id = Text(data, "captureId"); var status = Text(data, "status"); var game = Text(data, "gameId"); var name = Text(data, "gameName");
-        var type = Text(data, "contentType"); var size = Integer(data, "byteSize"); var caption = Text(data, "caption"); var tags = Strings(data, "tags", 10, 40);
+        var type = Text(data, "contentType"); var size = Integer(data, "byteSize"); var caption = Text(data, "caption"); var tags = Strings(data, "tags", 10, 80);
         Require(data.TryGetProperty("postId", out var post));
         var postId = post.ValueKind == JsonValueKind.Null ? null : Text(data, "postId");
         Require(Match(id, "^[a-f0-9]{48}$") && (expectedId == null || id == expectedId)
             && new[] { "uploading", "ready", "imported", "cancelled", "expired" }.Contains(status) && game == clientId
             && name.Length is > 0 and <= 200 && MimeTypes.Contains(type) && size is >= 12 and <= MaxCaptureBytes
-            && caption.Length <= 2200 && (postId == null || postId.Length is > 0 and <= 256));
+            && caption.Length <= 2200 && tags.All(ValidTag) && (postId == null || postId.Length is > 0 and <= 256));
         return new(id, status, game, name, type, (int)size, caption, tags, Timestamp(data, "expiresAt"), postId, GetReviewUri(id));
     }
 
@@ -216,7 +337,7 @@ public sealed class VybeClient : IDisposable
                 using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
                 Check(epoch, active); cancellationToken.ThrowIfCancellationRequested();
                 var status = (int)response.StatusCode;
-                if (status == 401 && active != null) { lock (gate) { if (ReferenceEquals(session, active)) session = null; } }
+                if (status == 401 && active != null) { lock (gate) { if (ReferenceEquals(session, active)) ForgetSession(); } }
                 if (status is >= 300 and < 400 || (response.RequestMessage?.RequestUri != null && response.RequestMessage.RequestUri != request.RequestUri)) throw new VybeException("invalid_response", status);
                 JsonElement data;
                 try
@@ -264,20 +385,22 @@ public sealed class VybeClient : IDisposable
     }
     private async Task WaitAsync(TimeSpan duration, CancellationToken token)
     { using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, lifetime.Token); await delay(duration, linked.Token).ConfigureAwait(false); }
-    private Session RequireSession() { lock (gate) { EnsureAlive(); if (session == null || session.Authorization.ExpiresAt <= now()) { session = null; throw new VybeException("invalid_token"); } return session; } }
+    // Call only while holding gate. Already-copied host textures/buffers must be cleared by the host.
+    private void ForgetSession() { session = null; preview?.Dispose(); preview = null; }
+    private Session RequireSession() { lock (gate) { EnsureAlive(); if (session == null || session.Authorization.ExpiresAt <= now()) { ForgetSession(); throw new VybeException("invalid_token"); } return session; } }
     private void Check(long epoch, Session? active = null)
     {
         lock (gate)
         {
             EnsureAlive(); if (epoch != generation) throw new VybeException("authorization_changed");
             if (active != null && !ReferenceEquals(active, session)) throw new VybeException("authorization_changed");
-            if (active != null && active.Authorization.ExpiresAt <= now()) { session = null; throw new VybeException("invalid_token"); }
+            if (active != null && active.Authorization.ExpiresAt <= now()) { ForgetSession(); throw new VybeException("invalid_token"); }
         }
     }
     private void EnsureAlive() { ObjectDisposedException.ThrowIf(disposed, this); }
     private static void Require(bool condition) { if (!condition) throw new VybeException("invalid_response"); }
     private static bool Match(string? value, string pattern) => value != null && Regex.IsMatch(value, pattern.Replace("$", "\\z"), RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
-    private static bool ValidTag(string? tag) => tag != null && tag.Length is > 0 and <= 40 && tag.EnumerateRunes().All(rune => rune.Value is '_' or '-'
+    private static bool ValidTag(string? tag) => tag != null && tag.Length is > 0 and <= 80 && tag.EnumerateRunes().Count() <= 40 && tag.EnumerateRunes().All(rune => rune.Value is '_' or '-'
         || Rune.GetUnicodeCategory(rune) is UnicodeCategory.UppercaseLetter or UnicodeCategory.LowercaseLetter or UnicodeCategory.TitlecaseLetter
             or UnicodeCategory.ModifierLetter or UnicodeCategory.OtherLetter or UnicodeCategory.DecimalDigitNumber or UnicodeCategory.LetterNumber or UnicodeCategory.OtherNumber);
     private static void ValidId(string id) { if (!Match(id, "^[a-f0-9]{48}$")) throw new VybeException("invalid_request"); }
@@ -293,7 +416,7 @@ public sealed class VybeClient : IDisposable
     }
     public void Dispose()
     {
-        lock (gate) { if (disposed) return; disposed = true; generation++; session = null; pending = null; }
+        lock (gate) { if (disposed) return; disposed = true; generation++; ForgetSession(); pending = null; }
         lifetime.Cancel(); http.Dispose(); /* Keep the cancelled token source valid for racing continuations. */
     }
 }

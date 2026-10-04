@@ -1,6 +1,6 @@
 # VYBE Integration SDK — local pilot package
 
-Native .NET 8 hosts can use the separate compiled [C# partner client](https://github.com/MrAssBurgers/vybesocials/blob/main/sdk/dotnet/README.md) for device consent, private capture upload, retry/status, discard and revocation. It has no Firebase dependency. Engine/mod-loader certification and older Unity/Mono compatibility remain outstanding.
+Native .NET 8 hosts can use the separate compiled [C# partner client](https://github.com/MrAssBurgers/vybesocials/blob/main/sdk/dotnet/README.md) for device consent, private capture upload, retry/status, discard, revocation and an opt-in capture gallery. It has no Firebase dependency. Engine/mod-loader certification and older Unity/Mono compatibility remain outstanding.
 
 This package supplies account consent, private image/video upload and explicit VYBE browser entry points for apps, games, mods and tools. It has no Firebase runtime dependency and never publishes a post on behalf of the user. The user reviews and publishes inside VYBE.
 

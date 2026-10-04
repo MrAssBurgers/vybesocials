@@ -4,7 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <Version>0.1.0-pilot</Version>
+    <Version>0.2.0-pilot</Version>
     <Description>Player-consented Vybe capture integration for .NET games, mods and tools.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>

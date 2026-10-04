@@ -47,12 +47,39 @@ Progress callbacks (`preparing`, `uploading`, `verifying`, `ready`) and the rese
 - Errors use sanitized `VybeException.Code`, `Status`, `RetryAfterSeconds`; underlying server/transport messages are discarded. Caller cancellation uses standard `OperationCanceledException`, disposal uses `ObjectDisposedException`. If revoke fails, local credentials are still cleared, but server revocation is **unconfirmed**; use Vybe Settings to disconnect.
 - Production transport requires HTTPS, rejects redirects, disables cookies/default credentials, caps JSON at 256 KiB and times out each complete response after 30 seconds. Explicit HTTP loopback is for emulator tests only. Never disable TLS certificate validation.
 
-The pilot includes capture linking/upload/status/discard/revoke. It does not yet include the optional capture-gallery preview scope, a general social feed, messages, recording codecs, a game overlay or engine-specific lifecycle adapters. See [the universal integration guide](https://github.com/MrAssBurgers/vybesocials/blob/main/docs/UNIVERSAL_SDK.md) and [partner API protocol](https://github.com/MrAssBurgers/vybesocials/blob/main/docs/PARTNER_GAME_API.md) for registration, consent and rollout limits. Production backend/client deployment remains a separate release step.
+The pilot includes capture linking/upload/status/discard/revoke and an optional private capture gallery. It does not yet include a general social feed, messages, recording codecs, a game overlay or engine-specific lifecycle adapters. See [the universal integration guide](https://github.com/MrAssBurgers/vybesocials/blob/main/docs/UNIVERSAL_SDK.md) and [partner API protocol](https://github.com/MrAssBurgers/vybesocials/blob/main/docs/PARTNER_GAME_API.md) for registration, consent and rollout limits. Production backend/client deployment remains a separate release step.
+
+## Native capture gallery (0.2 pilot)
+
+The existing three-argument constructor still requests only upload/status permission. To offer media previews, explicitly opt in before starting a new connection:
+
+```csharp
+using var vybe = new VybeClient(trustedPartnerEndpoint, registeredClientId,
+    allowInsecureLoopback: false, previewCaptures: true);
+// Use the same explicit link/code/approval flow above. Vybe shows the additional permission.
+var page = await vybe.ListCapturesAsync(cancellationToken: cancellationToken);
+// Display receipt text, then load more using page.NextCursor, even for an empty page.
+// Never download media merely because a row is listed. Wait for the player's Preview action.
+using var preview = await vybe.GetCapturePreviewAsync(selectedCaptureId, cancellationToken);
+await vybe.CheckCapturePreviewAsync(selectedCaptureId, cancellationToken);
+ShowEncodedPreview(preview.Bytes, preview.Capture.ContentType);
+// Keep this lease alive only while visible. Stop playback and dispose decoded host
+// textures/buffers on close, hide, scene unload, account change, failed recheck or expiry.
+```
+
+`ShowEncodedPreview` is your host's trusted decoder/player, not part of the library. Use safe supported image/video decoders, plain caption text, explicit playback controls and no autoplay/audio takeover. Marshal UI/engine operations onto the main thread. This is a receipt/media API for native UI, not a ready-made game overlay or engine binding.
+
+- Lists require status permission; preview bytes and HEAD checks require the additional `capture:preview` grant. The exact granted scope set must match the request. A new link sees only its own connection's captures. Published originals are unavailable here; offer an explicit official Review action.
+- Pages contain at most 20 receipts ordered by ID, not newest-first. Follow the opaque cursor through empty pages; reject non-progressing/malformed pages. Clear host-owned receipt lists on account changes. No disk caching is provided.
+- Downloads read one bounded 8 MiB chunk at a time, validate MIME, byte counts, ranges and a consistent digest, then verify the assembled SHA-256 before exposing bytes. At most one preview download can run per client. A new download clears the previously retained preview. These calls do not retry media transfers automatically; surface failures and cooldowns to the player. Allow up to 48 MiB retained media plus one 8 MiB chunk and transport/decoder memory.
+- `CapturePreview` owns a shared encoded buffer. `Dispose`, replacing it, local clear, relink, discard, revocation, client disposal, or a failed access recheck zero that buffer. Its expiry timer and `Bytes` getter enforce the authorization deadline. Accessing a disposed/expired lease throws `ObjectDisposedException`. Do not race rendering against disposal: handle teardown on the host UI thread, stop playback first, and release decoded copies too.
+- Recheck with `CheckCapturePreviewAsync` before playback, on resume and every 15 seconds while visible; clear host UI on any error. It returns no media. Respect `RetryAfterSeconds`, especially during rate limits. Revocation cannot recall bytes or decoded textures the host copied already. SDK memory cleanup is not a security boundary against code in the same process. Never expose this client to untrusted mod scripts or mini-app code.
+- Dispose/cancel when a scene or panel closes. Relink/local clear rejects late downloads; a request already accepted by the server may finish. Clear old host UI immediately, and wait for an in-flight preview cancellation to finish before requesting another.
 
 ## Local backend verification
 
 After starting and seeding the isolated preview described in `docs/LOCAL_PREVIEW_QA.md`, build the checks above, then run `node scripts/qa/test-dotnet-preview.mjs` with these exact environment values: `GCLOUD_PROJECT=demo-vybe-preview`, `FUNCTIONS_EMULATOR_HOST=127.0.0.1:5101`, `FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9199`, `FIRESTORE_EMULATOR_HOST=127.0.0.1:8280`, `FIREBASE_STORAGE_EMULATOR_HOST=127.0.0.1:9399`.
 
-The fixture registers only the synthetic `local-dotnet-mod`, approves its code as demo Alice through the real callable, and drives the compiled public client over HTTP. It checks upload, normalized metadata, same-key recovery, status, discard and revocation. It leaves one private synthetic ready capture for browser review and writes its loopback URL to ignored `work/dotnet-preview/result.json`. Each run consumes local quotas; it does not reset them. No social post is published and no production target is accepted.
+The fixture registers only the synthetic `local-dotnet-mod`, explicitly approves all three scopes as demo Alice through the real callable, and drives the compiled public client over HTTP. It checks upload, normalized metadata, same-key recovery, status, its own gallery, exact preview bytes/digest, HEAD revalidation, discard and preview clearing on revocation. It leaves one private synthetic ready capture for browser review and writes its loopback URL to ignored `work/dotnet-preview/result.json`. Each run consumes local quotas; it does not reset them. No social post is published and no production target is accepted.
 
 Transport behavior follows Microsoft's [SendAsync cancellation guidance](https://learn.microsoft.com/en-us/dotnet/api/system.net.http.httpclient.sendasync?view=net-8.0) and [redirect control](https://learn.microsoft.com/en-us/dotnet/api/system.net.http.httpclienthandler.allowautoredirect?view=net-8.0); the same cancellation deadline covers streaming the response body.

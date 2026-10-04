@@ -2,6 +2,28 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Native capture gallery and preview lifecycle
+
+### What changed
+- Extended the .NET partner SDK with paged connection-owned capture lists, optional `capture:preview` consent, exact scope-set validation, media previews and HEAD access rechecks. Preserved the previous public constructor and its two-scope default; new preview permission requires the explicit four-argument overload.
+- Added strict page/cursor ordering and bounded receipt validation. Preview downloads validate MIME, ranges, lengths and consistent chunk metadata, then verify the assembled SHA-256 before exposing bytes. Only one download/retained preview is supported per client; original media after publication remains unavailable.
+- Added disposable encoded preview leases. Replacement, clear/relink, discard, revocation, invalid-token responses, failed access rechecks, client disposal and authorization expiry clear retained memory. Cancelled/stale downloads release their slot and do not expose partial data; a late old-account access failure cannot clear a newly linked preview. Hosts must separately stop playback and clear decoded/copied buffers; this is not process isolation or remote recall.
+- Matched backend Unicode tag limits by scalar count, including 40 supplementary-plane letters. Documented native host lifecycle, no automatic playback, explicit preview selection and periodic access checks. Packaged local NuGet **0.2.0-pilot**; output `Vybe.Integration.0.2.0-pilot.nupkg`. Native UI/decoders remain host-supplied.
+
+### Verification
+- **39 compiled C# checks passed**, including exact consent grants, empty-page continuation, malformed/foreign/reversed pages, multi-chunk video bytes, wrong MIME/range/size/hash/redirects, blocked published originals, buffer clearing, automatic expiry, late-account failure isolation and streaming cancellation/retry.
+- Actual retained demo backend: explicit three-scope approval as synthetic Alice, upload/status/idempotent recovery, own-gallery listing, exact PNG preview bytes/hash, HEAD access revalidation, separate discard, and zeroed preview after revocation. One private ready capture remains: `90135ba1a10aa4b0c257fd971ff1318fe6843c306946f479`. No post was published or local quotas reset. Receipt is in ignored `work/dotnet-preview/result.json`; full retained state export: `work/local-preview/dotnet-gallery-verified-export`.
+- Separate .NET 8 consumer restored the final local NuGet archive into an isolated package directory; archive hashes matched. Public gallery calls and previous constructor compatibility compiled and ran without Firebase/network dependencies.
+- App **305 files / 2,885 tests passed**; app build and full lint passed (**0 errors / 5 inherited warnings**). Entry remains **app-CqIufOOX.js: 1068.1 KiB raw / 321.8 KiB gzip**. Logs: ignored `work/dotnet-gallery-checks.log`, `work/dotnet-gallery-app-tests.log`, `work/dotnet-gallery-app-build.log`, `work/dotnet-gallery-lint.log`.
+- Previous cooldown checkpoint `671c3961` passed CI **37204424901** and Creator Platform Rules QA **37204425030**. The original .NET checkpoint passed Linux CI **37204099208** including compiled checks/package creation.
+
+### Next 3 tasks and limits
+1. Build and verify engine/mod-loader adapters and host UI/decoder teardown. This remains a .NET 8 pilot, not Unity/Mono certification, a finished native overlay or general social feed/messages. Keep separately scoped broader social browsing in the active objective.
+2. Continue mini-app execution isolation/quotas and direct content-reader audience/media/age migrations.
+3. Continue physical-device and visual audits before selective staging. No production/Lovable/NuGet publication occurred. The original broad universal-app goal remains active and unfulfilled.
+
+---
+
 ## ACTIVE (2026-10-04) - Partner SDK gateway cooldown handling
 
 ### What changed
