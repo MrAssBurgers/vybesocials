@@ -67,3 +67,12 @@ new entries inserted before an existing cursor require Refresh apps. This is not
 chronological ranking or a full-text search service. Firestore still transfers
 source documents for each page; metadata-only discovery and large-library cost
 and rendering benchmarks remain future work.
+
+
+## Draft admission endpoint (staged, not enforced by the current studio)
+
+`saveMiniAppDraft` accepts `expectedOwnerUid`, a stable `appId`, validated `source`, and `expectedSource` (null for a new draft). Its transaction admits at most 200 stored drafts per owner and 100 new drafts per anchored 24-hour window. Legacy drafts count toward the library limit. The shared owner quota serializes concurrent first saves; deleting a draft frees a library slot but does not refund daily creation allowance. Existing drafts can still be edited at either limit. Identical source retries preserve timestamps and do not consume another admission. Stale edits and foreign ownership are rejected.
+
+The response contains appId, normalized source, and createdAt/updatedAt seconds and nanoseconds. The client must validate the receipt and maintain account-session checks. A fresh-create request retried after that draft has subsequently been deleted can recreate it; stable operation tombstones/retention remain a follow-up consideration. Existing-draft edits cannot recreate a missing draft.
+
+This endpoint is additive in this checkpoint. The current client still writes drafts directly and rules still permit those writes, so these limits are **not yet globally enforced**. Next migration must switch studio saves to the callable, preserve conflict/retry UX, deny direct creation/update in Firestore rules, test the real consent-free save flow, and coordinate selective function/rules/client rollout. Do not advertise this endpoint alone as enforcing storage quotas for all clients. No production deployment has been performed.

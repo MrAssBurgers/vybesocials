@@ -95,3 +95,4 @@ export const setAdminClaim = onCall(async (request) => {
 
 export { managePostLocalArea } from './postLocalArea.js';
 export { publishMiniApp } from './miniAppPublish.js';
+export { saveMiniAppDraft } from './miniAppDrafts.js';

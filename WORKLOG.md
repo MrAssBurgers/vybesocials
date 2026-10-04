@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Staged mini-app draft admission backend
+
+### What changed
+- Added exported saveMiniAppDraft callable/runMiniAppDraftSave with authenticated owner binding, exact request/source validation, transactional source comparison, stable timestamps and identical-save acknowledgement.
+- New drafts check 200 stored drafts including legacy rows and 100 creates per anchored 24 hours. Shared owner quota serializes concurrent admission; deletions free library capacity but not daily allowance. Existing edits remain allowed at capacity; handler is rate-limited to 60/minute.
+- Added isolated backend checks to creator CI paths, syntax checks and emulator execution. Compiled function artifacts included.
+- IMPORTANT: additive backend staging only. Client still saves directly and Firestore rules still allow direct creates/updates. Global enforcement and user-facing quota messages are not yet active. Docs explicitly record migration and new-create replay-after-deletion limitation.
+
+### Verification
+- 11 grouped real Firestore emulator checks passed: guests/account mismatch, unknown/oversized fields, first save/retry, timestamp-preserving edits/stale writes, foreign owner, missing old draft, same-ID race, final daily slot race, edit-at-limit/deletion allowance, malformed/expired quotas, concurrent legacy 199-to-200 boundary and deletion releasing capacity, malformed stored draft rejection.
+- Isolated demo-vybe-draft-qa on 8386 with separate hub/log/tmp; emulator terminated cleanly. Retained 8082 preview data untouched. Functions build, scoped lint, app build and 309 files / 2,923 tests passed. Logs work/draft-admission-*.log. No browser flow changed in this checkpoint and no production deployment.
+
+### Next 3 tasks and limits
+1. Immediately wire studio saves to callable with strict receipt/account guards, map aborted to draft conflict, update repository tests and deny direct draft writes in rules. Verify rules plus real save/conflict/retry UI before claiming enforcement.
+2. Add bounded publication receipt retention; continue engine/mod adapters and remaining audience/media reader migrations.
+3. Verify physical devices and coordinate selective rollout. Broad app goal active and incomplete.
+
+---
+
 ## ACTIVE (2026-10-04) - Mini-app draft cleanup
 
 ### What changed
