@@ -2,6 +2,27 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Mini-app library continuation
+
+### What changed
+- Removed the 60-record discovery/draft ceiling. Libraries now read 24 candidates plus lookahead with stable document-ID cursors, continue after deleted boundaries and skip malformed source without losing pagination. Both public and private list reads guard the active account before and after access.
+- Added Load more, next-page retry and Refresh apps. Search explicitly covers loaded apps and still offers continuation when current pages have no match. Previously loaded cards survive a next-page transport failure. Deduplicated merged pages and isolated tab/account-epoch query keys prevent cross-view reuse.
+- Mini-app query data is excluded from shared disk serialization and restoration, including old snapshots. This does not remove the studio's intentional owner-scoped unsaved-code recovery. Only the active library tab requests pages. See `docs/MINI_APPS.md` for search and scale limits.
+
+### Verification
+- **305 files / 2,876 tests passed**. Typecheck, app build, full/scoped lint and CSS/boot checks passed (**0 errors / 5 inherited warnings**). Final entry **app-CqIufOOX.js: 1068.1 KiB raw / 321.8 KiB gzip**, within budget.
+- Isolated creator permissions fixture passed **178 checks**, including owner-filtered continuation and cross-account cursor denial. Its Firestore/Storage emulators stopped successfully without touching retained demo storage.
+- Unit coverage verifies 65-draft continuation without duplicates, removed boundary handling, malformed pages, late-account rejection, loaded-only search, retry preserving earlier results, and new/legacy disk-cache exclusion.
+- Browser: created 65 explicitly synthetic private library drafts in demo Alice, searched for Library QA 065, saw the partial-search message at 24 and 48 loaded entries, then reached the result at 68 loaded entries (including three prior drafts). Load more disappeared at the end. No apps were published. Screenshot: workspace outputs `vybe-mini-app-pages.png`. Full retained state export: ignored `work/local-preview/mini-pages-verified-checkpoint-export`.
+- Prior draft-conflict checkpoint **804f1472** passed CI **37202032905** and Rules QA **37202032931**. Exact checks for this checkpoint are inspected after pushing.
+
+### Next 3 tasks and limits
+1. Continue mini-app isolation, quotas and metadata-only discovery; full-text search, server-side code review, hard resource isolation and the documented WebRTC gap remain unresolved.
+2. Continue direct content-reader audience migrations, controlled media/age policy and embedded feed consent/native game adapters.
+3. Continue visual/accessibility and physical-device audits, then selective staging. New items before an existing cursor need Refresh apps; this is stable ID ordering rather than chronological ranking. No production deployment or Lovable Publish occurred. The original universal-app goal remains active and unfulfilled.
+
+---
+
 ## ACTIVE (2026-10-04) - Mini-app draft conflict recovery
 
 ### What changed

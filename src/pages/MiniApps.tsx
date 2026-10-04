@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Code2, Copy, Flag, Gamepad2, Globe, Loader2, Palette, Play, Plus, Search, Wrench } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -10,21 +10,23 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ReportContentDialog } from '@/components/safety/ReportContentDialog';
 import { useSafetyReport } from '@/hooks/useSafetyReport';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 import { useAuth } from '@/lib/auth';
 import { MiniAppRunner } from '@/features/mini-apps/MiniAppRunner';
 import { MiniAppStudio } from '@/features/mini-apps/MiniAppStudio';
 import { miniAppError, type MiniAppRecord } from '@/features/mini-apps/model';
-import { getPublishedMiniApp, listMiniApps, unpublishMiniApp } from '@/features/mini-apps/repository';
+import { getPublishedMiniApp, listMiniAppsPage, unpublishMiniApp, type MiniAppPage } from '@/features/mini-apps/repository';
 
 const categoryIcons = { game: Gamepad2, tool: Wrench, art: Palette };
 
 export default function MiniApps() {
   const { user } = useAuth();
+  const session = useReportAccountSession();
   // Tear down private source and executing code immediately on account changes.
-  return <MiniAppsForUser key={user?.id || 'signed-out'} />;
+  return <MiniAppsForUser key={`${user?.id || 'signed-out'}:${session.epoch}`} epoch={session.epoch} />;
 }
 
-function MiniAppsForUser() {
+function MiniAppsForUser({ epoch }: { epoch: number }) {
   const submitSafetyReport = useSafetyReport();
   const { user, profile } = useAuth();
   const { appId } = useParams<{ appId: string }>();
@@ -39,12 +41,15 @@ function MiniAppsForUser() {
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const ownerId = user?.id || '';
-  const apps = useQuery({ queryKey: ['mini-apps', 'published', ownerId], queryFn: () => listMiniApps(), enabled: Boolean(ownerId) && !appId, staleTime: 30_000 });
-  const drafts = useQuery({ queryKey: ['mini-apps', 'drafts', ownerId], queryFn: () => listMiniApps(ownerId), enabled: Boolean(ownerId) && !appId, staleTime: 30_000 });
-  const detail = useQuery({ queryKey: ['mini-apps', 'detail', appId, ownerId], queryFn: () => getPublishedMiniApp(appId!), enabled: Boolean(ownerId && appId), retry: false });
+  const pageOptions = { initialPageParam: undefined as string | undefined, getNextPageParam: (page: MiniAppPage) => page.nextCursor ?? undefined,
+    staleTime: 0, gcTime: 0, retry: false as const };
+  const apps = useInfiniteQuery({ ...pageOptions, queryKey: ['mini-apps', 'pages', 'published', ownerId, epoch], queryFn: ({ pageParam }) => listMiniAppsPage(ownerId, 'published', pageParam), enabled: Boolean(ownerId) && !appId && tab === 'discover' });
+  const drafts = useInfiniteQuery({ ...pageOptions, queryKey: ['mini-apps', 'pages', 'drafts', ownerId, epoch], queryFn: ({ pageParam }) => listMiniAppsPage(ownerId, 'drafts', pageParam), enabled: Boolean(ownerId) && !appId && tab === 'drafts' });
+  const detail = useQuery({ queryKey: ['mini-apps', 'detail', appId, ownerId, epoch], queryFn: () => getPublishedMiniApp(appId!), enabled: Boolean(ownerId && appId), retry: false });
   const refresh = () => { void queryClient.invalidateQueries({ queryKey: ['mini-apps'] }); };
   const activeList = tab === 'discover' ? apps : drafts;
-  const visible = (activeList.data || []).filter(app => `${app.title} ${app.description} ${app.category}`.toLowerCase().includes(search.toLowerCase()));
+  const loaded = [...new Map((activeList.data?.pages.flatMap(page => page.apps) || []).map(app => [app.id, app])).values()];
+  const visible = loaded.filter(app => `${app.title} ${app.description} ${app.category}`.toLowerCase().includes(search.trim().toLowerCase()));
 
   const unpublish = async () => {
     if (!unpublishTarget || unpublishing) return;
@@ -87,10 +92,12 @@ function MiniAppsForUser() {
         <Button className="mt-5" onClick={() => setEditing({ draft: null })}><Plus />Build a mini app</Button>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
+        <Button variant="ghost" disabled={activeList.isFetching} onClick={() => void activeList.refetch()}>Refresh apps</Button>
         <Tabs value={tab} onValueChange={setTab}><TabsList><TabsTrigger value="discover">Discover</TabsTrigger><TabsTrigger value="drafts">My drafts</TabsTrigger></TabsList></Tabs>
-        <div className="relative w-full sm:w-64"><Search aria-hidden className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input className="pl-9" value={search} onChange={event => setSearch(event.target.value)} placeholder="Find a mini app" aria-label="Search mini apps" /></div>
+        <div className="relative w-full sm:w-64"><Search aria-hidden className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input className="pl-9" value={search} onChange={event => setSearch(event.target.value)} placeholder="Find a mini app" aria-label="Search mini apps" aria-describedby="mini-app-search-scope" /></div>
       </div>
-      {activeList.isLoading ? <Loading /> : activeList.isError ? <ErrorNotice error={activeList.error} onRetry={() => void activeList.refetch()} /> : visible.length === 0 ? <div className="rounded-2xl border border-dashed border-border p-9 text-center"><Code2 aria-hidden className="mx-auto mb-3 h-10 w-10 text-primary" /><h2 className="font-semibold">{search ? 'No matching apps' : tab === 'drafts' ? 'Your next idea starts here' : 'Make the first mini app'}</h2><p className="mt-2 text-sm text-muted-foreground">{search ? 'Try a different name or category.' : 'Start with a template, change the code, and make it your own.'}</p>{!search && <Button className="mt-4" variant="outline" onClick={() => setEditing({ draft: null })}>Open studio</Button>}</div> : <div className="grid gap-4 sm:grid-cols-2">
+      <p id="mini-app-search-scope" className="text-xs text-muted-foreground">{`Search covers ${loaded.length} loaded ${loaded.length === 1 ? 'app' : 'apps'}.`}{activeList.hasNextPage && ' Load more to include more creations.'}</p>
+      {activeList.isLoading ? <Loading /> : (activeList.isError && !activeList.isFetchNextPageError) ? <ErrorNotice error={activeList.error} onRetry={() => void activeList.refetch()} /> : visible.length === 0 ? <div className="rounded-2xl border border-dashed border-border p-9 text-center"><Code2 aria-hidden className="mx-auto mb-3 h-10 w-10 text-primary" /><h2 className="font-semibold">{search ? activeList.hasNextPage ? 'No matches in loaded apps' : 'No matching apps' : tab === 'drafts' ? 'Your next idea starts here' : 'Make the first mini app'}</h2><p className="mt-2 text-sm text-muted-foreground">{search ? activeList.hasNextPage ? 'Load more creations to keep searching, or try another name or category.' : 'Try a different name or category.' : 'Start with a template, change the code, and make it your own.'}</p>{!search && <Button className="mt-4" variant="outline" onClick={() => setEditing({ draft: null })}>Open studio</Button>}</div> : <div className="grid gap-4 sm:grid-cols-2">
         {visible.map(app => {
           const Icon = categoryIcons[app.category] || Code2;
           return <article key={app.id} className="flex min-w-0 flex-col rounded-2xl border border-border bg-card/70 p-5 transition-colors hover:border-primary/40">
@@ -100,7 +107,9 @@ function MiniAppsForUser() {
           </article>;
         })}
       </div>}
-      <p className="text-xs text-muted-foreground">{tab === 'drafts' ? 'Only you can see your drafts. Publishing creates a separate version for the community.' : 'Showing up to 60 community creations. Apps start only after you choose Run app.'}</p>
+      {activeList.isFetchNextPageError && <p role="alert" className="text-sm text-destructive">More apps could not be loaded. Your loaded apps are still available.</p>}
+      {activeList.hasNextPage && <Button className="rounded-full" variant="outline" disabled={activeList.isFetching} onClick={() => void activeList.fetchNextPage()}>{activeList.isFetchingNextPage ? 'Loading more apps…' : activeList.isFetchNextPageError ? 'Retry loading more' : 'Load more apps'}</Button>}
+      <p className="text-xs text-muted-foreground">{tab === 'drafts' ? 'Only you can see your drafts. Publishing creates a separate version for the community.' : 'Apps start only after you choose Run app.'}</p>
     </div>
   );
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { listMiniApps, publishMiniApp, saveMiniAppDraft, unpublishMiniApp } from './repository';
+import { listMiniAppsPage, publishMiniApp, saveMiniAppDraft, unpublishMiniApp } from './repository';
 import { MINI_APP_TEMPLATES } from './templates';
 
 const state = vi.hoisted(() => ({ uid: 'alice', rows: new Map<string, Record<string, unknown>>(), sequence: 0, auth: null as any, listener: null as any, loseAck: false, transactionRead: vi.fn(), transactionWrite: vi.fn() }));
@@ -16,9 +16,12 @@ vi.mock('firebase/firestore', () => ({
   deleteDoc: vi.fn(async (ref: { path: string }) => { state.rows.delete(ref.path); }),
   where: (field: string, op: string, value: string) => ({ field, op, value }),
   documentId: () => '__name__',
+  orderBy: (field: string) => ({ order: field }),
+  startAfter: (id: string) => ({ after: id }),
   limit: (count: number) => ({ count }),
   query: (collection: string, ...constraints: unknown[]) => ({ collection, constraints }),
-  getDocs: vi.fn(async (q: { collection: string; constraints: Array<{ field?: string; op?: string; value?: string; count?: number }> }) => ({ docs: [...state.rows].filter(([path, data]) => path.startsWith(`${q.collection}/`) && q.constraints.every(c => {
+  getDocs: vi.fn(async (q: { collection: string; constraints: Array<{ field?: string; op?: string; value?: string; count?: number; after?: string }> }) => ({ docs: [...state.rows].filter(([path, data]) => path.startsWith(`${q.collection}/`) && q.constraints.every(c => {
+    if (c.after) return path.split('/')[1] > c.after;
     if (!c.field) return true;
     const value = c.field === '__name__' ? path.split('/')[1] : data[c.field];
     return c.op === '>=' ? String(value) >= c.value! : value === c.value;
@@ -74,10 +77,10 @@ describe('mini app private drafts and public snapshots', () => {
     expect(setDoc).not.toHaveBeenCalled();
   });
   it('uses published-only discovery and owner-only draft queries', async () => {
-    await listMiniApps();
-    expect(getDocs).toHaveBeenLastCalledWith({ collection: 'mini_apps', constraints: [{ field: 'status', op: '==', value: 'published' }, { count: 60 }] });
-    await listMiniApps('alice');
-    expect(getDocs).toHaveBeenLastCalledWith({ collection: 'mini_app_drafts', constraints: [{ field: 'owner_id', op: '==', value: 'alice' }, { count: 60 }] });
+    await listMiniAppsPage('alice', 'published');
+    expect(getDocs).toHaveBeenLastCalledWith({ collection: 'mini_apps', constraints: [{ field: 'status', op: '==', value: 'published' }, { order: '__name__' }, { count: 25 }] });
+    await listMiniAppsPage('alice', 'drafts');
+    expect(getDocs).toHaveBeenLastCalledWith({ collection: 'mini_app_drafts', constraints: [{ field: 'owner_id', op: '==', value: 'alice' }, { order: '__name__' }, { count: 25 }] });
   });
   it('confirms a durable save without a fragile follow-up read', async () => {
     await saveMiniAppDraft('alice', source);
@@ -134,6 +137,21 @@ describe('mini app private drafts and public snapshots', () => {
     state.rows.delete('mini_app_drafts/retained-id');
     await expect(saveMiniAppDraft('alice', source, first)).rejects.toMatchObject({ code: 'mini-app-conflict' });
     expect(state.rows.size).toBe(0);
+  });
+
+  it('continues beyond sixty drafts without duplicates and survives a removed boundary', async () => {
+    for (let i = 0; i < 65; i++) state.rows.set(`mini_app_drafts/draft-${String(i).padStart(3, '0')}`, { ...source, owner_id: 'alice', schema_version: 1 });
+    const first = await listMiniAppsPage('alice', 'drafts'); expect(first.apps).toHaveLength(24); expect(first.nextCursor).toBe('draft-023');
+    state.rows.delete('mini_app_drafts/draft-023');
+    const second = await listMiniAppsPage('alice', 'drafts', first.nextCursor!); expect(second.apps).toHaveLength(24);
+    const last = await listMiniAppsPage('alice', 'drafts', second.nextCursor!); expect(last.apps).toHaveLength(17); expect(last.nextCursor).toBeNull();
+    expect(new Set([...first.apps, ...second.apps, ...last.apps].map(app => app.id)).size).toBe(65);
+  });
+  it('continues through malformed source and rejects late-account list results', async () => {
+    for (let i = 0; i < 25; i++) state.rows.set(`mini_apps/app-${String(i).padStart(3, '0')}`, { ...source, owner_id: 'alice', schema_version: 1, status: 'published', html: 42 });
+    const page = await listMiniAppsPage('alice', 'published'); expect(page.apps).toEqual([]); expect(page.nextCursor).toBe('app-023');
+    vi.mocked(getDocs).mockImplementationOnce(async () => { switchAccount('bob'); return { docs: [] } as any; });
+    await expect(listMiniAppsPage('alice', 'published', page.nextCursor!)).rejects.toMatchObject({ code: 'account-changed' });
   });
 
 });

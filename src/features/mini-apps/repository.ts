@@ -1,15 +1,30 @@
-import { collection, deleteDoc, doc, getDoc, getDocs, limit, query, runTransaction, serverTimestamp, setDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, documentId, orderBy, startAfter, getDoc, getDocs, limit, query, runTransaction, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { getFirestoreDb } from '@/lib/firebase/firestoreDb';
 import { validateMiniApp, type MiniAppRecord, type MiniAppSource } from './model';
 import { miniAppAccountGuard } from './account';
 
-export async function listMiniApps(ownerId?: string): Promise<MiniAppRecord[]> {
-  const guard = ownerId ? miniAppAccountGuard(ownerId) : () => {};
+export const MINI_APP_PAGE_SIZE = 24;
+export type MiniAppPage = { apps: MiniAppRecord[]; nextCursor: string | null };
+export async function listMiniAppsPage(ownerId: string, view: 'published' | 'drafts', cursor?: string): Promise<MiniAppPage> {
+  const guard = miniAppAccountGuard(ownerId); guard();
+  if (!['published', 'drafts'].includes(view) || (cursor !== undefined && (typeof cursor !== 'string' || !cursor || cursor.length > 1500 || cursor.includes('/')))) throw new Error('Refresh the mini-app library to continue.');
+  const privateView = view === 'drafts';
+  const reference = collection(getFirestoreDb(), privateView ? 'mini_app_drafts' : 'mini_apps');
+  const rows = await getDocs(query(reference, where(privateView ? 'owner_id' : 'status', '==', privateView ? ownerId : 'published'),
+    orderBy(documentId()), ...(cursor ? [startAfter(cursor)] : []), limit(MINI_APP_PAGE_SIZE + 1)));
   guard();
-  const reference = collection(getFirestoreDb(), ownerId ? 'mini_app_drafts' : 'mini_apps');
-  const rows = await getDocs(query(reference, where(ownerId ? 'owner_id' : 'status', '==', ownerId || 'published'), limit(60)));
-  guard();
-  return rows.docs.map(row => ({ ...row.data(), id: row.id } as MiniAppRecord));
+  const candidates = rows.docs.slice(0, MINI_APP_PAGE_SIZE);
+  const apps: MiniAppRecord[] = [];
+  for (const row of candidates) {
+    const data = row.data();
+    if (!/^[\w-]{1,128}$/.test(row.id) || data.schema_version !== 1 || typeof data.owner_id !== 'string'
+      || (privateView ? data.owner_id !== ownerId : data.status !== 'published')) continue;
+    try { apps.push({ ...validateMiniApp(data), id: row.id, owner_id: data.owner_id, schema_version: 1,
+      ...(privateView ? {} : { status: 'published' as const }), created_at: data.created_at, updated_at: data.updated_at }); }
+    catch { /* A malformed candidate cannot prevent continuation to older apps. */ }
+  }
+  const last = candidates.at(-1);
+  return { apps, nextCursor: rows.docs.length > MINI_APP_PAGE_SIZE && last ? last.id : null };
 }
 
 export async function getPublishedMiniApp(id: string): Promise<MiniAppRecord | null> {

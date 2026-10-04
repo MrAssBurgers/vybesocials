@@ -10,6 +10,7 @@ import type { MiniAppRecord, MiniAppSource } from '@/features/mini-apps/model';
 const state = vi.hoisted(() => ({ uid: 'alice', reducedMotion: false, systemReducedMotion: false, sound: vi.fn(), success: vi.fn(), report: vi.fn() }));
 const repository = vi.hoisted(() => ({ list: vi.fn(), save: vi.fn(), publish: vi.fn(), unpublish: vi.fn(), get: vi.fn() }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: state.uid }, profile: { id: `${state.uid}-profile` } }) }));
+vi.mock('@/hooks/useReportAccountSession', () => ({ useReportAccountSession: () => ({ uid: state.uid, epoch: 1 }) }));
 vi.mock('@/lib/theme', () => ({ useTheme: () => ({ reducedMotion: state.reducedMotion }) }));
 vi.mock('@/lib/firebase/firestoreDb', () => ({ getFirestoreDb: vi.fn() }));
 vi.mock('@/hooks/useSafetyReport', () => ({ useSafetyReport: () => Object.assign(state.report, { sessionKey: state.uid }) }));
@@ -18,7 +19,7 @@ vi.mock('@/components/layout/AppLayout', () => ({ AppLayout: ({ children }: { ch
 vi.mock('@/lib/haptics', () => ({ triggerHaptic: vi.fn() }));
 vi.mock('@/lib/sounds', () => ({ playSound: state.sound }));
 vi.mock('sonner', () => ({ toast: { success: state.success, error: vi.fn() } }));
-vi.mock('@/features/mini-apps/repository', () => ({ listMiniApps: repository.list, saveMiniAppDraft: repository.save, publishMiniApp: repository.publish, unpublishMiniApp: repository.unpublish, getPublishedMiniApp: repository.get }));
+vi.mock('@/features/mini-apps/repository', () => ({ listMiniAppsPage: repository.list, saveMiniAppDraft: repository.save, publishMiniApp: repository.publish, unpublishMiniApp: repository.unpublish, getPublishedMiniApp: repository.get }));
 
 const record = (source: MiniAppSource, owner = 'alice'): MiniAppRecord => ({ ...source, id: 'app-1', owner_id: owner, schema_version: 1, created_at: { seconds: 1 } });
 
@@ -32,13 +33,30 @@ beforeEach(() => {
   state.uid = 'alice'; state.reducedMotion = false; state.systemReducedMotion = false;
   vi.clearAllMocks();
   state.report.mockReset();
-  repository.list.mockResolvedValue([]);
+  repository.list.mockResolvedValue({ apps: [], nextCursor: null });
   repository.save.mockImplementation(async (owner: string, source: MiniAppSource) => record(source, owner));
   repository.publish.mockResolvedValue(undefined);
 });
 afterEach(cleanup);
 
 describe('mini apps studio flow', () => {
+  it('keeps searching across loaded pages and offers retry without dropping earlier apps', async () => {
+    const one = { ...record(MINI_APP_TEMPLATES[0].source), id: 'one', title: 'First creation' };
+    const two = { ...one, id: 'two', title: 'Hidden gem' };
+    repository.list.mockResolvedValueOnce({ apps: [one], nextCursor: 'one' }).mockRejectedValueOnce(new Error('Offline')).mockResolvedValueOnce({ apps: [two], nextCursor: null });
+    mount(); await screen.findByText('First creation');
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search mini apps' }), { target: { value: 'Hidden gem' } });
+    expect(screen.getByText('No matches in loaded apps')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Load more apps' }));
+    await screen.findByRole('button', { name: 'Retry loading more' });
+    expect(screen.getByText('No matches in loaded apps')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry loading more' }));
+    await screen.findByText('Hidden gem');
+    expect(screen.queryByRole('button', { name: 'Load more apps' })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search mini apps' }), { target: { value: '' } });
+    expect(screen.getByText('First creation')).toBeInTheDocument();
+    expect(repository.list).toHaveBeenLastCalledWith('alice', 'published', 'one');
+  });
   it('previews only after Run, saves privately, and publishes only after confirmation', async () => {
     const { container } = mount();
     fireEvent.click(screen.getByRole('button', { name: 'Build a mini app' }));
@@ -182,7 +200,7 @@ describe('mini apps studio flow', () => {
   });
   it('does not announce an old account unpublish result in the next account', async () => {
     let finish!: () => void;
-    repository.list.mockResolvedValue([{ ...record(MINI_APP_TEMPLATES[0].source), status: 'published' }]);
+    repository.list.mockResolvedValue({ apps: [{ ...record(MINI_APP_TEMPLATES[0].source), status: 'published' }], nextCursor: null });
     repository.unpublish.mockReturnValue(new Promise<void>(resolve => { finish = resolve; }));
     const { client, rerender } = mount();
     fireEvent.click(await screen.findByRole('button', { name: 'Unpublish', exact: true }));

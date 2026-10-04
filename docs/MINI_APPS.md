@@ -23,7 +23,7 @@ Open **Create → Hub → Mini Apps**, or `/mini-apps`. Signed-in members can st
 - Published snapshots use `mini_apps/{sameId}`. Creation is bound to the owner's draft. Edits and ordinary saves never modify the public snapshot. Only a confirmed Publish action writes it.
 - Unpublish removes the public snapshot while keeping the private draft and its namespace. Existing running copies cannot be remotely recalled; reopening the page checks current publication state.
 - Public metadata and code are readable by signed-in members. Do not put API keys, credentials, personal data, or secrets in code.
-- Discovery and draft queries each load at most 60 records. This version has no ranked discovery, full-text search, pagination, per-creator publication quota, or server-side code review. Firestore rules constrain document shape and combined source length to 100,000 characters, but do not provide a per-account count or rate limit.
+- Discovery and draft queries use 24-candidate pages plus one lookahead, ordered by stable document ID. Load more continues with a value cursor, including after the boundary document is deleted. There is no sixty-record truncation. Malformed candidates are omitted while preserving continuation. Search filters loaded metadata only; the UI states the loaded count, offers continuation even with no current matches, and supports refreshing the library. This version has no ranked discovery, full-text search, per-creator publication quota, or server-side code review. Firestore rules constrain document shape and combined source length to 100,000 characters, but do not provide a per-account count or rate limit.
 - A separate local recovery copy is scoped by account UID and draft ID, retained for up to 30 days, and removed after successful save or explicit discard. A recovery copy is never published automatically. It protects ordinary route changes when browser storage is available; Save draft is the cloud backup.
 - Reports use the verified reporting callable. Moderators inspect inert source, confirm the current publication revision, and remove it with an audited publishing hold; releasing a hold never republishes. The private draft remains available to its creator. Legacy reports remain unverified leads. See [report authority](REPORT_AUTHORITY.md) for the coordinated client/callable/rules rollout and limits.
 - A failed report write keeps its dialog open and its reason selected, with an inline retry message. Success is announced only after the write completes.
@@ -51,3 +51,19 @@ Reduced-motion preferences from both the device and VYBE are propagated into pre
 Covers schema/size checks, ownership/session checks (including switching away and back), published-only queries, draft/snapshot isolation, lost-acknowledgement retries, unpublish preservation, explicit-run and stale-preview behavior, phone width without runtime restart, synchronous hidden/pagehide teardown with no automatic resume, hidden Run refusal, lifecycle cleanup, outer/inner sandbox attributes, hostile delimiter containment, reduced motion, account-switch teardown, stale save completion, partial publishing failure, confirmation before publishing, keyboard shortcuts, and local recovery boundaries. Runtime regressions execute the generated trusted relay/bootstrap in an isolated test context and cover sender/run checks, diagnostic quotas, inert text, readiness deadlines, stale timers/frames, source preservation and return to the editor. Firestore emulator enforcement tests are maintained separately with the rules.
 
 Browser checks should verify a template's controls, Stop/Restart, a 320px viewport, denied fetch and storage access, denied parent access, disabled WebRTC entry points, and attempted self-navigation being blocked by the outer CSP. Unit tests cannot establish browser sandbox enforcement on their own.
+
+### Library session and paging checks
+
+Library queries bind the signed-in account and account epoch. Only the selected
+library tab loads new pages. Changed accounts tear down the studio/runtime and
+select a different query generation; list responses check the account again after
+reading. Mini-app query snapshots are excluded from both disk writes and old disk
+restoration. This is separate from the studio's deliberate owner-scoped local
+recovery file, which retains unsaved work as described above.
+
+Next-page errors keep previously loaded cards available and offer Retry loading
+more. Search does not claim a whole-library result until pages have been loaded;
+new entries inserted before an existing cursor require Refresh apps. This is not
+chronological ranking or a full-text search service. Firestore still transfers
+source documents for each page; metadata-only discovery and large-library cost
+and rendering benchmarks remain future work.

@@ -10,7 +10,7 @@ assert.ok(process.env.FIRESTORE_EMULATOR_HOST && process.env.FIREBASE_STORAGE_EM
 const require = createRequire(path.resolve(process.env.FIREBASE_TEST_TOOLS_ROOT || '.', 'package.json'));
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@firebase/rules-unit-testing');
 // Resolve the same SDK instance as the isolated rules test tools.
-const { doc, collection, setDoc, getDoc, getDocs, query, where, documentId, limit, updateDoc, deleteDoc, runTransaction, serverTimestamp, Timestamp } = require('firebase/firestore');
+const { doc, collection, setDoc, getDoc, getDocs, query, where, documentId, orderBy, startAfter, limit, updateDoc, deleteDoc, runTransaction, serverTimestamp, Timestamp } = require('firebase/firestore');
 const { ref, uploadBytes, getBytes, deleteObject } = require('firebase/storage');
 const [firestoreHost, firestorePort] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
 const [storageHost, storagePort] = process.env.FIREBASE_STORAGE_EMULATOR_HOST.split(':');
@@ -91,6 +91,13 @@ try {
     const ref = doc(bobDb, 'mini_app_drafts', 'transaction-draft');
     await transaction.get(ref); transaction.set(ref, { ...app(), owner_id: 'creator-bob' });
   }));
+  await allowed('owner can continue private library pages with a stable document cursor', async () => {
+    const first = await getDocs(query(collection(aliceDb, 'mini_app_drafts'), where('owner_id', '==', 'creator-alice'), orderBy(documentId()), limit(1)));
+    assert.equal(first.size, 1);
+    const next = await getDocs(query(collection(aliceDb, 'mini_app_drafts'), where('owner_id', '==', 'creator-alice'), orderBy(documentId()), startAfter(first.docs[0].id), limit(25)));
+    assert.ok(next.size > 0); assert.ok(next.docs.every(row => row.id > first.docs[0].id));
+  });
+  await denied('a private pagination cursor never grants another account draft access', () => getDocs(query(collection(bobDb, 'mini_app_drafts'), where('owner_id', '==', 'creator-alice'), orderBy(documentId()), startAfter('a'), limit(25))));
   await denied('unfiltered private draft scan rejected', () => getDocs(collection(bobDb, 'mini_app_drafts')));
   await denied('others cannot overwrite published code', () => updateDoc(doc(bobDb, publicRef.path), { html: 'hijack', updated_at: serverTimestamp() }));
   await denied('publication cannot spoof status', () => updateDoc(publicRef, { status: 'featured', updated_at: serverTimestamp() }));
