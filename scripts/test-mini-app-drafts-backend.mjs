@@ -91,5 +91,16 @@ await check('malformed stored drafts are not silently repaired', async () => {
   await db.doc(`mini_app_drafts/${appId}`).update({ schema_version: 2 });
   await assert.rejects(call(input()), { code: 'failed-precondition' });
 });
+await check('private corrections remain available without clearing active or malformed publication holds', async () => {
+  const id = `${uid}-held`; let expected = null;
+  for (const hold of [{ version: 1, app_id: id, owner_uid: uid, active: true }, { active: false }]) {
+    await db.doc(`_mini_app_moderation/${id}`).set(hold);
+    const next = { ...source, title: expected ? 'Corrected privately' : 'New held draft' };
+    await call(input({ appId: id, source: next, expectedSource: expected }));
+    assert.deepEqual((await db.doc(`_mini_app_moderation/${id}`).get()).data(), hold);
+    assert.equal((await db.doc(`mini_apps/${id}`).get()).exists, false);
+    expected = next;
+  }
+});
 console.log(`Mini-app drafts: ${checks} backend checks passed`);
 await db.terminate();

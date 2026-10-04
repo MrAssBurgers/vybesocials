@@ -65,7 +65,8 @@ try {
   }
 
   const id = 'held-app'; const draft = doc(alice, 'mini_app_drafts', id); const published = doc(alice, 'mini_apps', id);
-  await allowed('owner can create an ordinary private draft', () => setDoc(draft, app()));
+  await denied('owner must create private drafts through checked admission', () => setDoc(draft, app()));
+  await seed('mini_app_drafts', id, { ...app(), created_at: Timestamp.fromMillis(1), updated_at: Timestamp.fromMillis(1) });
   await denied('absent hold still requires checked publication', () => setDoc(published, { ...app(), status: 'published' }));
   await seed('mini_apps', id, { ...app(), status: 'published', created_at: Timestamp.fromMillis(1), updated_at: Timestamp.fromMillis(1) });
   await denied('public updates require checked publication', () => updateDoc(published, { title: 'Before hold', updated_at: serverTimestamp() }));
@@ -77,7 +78,7 @@ try {
   for (const [label, client] of [['owner', alice], ['owner with admin claim', ownerAdmin]]) {
     await denied(`${label} cannot edit the public snapshot during an active hold`, () => updateDoc(doc(client, 'mini_apps', id), { html: '<p>Evade review</p>', updated_at: serverTimestamp() }));
   }
-  await allowed('active hold does not prevent owner draft editing', () => updateDoc(draft, { html: '<p>Private correction</p>', updated_at: serverTimestamp() }));
+  await denied('private draft editing still requires checked save during a hold', () => updateDoc(draft, { html: '<p>Private correction</p>', updated_at: serverTimestamp() }));
   await allowed('active hold does not prevent owner draft reads', () => getDoc(draft));
   await denied('active hold does not expose private source to staff', () => getDoc(doc(admin, 'mini_app_drafts', id)));
   await allowed('owner may unpublish while held without releasing the hold', () => deleteDoc(published));
@@ -92,7 +93,7 @@ try {
     });
   }
   await allowed('owner can delete a held private draft', () => deleteDoc(draft));
-  await allowed('owner can recreate a private draft while hold persists', () => setDoc(draft, app()));
+  await denied('owner cannot bypass admission when recreating a held draft', () => setDoc(draft, app()));
   await denied('draft deletion and recreation does not erase the public hold', () => setDoc(published, { ...app(), status: 'published' }));
   await seed('_mini_app_moderation', id, hold(id, { active: false, revision: 'release-revision', released_at: '2026-10-03T12:05:00.000Z', released_by_uid: 'report-admin', release_note: 'Synthetic release' }));
   await allowed('server release itself does not recreate the public snapshot', async () => { assert.equal((await getDoc(published)).exists(), false); });
@@ -116,9 +117,9 @@ try {
     await denied(`malformed hold ${index} cannot authorize publication`, () => setDoc(doc(alice, 'mini_apps', malformedId), { ...app(), status: 'published' }));
     await seed('mini_apps', malformedId, { ...app(), status: 'published', created_at: Timestamp.fromMillis(1), updated_at: Timestamp.fromMillis(1) });
     await denied(`malformed hold ${index} cannot authorize public edits`, () => updateDoc(doc(alice, 'mini_apps', malformedId), { title: 'Not released', updated_at: serverTimestamp() }));
-    await allowed(`malformed hold ${index} leaves private correction editable`, () => updateDoc(doc(alice, 'mini_app_drafts', malformedId), { description: 'Private fix', updated_at: serverTimestamp() }));
+    await denied(`malformed hold ${index} cannot bypass checked draft saving`, () => updateDoc(doc(alice, 'mini_app_drafts', malformedId), { description: 'Private fix', updated_at: serverTimestamp() }));
   }
-  await allowed('another creator can still save an unrelated private app', async () => {
+  await denied('another creator also uses checked private draft admission', async () => {
     await setDoc(doc(bob, 'mini_app_drafts', 'unrelated'), app(bobUid));
 
   });
