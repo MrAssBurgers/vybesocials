@@ -2,6 +2,26 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Checked studio saves and draft rule enforcement
+
+### What changed
+- Studio repository now calls saveMiniAppDraft with stable identity and reviewed source, validates exact response/source/timestamps and rejects late-account acknowledgements. It maps callable name-based aborted errors to existing Save as new draft recovery and removes transport status suffixes from save messages. Publishing also retains callable name-based error codes.
+- Firestore rules deny direct draft creates/updates; owner reads/lists/deletes stay supported. Rules tests seed fixtures as admin and prove direct/transactional bypass and quota access/forgery are denied.
+- Updated mini-app deployment guide, removing obsolete direct-write/no-quota claims and specifying selective function-first, compatible-client, rules rollout and rollback implications. No production deployment.
+
+### Verification
+- Full app 309 files / 2,930 tests passed. Final save-message adjustment passed 52 focused checks; final app build and scoped lint passed. Entry 1068.2 KiB raw / 321.9 KiB gzip.
+- Isolated creator-platform rules: 185 checks passed with Firestore/Storage emulators, separate ports/hub/tmp; clean shutdown. Existing 11 draft backend boundary/race checks passed in previous checkpoint.
+- Retained 8082 preview updated with the new callable export and rules through emulator reload, no restart/reset. Synthetic Alice saved Checked save QA, a second studio saved a newer edit, the original rejected its stale write, Save as new draft preserved its source, and an identical repeat save succeeded. Library displayed both versions. Read-only backend verification confirmed two private records, no public snapshot, and quota count exactly two. Screenshot outputs/vybe-checked-draft-saves.png; conflict screenshot captured before stripping transport suffix.
+- Previous 8ac6b6ae main/rules CI both succeeded. Prior 3a95642e main succeeded; rules job 37212649323 was still running when inspected. Build-generated offline/version churn restored before commit.
+
+### Next 3 tasks and limits
+1. Verify checkpoint CI, address bounded publication receipt retention and draft new-create replay-after-delete semantics if needed. New-create retries can recreate an interveningly deleted draft; existing-draft edits cannot.
+2. Continue engine/mod adapters, mini-app runtime isolation and remaining audience/media reader migrations.
+3. Validate physical devices and coordinate selective production rollout. Local rules/backend/client enforcement is verified; deployed production remains unchanged. Broad app goal remains active and incomplete.
+
+---
+
 ## ACTIVE (2026-10-04) - Staged mini-app draft admission backend
 
 ### What changed

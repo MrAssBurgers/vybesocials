@@ -35,7 +35,8 @@ const publicRef = doc(aliceDb, 'mini_apps', 'test-app');
 try {
   await env.clearFirestore();
   await env.clearStorage();
-  await allowed('owner creates a private draft', () => setDoc(privateRef, app()));
+  await denied('owner cannot bypass draft admission', () => setDoc(privateRef, app()));
+  await env.withSecurityRulesDisabled(context => setDoc(doc(context.firestore(), privateRef.path), app()));
   await allowed('owner reads own draft', () => getDoc(privateRef));
   await denied('another account cannot read draft code', () => getDoc(doc(bobDb, privateRef.path)));
   await denied('signed-out clients cannot read drafts', () => getDoc(doc(guest.firestore(), privateRef.path)));
@@ -84,11 +85,12 @@ try {
   await denied('document identity alone does not authorize private draft recovery', () => getDocs(query(collection(bobDb, 'mini_app_drafts'), where(documentId(), '==', privateRef.id), limit(1))));
   await allowed('signed-in creators can check an unused draft identity', () => getDoc(doc(aliceDb, 'mini_app_drafts', 'pending-new')));
   await denied('guests cannot probe missing draft identities', () => getDoc(doc(guest.firestore(), 'mini_app_drafts', 'pending-new')));
-  await allowed('transactional first save reads absence and creates an owned private draft', () => runTransaction(aliceDb, async transaction => {
+  await denied('transactional direct creation cannot bypass draft admission', () => runTransaction(aliceDb, async transaction => {
     const ref = doc(aliceDb, 'mini_app_drafts', 'transaction-draft');
     assert.equal((await transaction.get(ref)).exists(), false);
     transaction.set(ref, app());
   }));
+  await env.withSecurityRulesDisabled(context => setDoc(doc(context.firestore(), 'mini_app_drafts', 'transaction-draft'), app()));
   await denied('other users cannot transactionally inspect or overwrite the saved draft', () => runTransaction(bobDb, async transaction => {
     const ref = doc(bobDb, 'mini_app_drafts', 'transaction-draft');
     await transaction.get(ref); transaction.set(ref, { ...app(), owner_id: 'creator-bob' });
@@ -103,7 +105,7 @@ try {
   await denied('unfiltered private draft scan rejected', () => getDocs(collection(bobDb, 'mini_app_drafts')));
   await denied('others cannot overwrite published code', () => updateDoc(doc(bobDb, publicRef.path), { html: 'hijack', updated_at: serverTimestamp() }));
   await denied('publication cannot spoof status', () => updateDoc(publicRef, { status: 'featured', updated_at: serverTimestamp() }));
-  await allowed('saving draft leaves public snapshot alone', () => updateDoc(privateRef, { html: '<p>Unreleased</p>', updated_at: serverTimestamp() }));
+  await denied('direct draft edits must use the checked callable', () => updateDoc(privateRef, { html: '<p>Unreleased</p>', updated_at: serverTimestamp() }));
   assert.equal((await getDoc(publicRef)).data().html, '<button>Play</button>'); checks++;
   await denied('another user cannot unpublish', () => deleteDoc(doc(bobDb, publicRef.path)));
   await denied('staff browser cannot bypass audited mini-app removal', () => deleteDoc(doc(staff.firestore(), publicRef.path)));
@@ -115,7 +117,7 @@ try {
   await allowed('owner can unpublish', () => deleteDoc(publicRef));
   assert.equal((await getDoc(privateRef)).exists(), true); checks++;
 
-  for (const name of ['_mini_app_publish_quotas', '_mini_app_publish_operations']) {
+  for (const name of ['_mini_app_publish_quotas', '_mini_app_publish_operations', '_mini_app_draft_quotas']) {
     await denied(`${name} cannot be read by owner`, () => getDoc(doc(aliceDb, name, 'creator-alice')));
     await denied(`${name} cannot be forged by staff`, () => setDoc(doc(staff.firestore(), name, 'creator-alice'), { count: 0 }));
   }

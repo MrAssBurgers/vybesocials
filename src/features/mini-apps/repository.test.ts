@@ -32,7 +32,21 @@ vi.mock('firebase/firestore', () => ({
 import { invokeFunction } from '@/lib/firebase/functionsService';
 import { getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
 
-beforeEach(() => { vi.mocked(invokeFunction).mockImplementation(async (_name, body: any) => { const path = `mini_apps/${body.appId}`; const old = state.rows.get(path); state.rows.set(path, { ...body.source, owner_id: body.expectedOwnerUid, schema_version: 1, status: 'published', publication_revision: 'a'.repeat(32), created_at: old?.created_at ?? { seconds: 1000, nanoseconds: 0 } }); return { data: { appId: body.appId, status: 'published', publicationRevision: 'a'.repeat(32) }, error: null } as any; }); state.uid = 'alice'; state.rows.clear(); state.sequence = 0; state.loseAck = false; vi.clearAllMocks(); state.transactionRead.mockImplementation(async (ref: any) => ({ id: ref.id, exists: () => state.rows.has(ref.path), data: () => structuredClone(state.rows.get(ref.path)) })); state.transactionWrite.mockImplementation((ref: any, data: any) => state.rows.set(ref.path, structuredClone(data))); state.auth = { currentUser: { uid: 'alice' }, onAuthStateChanged: (listener: unknown) => { state.listener = listener; return () => {}; } }; });
+beforeEach(() => { vi.mocked(invokeFunction).mockImplementation(async (_name, body: any) => {
+  if (_name === 'saveMiniAppDraft') {
+    const path = `mini_app_drafts/${body.appId}`;
+    const old = state.rows.get(path);
+    const pick = (row: any) => Object.fromEntries(['title', 'description', 'category', 'html', 'css', 'javascript'].map(key => [key, row[key]]));
+    if (old && old.owner_id !== body.expectedOwnerUid) return { data: null, error: { name: 'permission-denied', message: 'Not your draft' } } as any;
+    const same = old && JSON.stringify(pick(old)) === JSON.stringify(body.source);
+    if (!same && (old ? !body.expectedSource || JSON.stringify(pick(old)) !== JSON.stringify(body.expectedSource) : !!body.expectedSource)) return { data: null, error: { name: 'aborted', message: 'Draft changed' } } as any;
+    const time = { seconds: 1000 + state.sequence, nanoseconds: 0 };
+    const row = same ? old : { ...body.source, owner_id: body.expectedOwnerUid, schema_version: 1, created_at: old?.created_at ?? time, updated_at: time };
+    state.rows.set(path, structuredClone(row));
+    if (state.loseAck) { state.loseAck = false; throw new Error('Response lost'); }
+    return { data: { appId: body.appId, source: body.source, createdAt: row.created_at, updatedAt: row.updated_at }, error: null } as any;
+  }
+ const path = `mini_apps/${body.appId}`; const old = state.rows.get(path); state.rows.set(path, { ...body.source, owner_id: body.expectedOwnerUid, schema_version: 1, status: 'published', publication_revision: 'a'.repeat(32), created_at: old?.created_at ?? { seconds: 1000, nanoseconds: 0 } }); return { data: { appId: body.appId, status: 'published', publicationRevision: 'a'.repeat(32) }, error: null } as any; }); state.uid = 'alice'; state.rows.clear(); state.sequence = 0; state.loseAck = false; vi.clearAllMocks(); state.transactionRead.mockImplementation(async (ref: any) => ({ id: ref.id, exists: () => state.rows.has(ref.path), data: () => structuredClone(state.rows.get(ref.path)) })); state.transactionWrite.mockImplementation((ref: any, data: any) => state.rows.set(ref.path, structuredClone(data))); state.auth = { currentUser: { uid: 'alice' }, onAuthStateChanged: (listener: unknown) => { state.listener = listener; return () => {}; } }; });
 function switchAccount(uid: string) { state.uid = uid; state.auth.currentUser = { uid }; state.listener?.({ uid }); }
 
 describe('mini app private drafts and public snapshots', () => {
@@ -61,6 +75,28 @@ describe('mini app private drafts and public snapshots', () => {
     await expect(deleteMiniAppDraft('alice', draft)).rejects.toMatchObject({ code: 'account-changed' });
     expect(state.rows.has(`mini_app_drafts/${draft.id}`)).toBe(true);
   });
+  it('sends reviewed source to the checked callable without direct writes', async () => {
+    const saved = await saveMiniAppDraft('alice', source, null, 'stable-draft');
+    await saveMiniAppDraft('alice', { ...source, title: 'Edited' }, saved);
+    expect(invokeFunction).toHaveBeenLastCalledWith('saveMiniAppDraft', { expectedOwnerUid: 'alice', appId: 'stable-draft', source: { ...source, title: 'Edited' }, expectedSource: source });
+    expect(state.transactionWrite).not.toHaveBeenCalled();
+    expect(setDoc).not.toHaveBeenCalled();
+  });
+  it.each(['wrong-id', 'different-source', 'extra-field', 'bad-time', 'reversed-time'])('rejects a %s save receipt', async mode => {
+    const time = { seconds: 100, nanoseconds: 0 };
+    const receipt: any = { appId: 'stable-draft', source, createdAt: time, updatedAt: time };
+    if (mode === 'wrong-id') receipt.appId = 'another';
+    if (mode === 'different-source') receipt.source = { ...source, title: 'Wrong content' };
+    if (mode === 'extra-field') receipt.ownerUid = 'foreign';
+    if (mode === 'bad-time') receipt.updatedAt = { seconds: 100, nanoseconds: 1e9 };
+    if (mode === 'reversed-time') receipt.createdAt = { seconds: 101, nanoseconds: 0 };
+    vi.mocked(invokeFunction).mockResolvedValueOnce({ data: receipt, error: null });
+    await expect(saveMiniAppDraft('alice', source, null, 'stable-draft')).rejects.toThrow('could not be confirmed');
+  });
+  it('preserves callable quota messages and error names', async () => {
+    vi.mocked(invokeFunction).mockResolvedValueOnce({ data: null, error: { name: 'resource-exhausted', message: 'Your library has 200 saved drafts. [429]' } });
+    await expect(saveMiniAppDraft('alice', source, null, 'stable-draft')).rejects.toMatchObject({ code: 'resource-exhausted', message: 'Your library has 200 saved drafts.' });
+  });
   it('retains the original version and request identity after a lost publication response', async () => {
     const draft = await saveMiniAppDraft('alice', source);
     const intent = { requestId: 'stable-publication-request' };
@@ -77,7 +113,7 @@ describe('mini app private drafts and public snapshots', () => {
     const intent = { requestId: 'stable-publication-request' };
     await publishMiniApp('alice', draft, intent);
     await expect(publishMiniApp('alice', { ...draft, title: 'Different source' }, intent)).rejects.toThrow('Your code changed');
-    expect(invokeFunction).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(invokeFunction).mock.calls.filter(call => call[0] === 'publishMiniApp')).toHaveLength(1);
   });
   it('does not confirm a malformed publication receipt', async () => {
     const draft = await saveMiniAppDraft('alice', source);
@@ -173,7 +209,7 @@ describe('mini app private drafts and public snapshots', () => {
     const saved = await saveMiniAppDraft('alice', source, null, 'retained-id');
     expect(saved.id).toBe('retained-id'); expect(state.rows.size).toBe(1);
     expect(saved.created_at).toEqual(created);
-    expect(state.transactionWrite).toHaveBeenCalledTimes(1);
+    expect(state.transactionWrite).not.toHaveBeenCalled();
   });
   it('creates the pending draft without copying or updating a neighboring owned draft', async () => {
     const neighbor = { ...source, owner_id: 'alice', created_at: { seconds: 42 }, title: 'Keep this draft' };
@@ -184,7 +220,7 @@ describe('mini app private drafts and public snapshots', () => {
     expect(state.rows.get('mini_app_drafts/zz-neighbor')).toEqual(neighbor);
     expect(state.rows.get('mini_app_drafts/pending-id')?.title).toBe(source.title);
     expect(updateDoc).not.toHaveBeenCalled();
-    expect(state.transactionWrite).toHaveBeenCalledTimes(1);
+    expect(state.transactionWrite).not.toHaveBeenCalled();
   });
   it.each(['switch', 'aba'])('cannot publish after account %s during the existing snapshot lookup', async mode => {
     const draft = await saveMiniAppDraft('alice', source);
@@ -196,8 +232,8 @@ describe('mini app private drafts and public snapshots', () => {
     await expect(publishMiniApp('alice', draft)).rejects.toMatchObject({ code: 'account-changed' });
     expect(setDoc).not.toHaveBeenCalled();
   });
-  it('cannot save under a new session after the transactional lookup', async () => {
-    state.transactionRead.mockImplementationOnce(async () => { switchAccount('bob'); return { exists: () => false }; });
+  it('cannot accept a save response under a new account session', async () => {
+    vi.mocked(invokeFunction).mockImplementationOnce(async () => { switchAccount('bob'); return { data: {}, error: null } as any; });
     await expect(saveMiniAppDraft('alice', source, null, 'retained-id')).rejects.toMatchObject({ code: 'account-changed' });
     expect(setDoc).not.toHaveBeenCalled();
   });

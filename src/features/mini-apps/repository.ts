@@ -1,4 +1,4 @@
-import { collection, doc, documentId, orderBy, startAfter, getDoc, getDocs, limit, query, runTransaction, serverTimestamp, where } from 'firebase/firestore';
+import { collection, doc, documentId, orderBy, startAfter, getDoc, getDocs, limit, query, runTransaction, where } from 'firebase/firestore';
 import { getFirestoreDb } from '@/lib/firebase/firestoreDb';
 import { validateMiniApp, type MiniAppRecord, type MiniAppSource } from './model';
 import { invokeFunction } from '@/lib/firebase/functionsService';
@@ -41,23 +41,30 @@ export async function saveMiniAppDraft(ownerId: string, source: MiniAppSource, e
   const content = validateMiniApp(source);
   if (pendingId && !/^[\w-]{1,128}$/.test(pendingId)) throw new Error('Invalid draft identity. Reopen the studio.');
   const reference = existing || pendingId ? doc(getFirestoreDb(), 'mini_app_drafts', existing?.id || pendingId!) : doc(collection(getFirestoreDb(), 'mini_app_drafts'));
-  const conflict = () => Object.assign(new Error('This draft changed in another tab or device. Your code is still here. Save it as a new draft, or reopen the latest saved version.'), { code: 'mini-app-conflict' });
-  const sameSource = (row: unknown, other: unknown) => JSON.stringify(validateMiniApp(row)) === JSON.stringify(validateMiniApp(other));
-  return runTransaction(getFirestoreDb(), async transaction => {
-    guard();
-    const snapshot = await transaction.get(reference);
-    guard();
-    const remote = snapshot.exists() ? { ...snapshot.data(), id: snapshot.id } as MiniAppRecord : null;
-    if (remote && remote.owner_id !== ownerId) throw new Error('You can only edit your own mini apps.');
-    // An acknowledged-equivalent retry is safe even when the previous response
-    // was lost. Different content must never overwrite a recovered identity.
-    if (remote && sameSource(remote, content)) return remote;
-    if (remote ? !existing || !sameSource(remote, existing) : !!existing) throw conflict();
-    const data = { ...content, owner_id: ownerId, schema_version: 1 as const, updated_at: serverTimestamp(),
-      created_at: remote?.created_at || serverTimestamp() };
-    transaction.set(reference, data);
-    return { ...data, id: reference.id };
-  }).then(record => { guard(); return record; });
+  const result = await invokeFunction<unknown>('saveMiniAppDraft', {
+    expectedOwnerUid: ownerId, appId: reference.id, source: content,
+    expectedSource: existing ? validateMiniApp(existing) : null,
+  });
+  guard();
+  if (result.error) {
+    const code = (result.error.code || result.error.name || 'unknown').replace(/^functions\//, '');
+    throw Object.assign(new Error(result.error.message.replace(/\s\[\d{3}\]$/, '')), { code: code === 'aborted' ? 'mini-app-conflict' : code });
+  }
+  const invalidReceipt = () => new Error('The save response could not be confirmed. Your code is still here. Retry saving to check the saved result.');
+  const exactKeys = (value: unknown, keys: string[]): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
+    && Object.keys(value).length === keys.length && Object.keys(value).every(key => keys.includes(key));
+  const timestamp = (value: unknown): value is { seconds: number; nanoseconds: number } => exactKeys(value, ['seconds', 'nanoseconds'])
+    && Number.isInteger(value.seconds) && (value.seconds as number) >= -62135596800 && (value.seconds as number) <= 253402300799
+    && Number.isInteger(value.nanoseconds) && (value.nanoseconds as number) >= 0 && (value.nanoseconds as number) < 1e9;
+  const receipt = result.data;
+  if (!exactKeys(receipt, ['appId', 'source', 'createdAt', 'updatedAt']) || receipt.appId !== reference.id
+    || !exactKeys(receipt.source, ['title', 'description', 'category', 'html', 'css', 'javascript'])
+    || !timestamp(receipt.createdAt) || !timestamp(receipt.updatedAt)) throw invalidReceipt();
+  try { if (JSON.stringify(validateMiniApp(receipt.source)) !== JSON.stringify(content)) throw invalidReceipt(); }
+  catch { throw invalidReceipt(); }
+  if (receipt.createdAt.seconds > receipt.updatedAt.seconds || (receipt.createdAt.seconds === receipt.updatedAt.seconds && receipt.createdAt.nanoseconds > receipt.updatedAt.nanoseconds)) throw invalidReceipt();
+  return { ...content, id: reference.id, owner_id: ownerId, schema_version: 1,
+    created_at: { ...receipt.createdAt }, updated_at: { ...receipt.updatedAt } };
 }
 
 export async function deleteMiniAppDraft(ownerId: string, draft: MiniAppRecord): Promise<void> {
@@ -104,7 +111,7 @@ export async function publishMiniApp(ownerId: string, draft: MiniAppRecord, inte
   guard();
   const result = await invokeFunction<unknown>('publishMiniApp', { expectedOwnerUid: ownerId, appId: draft.id, requestId: intent.requestId, expectedVersion: intent.expectedVersion, source });
   guard();
-  if (result.error) throw Object.assign(new Error(result.error.message), { code: result.error.code || 'unknown' });
+  if (result.error) throw Object.assign(new Error(result.error.message), { code: result.error.code || result.error.name || 'unknown' });
   const receipt = result.data as Record<string, unknown> | null;
   if (!receipt || receipt.appId !== draft.id || receipt.status !== 'published' || typeof receipt.publicationRevision !== 'string' || !publicationVersionPattern.test(receipt.publicationRevision)) {
     throw new Error('The publication response could not be confirmed. Retry publishing to check the saved result.');
