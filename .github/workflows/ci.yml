@@ -31,6 +31,9 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+      - name: Type check standalone game SDKs
+        run: npm run typecheck:game-sdk
+
       - name: Build Cloud Functions
         run: npm --prefix functions run build
 

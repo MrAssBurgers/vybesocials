@@ -13,7 +13,7 @@ This implementation is source code ready for integration and testing. The new fu
 - Unity example in `sdk/game/unity/VybeGameCapture.cs`. It uses Firebase Auth, Functions, and Storage. The example has not been compiled or run in Unity in this workspace.
 - C++, Unreal, and other engines can implement the same callable protocol and authenticated Firebase Storage upload flow. They are not certified engine plugins in this release.
 
-Firebase user tokens grant the account's normal project permissions. **Do not give untrusted third-party games a user's VYBE Firebase token.** A public partner platform still needs a consent-based, revocable, scoped authorization layer, developer onboarding, game identity attestation, and platform reviews. `gameId` is a public identifier, not an API secret or cryptographic proof of which game generated the content. The code does not claim otherwise.
+Firebase user tokens grant the account's normal project permissions. **Do not give untrusted third-party games a user's VYBE Firebase token.** The separate [partner SDK pilot](PARTNER_GAME_SDK.md) uses explicit device-code approval, ten-minute capture-only credentials, and revocation; see its [API contract and deployment prerequisites](PARTNER_GAME_API.md). This first-party adapter keeps its existing Firebase authentication model. Neither path is a certified engine plugin, and public partner onboarding, game identity attestation, and platform reviews remain rollout work. `gameId` is a public identifier, not an API secret or cryptographic proof of which game generated the content.
 
 ## JavaScript / TypeScript quick start
 

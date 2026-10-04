@@ -76,6 +76,7 @@ const FriendProfile = lazy(() => import("@/pages/FriendProfile"));
 const Upload = lazy(() => import("@/pages/Upload"));
 const MiniApps = lazy(() => import("@/pages/MiniApps"));
 const GameCapture = lazy(() => import("@/pages/GameCapture"));
+const ConnectGame = lazy(() => import("@/pages/ConnectGame"));
 const Developers = lazy(() => import("@/pages/Developers"));
 const PostDetail = lazy(() => import("@/pages/PostDetail"));
 const NewMessage = lazy(() => import("@/pages/NewMessage"));
@@ -263,6 +264,7 @@ export function AnimatedRoutes() {
             <Route path="/mini-apps" element={<ProtectedRoute><RouteBoundary name="mini-apps"><MiniApps /></RouteBoundary></ProtectedRoute>} />
             <Route path="/mini-apps/:appId" element={<ProtectedRoute><RouteBoundary name="mini-apps"><MiniApps /></RouteBoundary></ProtectedRoute>} />
             <Route path="/game-capture/:captureId" element={<ProtectedRoute><RouteBoundary name="game-capture"><GameCapture /></RouteBoundary></ProtectedRoute>} />
+            <Route path="/connect/game" element={<ProtectedRoute><RouteBoundary name="connect-game"><ConnectGame /></RouteBoundary></ProtectedRoute>} />
             <Route path="/brief" element={<ProtectedRoute><BriefPage /></ProtectedRoute>} />
             <Route path="/brief/*" element={<Navigate to="/brief" replace />} />
             <Route path="/welcome" element={<ProtectedRoute><AppWelcome /></ProtectedRoute>} />

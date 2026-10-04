@@ -2,6 +2,37 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-03) — Partner games and reliable failure states
+
+### What changed
+- Added a separate partner game pilot: device-code linking with explicit in-VYBE approval, ten-minute capture-only access, hashed server credentials, one-time exchange, scoped capture HTTP endpoints, and connection revocation. Third-party games do not receive a Firebase account token or private Storage path. The existing first-party adapter retains its separate authentication model.
+- Added `/connect/game` and Settings → Connections → Connected games. URL codes only prefill the form; review, code matching, approval/denial, and revocation are explicit. Account switching clears pending state; unknown permissions are rejected; expiry and service failures have visible states.
+- Added the standalone TypeScript partner SDK with abort/progress, bounded retries, fixed trusted API transport, strict response checks, whole-file and per-chunk SHA-256, memory-only credentials, and 8 MiB chunks up to 48 MiB. Both integration paths reserve the same per-account capture quota. SDK sources now have a dedicated strict CI typecheck.
+- Added explicit client denial for partner credentials and staging files, including accounts with an app-admin claim. Direct client writes to final partner capture media are blocked; authenticated owners can still review completed captures.
+- Hardened customization ownership: saved theme creation binds its canonical account ID, updates require the existing owner, and theme/background owners cannot be reassigned. Background libraries stay private; other signed-in users can still read the active image used on a public profile. Existing migrated profile identities remain supported.
+- Failed legacy RPC calls now return errors instead of `{ data: null, error: null }`, preventing false success for unavailable save/clear actions. Real domain responses such as wrong PIN, expired code, and daily caps are no longer mislabeled as unfinished endpoints.
+- Listen Along callers now send the friend's Firebase identity required by the server, share one response handler, prevent duplicate requests, and require explicit playback confirmation before showing success. Spotify connection/device/privacy rejections have useful messages.
+- Updated the developer portal and split partner SDK/API documentation from the trusted first-party guide. The removed upgrade notice remains removed across banners, announcements, notifications, toasts, and unread counts.
+- Fixed GitHub workflow setup from the previous checkpoint: Functions dependencies/build are included, and isolated emulator paths use a supported step-level environment setting. Both previous checkpoint workflows passed remotely.
+
+### Verification
+- Full Vitest: **140 files / 814 tests passed**. App and standalone SDK typechecks passed; Functions build passed. Lint: 0 errors and the same 5 pre-existing unused-disable warnings. Final production build passed; entry size remains about 1,077.5 KB raw / 314.3 KB gzip, within 1,125 / 335 KB limits. CSS/boot and existing DM/inbox/camera static contracts passed. Source checks are not a production release or live engine certification.
+- Local Firestore/Storage emulators: **164 creator-platform + 22 game-post + 99 customization checks passed (285 total)** using the isolated demo project. The added cases deny reads/lists/writes across all five partner collections and staging files for guests, owners, other accounts, and app-admin claims; protect the final partner upload path; prevent theme namespace preallocation/ownership takeover; and verify private libraries plus active public profile covers for migrated identities.
+- Live preview: code entry and local validation, account display, navigation from developer portal to consent/settings, and unavailable-backend error handling verified. No production connection approvals, uploads, posts, messages, or payments were performed.
+
+### Release limits
+- The partner backend and rules are source only. This is a reviewed-registration pilot, not open developer onboarding, a certified native engine plugin, or a production deployment. Public client IDs and publisher labels are not game-binary attestation. Keep new registrations disabled until the selective deployment, test-account upload/review/retry/revoke checks, and operational review in the partner API guide are completed.
+- There is no capture-list/queue screen; the game retains the receipt's review link. Access does not refresh automatically. New approval creates a new connection and retry namespace; reuse a capture key only within the original connection.
+- Existing mini-app isolation limits, missing legacy RPC implementations, seller storefront limitations, and native-device verification requirements in the preceding entry still apply. Never deploy all Functions; the production `auth2faRequest` restriction remains in force.
+- Customization audit follow-ups: background uploads use a path that does not match the auth-UID Storage prefix; theme gallery nested joins are unsupported by the compatibility parser; new market themes omit ordered counter fields; theme links/code import/active-background RPCs are still missing. Nonpublic theme rows do not distinguish private/unlisted/friend audiences, so do not add a broad get-by-ID permissions bypass. Saved-theme caches/equip mutations need account isolation, and theme-likes/theme-codes/UI-settings need explicit rules/contracts. The new private-library read rule does not revoke already known media download URLs.
+- Listen Along backend follow-ups: friendship checks need migrated profile-ID resolution, and the final Spotify playback HTTP response must be checked before returning `listening: true`. The frontend correction does not claim these existing server gaps are fixed; no live Spotify playback was attempted.
+- Production web/store updates still require Lovable Publish after main sync. The live local preview remains http://127.0.0.1:8081.
+
+### Next 3 tasks
+1. Complete the wider ownership/role permissions audit and regressions, then migrate broken customization/RPC paths with enforceable sharing rules and account-isolated caches; fix the remaining Listen Along server responses.
+2. Strengthen mini-app runtime and abuse controls, quotas, discovery pagination, and native WebView verification before broad rollout.
+3. Stage the exact creator-platform backend/rules release, validate two-account capture and consent flows plus native engines, then publish the web client through Lovable.
+
 ## ACTIVE (2026-10-03) — Creator platform, live audit, and interaction fixes
 
 ### What changed

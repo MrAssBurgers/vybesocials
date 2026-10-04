@@ -1302,9 +1302,15 @@ service cloud.firestore {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
     match /user_backgrounds/{id} {
-      allow read: if signedIn();
+      // Profile covers query only active backgrounds. The rest of a user's
+      // upload library is private, including inactive image URLs and filenames.
+      allow read: if signedIn() && (
+        ownsUserField('user_id') || resource.data.get('is_active', false) == true || isAdmin()
+      );
       allow create: if willOwnUserField('user_id');
-      allow update, delete: if ownsUserField('user_id') || isAdmin();
+      allow update: if (ownsUserField('user_id') || isAdmin())
+        && request.resource.data.user_id == resource.data.user_id;
+      allow delete: if ownsUserField('user_id') || isAdmin();
     }
     match /user_custom_sounds/{id} {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
@@ -1362,7 +1368,12 @@ service cloud.firestore {
     // ---------- themes (user customization + marketplace) ----------
     match /user_themes/{id} {
       allow read: if signedIn() && ownsUserField('user_id');
-      allow create, update: if signedIn() && willOwnUserField('user_id');
+      // New account themes use the owner's canonical ID. Existing migrated
+      // documents keep their IDs, but an update can never claim another owner.
+      allow create: if signedIn() && willOwnUserField('user_id')
+        && id == request.resource.data.user_id;
+      allow update: if signedIn() && ownsUserField('user_id')
+        && request.resource.data.user_id == resource.data.user_id;
       allow delete: if signedIn() && ownsUserField('user_id');
     }
     match /shared_themes/{id} {
@@ -1372,7 +1383,10 @@ service cloud.firestore {
         resource.data.creator_id == uid()
       );
       allow create: if signedIn() && willOwnProfile('creator_id');
-      allow update, delete: if signedIn() && (
+      allow update: if signedIn() && (
+        isOwnerProfile('creator_id') || isStaffModerator()
+      ) && request.resource.data.creator_id == resource.data.creator_id;
+      allow delete: if signedIn() && (
         isOwnerProfile('creator_id') || isStaffModerator()
       );
     }
@@ -1475,6 +1489,14 @@ service cloud.firestore {
         && request.resource.data.created_at == resource.data.created_at;
       allow delete: if signedIn() && (resource.data.owner_id == uid() || isStaffModerator());
     }
+
+    // Partner credentials, device approvals, and upload manifests are server-only.
+    // Even app administrators manage connections through the authenticated API.
+    match /game_partner_devices/{id}     { allow read, write: if false; }
+    match /game_partner_codes/{id}       { allow read, write: if false; }
+    match /game_partner_tokens/{id}      { allow read, write: if false; }
+    match /game_partner_connections/{id} { allow read, write: if false; }
+    match /game_partner_uploads/{id}     { allow read, write: if false; }
 
     // ---------- catch-all: deny by default ----------
     match /{document=**} {

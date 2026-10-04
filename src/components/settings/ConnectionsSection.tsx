@@ -12,6 +12,7 @@ import { ExternalPresenceConnections } from '@/components/music/ExternalPresence
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { linkProviderWithDespiaOAuth } from '@/lib/despiaOAuth';
 import { getFriendlyAuthError, sanitizeAuthToastMessage } from '@/lib/errorUtils';
+import { GameConnectionsSection } from './GameConnectionsSection';
 
 interface SpotifyConn {
   spotify_user_id: string;
@@ -392,6 +393,7 @@ export function ConnectionsSection() {
       <p className="text-[10px] text-muted-foreground/50 mt-3 text-center">
         Linking accounts lets you sign in with any connected method
       </p>
+      <GameConnectionsSection />
     </motion.div>
   );
 }

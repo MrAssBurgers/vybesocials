@@ -15,6 +15,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/mini-apps': 'Mini App Studio · VYBE',
   '/developers': 'Build with VYBE',
   '/game-capture': 'Review Game Capture · VYBE',
+  '/connect/game': 'Connect Your Game · VYBE',
   '/market': 'Marketplace · VYBE',
   '/events': 'Events · VYBE',
   '/community': 'Communities · VYBE',

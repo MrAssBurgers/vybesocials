@@ -1,9 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { ExternalLink, Music2, Headphones, Loader2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
-import { toast } from 'sonner';
+import { useListenAlong } from '@/hooks/useListenAlong';
 import type { LiveMusicPresence } from '@/hooks/useLiveMusicPresence';
 import { cn } from '@/lib/utils';
 
@@ -22,7 +21,7 @@ interface Props {
 export function NowPlayingCard({ presence, className, hideListenAlong }: Props) {
   const { user } = useAuth();
   const [progress, setProgress] = useState(0);
-  const [syncing, setSyncing] = useState(false);
+  const { listenAlong, loading: syncing } = useListenAlong();
   const isOwn = !!user && !!presence && user.id === presence.user_id;
 
   // Interpolate progress locally
@@ -41,30 +40,10 @@ export function NowPlayingCard({ presence, className, hideListenAlong }: Props) 
     return () => clearInterval(id);
   }, [presence?.progress_ms, presence?.is_playing, presence?.duration_ms, presence?.track_id]);
 
-  const handleListenAlong = async (e: React.MouseEvent) => {
+  const handleListenAlong = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!presence?.track_id) return;
-    setSyncing(true);
-    try {
-      const { data, error } = await db.functions.invoke('spotify-listen-along', {
-        body: { track_id: presence.track_id, position_ms: progress },
-      });
-      if (error) throw error;
-      if ((data as any)?.needs_connect) {
-        toast.message('Connect Spotify first', { description: 'Open Settings → Connections to link your account.' });
-        return;
-      }
-      if ((data as any)?.no_device) {
-        toast.message('Open Spotify first', { description: 'Start Spotify on any device, then tap Listen along again.' });
-        return;
-      }
-      toast.success('Listening along');
-    } catch (err: any) {
-      toast.error(err?.message || 'Could not start playback');
-    } finally {
-      setSyncing(false);
-    }
+    void listenAlong(presence);
   };
 
   const handleOpen = (e: React.MouseEvent) => {
@@ -135,7 +114,7 @@ export function NowPlayingCard({ presence, className, hideListenAlong }: Props) 
             >
               <ExternalLink className="w-3.5 h-3.5" /> Open in Spotify
             </button>
-            {!hideListenAlong && !isOwn && (
+            {!hideListenAlong && !isOwn && presence.provider === 'spotify' && (
               <button
                 type="button"
                 onClick={handleListenAlong}

@@ -11,6 +11,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "typecheck:game-sdk": "tsc --noEmit --strict --target ES2020 --module ESNext --moduleResolution bundler --lib ES2020,DOM --skipLibCheck sdk/game/index.ts sdk/game/firebase.ts sdk/game/http.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "validate:css": "node scripts/validate-css.mjs",

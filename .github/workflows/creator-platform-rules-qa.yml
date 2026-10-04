@@ -10,12 +10,23 @@ on:
       - 'firebase.qa.json'
       - 'scripts/test-creator-platform-rules.mjs'
       - 'scripts/test-game-capture-post-rules.mjs'
+      - 'scripts/test-customization-rules.mjs'
+      - 'src/hooks/useSharedThemes.ts'
+      - 'src/hooks/useUserBackgrounds.ts'
+      - 'src/hooks/useCustomTheme.ts'
+      - 'src/hooks/useUISettings.ts'
       - 'functions/src/gameIntegration*.ts'
+      - 'functions/src/gamePartner*.ts'
+      - 'functions/src/_shared/gameCaptureCore.ts'
+      - 'functions/src/_shared/gamePartner*.ts'
       - 'functions/src/captureEvents.ts'
       - 'src/lib/gameCapture*.ts'
       - 'src/lib/gameIntegration*.ts'
+      - 'src/lib/gamePartner*.ts'
       - 'src/hooks/usePosts.ts'
       - 'src/pages/GameCapture*'
+      - 'src/pages/ConnectGame*'
+      - 'src/components/settings/GameConnectionsSection*'
       - 'src/pages/MiniApps*'
       - 'src/features/mini-apps/**'
       - 'sdk/game/**'
@@ -28,12 +39,23 @@ on:
       - 'firebase.qa.json'
       - 'scripts/test-creator-platform-rules.mjs'
       - 'scripts/test-game-capture-post-rules.mjs'
+      - 'scripts/test-customization-rules.mjs'
+      - 'src/hooks/useSharedThemes.ts'
+      - 'src/hooks/useUserBackgrounds.ts'
+      - 'src/hooks/useCustomTheme.ts'
+      - 'src/hooks/useUISettings.ts'
       - 'functions/src/gameIntegration*.ts'
+      - 'functions/src/gamePartner*.ts'
+      - 'functions/src/_shared/gameCaptureCore.ts'
+      - 'functions/src/_shared/gamePartner*.ts'
       - 'functions/src/captureEvents.ts'
       - 'src/lib/gameCapture*.ts'
       - 'src/lib/gameIntegration*.ts'
+      - 'src/lib/gamePartner*.ts'
       - 'src/hooks/usePosts.ts'
       - 'src/pages/GameCapture*'
+      - 'src/pages/ConnectGame*'
+      - 'src/components/settings/GameConnectionsSection*'
       - 'src/pages/MiniApps*'
       - 'src/features/mini-apps/**'
       - 'sdk/game/**'
@@ -83,16 +105,18 @@ jobs:
         run: |
           node --check scripts/test-creator-platform-rules.mjs
           node --check scripts/test-game-capture-post-rules.mjs
+          node --check scripts/test-customization-rules.mjs
 
       # Explicit demo project + QA-only config prevents the repository's
       # production default in .firebaserc from being selected.
-      - name: Run creator and game-capture rules against local emulators
+      - name: Run creator, game-capture and customization rules against local emulators
         run: >-
           node "$FIREBASE_TEST_TOOLS_ROOT/node_modules/firebase-tools/lib/bin/firebase.js"
           emulators:exec --non-interactive
           --project "$GCLOUD_PROJECT" --config firebase.qa.json --only firestore,storage
           "node scripts/test-creator-platform-rules.mjs &&
-          node scripts/test-game-capture-post-rules.mjs"
+          node scripts/test-game-capture-post-rules.mjs &&
+          node scripts/test-customization-rules.mjs"
 
       - name: Upload emulator diagnostics
         if: always()

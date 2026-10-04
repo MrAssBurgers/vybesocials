@@ -3,7 +3,8 @@ import { getStorage } from 'firebase-admin/storage';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
-import { GAME_CAPTURE_TTL_MS, MAX_GAME_CAPTURE_BYTES, GameCaptureValidationError, matchesGameCaptureSignature, validateGameCaptureId, validateGameCaptureInput, } from './gameIntegrationValidation.js';
+import { GAME_CAPTURE_TTL_MS, GameCaptureValidationError, matchesGameCaptureSignature, validateGameCaptureId, validateGameCaptureInput, } from './gameIntegrationValidation.js';
+import { captureReceipt as receipt, assertCaptureOwner as assertOwner, assertCaptureLive as assertLive, reserveCapture, committedCapturePost, reconcileImportedCapture } from './_shared/gameCaptureCore.js';
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const opts = { region: 'us-central1', invoker: 'public', timeoutSeconds: 60 };
 function validate(fn) {
@@ -23,43 +24,6 @@ async function authenticate(request) {
     enforceRateLimit(await rateLimit(`game_capture_call_${hash(uid)}`, 60, 60));
     return uid;
 }
-function receipt(id, capture) {
-    return {
-        captureId: id, status: capture.status, gameId: capture.game_id, gameName: capture.game_name,
-        contentType: capture.content_type, byteSize: capture.byte_size,
-        caption: capture.caption, tags: capture.tags, storagePath: capture.storage_path,
-        expiresAt: capture.expires_at_ms, reviewUrl: `https://vybehub.app/game-capture/${id}`,
-        postId: capture.post_id ?? null,
-    };
-}
-function assertOwner(capture, uid) {
-    if (!capture || capture.owner_uid !== uid)
-        throw new HttpsError('not-found', 'Capture not found for this account.');
-}
-function assertLive(capture) {
-    if (capture.expires_at_ms <= Date.now() || capture.status === 'expired' || capture.status === 'cancelled') {
-        throw new HttpsError('failed-precondition', 'This capture expired or was discarded. Create a new capture in your game.');
-    }
-}
-/** Read in the caller's transaction so a concurrent publish/cancel is retried. */
-async function committedCapturePost(tx, id, uid) {
-    const postId = `game_${id}`;
-    const post = (await tx.get(db.collection('posts').doc(postId))).data();
-    const authorId = typeof post?.author_id === 'string' ? post.author_id : '';
-    if (post?.game_capture_id !== id || !authorId || authorId.includes('/'))
-        return null;
-    if (authorId === uid)
-        return postId;
-    const profile = (await tx.get(db.collection('profiles').doc(authorId))).data();
-    return profile?.user_id === uid ? postId : null;
-}
-function reconcileImportedCapture(tx, id, capture, postId) {
-    const cleanupAt = Date.now();
-    tx.update(db.collection('game_captures').doc(id), {
-        status: 'imported', post_id: postId, imported_at: new Date(cleanupAt).toISOString(), cleanup_at_ms: cleanupAt,
-    });
-    return { ...capture, status: 'imported', post_id: postId, cleanup_at_ms: cleanupAt };
-}
 async function enabledGame(gameId) {
     const game = (await db.collection('game_integrations').doc(gameId).get()).data();
     if (!game || game.enabled !== true || typeof game.display_name !== 'string' || !game.display_name.trim()) {
@@ -72,41 +36,8 @@ export const createGameCapture = onCall(opts, async (request) => {
     const uid = await authenticate(request);
     const input = validate(() => validateGameCaptureInput(request.data));
     const game = await enabledGame(input.gameId);
-    const gameLimit = typeof game.max_upload_bytes === 'number' ? Math.min(game.max_upload_bytes, MAX_GAME_CAPTURE_BYTES) : MAX_GAME_CAPTURE_BYTES;
-    if (input.byteSize > gameLimit)
-        throw new HttpsError('invalid-argument', 'This capture exceeds the game upload limit.');
-    const id = hash(`${uid}\0${input.gameId}\0${input.idempotencyKey}`).slice(0, 48);
-    const fingerprint = hash(JSON.stringify(input));
-    const ref = db.collection('game_captures').doc(id);
-    const quotaRef = db.collection('_rate_limits').doc(`game_capture_quota_${hash(uid)}`);
-    const capture = await db.runTransaction(async (tx) => {
-        const previous = (await tx.get(ref)).data();
-        if (previous) {
-            assertOwner(previous, uid);
-            if (previous.fingerprint !== fingerprint)
-                throw new HttpsError('already-exists', 'That upload key belongs to a different capture.');
-            assertLive(previous);
-            return previous;
-        }
-        const now = Date.now();
-        const quota = (await tx.get(quotaRef)).data();
-        const fresh = !quota || Number(quota.reset_at) <= now;
-        const count = fresh ? 0 : Number(quota.count) || 0;
-        const bytes = fresh ? 0 : Number(quota.bytes) || 0;
-        if (count >= 20 || bytes + input.byteSize > 200 * 1024 * 1024) {
-            throw new HttpsError('resource-exhausted', 'Game capture limit reached. Try again after the daily limit resets.');
-        }
-        const next = {
-            owner_uid: uid, game_id: input.gameId, game_name: game.display_name.trim().slice(0, 80),
-            content_type: input.contentType, byte_size: input.byteSize, caption: input.caption, tags: input.tags,
-            fingerprint, storage_path: `game-captures/${uid}/${id}`, status: 'uploading',
-            expires_at_ms: now + GAME_CAPTURE_TTL_MS, cleanup_at_ms: now + GAME_CAPTURE_TTL_MS,
-        };
-        tx.create(ref, { ...next, created_at: new Date(now).toISOString() });
-        tx.set(quotaRef, { count: count + 1, bytes: bytes + input.byteSize, reset_at: fresh ? now + GAME_CAPTURE_TTL_MS : quota.reset_at });
-        return next;
-    });
-    return receipt(id, capture);
+    const reserved = await db.runTransaction(tx => reserveCapture(tx, uid, input, game));
+    return receipt(reserved.id, reserved.capture);
 });
 export const getGameCapture = onCall(opts, async (request) => {
     const uid = await authenticate(request);

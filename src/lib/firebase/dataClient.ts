@@ -1360,7 +1360,7 @@ export function createDataClient() {
             return { data, error: null } as any;
           } catch (err) {
             console.warn(`[Social RPC] ${name} client fallback failed:`, err);
-            return { data: null, error: null } as any;
+            return { data: null, error: toQueryError(err) } as any;
           }
         })();
         const enriched = promise as Promise<any> & {
@@ -1372,18 +1372,18 @@ export function createDataClient() {
         return enriched;
       }
 
-      // Delegate unknown RPCs to Cloud Functions — fail-soft on stub/missing.
+      // Preserve failures so mutations cannot report success without a write.
       const promise = (async () => {
         try {
           const remote = await invokeFunction(name, params);
           if (remote.error || isNotYetPortedPayload(remote.data)) {
             console.warn(`[RPC] ${name} unavailable:`, remote.error?.message || 'not_yet_ported');
-            return { data: null, error: null } as any;
+            return { data: null, error: remote.error || { code: 'unavailable', message: 'This feature is not available yet.' } } as any;
           }
           return { data: remote.data, error: null } as any;
         } catch (err) {
           console.warn(`[RPC] ${name} failed:`, err);
-          return { data: null, error: null } as any;
+          return { data: null, error: toQueryError(err) } as any;
         }
       })();
       const enriched = promise as Promise<any> & {

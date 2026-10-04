@@ -90,5 +90,37 @@ try {
   await denied('expired capture cannot be read', () => getBytes(ref(alice.storage(), capturePath)));
   await allowed('saved theme owner can read existing resource', () => getDoc(doc(aliceDb, 'saved_themes', 'own-theme')));
   await denied('saved theme stays private from another account', () => getDoc(doc(bobDb, 'saved_themes', 'own-theme')));
+
+  const partnerCaptureId = 'b'.repeat(48);
+  const partnerCapturePath = `game-captures/creator-alice/${partnerCaptureId}`;
+  await env.withSecurityRulesDisabled(context => setDoc(doc(context.firestore(), 'game_captures', partnerCaptureId), { ...capture, partner_connection_id: 'test-connection' }));
+  await denied('owner cannot preempt server-composed partner capture', () => uploadBytes(ref(alice.storage(), partnerCapturePath), bytes, { contentType: 'image/png' }));
+  await env.withSecurityRulesDisabled(async context => {
+    await uploadBytes(ref(context.storage(), partnerCapturePath), bytes, { contentType: 'image/png' });
+    await updateDoc(doc(context.firestore(), 'game_captures', partnerCaptureId), { status: 'ready' });
+  });
+  await allowed('owner can review a completed partner capture', () => getBytes(ref(alice.storage(), partnerCapturePath)));
+  await denied('other users cannot read a completed partner capture', () => getBytes(ref(bob.storage(), partnerCapturePath)));
+
+  const serverCollections = ['game_partner_devices', 'game_partner_codes', 'game_partner_tokens', 'game_partner_connections', 'game_partner_uploads'];
+  await env.withSecurityRulesDisabled(async context => {
+    for (const table of serverCollections) await setDoc(doc(context.firestore(), table, 'private-test'), { owner_uid: 'creator-alice', test: true });
+    await uploadBytes(ref(context.storage(), 'game-partner-staging/private-test/0'), bytes);
+  });
+  for (const [label, client] of [['owner', alice], ['other account', bob], ['guest', guest], ['app admin', staff]]) {
+    for (const table of serverCollections) {
+      const metadata = doc(client.firestore(), table, 'private-test');
+      await denied(`${label} cannot read ${table}`, () => getDoc(metadata));
+      await denied(`${label} cannot list ${table}`, () => getDocs(collection(client.firestore(), table)));
+      await denied(`${label} cannot mint ${table}`, () => setDoc(doc(client.firestore(), table, 'forged'), { owner_uid: 'creator-alice' }));
+      await denied(`${label} cannot modify ${table}`, () => updateDoc(metadata, { revoked_at_ms: null }));
+      await denied(`${label} cannot delete ${table}`, () => deleteDoc(metadata));
+    }
+    const chunk = ref(client.storage(), 'game-partner-staging/private-test/0');
+    await denied(`${label} cannot read partner staging`, () => getBytes(chunk));
+    await denied(`${label} cannot overwrite partner staging`, () => uploadBytes(chunk, bytes));
+    await denied(`${label} cannot create partner staging`, () => uploadBytes(ref(client.storage(), 'game-partner-staging/private-test/1'), bytes));
+    await denied(`${label} cannot delete partner staging`, () => deleteObject(chunk));
+  }
   console.log(`Creator platform rules: ${checks} checks passed`);
 } finally { await env.cleanup(); }

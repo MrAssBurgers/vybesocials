@@ -6,15 +6,21 @@ import { usePageMeta } from '@/hooks/usePageMeta';
 import { toast } from 'sonner';
 
 const repository = 'https://github.com/MrAssBurgers/vybesocials';
-const example = `import { createFirebaseGameClient } from './sdk/game/firebase';
+const example = `import { VybePartnerClient } from './sdk/game/http';
 
-// firebaseApp uses the player's signed-in VYBE account.
-const vybe = createFirebaseGameClient(firebaseApp);
+const vybe = new VybePartnerClient({
+  clientId: 'your-reviewed-game',
+  apiBaseUrl: 'https://us-central1-<project-id>.cloudfunctions.net/gamePartnerApi',
+});
+
+// The player approves this code inside VYBE.
+await vybe.authorize({
+  onUserCode: link => showLinkCode(link.userCode, link.verificationUriComplete),
+});
 
 // Keep this key with the capture and reuse it when retrying.
 const uploadKey = crypto.randomUUID();
 const capture = await vybe.stageCapture({
-  gameId: 'your-registered-game',
   idempotencyKey: uploadKey,
   media: screenshotBlob,
   contentType: 'image/png',
@@ -57,7 +63,7 @@ export default function Developers() {
         </section>
 
         <section id="game-capture" className="scroll-mt-6 space-y-5" aria-labelledby="capture-title">
-          <div className="flex flex-wrap items-center gap-3"><h2 id="capture-title" className="text-2xl font-semibold">From gameplay to the feed</h2><span className="rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium">Game Capture SDK · v1</span></div>
+          <div className="flex flex-wrap items-center gap-3"><h2 id="capture-title" className="text-2xl font-semibold">From gameplay to the feed</h2><span className="rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium">Partner SDK · developer preview</span></div>
           <p className="max-w-3xl leading-relaxed text-muted-foreground">Capture a screenshot or short clip, upload it privately, and let the player finish their post in VYBE. Their caption and final publish decision stay in their hands.</p>
           <ol className="grid gap-4 md:grid-cols-3">
             {[
@@ -68,14 +74,16 @@ export default function Developers() {
           </ol>
           <div className="rounded-2xl border border-border bg-card p-5 text-sm leading-relaxed">
             <h3 className="font-semibold">Before you connect</h3>
-            <p className="mt-2 text-muted-foreground">This first release supports registered, trusted games using the same Firebase project and the player’s authenticated session. A VYBE administrator must enable your game ID and deploy the capture services and storage rules. Public third-party account linking and a scoped OAuth flow are planned; do not collect a player’s VYBE password in your game.</p>
+            <p className="mt-2 text-muted-foreground">The partner preview requires a reviewed game registration and deployed capture services. Players approve a matching code in VYBE, giving your game ten minutes to send captures for review and check their status. They can revoke the connection in Settings. Sessions stay in memory and require linking again when they expire. Never collect a player’s VYBE password in your game.</p>
           </div>
           <div className="overflow-hidden rounded-2xl border border-border bg-card">
             <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3"><span className="text-sm font-medium">JavaScript / TypeScript</span><Button size="sm" variant="ghost" onClick={copy} aria-label="Copy SDK example">{copied ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}{copied ? 'Copied' : 'Copy'}</Button></div>
             <pre className="max-w-full overflow-x-auto p-5 text-xs leading-6 sm:text-sm" tabIndex={0} aria-label="Game capture SDK example"><code>{example}</code></pre>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Button variant="outline" asChild><a href={`${repository}/blob/main/docs/GAME_SDK.md`} target="_blank" rel="noopener noreferrer">Integration guide<ArrowUpRight className="ml-2 h-4 w-4" /></a></Button>
+            <Button variant="outline" asChild><a href={`${repository}/blob/main/docs/PARTNER_GAME_SDK.md`} target="_blank" rel="noopener noreferrer">Partner integration guide<ArrowUpRight className="ml-2 h-4 w-4" /></a></Button>
+            <Button variant="outline" asChild><a href={`${repository}/blob/main/docs/PARTNER_GAME_API.md`} target="_blank" rel="noopener noreferrer">HTTP API reference<ArrowUpRight className="ml-2 h-4 w-4" /></a></Button>
+            <Button variant="outline" asChild><Link to="/connect/game">Enter a game code</Link></Button>
             <Button variant="outline" asChild><a href={`${repository}/tree/main/sdk/game`} target="_blank" rel="noopener noreferrer">SDK and Unity example<ArrowUpRight className="ml-2 h-4 w-4" /></a></Button>
           </div>
         </section>

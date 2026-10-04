@@ -75,7 +75,9 @@ function normalizeInvokePayload(
 export function isNotYetPortedPayload(data: unknown): boolean {
   if (!data || typeof data !== 'object') return false;
   const obj = data as Record<string, unknown>;
-  return obj.error === 'not_yet_ported' || obj.ok === false;
+  // Domain failures (wrong PIN, expired code, daily cap) are implemented
+  // responses that callers handle. They are not unfinished endpoints.
+  return obj.error === 'not_yet_ported';
 }
 
 /** Invoke a Cloud Function (replaces Supabase edge functions.invoke). */
