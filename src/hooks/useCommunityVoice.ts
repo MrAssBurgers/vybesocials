@@ -13,6 +13,7 @@ import {
 } from 'livekit-client';
 import { db } from '@/lib/firebase';
 import { parseEdgeInvokeResult } from '@/lib/edgeFunctionResponse';
+import type { VybeAuthError } from '@/lib/firebase/types';
 
 export type CommunityVoiceState = 'idle' | 'connecting' | 'connected' | 'error';
 
@@ -36,8 +37,15 @@ interface ActiveConnection {
   channelName: string;
 }
 
-/** Production has livekit-token; spaces-token may be missing on older deploys. */
-const VOICE_TOKEN_FUNCTIONS = ['livekit-token', 'spaces-token', 'community-voice-token'] as const;
+/** Both names use the community {serverId, channelId} contract. */
+const VOICE_TOKEN_FUNCTIONS = ['community-voice-token', 'spaces-token'] as const;
+
+function isMissingVoiceFunction(error: VybeAuthError | null): boolean {
+  if (!error || (error.code || error.name || '').replace(/^functions\//, '') !== 'not-found') return false;
+  // A bare 404 cannot distinguish a missing deployment from a missing resource.
+  // Require an explicit missing-function response before using the legacy alias.
+  return /^function (?:community-voice-token |communityVoiceToken |spaces-token |spacesToken )?(?:not found|does not exist)(?: \[404\])?\.?$/i.test(error.message.trim());
+}
 
 async function fetchCommunityVoiceToken(
   serverId: string,
@@ -48,35 +56,23 @@ async function fetchCommunityVoiceToken(
 
   for (const fnName of VOICE_TOKEN_FUNCTIONS) {
     const result = await db.functions.invoke<VoiceTokenResponse>(fnName, { body });
-    const { payload, errorCode, errorMessage } = await parseEdgeInvokeResult(result as any);
+    const { payload, errorCode, errorMessage } = await parseEdgeInvokeResult(result);
     const typed = payload as unknown as VoiceTokenResponse | undefined;
 
-    if (typed?.token && typed?.url) {
+    if (!result.error && !errorCode && typeof typed?.token === 'string' && typed.token.trim()
+      && typeof typed.url === 'string' && typed.url.trim()) {
       return typed;
     }
 
-    const msg = errorCode || errorMessage || '';
-    const missingFn =
-      msg.includes('Failed to send a request') ||
-      msg.includes('Failed to fetch') ||
-      msg.toLowerCase().includes('not found');
-    const staleBackend =
-      msg.includes('conversationId required') ||
-      msg.includes('conversationId or (serverId');
-
-    if (missingFn || staleBackend) {
-      lastError = staleBackend
-        ? 'Voice backend needs an update — redeploy livekit-token in Lovable Backend'
-        : msg;
+    const msg = errorMessage || errorCode || lastError;
+    if (payload == null && isMissingVoiceFunction(result.error)) {
+      lastError = 'Community voice is not available yet. Please try again later.';
       continue;
     }
 
-    throw new Error(errorCode || msg || lastError);
+    throw new Error(msg);
   }
 
-  if (lastError.includes('Failed to send a request')) {
-    throw new Error('Voice server unavailable — redeploy livekit-token in Lovable Backend');
-  }
   throw new Error(lastError);
 }
 
@@ -271,9 +267,9 @@ export function useCommunityVoice() {
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Voice connection failed';
         console.warn('[CommunityVoice] connect failed:', msg);
+        await disconnect();
         setError(msg);
         setState('error');
-        await disconnect();
       }
     },
     [detachAudio, disconnect, syncParticipants],

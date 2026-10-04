@@ -2,6 +2,39 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-03) — Account authority, private conversations, and voice reliability
+
+### What changed
+- Removed browser write access to Spotify OAuth records while preserving existing owner/admin reads; hardened music-setting ownership and canonical creation. Disabled or malformed staff-role grants no longer authorize rules or admin callables. Existing admin custom claims retain their separate token lifecycle.
+- Closed a profile-rule bypass caused by a recursive wildcard matching the parent document. Browser profile updates now preserve identity and Stripe references. Creator, business, and product rules separate editable application/catalog details from server-owned payment fields; protected parent and Stripe-bound product records use archive instead of client deletion.
+- Stripe creator operations verify provider-side ownership before issuing links or acting on accounts. Billing portal checks the provider's customer binding and supports a unique migrated profile. Onboarding reuses migrated creator rows and a shared idempotency key. Unverified seller catalog checkout now fails before creating a payment instead of silently charging the platform. Existing platform-only checkout is retained.
+- Fixed creator application retries and migrated rows: explicit update avoids the adapter's replacement of `created_at`; new applications and legacy rows missing approval enter the pending queue without resetting staff decisions. Account switching cancels stale writes/notices.
+- Closed conversation self-join, member/creator retargeting, malformed composite membership, and direct-chat reclassification paths. Client alias repair is atomic and requires existing proof. Server message/call writes share transaction-scoped membership and peer validation, preserve roles/preferences, and check blocks before mutation. Message retries cannot bypass current membership.
+- Room tokens require stored membership and direct-pair block checks. Standalone and community room names cannot collide with private conversation rooms. Community channel ownership/type is verified. Legacy `type: 'group'` conversations remain supported.
+- Community voice now calls its own endpoint first and falls back only on an explicit missing-function response. Authorization, missing-channel, configuration, and network errors cannot select another token issuer. Error state remains visible after connection cleanup.
+- Listen Along resolves migrated friendships, blocks, privacy settings, and connections; requires accepted friendship, checks the final Spotify playback response, and rechecks permissions before starting playback. Provider failures no longer claim success.
+- Extended GitHub emulator QA to account, commerce, and conversation authority. The upgrade notice remains removed from all previously covered surfaces. The partner game pilot, mini-app studio, appearance presets, and sound controls from the preceding checkpoints remain intact.
+
+### Verification
+- Full Vitest: **147 files / 1,045 tests passed**. App and standalone SDK typechecks passed. Functions build passed. Full lint: 0 errors and the same 5 pre-existing unused-disable warnings; focused lint also covers the final backend/voice edits.
+- Firestore/Storage demo emulators: **583 checks passed** — 164 creator-platform, 22 game-post, 99 customization, 115 account, 98 commerce, and 85 conversation/call. Four separate baseline probes reproduce the inherited staff-alias read-budget limit; they are not counted as fixed behavior. The known Storage shutdown EOF exception occurs after successful test exit.
+- Production build passed; entry remains about **1,077.9 KB raw / 314.4 KB gzip**, below the 1,125 / 335 KB limits. CSS/boot and static DM/inbox/camera contracts passed. The separate service-account-dependent DM send script stopped at its missing credential check; no live send was attempted. The new emulator and mocked callable suites provide this checkpoint's permission coverage.
+- Live developer portal renders correctly at http://127.0.0.1:8081/developers; the user's Mini App Studio preview remains open. No real messages, posts, purchases, payouts, connection approvals, or live audio sessions were created. Payment fixture HTTP/HTTPS is blocked; see the test-harness correction documented in `docs/ACCOUNT_AUTHORITY.md`.
+
+### Release limits and remaining risks
+- These Functions/rules are source changes, not a production deployment. Never deploy all Functions or change production `auth2faRequest`. The previous checkpoint's GitHub CI and rules workflows both passed before this checkpoint.
+- See `docs/ACCOUNT_AUTHORITY.md` and `docs/DM_MEMBERSHIP_AUTHORITY.md` for staging conditions, legacy recovery, and historical integrity limits. Old correctly shaped rows may have been written under permissive rules; this pass did not inspect production private data or migrate existing authority records.
+- Payment customers lacking trusted Stripe `metadata.uid` and ambiguous creator/billing rows require operator verification. Seller price provisioning, connected-account settlement, and webhook ownership/idempotency/retry handling remain unfinished. Archive/tombstone handling must persist through future server cleanup.
+- Room naming must roll out with compatible token issuers/clients and reconnection. Previously issued standalone/community JWTs keep their old room and one-hour lifetime; this source change does not revoke tokens or eject connected participants. Native/two-device calling still requires staging verification.
+- Migrated accounts with only a late `user_roles_auth` admin/moderator grant retain a demonstrated pre-existing rules lookup-budget limitation. A canonical server-maintained role projection is still needed; this patch does not broaden authority to bypass it.
+- Remaining security review includes private-community admission, profile premium/verification/coin entitlements, challenge/XP reward authority, and other legacy owner-update paths. Mini-app runtime/network/abuse limits, missing RPCs, customization migration, and partner SDK operational/native certification from the earlier entries still apply. The app is not being declared perfected or release-ready.
+- `vybehub.app` and store web bundles require Lovable Publish after Git sync; local preview changes are available now.
+
+### Next 3 tasks
+1. Close remaining reward, entitlement, and private-community authority gaps with emulator regressions; plan canonical staff-role migration and trustworthy historical integrity checks.
+2. Repair customization uploads/gallery/sharing and remaining RPC flows; expand interaction polish while preserving reduced-motion and sound preferences.
+3. Strengthen mini-app abuse/runtime controls, stage selective backend/rules deployment, validate two-account game/call/publish flows and native devices, then publish the web client through Lovable.
+
 ## ACTIVE (2026-10-03) — Partner games and reliable failure states
 
 ### What changed

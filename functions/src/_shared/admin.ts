@@ -21,8 +21,14 @@ export async function requireAdmin(request: CallableRequest): Promise<string> {
   const snap = await db.collection('user_roles')
     .where('user_id', '==', uid)
     .where('role', 'in', ['admin', 'owner'])
-    .limit(1).get();
-  if (snap.empty) throw new HttpsError('permission-denied', 'Admin only');
+    .get();
+  // Legacy grants omit enabled. An explicit false or malformed value cannot
+  // grant access; a disabled first row must not hide a separate active grant.
+  const active = snap.docs.some(doc => {
+    const role = doc.data();
+    return !Object.hasOwn(role, 'enabled') || role.enabled === true;
+  });
+  if (!active) throw new HttpsError('permission-denied', 'Admin only');
   return uid;
 }
 

@@ -1,6 +1,8 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { createHash } from 'node:crypto';
 import { db, requireAuth } from './_shared/admin.js';
 import { resolveProfileIdFromAuth } from './_shared/aiQuota.js';
+import { isConversationPairBlocked, validDocumentId, withConversationAccess } from './_shared/conversationMembership.js';
 
 const SECRETS = ['LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'LIVEKIT_URL'];
 
@@ -24,23 +26,12 @@ async function assertConversationMember(
   profileId: string,
   authUid: string,
 ): Promise<void> {
-  // 1. Direct conversation_members doc lookup by composite id.
-  const [byProfile, byAuth] = await Promise.all([
-    db.collection('conversation_members').doc(`${conversationId}_${profileId}`).get(),
-    db.collection('conversation_members').doc(`${conversationId}_${authUid}`).get(),
-  ]);
-  if (byProfile.exists || byAuth.exists) return;
-
-  // 2. Fallback to conversations.member_ids array.
-  const conv = await db.collection('conversations').doc(conversationId).get();
-  if (conv.exists) {
-    const memberIds = conv.data()?.member_ids;
-    if (Array.isArray(memberIds) && (memberIds.includes(profileId) || memberIds.includes(authUid))) {
-      return;
+  const actor = { profileId, authUid };
+  await withConversationAccess(conversationId, actor, { resolveDirectPeer: true }, async (tx, access) => {
+    if (!access.isGroup && access.other && await isConversationPairBlocked(tx, actor, access.other)) {
+      throw new HttpsError('permission-denied', 'You cannot call this user');
     }
-  }
-
-  throw new HttpsError('permission-denied', 'Not a member of this conversation');
+  });
 }
 
 /** Verify caller is a participant of the given call doc (or its underlying conversation). */
@@ -54,23 +45,24 @@ async function assertCallParticipant(
     throw new HttpsError('not-found', 'Call not found');
   }
   const data = callSnap.data() || {};
+  // A caller-owned call row can never confer access to a separate private
+  // conversation. This also rejects forged rows created under legacy rules.
+  if (data.conversation_id != null && data.conversation_id !== '') {
+    if (!validDocumentId(data.conversation_id)) throw new HttpsError('permission-denied', 'Invalid call conversation');
+    await assertConversationMember(data.conversation_id, profileId, authUid);
+    return data.conversation_id;
+  }
   const participants: string[] = [
     ...(Array.isArray(data.member_ids) ? data.member_ids : []),
     ...(Array.isArray(data.participants) ? data.participants : []),
+    ...(Array.isArray(data.participant_ids) ? data.participant_ids : []),
     data.caller_id,
     data.receiver_id,
     data.initiator_id,
   ].filter((v): v is string => typeof v === 'string' && v.length > 0);
 
   if (participants.includes(profileId) || participants.includes(authUid)) {
-    return typeof data.conversation_id === 'string' ? data.conversation_id : null;
-  }
-
-  const conversationId =
-    typeof data.conversation_id === 'string' ? data.conversation_id : null;
-  if (conversationId) {
-    await assertConversationMember(conversationId, profileId, authUid);
-    return conversationId;
+    return null;
   }
 
   throw new HttpsError('permission-denied', 'Not a participant of this call');
@@ -79,15 +71,24 @@ async function assertCallParticipant(
 /** Verify caller is a member of a community server before minting a voice-channel token. */
 async function assertServerMember(
   serverId: string,
+  channelId: string,
   profileId: string,
   authUid: string,
 ): Promise<void> {
-  const [byProfile, byAuth] = await Promise.all([
-    db.collection('server_members').doc(`${serverId}_${profileId}`).get(),
-    db.collection('server_members').doc(`${serverId}_${authUid}`).get(),
-  ]);
-  if (byProfile.exists || byAuth.exists) return;
-  throw new HttpsError('permission-denied', 'Not a member of this community');
+  await db.runTransaction(async tx => {
+    const [byProfile, byAuth, channel] = await Promise.all([
+      tx.get(db.collection('server_members').doc(`${serverId}_${profileId}`)),
+      tx.get(db.collection('server_members').doc(`${serverId}_${authUid}`)),
+      tx.get(db.collection('channels').doc(channelId)),
+    ]);
+    if (!((byProfile.data()?.server_id === serverId && byProfile.data()?.user_id === profileId)
+      || (byAuth.data()?.server_id === serverId && byAuth.data()?.user_id === authUid))) {
+      throw new HttpsError('permission-denied', 'Not a member of this community');
+    }
+    if (channel.data()?.server_id !== serverId || channel.data()?.type !== 'voice') {
+      throw new HttpsError('permission-denied', 'Voice channel is not part of this community');
+    }
+  });
 }
 
 /** livekit-token — mint a LiveKit access token for a 1:1 or group call. */
@@ -113,6 +114,9 @@ export const livekitToken = onCall({ secrets: SECRETS }, async (request) => {
   if (!conversationId && !callId) {
     throw new HttpsError('invalid-argument', 'conversationId or callId required');
   }
+  if ((conversationId != null && !validDocumentId(conversationId)) || (callId != null && !validDocumentId(callId))) {
+    throw new HttpsError('invalid-argument', 'Invalid conversation or call ID');
+  }
 
   const { profileId, displayName } = await loadProfileForAuth(authUid);
 
@@ -124,10 +128,11 @@ export const livekitToken = onCall({ secrets: SECRETS }, async (request) => {
     effectiveConversationId = await assertCallParticipant(callId, profileId, authUid);
   }
 
-  // Match client + legacy Supabase room naming (`call-${conversationId}`).
+  // Separate namespaces prevent a caller-chosen standalone ID from joining
+  // an unrelated conversation or community room.
   const roomName = effectiveConversationId
     ? `call-${effectiveConversationId}`
-    : String(callId);
+    : `standalone_${callId}`;
 
   const { AccessToken } = await import('livekit-server-sdk');
   const at = new AccessToken(apiKey, apiSecret, {
@@ -156,7 +161,7 @@ export const livekitToken = onCall({ secrets: SECRETS }, async (request) => {
 export const communityVoiceToken = onCall({ secrets: SECRETS }, async (request) => {
   const authUid = requireAuth(request);
   const { serverId, channelId } = (request.data || {}) as { serverId?: string; channelId?: string };
-  if (!serverId || !channelId) throw new HttpsError('invalid-argument', 'serverId and channelId required');
+  if (!validDocumentId(serverId) || !validDocumentId(channelId)) throw new HttpsError('invalid-argument', 'serverId and channelId required');
   const apiKey = process.env.LIVEKIT_API_KEY;
   const apiSecret = process.env.LIVEKIT_API_SECRET;
   const wsUrl = process.env.LIVEKIT_URL;
@@ -165,10 +170,12 @@ export const communityVoiceToken = onCall({ secrets: SECRETS }, async (request) 
   const { profileId } = await loadProfileForAuth(authUid);
 
   // Enforce community membership before minting a join-capable token.
-  await assertServerMember(serverId, profileId, authUid);
+  await assertServerMember(serverId, channelId, profileId, authUid);
 
   const { AccessToken } = await import('livekit-server-sdk');
-  const roomName = `comm_${serverId}_${channelId}`;
+  // Hash a structured tuple: concatenating caller-controlled IDs with an
+  // underscore allowed different server/channel pairs to share one room.
+  const roomName = `comm_v2_${createHash('sha256').update(JSON.stringify([serverId, channelId])).digest('hex')}`;
   const at = new AccessToken(apiKey, apiSecret, { identity: profileId, ttl: 60 * 60 });
   at.addGrant({ room: roomName, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true });
   return { token: await at.toJwt(), url: wsUrl, room: roomName, roomName };

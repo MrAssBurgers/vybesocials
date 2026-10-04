@@ -23,13 +23,23 @@ service cloud.firestore {
     function isAdmin() {
       return signedIn() && request.auth.token.admin == true;
     }
+    function activeStaffRoleAt(col, identity, role) {
+      let rolePath = /databases/$(database)/documents/$(col)/$(identity + '_' + role);
+      let grant = get(rolePath);
+      // Imported grants predate enabled. Only a missing flag or boolean true
+      // grants authority; disabled or malformed rows must not revive a role.
+      return grant != null && grant.data.get('enabled', true) == true;
+    }
     function staffRoleDoc(col, role) {
       return signedIn() && (
-        exists(/databases/$(database)/documents/$(col)/$(profileId() + '_' + role)) ||
-        exists(/databases/$(database)/documents/$(col)/$(uid() + '_' + role))
+        activeStaffRoleAt(col, profileId(), role) ||
+        activeStaffRoleAt(col, uid(), role)
       );
     }
     function isStaffModerator() {
+      // Keep the legacy lookup order. A migrated account with only a late
+      // user_roles_auth admin/moderator alias can exceed the Rules read budget;
+      // the isolated authority regression script records this inherited limit.
       return isAdmin() ||
         staffRoleDoc('user_roles', 'owner') ||
         staffRoleDoc('user_roles', 'admin') ||
@@ -91,11 +101,18 @@ service cloud.firestore {
     function willOwnUserField(field) {
       return willOwn(field) || willOwnProfile(field);
     }
+    function validFlatMember(cid, identity) {
+      let member = get(/databases/$(database)/documents/conversation_members/$(cid + '_' + identity));
+      return member != null && member.data.get('conversation_id', '') == cid &&
+        member.data.get('user_id', '') == identity;
+    }
+    function validNestedMember(cid, identity) {
+      let member = get(/databases/$(database)/documents/conversations/$(cid)/members/$(identity));
+      return member != null && member.data.get('user_id', '') == identity &&
+        member.data.get('conversation_id', cid) == cid;
+    }
     function isFlatConversationMember(cid) {
-      return signedIn() && (
-        exists(/databases/$(database)/documents/conversation_members/$(cid + '_' + profileId())) ||
-        exists(/databases/$(database)/documents/conversation_members/$(cid + '_' + uid()))
-      );
+      return signedIn() && (validFlatMember(cid, uid()) || validFlatMember(cid, profileId()));
     }
     function isMemberViaConversationDoc(cid) {
       return signedIn() &&
@@ -106,10 +123,9 @@ service cloud.firestore {
     }
     function isMember(cid) {
       return signedIn() && (
-        isFlatConversationMember(cid) ||
         isMemberViaConversationDoc(cid) ||
-        exists(/databases/$(database)/documents/conversations/$(cid)/members/$(uid())) ||
-        exists(/databases/$(database)/documents/conversations/$(cid)/members/$(profileId()))
+        isFlatConversationMember(cid) ||
+        validNestedMember(cid, uid()) || validNestedMember(cid, profileId())
       );
     }
     function isConversationParticipant(cid) {
@@ -190,29 +206,58 @@ service cloud.firestore {
     function conversationData(cid) {
       return get(/databases/$(database)/documents/conversations/$(cid)).data;
     }
-    function canSeedFlatConversationMember(cid) {
-      return signedIn() &&
-        exists(/databases/$(database)/documents/conversations/$(cid)) && (
-          profileId() in conversationData(cid).get('member_ids', []) ||
-          uid() in conversationData(cid).get('member_ids', []) ||
-          ownsProfileId(conversationData(cid).get('created_by', '')) ||
-          conversationData(cid).get('created_by', '') == uid()
-        );
+    function profileAuthIdentity(identity) {
+      let profile = get(/databases/$(database)/documents/profiles/$(identity));
+      return profile == null ? identity : profile.data.get('user_id', identity);
     }
-    // Self-seed composite `${cid}_${profileId}` for legacy DMs missing member_ids on conv doc.
-    function isSelfCompositeMembershipCreate() {
-      return signedIn() &&
-        request.resource.data.conversation_id is string &&
-        request.resource.data.user_id is string &&
-        (
-          (
-            request.resource.id == request.resource.data.conversation_id + '_' + profileId() &&
-            ownsProfileId(request.resource.data.user_id)
-          ) ||
-          (
-            request.resource.id == request.resource.data.conversation_id + '_' + uid() &&
-            request.resource.data.user_id == uid()
-          )
+    // Only a deterministic pair containing the caller can be created by clients.
+    // Random/group parents may have orphaned private messages: restore on the server.
+    function canCreateConversation(cid) {
+      let pair = cid.split('_');
+      let data = request.resource.data;
+      return signedIn() && pair.size() == 2 && pair[0] != pair[1] &&
+        (ownsProfileId(pair[0]) || ownsProfileId(pair[1])) &&
+        willOwnProfile('created_by') && data.get('is_group', false) == false &&
+        data.get('type', 'dm') != 'group' && data.get('member_ids', []) is list &&
+        data.member_ids.hasAll(pair) && data.member_ids.hasOnly([
+          pair[0], pair[1], profileAuthIdentity(pair[0]), profileAuthIdentity(pair[1])
+        ]);
+    }
+    function conversationIdentityUnchanged() {
+      let before = resource.data.get('member_ids', []);
+      let after = request.resource.data.get('member_ids', []);
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['created_by', 'id', 'is_group', 'type']) &&
+        after is list && after.hasAll(before) &&
+        after.toSet().difference(before.toSet()).hasOnly([uid(), profileId()]);
+    }
+    function membershipIdentityUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['id', 'user_id', 'conversation_id', 'role', 'legacy_membership_id']);
+    }
+    function canBackfillMember(cid, identity) {
+      return isConversationParticipant(cid) && (
+        ownsProfileId(identity) || (
+          exists(/databases/$(database)/documents/conversations/$(cid)) &&
+          identity in conversationData(cid).get('member_ids', [])
+        )
+      );
+    }
+    // A random-ID imported row can prove only its owner's aliases in that same
+    // conversation. The referenced identity/conversation/role cannot be rewritten.
+    function validLegacyMembershipProof(data) {
+      let source = get(/databases/$(database)/documents/conversation_members/$(data.legacy_membership_id));
+      return source != null && ownsProfileId(data.user_id) &&
+        ownsProfileId(source.data.get('user_id', '')) &&
+        source.data.get('conversation_id', '') == data.conversation_id &&
+        data.get('role', 'member') == source.data.get('role', 'member');
+    }
+    function canCreateFlatMember(data, docId) {
+      return signedIn() && data.conversation_id is string && data.user_id is string &&
+        docId == data.conversation_id + '_' + data.user_id && data.get('id', docId) == docId && (
+          (data.get('role', 'member') == 'member' &&
+            canBackfillMember(data.conversation_id, data.user_id)) ||
+          (data.get('legacy_membership_id', '') is string &&
+            data.get('legacy_membership_id', '').size() > 0 && validLegacyMembershipProof(data))
         );
     }
 
@@ -239,8 +284,15 @@ service cloud.firestore {
     // Public-ish read for any authed user (prevents "Unknown User" bug).
     match /profiles/{userId} {
       allow read: if signedIn();
-      allow create: if signedIn() && userId == uid();
-      allow update: if signedIn() && (ownsProfileId(userId) || isAdmin());
+      allow create: if signedIn() && userId == uid()
+        && request.resource.data.user_id == uid()
+        && request.resource.data.get('id', userId) == userId
+        && !request.resource.data.keys().hasAny(['stripe_customer_id', 'stripe_account_id']);
+      allow update: if signedIn() && (ownsProfileId(userId) || isAdmin())
+        && request.resource.data.get('user_id', userId) == resource.data.get('user_id', userId)
+        && request.resource.data.get('id', userId) == resource.data.get('id', userId)
+        && !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['stripe_customer_id', 'stripe_account_id']);
       allow delete: if isAdmin();
     }
     // Sensitive owner-only profile fields. Public profile documents are broadly
@@ -263,7 +315,9 @@ service cloud.firestore {
     }
 
     // Profile-scoped subcollections (settings, prefs, etc.)
-    match /profiles/{userId}/{sub=**} {
+    // Rules v2 recursive wildcards also match zero segments. Require a full
+    // child document so this rule cannot bypass the profile's own field guards.
+    match /profiles/{userId}/{collectionId}/{documentId}/{sub=**} {
       allow read, write: if signedIn() && (ownsProfileId(userId) || isAdmin());
     }
 
@@ -549,10 +603,17 @@ service cloud.firestore {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
     match /music_settings/{docId} {
-      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+      allow read: if ownsUserField('user_id') || isAdmin();
+      allow create: if willOwnUserField('user_id') && docId == request.resource.data.user_id;
+      allow update: if (ownsUserField('user_id') || isAdmin())
+        && request.resource.data.user_id == resource.data.user_id;
+      allow delete: if ownsUserField('user_id') || isAdmin();
     }
     match /spotify_connections/{docId} {
-      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+      allow read: if ownsUserField('user_id') || isAdmin();
+      // OAuth exchange, token refresh, and disconnect use the Admin SDK.
+      // Client preferences live in music_settings, never in this credential row.
+      allow create, update, delete: if false;
     }
     match /live_music_presence/{docId} {
       allow read: if signedIn();
@@ -824,28 +885,23 @@ service cloud.firestore {
           uid() in resource.data.get('member_ids', []) ||
           isFlatConversationMember(cid) ||
           isMemberViaConversationDoc(cid) ||
+          validNestedMember(cid, uid()) || validNestedMember(cid, profileId()) ||
           isConversationCreatorOf(cid)
         )
       );
-      allow create: if signedIn() &&
-        willOwnProfile('created_by') &&
-        (
-          profileId() in request.resource.data.get('member_ids', []) ||
-          uid() in request.resource.data.get('member_ids', [])
-        );
-      allow update: if isMember(cid) || isAdmin() || (
-        signedIn() && (
-          ownsProfileId(resource.data.get('created_by', '')) ||
-          resource.data.get('created_by', '') == uid() ||
-          profileId() in request.resource.data.get('member_ids', []) ||
-          uid() in request.resource.data.get('member_ids', [])
-        )
-      );
+      allow create: if canCreateConversation(cid);
+      allow update: if (isConversationParticipant(cid) || isAdmin()) && conversationIdentityUnchanged();
       allow delete: if isAdmin();
 
       match /members/{memberId} {
         allow read: if isMember(cid);
-        allow write: if isMember(cid) || isAdmin();
+        allow create: if request.resource.data.get('user_id', '') == memberId &&
+          request.resource.data.get('conversation_id', cid) == cid &&
+          request.resource.data.get('role', 'member') == 'member' && canBackfillMember(cid, memberId);
+        allow update: if (ownsProfileId(resource.data.get('user_id', '')) || isAdmin()) &&
+          membershipIdentityUnchanged();
+        allow delete: if ownsProfileId(resource.data.get('user_id', '')) ||
+          isConversationCreatorOf(cid) || isAdmin();
       }
       match /messages/{messageId} {
         allow read: if isMember(cid);
@@ -891,18 +947,8 @@ service cloud.firestore {
           ownsProfileId(resource.data.user_id) ||
           isConversationParticipant(resource.data.conversation_id)
         );
-      allow create: if signedIn() && (
-        willOwnProfile('user_id') ||
-        isSelfCompositeMembershipCreate() ||
-        (
-          request.resource.data.conversation_id is string &&
-          (
-            canSeedFlatConversationMember(request.resource.data.conversation_id) ||
-            isConversationCreatorOf(request.resource.data.conversation_id)
-          )
-        )
-      );
-      allow update: if ownsProfileId(resource.data.user_id);
+      allow create: if canCreateFlatMember(request.resource.data, docId);
+      allow update: if ownsProfileId(resource.data.user_id) && membershipIdentityUnchanged();
       allow delete: if isOwnerProfile('user_id') || isAdmin();
     }
     match /messages/{messageId} {
@@ -1049,6 +1095,10 @@ service cloud.firestore {
 
     // ---------- calls / signaling ----------
     match /calls/{callId} {
+      function canUseCallConversation(data) {
+        let cid = data.get('conversation_id', null);
+        return cid == null || cid == '' || (cid is string && isMember(cid));
+      }
       allow read: if signedIn() && (
         ownsProfileId(resource.data.caller_id) ||
         ownsProfileId(resource.data.receiver_id) ||
@@ -1057,8 +1107,11 @@ service cloud.firestore {
         profileId() in resource.data.get('participant_ids', []) ||
         uid() in resource.data.get('participant_ids', [])
       );
-      allow create: if signedIn() && willOwnProfile('caller_id');
-      allow update: if signedIn() && (
+      allow create: if signedIn() && willOwnProfile('caller_id') &&
+        canUseCallConversation(request.resource.data);
+      allow update: if signedIn() && canUseCallConversation(resource.data) &&
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['conversation_id', 'caller_id', 'receiver_id', 'participant_ids']) && (
         ownsProfileId(resource.data.caller_id) ||
         ownsProfileId(resource.data.receiver_id) ||
         resource.data.caller_id == uid() ||
@@ -1253,7 +1306,22 @@ service cloud.firestore {
     // ---------- commerce ----------
     match /creator_profiles/{id} {
       allow read: if signedIn();
-      allow create, update: if isOwner('user_id') || willOwn('user_id');
+      // Applications are client-editable. Payment mappings and balances are
+      // written only by trusted payment functions, including for staff clients.
+      allow create: if willOwn('user_id') && id == uid()
+        && request.resource.data.keys().hasOnly(['id', 'user_id', 'applied_at', 'is_approved', 'created_at', 'updated_at'])
+        && request.resource.data.get('id', id) == id
+        && request.resource.data.get('is_approved', false) == false;
+      allow update: if request.resource.data.user_id == resource.data.user_id
+        && request.resource.data.get('id', id) == resource.data.get('id', id)
+        && (
+          (isOwner('user_id') && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['applied_at', 'updated_at', 'is_approved'])
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['is_approved']) ||
+              (!resource.data.keys().hasAny(['is_approved']) && request.resource.data.is_approved == false))) ||
+          (isStaffAdmin() && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['is_approved', 'approved_at', 'tier', 'admin_notes', 'updated_at']))
+        );
       allow delete: if isAdmin();
     }
     match /creator_earnings/{id}   { allow read: if isOwner('creator_id') || isAdmin(); allow write: if isAdmin(); }
@@ -1261,9 +1329,48 @@ service cloud.firestore {
     match /creator_daily_stats/{id} { allow read: if isOwner('creator_id') || isAdmin(); allow write: if isAdmin(); }
     match /business_profiles/{id} {
       allow read: if signedIn();
-      allow write: if isOwner('owner_id') || willOwn('owner_id') || isAdmin();
+      allow create: if willOwnUserField('owner_id')
+        && request.resource.data.keys().hasOnly([
+          'id', 'owner_id', 'name', 'slug', 'description', 'logo_url', 'banner_url',
+          'category', 'website', 'email', 'phone', 'location', 'social_links',
+          'business_hours', 'is_active', 'created_at', 'updated_at'
+        ]) && request.resource.data.get('id', id) == id;
+      allow update: if (ownsUserField('owner_id') || isAdmin())
+        && request.resource.data.owner_id == resource.data.owner_id
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name', 'slug', 'description', 'logo_url', 'banner_url', 'category',
+          'website', 'email', 'phone', 'location', 'social_links', 'business_hours',
+          'is_active', 'updated_at'
+        ]);
+      // Keep parent ownership stable while products refer to this ID. Owners
+      // can archive via is_active; physical cleanup needs server tombstones.
+      allow delete: if false;
     }
-    match /business_products/{id}  { allow read: if signedIn(); allow write: if isOwner('owner_id') || willOwn('owner_id') || isAdmin(); }
+    function ownsBusiness(businessId) {
+      return signedIn() && businessId is string &&
+        exists(/databases/$(database)/documents/business_profiles/$(businessId)) &&
+        ownsProfileId(get(/databases/$(database)/documents/business_profiles/$(businessId)).data.owner_id);
+    }
+    match /business_products/{id} {
+      allow read: if signedIn();
+      allow create: if ownsBusiness(request.resource.data.business_id)
+        && request.resource.data.keys().hasOnly([
+          'id', 'business_id', 'title', 'description', 'price', 'compare_at_price',
+          'images', 'category', 'sku', 'inventory_count', 'is_digital',
+          'digital_file_url', 'is_active', 'is_featured', 'created_at', 'updated_at'
+        ]) && request.resource.data.get('id', id) == id;
+      allow update: if (ownsBusiness(resource.data.business_id) || isAdmin())
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title', 'description', 'price', 'compare_at_price', 'images', 'category',
+          'sku', 'inventory_count', 'is_digital', 'digital_file_url', 'is_active',
+          'is_featured', 'updated_at'
+        ]) && (
+          resource.data.get('stripe_price_id', null) == null ||
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['price', 'compare_at_price'])
+        );
+      allow delete: if resource.data.get('stripe_price_id', null) == null
+        && (ownsBusiness(resource.data.business_id) || isAdmin());
+    }
     match /business_orders/{id}    { allow read: if isOwner('buyer_id') || isOwner('seller_id') || isAdmin(); allow write: if isAdmin(); }
     match /gifted_premium/{id} {
       allow read: if ownsUserField('user_id') || ownsUserField('gifted_by') || isAdmin();

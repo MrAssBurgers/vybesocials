@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { db } from '@/lib/firebase';
+import { useRef } from 'react';
+import { db, getFirebaseAuth } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -26,26 +27,66 @@ export function useCreatorProfile() {
 export function useApplyForPartner() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const currentUserId = useRef(user?.id);
+  currentUserId.current = user?.id;
+  const isCurrentUser = (uid: string | undefined) => !!uid &&
+    currentUserId.current === uid && getFirebaseAuth()?.currentUser?.uid === uid;
 
   return useMutation({
+    onMutate: () => user?.id,
     mutationFn: async () => {
-      if (!user?.id) throw new Error('Not authenticated');
-      const { data, error } = await db
+      const uid = user?.id;
+      if (!uid) throw new Error('Not authenticated');
+      const assertCurrentUser = () => {
+        if (!isCurrentUser(uid)) throw new Error('Your account changed. Please try again.');
+      };
+      assertCurrentUser();
+      // Imported profiles may have a different document ID. Do not create a
+      // second payment profile, or use upsert (which replaces created_at).
+      const { data: matches, error: readError } = await db
         .from('creator_profiles')
-        .upsert({
-          user_id: user.id,
-          applied_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' })
-        .select()
-        .single();
+        .select('id, user_id, is_approved')
+        .eq('user_id', uid)
+        .limit(2);
+      assertCurrentUser();
+      if (readError) throw readError;
+      if (!Array.isArray(matches) || matches.length > 1) {
+        throw new Error('Your creator profile needs review. Please contact support.');
+      }
+      const now = new Date().toISOString();
+      const application = { applied_at: now, updated_at: now };
+      const existing = matches[0];
+      if (existing) {
+        if (typeof existing.id !== 'string' || !existing.id || existing.user_id !== uid) {
+          throw new Error('Your creator profile needs review. Please contact support.');
+        }
+        // Older Connect rows omit this field. Make those applications visible
+        // to the pending queue without resetting an existing staff decision.
+        const updates = Object.prototype.hasOwnProperty.call(existing, 'is_approved')
+          ? application : { ...application, is_approved: false };
+        const { data, error } = await db.from('creator_profiles')
+          .update(updates).eq('id', existing.id).eq('user_id', uid);
+        assertCurrentUser();
+        if (error) throw error;
+        if (!Array.isArray(data) || data.length !== 1) {
+          throw new Error('Your creator profile changed. Please try again.');
+        }
+        return { ...existing, ...updates, user_id: uid };
+      }
+      const created = { id: uid, user_id: uid, is_approved: false, ...application };
+      const { error } = await db.from('creator_profiles').insert(created);
+      assertCurrentUser();
       if (error) throw error;
-      return data;
+      return created;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['creator-profile'] });
+    onSuccess: (data) => {
+      if (!isCurrentUser(data.user_id)) return;
+      qc.invalidateQueries({ queryKey: ['creator-profile', data.user_id] });
       toast.success('Application submitted! We\'ll review it shortly.');
     },
-    onError: () => toast.error('Failed to apply. Try again.'),
+    onError: (_error, _variables, uid) => {
+      if (isCurrentUser(uid)) toast.error('Failed to apply. Try again.');
+    },
   });
 }
 

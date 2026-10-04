@@ -3,6 +3,7 @@
  */
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth, auth } from './_shared/admin.js';
+import { areFriends, isBlocked, resolveProfileId } from './_shared/friendship.js';
 
 const SECRETS = ['SPOTIFY_CLIENT_ID', 'SPOTIFY_CLIENT_SECRET'];
 const SITE_URL = () => process.env.PUBLIC_SITE_URL || 'https://vybehub.app';
@@ -358,47 +359,103 @@ export const spotifyPlaylists = onCall({ secrets: SECRETS }, async (request) => 
   return { ok: true, playlists, items };
 });
 
-export const spotifyListenAlong = onCall({ secrets: SECRETS }, async (request) => {
-  const uid = requireAuth(request);
-  const { friend_id } = (request.data || {}) as any;
-  if (!friend_id) throw new HttpsError('invalid-argument', 'friend_id required');
-  if (friend_id === uid) return { ok: false, error: 'cannot_listen_along_self' };
-
-  // Verify a friend/close-friend relationship between caller and target.
-  const [fr1, fr2, cf1, cf2] = await Promise.all([
-    db.collection('friend_requests')
-      .where('sender_id', '==', uid).where('receiver_id', '==', friend_id).where('status', '==', 'accepted').limit(1).get(),
-    db.collection('friend_requests')
-      .where('sender_id', '==', friend_id).where('receiver_id', '==', uid).where('status', '==', 'accepted').limit(1).get(),
-    db.collection('close_friends').where('owner_id', '==', friend_id).where('friend_id', '==', uid).limit(1).get(),
-    db.collection('close_friends').where('owner_id', '==', uid).where('friend_id', '==', friend_id).limit(1).get(),
-  ]);
-  const isFriend = !fr1.empty || !fr2.empty || !cf1.empty || !cf2.empty;
-  if (!isFriend) {
+async function canListenAlong(callerIds: string[], friendIds: string[]): Promise<boolean> {
+  // Resolve both namespaces: migrated relationships use profile IDs, while
+  // older accepted requests and blocks can still contain Firebase UIDs.
+  const pairs = callerIds.flatMap(caller => friendIds.map(friend => [caller, friend] as const));
+  if ((await Promise.all(pairs.map(([caller, friend]) => isBlocked(caller, friend)))).some(Boolean)) {
     throw new HttpsError('permission-denied', 'Not connected as friends');
   }
-
-  // Respect target's music_settings privacy flags.
-  const settingsSnap = await db.collection('music_settings').doc(friend_id).get();
-  const settings = (settingsSnap.data() || {}) as Record<string, any>;
-  const shareEnabled =
-    settings.show_listening_activity !== false && settings.show_in_dms !== false;
-  if (!shareEnabled) {
-    return { ok: true, listening: false, error: 'sharing_disabled' };
+  if (!(await Promise.all(pairs.map(([caller, friend]) => areFriends(caller, friend)))).some(Boolean)) {
+    // A user-owned close_friends row alone is not mutual accepted friendship.
+    throw new HttpsError('permission-denied', 'Not connected as friends');
   }
+  const settings = await Promise.all(friendIds.map(async id => {
+    const [direct, legacy] = await Promise.all([
+      db.collection('music_settings').doc(id).get(),
+      db.collection('music_settings').where('user_id', '==', id).limit(11).get(),
+    ]);
+    // Ambiguous duplicate settings fail closed instead of skipping a private row.
+    if (legacy.docs.length > 10) return false;
+    return [direct, ...legacy.docs].every(snapshot => {
+      const row = snapshot.data();
+      return !row || (row.show_listening_activity !== false && row.show_in_dms !== false);
+    });
+  }));
+  return settings.every(Boolean);
+}
 
-  const friendConn = await db.collection('spotify_connections').doc(friend_id).get();
-  if (!friendConn.exists) return { ok: false, error: 'friend_not_connected' };
-  const friendToken = await refreshIfNeeded(friend_id);
-  const np = await fetch('https://api.spotify.com/v1/me/player/currently-playing', { headers: { Authorization: `Bearer ${friendToken}` } });
+type ListenAlongFailure = {
+  ok: false; listening: false; error?: string; needs_connect?: true;
+  needs_reconnect?: true; premium_required?: true; no_device?: true; retry_after_seconds?: number;
+};
+const spotifyUnavailable = (): ListenAlongFailure => ({ ok: false, listening: false, error: 'Spotify is temporarily unavailable. Please try again later.' });
+
+async function listenAlongHttpFailure(response: Response, friend = false): Promise<ListenAlongFailure> {
+  if (response.status === 401 || (friend && response.status === 403)) {
+    return friend ? { ok: false, listening: false, error: 'friend_not_connected' } : { ok: false, listening: false, needs_reconnect: true };
+  }
+  if (response.status === 404 && !friend) return { ok: false, listening: false, no_device: true };
+  if (response.status === 403) {
+    const text = await response.text().catch(() => '');
+    if (/premium/i.test(text)) return { ok: false, listening: false, premium_required: true };
+    return { ok: false, listening: false, error: 'Spotify denied playback permission. Reconnect Spotify and try again.' };
+  }
+  if (response.status === 429) {
+    const retry = Number(response.headers.get('Retry-After'));
+    return { ...spotifyUnavailable(), ...(Number.isFinite(retry) && retry > 0 ? { retry_after_seconds: Math.min(86400, Math.ceil(retry)) } : {}) };
+  }
+  // Never return provider response bodies, which can contain account details.
+  return spotifyUnavailable();
+}
+
+export const spotifyListenAlong = onCall({ secrets: SECRETS }, async (request) => {
+  const uid = requireAuth(request);
+  const friendUid: unknown = request.data?.friend_id;
+  if (typeof friendUid !== 'string' || !friendUid.trim() || friendUid.length > 128 || friendUid.includes('/') || [...friendUid].some(char => char.charCodeAt(0) < 32)) {
+    throw new HttpsError('invalid-argument', 'friend_id must be a Firebase user ID');
+  }
+  if (friendUid === uid) return { ok: false, listening: false, error: 'cannot_listen_along_self' };
+  const [callerProfile, friendProfile] = await Promise.all([resolveProfileId(uid), resolveProfileId(friendUid)]);
+  const callerIds = [...new Set([uid, callerProfile])];
+  const friendIds = [...new Set([friendUid, friendProfile])];
+  if (!await canListenAlong(callerIds, friendIds)) return { ok: true, listening: false, error: 'sharing_disabled' };
+
+  const [friendConn, myConn] = await Promise.all([findSpotifyConnection(friendUid), findSpotifyConnection(uid)]);
+  if (!friendConn) return { ok: false, listening: false, error: 'friend_not_connected' };
+  if (!myConn) return { ok: false, listening: false, needs_connect: true };
+  let friendToken: string;
+  let myToken: string;
+  try { friendToken = await refreshIfNeeded(friendConn.id); }
+  catch { return { ok: false, listening: false, error: 'friend_not_connected' }; }
+  try { myToken = await refreshIfNeeded(myConn.id); }
+  catch { return { ok: false, listening: false, needs_reconnect: true }; }
+
+  let np: Response;
+  try {
+    np = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
+      headers: { Authorization: `Bearer ${friendToken}` }, signal: AbortSignal.timeout(10000), redirect: 'error',
+    });
+  } catch { return spotifyUnavailable(); }
   if (np.status === 204) return { ok: true, listening: false };
-  const data = await np.json();
+  if (!np.ok) return listenAlongHttpFailure(np, true);
+  let data: { is_playing?: unknown; progress_ms?: unknown; item?: { uri?: unknown; duration_ms?: unknown } };
+  try { data = await np.json(); } catch { return spotifyUnavailable(); }
   const uri = data?.item?.uri;
-  if (!uri) return { ok: true, listening: false };
-  const myToken = await refreshIfNeeded(uid);
-  await fetch('https://api.spotify.com/v1/me/player/play', {
-    method: 'PUT', headers: { Authorization: `Bearer ${myToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ uris: [uri], position_ms: data.progress_ms || 0 }),
-  });
+  if (data?.is_playing !== true || typeof uri !== 'string' || !/^spotify:track:[A-Za-z0-9]{22}$/.test(uri)) return { ok: true, listening: false };
+  const position = typeof data.progress_ms === 'number' && Number.isFinite(data.progress_ms) ? Math.max(0, Math.floor(data.progress_ms)) : 0;
+  const duration = data.item?.duration_ms;
+  const positionMs = typeof duration === 'number' && Number.isFinite(duration) && duration >= 0 ? Math.min(position, Math.floor(duration)) : position;
+  // Spotify can be slow: honor a block, unfriend, or privacy change before
+  // using the track to start playback, not only before reading the track.
+  if (!await canListenAlong(callerIds, friendIds)) return { ok: true, listening: false, error: 'sharing_disabled' };
+  let playback: Response;
+  try {
+    playback = await fetch('https://api.spotify.com/v1/me/player/play', {
+      method: 'PUT', headers: { Authorization: `Bearer ${myToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uris: [uri], position_ms: positionMs }), signal: AbortSignal.timeout(10000), redirect: 'error',
+    });
+  } catch { return spotifyUnavailable(); }
+  if (!playback.ok) return listenAlongHttpFailure(playback);
   return { ok: true, listening: true, track: data.item };
 });

@@ -5,22 +5,11 @@
  */
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth, requireAdmin } from './_shared/admin.js';
+import { verifiedCreatorAccountId, verifiedCreatorPaymentProfile, verifiedCustomerId } from './_shared/stripeAuthority.js';
+import { getStripe } from './_shared/stripeClient.js';
 const STRIPE_SECRETS = ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'STRIPE_WEBHOOK_SECRET_THIN'];
-async function getStripe() {
-    const key = process.env.STRIPE_SECRET_KEY;
-    if (!key)
-        throw new HttpsError('failed-precondition', 'STRIPE_SECRET_KEY not configured');
-    const mod = await import('stripe').catch(() => null);
-    if (!mod)
-        throw new HttpsError('failed-precondition', 'stripe package not installed');
-    const Stripe = mod.default || mod;
-    return new Stripe(key, { apiVersion: '2024-12-18.acacia' });
-}
-async function getCreatorAccountId(uid) {
-    const snap = await db.collection('creator_profiles').where('user_id', '==', uid).limit(1).get();
-    if (snap.empty)
-        return null;
-    return snap.docs[0].data().stripe_account_id || null;
+async function getCreatorAccountId(stripe, uid) {
+    return verifiedCreatorAccountId(db, stripe, uid);
 }
 export const validateStripeConfig = onCall({ secrets: STRIPE_SECRETS }, async (request) => {
     await requireAdmin(request);
@@ -37,6 +26,9 @@ export const validateStripeConfig = onCall({ secrets: STRIPE_SECRETS }, async (r
 export const connectV2CreateAccount = onCall({ secrets: STRIPE_SECRETS }, async (request) => {
     const uid = requireAuth(request);
     const stripe = await getStripe();
+    const paymentProfile = await verifiedCreatorPaymentProfile(db, stripe, uid);
+    if (paymentProfile.accountId)
+        return { ok: true, account_id: paymentProfile.accountId };
     const { email, country } = (request.data || {});
     const account = await stripe.accounts.create({
         type: 'express',
@@ -44,8 +36,8 @@ export const connectV2CreateAccount = onCall({ secrets: STRIPE_SECRETS }, async 
         email,
         capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
         metadata: { uid },
-    });
-    await db.collection('creator_profiles').doc(uid).set({
+    }, { idempotencyKey: `vybe-connect-account-v1-${uid}` });
+    await paymentProfile.ref.set({
         user_id: uid, stripe_account_id: account.id, updated_at: new Date().toISOString(),
     }, { merge: true });
     return { ok: true, account_id: account.id };
@@ -88,7 +80,7 @@ async function buildCreatorConnectStatus(stripe, accountId) {
 export const connectV2AccountLink = onCall({ secrets: STRIPE_SECRETS }, async (request) => {
     const uid = requireAuth(request);
     const stripe = await getStripe();
-    const accountId = await getCreatorAccountId(uid);
+    const accountId = await getCreatorAccountId(stripe, uid);
     if (!accountId)
         throw new HttpsError('failed-precondition', 'No Stripe account — call createAccount first');
     const link = await stripe.accountLinks.create({
@@ -102,14 +94,15 @@ export const connectV2AccountLink = onCall({ secrets: STRIPE_SECRETS }, async (r
 export const connectV2AccountStatus = onCall({ secrets: STRIPE_SECRETS }, async (request) => {
     const uid = requireAuth(request);
     const stripe = await getStripe();
-    const accountId = await getCreatorAccountId(uid);
+    const accountId = await getCreatorAccountId(stripe, uid);
     return buildCreatorConnectStatus(stripe, accountId);
 });
 export const startStripeConnectOnboarding = onCall({ secrets: STRIPE_SECRETS }, async (request) => {
     const uid = requireAuth(request);
     const stripe = await getStripe();
     const { email, country } = (request.data || {});
-    let accountId = await getCreatorAccountId(uid);
+    const paymentProfile = await verifiedCreatorPaymentProfile(db, stripe, uid);
+    let accountId = paymentProfile.accountId;
     if (!accountId) {
         const account = await stripe.accounts.create({
             type: 'express',
@@ -117,9 +110,9 @@ export const startStripeConnectOnboarding = onCall({ secrets: STRIPE_SECRETS }, 
             email,
             capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
             metadata: { uid },
-        });
+        }, { idempotencyKey: `vybe-connect-account-v1-${uid}` });
         accountId = account.id;
-        await db.collection('creator_profiles').doc(uid).set({
+        await paymentProfile.ref.set({
             user_id: uid,
             stripe_account_id: accountId,
             updated_at: new Date().toISOString(),
@@ -136,10 +129,10 @@ export const startStripeConnectOnboarding = onCall({ secrets: STRIPE_SECRETS }, 
 export const connectV2BillingPortal = onCall({ secrets: STRIPE_SECRETS }, async (request) => {
     const uid = requireAuth(request);
     const stripe = await getStripe();
-    const profile = await db.collection('profiles').doc(uid).get();
-    const customerId = profile.data()?.stripe_customer_id;
-    if (!customerId)
-        throw new HttpsError('failed-precondition', 'No Stripe customer');
+    const profiles = await db.collection('profiles').where('user_id', '==', uid).limit(2).get();
+    if (profiles.docs.length !== 1)
+        throw new HttpsError('failed-precondition', 'Billing profile needs verification. Contact support.');
+    const customerId = await verifiedCustomerId(stripe, uid, profiles.docs[0].data()?.stripe_customer_id);
     const base = process.env.PUBLIC_SITE_URL || 'https://vybehub.app';
     const session = await stripe.billingPortal.sessions.create({ customer: customerId, return_url: `${base}/settings/billing` });
     return { ok: true, url: session.url };
@@ -154,30 +147,14 @@ function safeRedirectPath(input, fallback) {
     }
     return s.slice(0, 512);
 }
-/**
- * Look up the authoritative Stripe destination account + platform fee for a
- * given price_id from Firestore. Never trust client-supplied values — otherwise
- * a caller could redirect funds to their own connected account and zero out
- * the platform fee.
- */
-async function resolveDestinationForPrice(priceId) {
-    try {
-        const snap = await db.collection('business_products')
-            .where('stripe_price_id', '==', priceId)
-            .limit(1)
-            .get();
-        if (snap.empty)
-            return { destination: null, applicationFeePercent: null };
-        const product = snap.docs[0].data();
-        const ownerUid = String(product.owner_user_id || product.user_id || product.business_owner_id || '');
-        const destination = ownerUid ? await getCreatorAccountId(ownerUid) : null;
-        const rawFee = Number(product.platform_fee_percent);
-        const fee = Number.isFinite(rawFee) && rawFee > 0 && rawFee <= 100 ? rawFee : 15;
-        return { destination, applicationFeePercent: destination ? fee : null };
-    }
-    catch (err) {
-        console.warn('[stripe] resolveDestinationForPrice failed', err);
-        return { destination: null, applicationFeePercent: null };
+async function assertPlatformCheckout(priceId) {
+    const snap = await db.collection('business_products').where('stripe_price_id', '==', priceId).limit(1).get();
+    // Seller checkout is already unavailable in the storefront. Enforce the
+    // same boundary on the callable: historical catalog fields were writable,
+    // and connected-account prices need a separate server-owned contract.
+    // Do not fall back to a platform purchase on lookup/ownership failure.
+    if (!snap.empty) {
+        throw new HttpsError('failed-precondition', 'Seller checkout is not available yet. No payment was created.');
     }
 }
 export const connectV2Checkout = onCall({ secrets: STRIPE_SECRETS }, async (request) => {
@@ -197,13 +174,7 @@ export const connectV2Checkout = onCall({ secrets: STRIPE_SECRETS }, async (requ
         cancel_url: `${base}${cancelPath}`,
         metadata: { uid },
     };
-    const { destination, applicationFeePercent } = await resolveDestinationForPrice(String(price_id));
-    if (destination) {
-        params.payment_intent_data = {
-            transfer_data: { destination },
-            ...(applicationFeePercent ? { application_fee_percent: applicationFeePercent } : {}),
-        };
-    }
+    await assertPlatformCheckout(String(price_id));
     const session = await stripe.checkout.sessions.create(params);
     return { ok: true, url: session.url, session_id: session.id };
 });
@@ -216,20 +187,20 @@ export const connectV2Subscription = onCall({ secrets: STRIPE_SECRETS }, async (
     const base = process.env.PUBLIC_SITE_URL || 'https://vybehub.app';
     const successPath = safeRedirectPath(success_path, '/subscribe/success?session_id={CHECKOUT_SESSION_ID}');
     const cancelPath = safeRedirectPath(cancel_path, '/subscribe/cancel');
-    const { destination } = await resolveDestinationForPrice(String(price_id));
+    await assertPlatformCheckout(String(price_id));
     const session = await stripe.checkout.sessions.create({
         mode: 'subscription',
         line_items: [{ price: String(price_id), quantity: 1 }],
         success_url: `${base}${successPath}`,
         cancel_url: `${base}${cancelPath}`,
-        metadata: { uid, destination_account: destination || '' },
+        metadata: { uid },
     });
     return { ok: true, url: session.url, session_id: session.id };
 });
 export const connectV2CreateProduct = onCall({ secrets: STRIPE_SECRETS }, async (request) => {
     const uid = requireAuth(request);
     const stripe = await getStripe();
-    const accountId = await getCreatorAccountId(uid);
+    const accountId = await getCreatorAccountId(stripe, uid);
     if (!accountId)
         throw new HttpsError('failed-precondition', 'No Stripe account');
     const { name, description, amount, currency, interval } = (request.data || {});
@@ -240,7 +211,7 @@ export const connectV2CreateProduct = onCall({ secrets: STRIPE_SECRETS }, async 
 export const connectV2ListProducts = onCall({ secrets: STRIPE_SECRETS }, async (request) => {
     const uid = requireAuth(request);
     const stripe = await getStripe();
-    const accountId = await getCreatorAccountId(uid);
+    const accountId = await getCreatorAccountId(stripe, uid);
     if (!accountId)
         return { ok: true, products: [] };
     const products = await stripe.products.list({ limit: 50 }, { stripeAccount: accountId });
@@ -257,7 +228,7 @@ export const createPremiumCheckout = connectV2Subscription;
 export const createStripeDashboardLink = onCall({ secrets: STRIPE_SECRETS }, async (request) => {
     const uid = requireAuth(request);
     const stripe = await getStripe();
-    const accountId = await getCreatorAccountId(uid);
+    const accountId = await getCreatorAccountId(stripe, uid);
     if (!accountId)
         throw new HttpsError('failed-precondition', 'No Stripe account');
     const link = await stripe.accounts.createLoginLink(accountId);
@@ -269,7 +240,7 @@ export const createTip = onCall({ secrets: STRIPE_SECRETS }, async (request) => 
     const { creator_user_id, amount, message } = (request.data || {});
     if (!creator_user_id || !amount)
         throw new HttpsError('invalid-argument', 'creator_user_id and amount required');
-    const accountId = await getCreatorAccountId(creator_user_id);
+    const accountId = await getCreatorAccountId(stripe, creator_user_id);
     if (!accountId)
         throw new HttpsError('failed-precondition', 'Creator has no Stripe account');
     const platformFee = Math.round(amount * 0.15);
@@ -295,7 +266,7 @@ export const processCreatorPayout = onCall({ secrets: STRIPE_SECRETS }, async (r
     await requireAdmin(request);
     const stripe = await getStripe();
     const { creator_user_id, amount, currency } = (request.data || {});
-    const accountId = await getCreatorAccountId(creator_user_id);
+    const accountId = await getCreatorAccountId(stripe, creator_user_id);
     if (!accountId)
         throw new HttpsError('failed-precondition', 'No account');
     const payout = await stripe.payouts.create({ amount, currency: currency || 'usd' }, { stripeAccount: accountId });

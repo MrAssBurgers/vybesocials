@@ -1,5 +1,6 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
+import { isConversationPairBlocked, validDocumentId, withConversationAccess } from './_shared/conversationMembership.js';
 
 type ProfileRow = {
   id: string;
@@ -97,46 +98,6 @@ export async function isBlockedPair(profileIdA: string, profileIdB: string): Pro
   return !aBlockedB.empty || !bBlockedA.empty;
 }
 
-function inferOtherParticipantId(conversationId: string, myProfileId: string): string | null {
-  const parts = conversationId.split('_').filter(Boolean);
-  if (parts.length !== 2) return null;
-  const [a, b] = parts;
-  if (a === myProfileId) return b;
-  if (b === myProfileId) return a;
-  return null;
-}
-
-async function resolveDirectOtherProfileId(
-  conversationId: string,
-  senderProfileId: string,
-  hintedOther?: string | null,
-): Promise<string | null> {
-  if (hintedOther && hintedOther !== senderProfileId) return hintedOther;
-  const fromId = inferOtherParticipantId(conversationId, senderProfileId);
-  if (fromId) return fromId;
-
-  const members = await db
-    .collection('conversation_members')
-    .where('conversation_id', '==', conversationId)
-    .limit(8)
-    .get();
-  for (const doc of members.docs) {
-    const userId = doc.data().user_id;
-    if (typeof userId === 'string' && userId && userId !== senderProfileId) {
-      return userId;
-    }
-  }
-
-  const conv = await db.collection('conversations').doc(conversationId).get();
-  const memberIds = conv.data()?.member_ids;
-  if (Array.isArray(memberIds)) {
-    for (const id of memberIds) {
-      if (typeof id === 'string' && id && id !== senderProfileId) return id;
-    }
-  }
-  return null;
-}
-
 function assertValidMediaUrl(mediaUrl: string | null, senderProfileId: string, authUid: string) {
   if (!mediaUrl) return;
   const url = mediaUrl.trim();
@@ -183,113 +144,6 @@ function assertValidMediaUrl(mediaUrl: string | null, senderProfileId: string, a
   throw new HttpsError('invalid-argument', 'Invalid media ownership');
 }
 
-async function ensureConversationMembershipAdmin(
-  conversationId: string,
-  senderProfileId: string,
-  senderAuthUid: string,
-  otherProfileId?: string | null,
-): Promise<void> {
-  const now = new Date().toISOString();
-  const otherProfile = otherProfileId ? await loadProfile(otherProfileId) : null;
-  const otherAuthUid = otherProfile?.user_id ?? null;
-
-  const memberIds = [
-    ...new Set(
-      [senderProfileId, senderAuthUid, otherProfileId, otherAuthUid].filter(Boolean),
-    ),
-  ] as string[];
-
-  const convRef = db.collection('conversations').doc(conversationId);
-  const convSnap = await convRef.get();
-
-  if (!convSnap.exists) {
-    const parts = conversationId.split('_').filter(Boolean);
-    const callerInId =
-      parts.length === 2 && (parts[0] === senderProfileId || parts[1] === senderProfileId);
-    if (!callerInId) {
-      throw new HttpsError('permission-denied', 'Not a participant of this conversation');
-    }
-    await convRef.set({
-      id: conversationId,
-      is_group: false,
-      member_ids: memberIds,
-      name: null,
-      avatar_url: null,
-      created_by: senderProfileId,
-      created_at: now,
-      updated_at: now,
-    });
-  } else {
-    const existing = (convSnap.data()?.member_ids as string[]) || [];
-    let isExistingMember =
-      existing.includes(senderProfileId) || existing.includes(senderAuthUid);
-    if (!isExistingMember) {
-      const memberDoc = await db
-        .collection('conversation_members')
-        .doc(`${conversationId}_${senderProfileId}`)
-        .get();
-      const authMemberDoc = memberDoc.exists
-        ? memberDoc
-        : await db
-            .collection('conversation_members')
-            .doc(`${conversationId}_${senderAuthUid}`)
-            .get();
-      isExistingMember = authMemberDoc.exists;
-    }
-    if (!isExistingMember) {
-      throw new HttpsError('permission-denied', 'Not a member of this conversation');
-    }
-    const merged = [...new Set([...existing, senderProfileId, senderAuthUid])];
-    if (merged.length !== existing.length) {
-      await convRef.set({ member_ids: merged, updated_at: now }, { merge: true });
-    }
-  }
-
-  const batch = db.batch();
-  for (const memberId of memberIds) {
-    const compositeId = `${conversationId}_${memberId}`;
-    batch.set(
-      db.collection('conversation_members').doc(compositeId),
-      {
-        id: compositeId,
-        conversation_id: conversationId,
-        user_id: memberId,
-        role: memberId === senderProfileId ? 'admin' : 'member',
-        is_muted: false,
-        is_pinned: false,
-        last_read_at: null,
-        created_at: now,
-        updated_at: now,
-      },
-      { merge: true },
-    );
-  }
-  await batch.commit();
-
-  await db.collection('user_auth_index').doc(senderAuthUid).set(
-    { profile_id: senderProfileId, updated_at: now },
-    { merge: true },
-  );
-}
-
-async function findExistingByClientMessageId(
-  conversationId: string,
-  senderProfileId: string,
-  clientMessageId: string,
-) {
-  const snap = await db
-    .collection('messages')
-    .where('conversation_id', '==', conversationId)
-    .where('client_message_id', '==', clientMessageId)
-    .limit(1)
-    .get();
-  if (snap.empty) return null;
-  const doc = snap.docs[0];
-  const data = doc.data();
-  if (data.sender_id !== senderProfileId) return null;
-  return { id: doc.id, ...data };
-}
-
 /**
  * Canonical DM send — single enforcement point for blocks, rate limits,
  * membership, schema, media, and idempotent reconnect retries.
@@ -322,8 +176,8 @@ export const sendDmMessage = onCall(SEND_DM_OPTS, async (request) => {
     otherProfileId?: string | null;
   };
 
-  const conversationId = data.conversationId?.trim();
-  if (!conversationId) throw new HttpsError('invalid-argument', 'conversationId required');
+  const conversationId = typeof data.conversationId === 'string' ? data.conversationId.trim() : '';
+  if (!validDocumentId(conversationId)) throw new HttpsError('invalid-argument', 'Valid conversationId required');
   if (conversationId.length > 200) {
     throw new HttpsError('invalid-argument', 'conversationId too long');
   }
@@ -357,71 +211,6 @@ export const sendDmMessage = onCall(SEND_DM_OPTS, async (request) => {
       ? data.clientMessageId.trim().slice(0, 128)
       : null;
 
-  if (clientMessageId) {
-    const existing = await findExistingByClientMessageId(
-      conversationId,
-      senderProfileId,
-      clientMessageId,
-    );
-    if (existing) {
-      const sender = await loadProfile(senderProfileId);
-      return {
-        message: {
-          ...existing,
-          id: existing.id,
-          sender: sender
-            ? {
-                id: sender.id,
-                username: sender.username || '',
-                avatar_url: sender.avatar_url ?? null,
-                display_name: sender.display_name || sender.username || null,
-              }
-            : null,
-        },
-        deduped: true,
-      };
-    }
-  }
-
-  const otherProfileId = await resolveDirectOtherProfileId(
-    conversationId,
-    senderProfileId,
-    data.otherProfileId,
-  );
-
-  // Load conversation first so we know direct vs group before any writes.
-  const convSnap = await db.collection('conversations').doc(conversationId).get();
-  const isGroup = Boolean(convSnap.data()?.is_group);
-  // New 1:1 threads use sorted-pair ids and are never groups.
-  const treatAsDirect =
-    !isGroup ||
-    (!convSnap.exists && Boolean(inferOtherParticipantId(conversationId, senderProfileId)));
-
-  if (treatAsDirect && otherProfileId) {
-    if (await isBlockedPair(senderProfileId, otherProfileId)) {
-      throw new HttpsError('permission-denied', 'You can’t message this user');
-    }
-  }
-
-  await ensureConversationMembershipAdmin(
-    conversationId,
-    senderProfileId,
-    authUid,
-    otherProfileId,
-  );
-
-  // Re-resolve after membership in case the conversation uses non-pair ids.
-  if (treatAsDirect) {
-    const resolvedOther = await resolveDirectOtherProfileId(
-      conversationId,
-      senderProfileId,
-      otherProfileId,
-    );
-    if (resolvedOther && (await isBlockedPair(senderProfileId, resolvedOther))) {
-      throw new HttpsError('permission-denied', 'You can’t message this user');
-    }
-  }
-
   const now = new Date().toISOString();
   // 24h/timed: start the clock at send so unsaved messages purge even if never opened.
   // on_close / view_once: no expires_at here — leave-purge or first view handles it.
@@ -447,8 +236,31 @@ export const sendDmMessage = onCall(SEND_DM_OPTS, async (request) => {
     created_at: now,
   };
 
-  await msgRef.set(message);
-  await db.collection('conversations').doc(conversationId).set({ updated_at: now }, { merge: true });
+  const result = await withConversationAccess(conversationId, { profileId: senderProfileId, authUid }, {
+    allowCreate: true, repair: true, peerHint: data.otherProfileId,
+  }, async (tx, access) => {
+    if (!access.isGroup && access.other) {
+      if (await isConversationPairBlocked(tx, { profileId: senderProfileId, authUid }, access.other)) {
+        throw new HttpsError('permission-denied', 'You can’t message this user');
+      }
+    }
+    if (clientMessageId) {
+      const existing = await tx.get(db.collection('messages').where('conversation_id', '==', conversationId)
+        .where('client_message_id', '==', clientMessageId).where('sender_id', '==', senderProfileId).limit(1));
+      if (!existing.empty) return { message: { ...existing.docs[0].data(), id: existing.docs[0].id }, deduped: true,
+        otherProfileId: access.other?.profileId ?? null, treatAsDirect: !access.isGroup };
+    }
+    tx.create(msgRef, message);
+    return { message, deduped: false, otherProfileId: access.other?.profileId ?? null, treatAsDirect: !access.isGroup };
+  });
+  const { otherProfileId, treatAsDirect } = result;
+  if (result.deduped) {
+    const sender = await loadProfile(senderProfileId);
+    return { message: { ...result.message, sender: sender ? {
+      id: sender.id, username: sender.username || '', avatar_url: sender.avatar_url ?? null,
+      display_name: sender.display_name || sender.username || null,
+    } : null }, deduped: true };
+  }
 
   // Lightweight audit trail for enforcement / abuse review.
   await db

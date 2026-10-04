@@ -1,4 +1,5 @@
 import { db } from '@/lib/firebase';
+import { arrayUnion, updateDoc } from 'firebase/firestore';
 import {
   getDocument,
   getDocumentFromServer,
@@ -6,6 +7,7 @@ import {
   getDocuments,
   where,
   firestoreLimit,
+  documentRef,
 } from '@/lib/firebase/firestoreDb';
 import { firebaseAuth } from '@/lib/firebase/authService';
 import { getUserProfile, resolveProfileIdFromAuthUid } from '@/lib/firebase/users';
@@ -60,10 +62,10 @@ async function hasCompositeMembership(
     const existing = await getDocumentFromServer('conversation_members', compositeId).catch(
       () => null,
     );
-    return !!existing;
+    return existing?.conversation_id === conversationId && existing?.user_id === memberId;
   }
-  const existing = await getDocument('conversation_members', compositeId);
-  return !!existing;
+  const existing = await getDocument('conversation_members', compositeId).catch(() => null);
+  return existing?.conversation_id === conversationId && existing?.user_id === memberId;
 }
 
 /** Resolve a profile id from either profiles.id or auth user_id. */
@@ -261,9 +263,16 @@ export async function mergeConversationMemberIds(
   memberIds: string[],
 ): Promise<void> {
   try {
-    await setDocument('conversations', conversationId, {
-      member_ids: memberIds,
-    }, true);
+    const { data: { user } } = await firebaseAuth.getUser();
+    if (!user?.id) return;
+    const ownProfileId = await resolveProfileIdFromAuthUid(user.id);
+    // Repair only the current account's aliases. Preserve every existing group
+    // participant, including concurrent additions, and never recreate a parent.
+    const ownIds = [...new Set(memberIds.filter(id => id === user.id || id === ownProfileId))];
+    if (!ownIds.length) return;
+    await updateDoc(documentRef('conversations', conversationId), {
+      member_ids: arrayUnion(...ownIds),
+    });
   } catch (err) {
     // Non-creators cannot always patch member_ids on legacy rows — composite membership is enough.
     console.warn('[DM] member_ids merge skipped:', conversationId, err);
@@ -272,7 +281,7 @@ export async function mergeConversationMemberIds(
 
 const ensureReadyInflight = new Map<string, Promise<void>>();
 
-/** Create missing conversation doc so Firestore rules can verify membership on send. */
+/** Restore only the caller's deterministic pair. Random/group parents need server repair. */
 export async function ensureConversationDocument(
   conversationId: string,
   profileId: string,
@@ -297,35 +306,25 @@ export async function ensureConversationDocument(
     return;
   }
 
-  const synthetic = syntheticDeterministicConversation(conversationId);
   const { data: { user } } = await firebaseAuth.getUser();
   const authUid = user?.id ?? null;
-
-  let memberIds: string[];
-  if (synthetic) {
-    memberIds = [
-      ...new Set([...(synthetic.member_ids as string[]), profileId, otherId, authUid].filter(Boolean)),
-    ] as string[];
-  } else if (otherId) {
-    memberIds = [...new Set([profileId, otherId, authUid].filter(Boolean))] as string[];
-  } else {
-    try {
-      const rows = await getDocuments<Record<string, unknown>>('conversation_members', [
-        where('conversation_id', '==', conversationId),
-        firestoreLimit(10),
-      ]);
-      const fromRows = rows.map((r) => String(r.user_id || '')).filter(Boolean);
-      memberIds = [...new Set([profileId, authUid, ...fromRows].filter(Boolean))] as string[];
-    } catch {
-      memberIds = [...new Set([profileId, authUid].filter(Boolean))] as string[];
-    }
-  }
+  if (!authUid) return;
+  const ownProfileId = (await resolveProfileIdFromAuthUid(authUid)) || authUid;
+  if (profileId !== ownProfileId && profileId !== authUid) return;
+  const inferredOther = inferOtherParticipantId(conversationId, profileId, authUid);
+  if (!inferredOther || (otherId && otherId !== inferredOther)) return;
+  const synthetic = syntheticDeterministicConversation(conversationId);
+  if (!synthetic) return;
+  const otherProfile = await getUserProfile(inferredOther);
+  const memberIds = [...new Set([
+    ...(synthetic.member_ids as string[]), authUid, otherProfile?.user_id,
+  ].filter(Boolean))] as string[];
 
   const now = new Date().toISOString();
   try {
     await setDocument('conversations', conversationId, {
       id: conversationId,
-      is_group: synthetic ? false : memberIds.length > 2,
+      is_group: false,
       member_ids: memberIds,
       name: null,
       avatar_url: null,
@@ -376,7 +375,8 @@ export async function ensureConversationReady(
   otherProfileId?: string | null,
 ): Promise<void> {
   if (!conversationId || !profileId) return;
-  const inflight = ensureReadyInflight.get(conversationId);
+  const inflightKey = `${conversationId}:${profileId}`;
+  const inflight = ensureReadyInflight.get(inflightKey);
   if (inflight) return inflight;
 
   const promise = (async () => {
@@ -405,11 +405,11 @@ export async function ensureConversationReady(
     }
   })();
 
-  ensureReadyInflight.set(conversationId, promise);
+  ensureReadyInflight.set(inflightKey, promise);
   try {
     await promise;
   } finally {
-    ensureReadyInflight.delete(conversationId);
+    ensureReadyInflight.delete(inflightKey);
   }
 }
 
@@ -464,24 +464,36 @@ export async function ensureFlatConversationMembership(
 
   const ids = [...new Set([memberId, authUidForMember].filter(Boolean))] as string[];
 
+  // A legacy random-ID row is authority only for its existing owner's aliases.
+  // Read the proof before any writes so an Auth UID alias can reuse a profile row.
+  let ownLegacy: Record<string, unknown> | undefined;
+  if (isSelfMember) {
+    for (const identity of [...new Set([currentProfileId, currentAuthUid].filter(Boolean))]) {
+      const rows = await getDocuments<Record<string, unknown>>('conversation_members', [
+        where('conversation_id', '==', conversationId), where('user_id', '==', identity), firestoreLimit(1),
+      ]).catch(() => []);
+      ownLegacy = rows.find(row => row.conversation_id === conversationId && row.user_id === identity);
+      if (ownLegacy) break;
+    }
+  }
+
   let seededAny = false;
 
   for (const memberId of ids) {
     const compositeId = `${conversationId}_${memberId}`;
-    const existing = await getDocument('conversation_members', compositeId);
-    if (existing) {
+    if (await hasCompositeMembership(conversationId, memberId)) {
       seededAny = true;
       continue;
     }
 
-    let legacy: Record<string, unknown> | undefined;
+    let legacy: Record<string, unknown> | undefined = ownLegacy;
     try {
-      const legacyRows = await getDocuments<Record<string, unknown>>('conversation_members', [
-        where('conversation_id', '==', conversationId),
-        where('user_id', '==', memberId),
-        firestoreLimit(1),
-      ]);
-      legacy = legacyRows[0];
+      if (!legacy) {
+        const legacyRows = await getDocuments<Record<string, unknown>>('conversation_members', [
+          where('conversation_id', '==', conversationId), where('user_id', '==', memberId), firestoreLimit(1),
+        ]);
+        legacy = legacyRows[0];
+      }
     } catch {
       // Query may fail when checking another user's legacy membership rows.
     }
@@ -492,7 +504,8 @@ export async function ensureFlatConversationMembership(
         id: compositeId,
         conversation_id: conversationId,
         user_id: memberId,
-        role: (legacy?.role as string) || 'member',
+        role: isSelfMember ? (ownLegacy?.role as string) || 'member' : 'member',
+        ...(isSelfMember && ownLegacy?.id ? { legacy_membership_id: ownLegacy.id } : {}),
         is_muted: Boolean(legacy?.is_muted),
         is_pinned: Boolean(legacy?.is_pinned),
         last_read_at: (legacy?.last_read_at as string | null) ?? null,

@@ -1,5 +1,6 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth } from './_shared/admin.js';
+import { isConversationPairBlocked, validDocumentId, withConversationAccess } from './_shared/conversationMembership.js';
 async function resolveProfileId(authUid) {
     const index = await db.collection('user_auth_index').doc(authUid).get();
     const fromIndex = index.data()?.profile_id;
@@ -19,102 +20,17 @@ async function normalizeProfileId(idOrAuth) {
         return byAuth.docs[0].id;
     return idOrAuth;
 }
-function inferOtherParticipantId(conversationId, myProfileId) {
-    const parts = conversationId.split('_').filter(Boolean);
-    if (parts.length !== 2)
-        return null;
-    const [a, b] = parts;
-    if (a === myProfileId)
-        return b;
-    if (b === myProfileId)
-        return a;
-    return null;
-}
-async function ensureConversationMembershipAdmin(conversationId, senderProfileId, senderAuthUid, otherProfileId) {
-    const now = new Date().toISOString();
-    const otherProfile = otherProfileId
-        ? await db.collection('profiles').doc(otherProfileId).get()
-        : null;
-    const otherAuthUid = otherProfile?.exists && typeof otherProfile.data()?.user_id === 'string'
-        ? otherProfile.data().user_id
-        : null;
-    const memberIds = [
-        ...new Set([senderProfileId, senderAuthUid, otherProfileId, otherAuthUid].filter(Boolean)),
-    ];
-    const convRef = db.collection('conversations').doc(conversationId);
-    const convSnap = await convRef.get();
-    if (!convSnap.exists) {
-        const parts = conversationId.split('_').filter(Boolean);
-        const callerInId = parts.length === 2 && (parts[0] === senderProfileId || parts[1] === senderProfileId);
-        if (!callerInId) {
-            throw new HttpsError('permission-denied', 'Not a participant of this conversation');
-        }
-        await convRef.set({
-            id: conversationId,
-            is_group: false,
-            member_ids: memberIds,
-            name: null,
-            avatar_url: null,
-            created_by: senderProfileId,
-            created_at: now,
-            updated_at: now,
-        });
-    }
-    else {
-        const existing = convSnap.data()?.member_ids || [];
-        let isExistingMember = existing.includes(senderProfileId) || existing.includes(senderAuthUid);
-        if (!isExistingMember) {
-            const memberDoc = await db
-                .collection('conversation_members')
-                .doc(`${conversationId}_${senderProfileId}`)
-                .get();
-            const authMemberDoc = memberDoc.exists
-                ? memberDoc
-                : await db
-                    .collection('conversation_members')
-                    .doc(`${conversationId}_${senderAuthUid}`)
-                    .get();
-            isExistingMember = authMemberDoc.exists;
-        }
-        if (!isExistingMember) {
-            throw new HttpsError('permission-denied', 'Not a member of this conversation');
-        }
-        const merged = [...new Set([...existing, senderProfileId, senderAuthUid])];
-        if (merged.length !== existing.length) {
-            await convRef.set({ member_ids: merged, updated_at: now }, { merge: true });
-        }
-    }
-    const batch = db.batch();
-    for (const memberId of memberIds) {
-        const compositeId = `${conversationId}_${memberId}`;
-        batch.set(db.collection('conversation_members').doc(compositeId), {
-            id: compositeId,
-            conversation_id: conversationId,
-            user_id: memberId,
-            role: memberId === senderProfileId ? 'admin' : 'member',
-            is_muted: false,
-            is_pinned: false,
-            last_read_at: null,
-            created_at: now,
-            updated_at: now,
-        }, { merge: true });
-    }
-    await batch.commit();
-    await db.collection('user_auth_index').doc(senderAuthUid).set({ profile_id: senderProfileId, updated_at: now }, { merge: true });
-}
 /** Server-side call row creation when client Firestore rules reject the insert. */
 export const startDmCall = onCall({ region: 'us-central1' }, async (request) => {
     const authUid = requireAuth(request);
     const data = (request.data || {});
-    const conversationId = data.conversationId?.trim();
-    const receiverRaw = data.receiverId?.trim();
-    if (!conversationId || !receiverRaw) {
+    const conversationId = typeof data.conversationId === 'string' ? data.conversationId.trim() : '';
+    const receiverRaw = typeof data.receiverId === 'string' ? data.receiverId.trim() : '';
+    if (!validDocumentId(conversationId) || !validDocumentId(receiverRaw)) {
         throw new HttpsError('invalid-argument', 'conversationId and receiverId required');
     }
     const callerProfileId = await resolveProfileId(authUid);
     const receiverProfileId = await normalizeProfileId(receiverRaw);
-    const otherProfileId = inferOtherParticipantId(conversationId, callerProfileId) || receiverProfileId;
-    await ensureConversationMembershipAdmin(conversationId, callerProfileId, authUid, otherProfileId);
     const callType = data.callType === 'video' ? 'video' : 'audio';
     const callMode = data.callMode === 'persistent' ? 'persistent' : 'p2p';
     const roomName = `call-${conversationId}`;
@@ -133,7 +49,17 @@ export const startDmCall = onCall({ region: 'us-central1' }, async (request) => 
         ring_expires_at: new Date(Date.now() + 30_000).toISOString(),
         created_at: now,
     };
-    await ref.set(call);
-    return { call };
+    return withConversationAccess(conversationId, { profileId: callerProfileId, authUid }, {
+        allowCreate: true, repair: true, peerHint: receiverProfileId, requirePeer: true,
+    }, async (tx, access) => {
+        if (!access.other)
+            throw new HttpsError('permission-denied', 'The recipient is not part of this conversation');
+        if (await isConversationPairBlocked(tx, { profileId: callerProfileId, authUid }, access.other)) {
+            throw new HttpsError('permission-denied', 'You cannot call this user');
+        }
+        const verifiedCall = { ...call, receiver_id: access.other.profileId, is_group_call: access.isGroup };
+        tx.create(ref, verifiedCall);
+        return { call: verifiedCall };
+    });
 });
 //# sourceMappingURL=calls.js.map
