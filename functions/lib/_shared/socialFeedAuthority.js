@@ -11,13 +11,15 @@ export function normalizeSocialFeedInput(raw, uid) {
     const row = raw;
     if (row.expectedOwnerUid !== uid)
         throw new HttpsError('failed-precondition', 'Your account changed. Reopen the feed.');
-    if (!validAudienceId(row.expectedProfileId) || Object.keys(row).some(key => !['expectedOwnerUid', 'expectedProfileId', 'cursor'].includes(key))
+    if (!validAudienceId(row.expectedProfileId) || Object.keys(row).some(key => !['expectedOwnerUid', 'expectedProfileId', 'cursor', 'contentType'].includes(key))
+        || (row.contentType !== undefined && !['post', 'short', 'video'].includes(row.contentType))
         || (row.cursor !== undefined && (typeof row.cursor !== 'string' || !/^[a-f0-9]{48}$/.test(row.cursor)))) {
         throw new HttpsError('invalid-argument', 'Invalid feed selection.');
     }
     return row;
 }
 const text = (value, max) => typeof value === 'string' && value.length <= max ? value : null;
+const counter = (value) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
 function httpsUrl(value) {
     if (typeof value !== 'string' || value.length > 8192)
         return null;
@@ -97,6 +99,8 @@ function projectPost(id, row, admission) {
     return {
         id, type: row.type, caption, createdAt,
         mediaUrl, mediaUrls: mediaUrls.map(url => httpsUrl(url)), thumbnailUrl: httpsUrl(row.thumbnail_url), ageRating,
+        // Presentation snapshots only; these counters never establish permission or reward eligibility.
+        likeCount: counter(row.like_count), commentCount: counter(row.comment_count), viewCount: counter(row.view_count), isPinned: row.is_pinned === true,
         tags: Array.isArray(row.tags) ? row.tags.filter((tag) => typeof tag === 'string' && tag.length <= 100).slice(0, 30) : [],
         author: { id: author.profileId, username, displayName: text(author.row.display_name, 200), avatarUrl: httpsUrl(author.row.avatar_url) },
     };
@@ -118,6 +122,7 @@ export async function readSocialFeedPage(db, uid, raw, nowMs = Date.now()) {
             if (!cursor || cursor.version !== 1 || cursor.owner_uid !== uid || cursor.profile_id !== viewer.profileId
                 || !(cursor.expires_at instanceof Timestamp) || cursor.expires_at.toMillis() <= nowMs
                 || typeof cursor.post_id !== 'string' || !cursor.post_id || cursor.post_id.includes('/') || Buffer.byteLength(cursor.post_id) > 1500
+                || (cursor.content_type ?? null) !== (input.contentType ?? null)
                 || !Object.hasOwn(cursor, 'created_at'))
                 throw new HttpsError('failed-precondition', 'This feed page expired. Refresh the feed.');
             query = query.startAfter(cursor.created_at, cursor.post_id);
@@ -128,6 +133,8 @@ export async function readSocialFeedPage(db, uid, raw, nowMs = Date.now()) {
         const posts = [];
         for (const post of candidates) {
             const row = post.data();
+            if (input.contentType && row.type !== input.contentType)
+                continue;
             // Historical aliases may identify the same account; conflicting owners cannot.
             if (!validAudienceId(row.author_id))
                 continue;
@@ -140,6 +147,28 @@ export async function readSocialFeedPage(db, uid, raw, nowMs = Date.now()) {
             if (projected)
                 posts.push(projected);
         }
+        // Only enrich admitted posts. Never fetch raw post documents again on the client.
+        // One query per viewer alias avoids Firestore's Cartesian IN-query limit.
+        const reactions = new Map();
+        const bookmarks = new Set();
+        if (posts.length) {
+            const ids = posts.map(post => post.id);
+            for (const alias of viewer.aliases) {
+                const [likes, saved] = await Promise.all([
+                    tx.get(db.collection('likes').where('user_id', '==', alias).where('post_id', 'in', ids).limit(101)),
+                    tx.get(db.collection('bookmarks').where('user_id', '==', alias).where('post_id', 'in', ids).limit(101)),
+                ]);
+                if (likes.size > 100 || saved.size > 100)
+                    throw new HttpsError('resource-exhausted', 'Feed interactions need repair. Please contact support.');
+                for (const like of likes.docs) {
+                    const row = like.data();
+                    if (!reactions.has(row.post_id))
+                        reactions.set(row.post_id, ['like', 'love', 'care', 'haha', 'wow', 'sad', 'angry'].includes(row.reaction_type) ? row.reaction_type : 'like');
+                }
+                for (const savedPost of saved.docs)
+                    bookmarks.add(savedPost.data().post_id);
+            }
+        }
         let nextCursor = null;
         const last = candidates.at(-1);
         if (snapshot.size > PAGE_SIZE && last) {
@@ -147,11 +176,12 @@ export async function readSocialFeedPage(db, uid, raw, nowMs = Date.now()) {
             // retain it privately so a bad row cannot permanently strand pagination.
             tx.create(db.collection('_social_feed_cursors').doc(newCursor), {
                 version: 1, owner_uid: uid, profile_id: viewer.profileId, post_id: last.id,
-                created_at: last.data().created_at, expires_at: Timestamp.fromMillis(nowMs + CURSOR_TTL),
+                created_at: last.data().created_at, content_type: input.contentType ?? null, expires_at: Timestamp.fromMillis(nowMs + CURSOR_TTL),
             });
             nextCursor = newCursor;
         }
-        return { ownerUid: uid, viewerProfileId: viewer.profileId, posts, nextCursor };
+        return { ownerUid: uid, viewerProfileId: viewer.profileId, contentType: input.contentType ?? null,
+            posts: posts.map(post => ({ ...post, reactionType: reactions.get(post.id) ?? null, isBookmarked: bookmarks.has(post.id) })), nextCursor };
     });
 }
 //# sourceMappingURL=socialFeedAuthority.js.map

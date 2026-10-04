@@ -1,7 +1,6 @@
 import { db } from '@/lib/firebase';
 import {
   deleteDocument,
-  getDocument,
   getDocumentFromServer,
   getDocuments,
   setDocument,
@@ -30,10 +29,17 @@ function isMissingDocError(err: unknown): boolean {
 }
 
 async function safeDeleteLike(id: string): Promise<void> {
+  // Missing rows have no owner for Firestore rules to authorize. Do not issue
+  // speculative deletes for the unused UID/profile alias of a new reaction.
+  if (!await getDocumentFromServer('likes', id)) return;
   try {
     await deleteDocument('likes', id);
   } catch (err) {
-    if (!isMissingDocError(err)) throw err;
+    if (isMissingDocError(err)) return;
+    // Another tab may have removed it after our read. Suppress only confirmed
+    // absence; an actual permission failure or offline read remains a failure.
+    if (/permission.denied|insufficient permissions/i.test(String(err)) && !await getDocumentFromServer('likes', id)) return;
+    throw err;
   }
 }
 
@@ -44,17 +50,17 @@ async function findLikeRows(
   const merged = new Map<string, { id?: string; created_at?: string; user_id?: string }>();
 
   for (const uid of userIds) {
-    const byDoc = await getDocument<{ id?: string; created_at?: string; user_id?: string }>(
+    const byDoc = await getDocumentFromServer<{ id?: string; created_at?: string; user_id?: string }>(
       'likes',
       likeDocId(uid, postId),
-    ).catch(() => null);
+    );
     if (byDoc?.id) merged.set(byDoc.id, byDoc);
 
     const rows = await getDocuments<{ id?: string; created_at?: string; user_id?: string }>('likes', [
       where('user_id', '==', uid),
       where('post_id', '==', postId),
       firestoreLimit(20),
-    ]).catch(() => []);
+    ]);
 
     for (const row of rows) {
       if (row.id) merged.set(row.id, row);
@@ -276,6 +282,8 @@ export function patchReactionInFeedCaches(
     if (!p || p.id !== postId) return p;
     return {
       ...p,
+      like_count: Math.max(0, (typeof p.like_count === 'number' && Number.isFinite(p.like_count) ? p.like_count : 0)
+        + (reactionType !== null ? 1 : 0) - (p.is_liked === true ? 1 : 0)),
       is_liked: reactionType !== null,
       reaction_type: reactionType,
     };
@@ -306,6 +314,7 @@ export function patchReactionInFeedCaches(
   queryClient.setQueriesData({ queryKey: ['personalized-feed'] }, patchInfinite);
   queryClient.setQueriesData({ queryKey: ['personalized-feed-v2'] }, patchInfinite);
   queryClient.setQueriesData({ queryKey: ['infinite-posts'] }, patchInfinite);
+  queryClient.setQueriesData({ queryKey: ['social-feed'] }, patchInfinite);
   queryClient.setQueriesData({ queryKey: ['infinite-following'] }, patchInfinite);
   queryClient.setQueriesData({ queryKey: ['infinite-following-posts'] }, patchInfinite);
   queryClient.setQueriesData({ queryKey: ['clips-viewer-feed'] }, patchInfinite);

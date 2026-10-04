@@ -28,6 +28,7 @@ const POST_QUERY_KEYS = [
 
 const POST_DELETE_KEYS = [
   ...POST_QUERY_KEYS,
+  ['social-feed'],
   ['saved-posts'],
   ['local-feed'],
 ] as const;
@@ -60,6 +61,8 @@ export function usePostsRealtime() {
   const patchPostUpdate = useCallback((updated: Record<string, unknown>) => {
     const postId = typeof updated.id === 'string' ? updated.id : null;
     if (!postId) return;
+    // Raw updates are not audience receipts. Re-read this feed through its callable.
+    void queryClient.invalidateQueries({ queryKey: ['social-feed'] });
     queryClient.setQueryData(['post', postId], (old: unknown) =>
       old && typeof old === 'object' ? { ...(old as object), ...updated } : old,
     );

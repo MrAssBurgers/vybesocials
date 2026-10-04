@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, Globe, Sparkles, LayoutGrid, Eye, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
-import { useInfinitePosts, useInfiniteFollowingPosts, usePersonalizedFeed, usePrefetchPosts } from '@/hooks/useInfinitePosts';
+import { useInfiniteFollowingPosts, usePersonalizedFeed, usePrefetchPosts } from '@/hooks/useInfinitePosts';
+import { useSocialFeed } from '@/hooks/useSocialFeed';
 import { useLocalFeed } from '@/hooks/useLocalFeed';
 import type { Post } from '@/hooks/useInfinitePosts';
 import { useDNAPreferences } from '@/hooks/useDNAPreferences';
@@ -109,15 +110,12 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const isGlobalTab = activeTab === 'global';
   const isLocalTab = activeTab === 'local';
 
-  const [globalVisited, setGlobalVisited] = useState(false);
   const [localVisited, setLocalVisited] = useState(false);
 
   useEffect(() => {
-    if (isGlobalTab) setGlobalVisited(true);
     if (isLocalTab) setLocalVisited(true);
   }, [isGlobalTab, isLocalTab]);
 
-  const loadGlobalFeed = globalVisited || isGlobalTab;
   const loadLocalFeed = localVisited || isLocalTab;
 
   // Personalized feed — only while For You tab is active
@@ -152,7 +150,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     hasNextPage: hasNextGlobal,
     isFetchingNextPage: isFetchingNextGlobal,
     refetch: refetchGlobal,
-  } = useInfinitePosts('post', undefined, { enabled: loadGlobalFeed });
+  } = useSocialFeed('post', isGlobalTab);
 
   const {
     data: localData,
@@ -258,7 +256,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const handleRefresh = useCallback(async () => {
     clearNewPosts();
     if (activeTab === 'global') {
-      queryClient.invalidateQueries({ queryKey: ['infinite-posts'] });
+      queryClient.invalidateQueries({ queryKey: ['social-feed'] });
       await refetchGlobal();
     } else if (activeTab === 'local') {
       queryClient.invalidateQueries({ queryKey: ['local-feed'] });

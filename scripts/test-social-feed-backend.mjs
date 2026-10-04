@@ -41,7 +41,7 @@ try {
   await check('callable rejects guests, account changes and malformed inputs before rate work', async () => {
     await assert.rejects(readSocialFeed.run({ data: {} }), { code: 'unauthenticated' });
     await assert.rejects(readSocialFeed.run({ auth: { uid: viewer.uid }, data: request(author) }), { code: 'failed-precondition' });
-    for (const patch of [{ admin: true }, { cursor: 'wrong/path' }, { expectedProfileId: [] }]) await assert.rejects(read(viewer, patch), { code: 'invalid-argument' });
+    for (const patch of [{ admin: true }, { cursor: 'wrong/path' }, { expectedProfileId: [] }, { contentType: ['post'] }, { contentType: 'unknown' }]) await assert.rejects(read(viewer, patch), { code: 'invalid-argument' });
     assert.equal((await db.collection('_rate_limits').get()).size, 0);
   });
   await check('returns only projected content with canonical author and viewer identities', async () => {
@@ -63,6 +63,29 @@ try {
       await seed('one', patch); assert.equal((await read()).posts.length, 0);
     }
     await clearPosts(); await seed(); await resetPolicy();
+  });
+  await check('presentation keeps only the current viewer interactions and safe counter snapshots', async () => {
+    await seed('one', { like_count: 8, comment_count: -3, view_count: '999', is_pinned: true });
+    await db.doc('likes/own-reaction').set({ user_id: viewer.uid, post_id: 'one', reaction_type: 'love' });
+    await db.doc('likes/foreign-reaction').set({ user_id: author.profile, post_id: 'one', reaction_type: 'angry' });
+    await db.doc('bookmarks/own-save').set({ user_id: viewer.profile, post_id: 'one' });
+    const page = await read(viewer, { contentType: 'post' });
+    assert.equal(page.contentType, 'post');
+    assert.deepEqual([page.posts[0].likeCount, page.posts[0].commentCount, page.posts[0].viewCount, page.posts[0].isPinned], [8, 0, 0, true]);
+    assert.equal(page.posts[0].reactionType, 'love'); assert.equal(page.posts[0].isBookmarked, true);
+    const other = await read(author); assert.equal(other.posts[0].reactionType, 'angry'); assert.equal(other.posts[0].isBookmarked, false);
+    await db.doc('likes/own-reaction').delete(); await db.doc('likes/foreign-reaction').delete(); await db.doc('bookmarks/own-save').delete(); await seed();
+  });
+  await check('content-type pages retain continuation through excluded clips and bind cursor selection', async () => {
+    await clearPosts();
+    await Promise.all(Array.from({ length: 21 }, (_, i) => seed(`clip-${i}`, { type: 'short', media_url: 'https://example.test/clip.mp4' })));
+    await seed('older-post', { created_at: '2026-10-03T12:00:00.000Z' });
+    const first = await read(viewer, { contentType: 'post' }); assert.equal(first.posts.length, 0); assert.ok(first.nextCursor);
+    await assert.rejects(read(viewer, { cursor: first.nextCursor, contentType: 'short' }), { code: 'failed-precondition' });
+    await assert.rejects(read(viewer, { cursor: first.nextCursor }), { code: 'failed-precondition' });
+    const next = await read(viewer, { contentType: 'post', cursor: first.nextCursor });
+    assert.deepEqual(next.posts.map(post => post.id), ['older-post']); assert.equal(next.nextCursor, null);
+    await clearPosts(); await seed();
   });
   await check('accepted canonical friendships and directional current Close Friends proof are required', async () => {
     await preference.set({ fields: { posts: 'close_friends' } });

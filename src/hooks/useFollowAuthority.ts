@@ -11,7 +11,7 @@ export function useFollowAuthority(targetId?: string) {
     refetchOnMount: 'always', refetchInterval: 15000,
     queryFn: () => readFollowState({ ...actor, targetId: targetId! }, account.guard) });
   const mutation = useMutation({ mutationFn: (input: FollowWrite) => writeFollow({ ...actor, ...input }, account.guard),
-    onSuccess: (result, input) => { account.guard(); for (const key of ['follow-authority', 'follow-management', 'profile', 'hover-profile', 'following-posts', 'follower-count']) void client.invalidateQueries({ queryKey: [key] });
+    onSuccess: (result, input) => { account.guard(); for (const key of ['follow-authority', 'follow-management', 'profile', 'hover-profile', 'following-posts', 'follower-count', 'social-feed']) void client.invalidateQueries({ queryKey: [key] });
       if (input.action === 'request' && result.state === 'following' && result.revision > input.revision) void recordChallengeActivity(actor.expectedProfileId, 'follow');
     } });
   return { ...account, query, mutation };

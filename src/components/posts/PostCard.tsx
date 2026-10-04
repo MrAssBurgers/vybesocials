@@ -432,6 +432,7 @@ export const PostCard = memo(function PostCard({
         ? [currentReaction]
         : [];
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
+  useEffect(() => { setIsBookmarked(post.is_bookmarked); }, [post.id, post.is_bookmarked]);
   const [showHeart, setShowHeart] = useState(false);
   const [showLikeParticles, setShowLikeParticles] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -1032,7 +1033,8 @@ export const PostCard = memo(function PostCard({
           <button
             onClick={handleBookmark}
             className="relative flex items-center justify-center h-10 w-10 rounded-xl active:scale-90 transition-[transform,background-color] hover:bg-foreground/5"
-            aria-label="Save"
+            aria-label={isBookmarked ? 'Unsave post' : 'Save post'}
+            aria-pressed={isBookmarked}
           >
             <Bookmark
               className={cn(

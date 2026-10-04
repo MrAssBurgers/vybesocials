@@ -689,6 +689,7 @@ export function useCreatePost() {
       const actorGuard = _post?.[POST_ACTOR_GUARD] as TokenAccountGuard | undefined;
       try { actorGuard?.(); } catch { return; }
       queryClient.invalidateQueries({ queryKey: ['posts'] });
+      queryClient.invalidateQueries({ queryKey: ['social-feed'] });
       // Profile counts are cached separately from profile post grids. Refresh
       // them so a successful publish never leaves “0 Posts” beside a visible post.
       queryClient.invalidateQueries({ queryKey: ['profile'] });

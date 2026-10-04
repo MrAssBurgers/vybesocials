@@ -2,6 +2,29 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Global feed uses current audience admission
+
+### What changed
+- Home's Global tab now reads `readSocialFeed` through a strict account/profile-bound client instead of the legacy raw-post RPC. Added content-type-bound cursors, safe presentation counters, and current-viewer reactions/bookmarks read only for admitted posts. Added the bookmark interaction index. Counters remain presentation snapshots, not trusted engagement or reward evidence.
+- The Global reader preserves continuation across filtered empty pages, uses the existing retry/load-more UI, rejects malformed or mismatched receipts, and has no legacy fallback. Account changes, leaving Global and document hiding clear rendered content; returning uses a fresh generation. Failed authority refreshes hide stale content. Queries are excluded from disk writes and old snapshot restoration. Follow/post changes invalidate this reader without merging raw updates into its approved content.
+- The actual walkthrough exposed a pre-existing reaction cleanup bug: a saved like was reported as failed when its absent legacy alias could not satisfy owner-only delete rules. Cleanup now verifies absence using server reads and distinguishes a concurrent deletion from a genuine permission failure. Read errors are no longer mistaken for missing reactions. Reaction cache patches also preserve the displayed count when changing emoji or rolling back. Saved-post controls expose their state accessibly and follow refreshed server state.
+
+### Verification
+- **299 files / 2,849 tests passed**. Functions build, app typecheck, full lint, scoped final lint and CSS/boot checks passed; lint retains **0 errors / 5 inherited warnings**. Final app entry **app-BIp1o0Zz.js: 1069.6 KiB raw / 322.3 KiB gzip**, within budget.
+- Real isolated emulator feed fixture passed **14 grouped checks**, now including viewer-specific interaction projection, malformed counter normalization, type filtering through an empty page and cursor selection substitution denial. The existing follow fixture passed **10 grouped checks**. Isolated emulator stopped successfully and never used live-preview storage.
+- Synthetic Alice/Bob browser test: Global showed the public text post and excluded the `only_me` post; like/unlike and save/unsave succeeded after the cleanup fix; reopening retained the server's reaction/bookmark state. Changing the visible post to `only_me` removed it without a page reload; restoring public access made it visible again. No new reaction error appeared after the fix. Screenshot: workspace outputs `vybe-global-feed.png`.
+- Both explicitly marked synthetic posts and their test interactions remain in the demo for further migration checks. Preview export: ignored `work/local-preview/global-feed-verified-checkpoint-export`. Production accounts and services were not changed.
+- Previous main **2ca4164c** passed CI **37197894729** and Rules QA **37197894763**. This checkpoint's exact remote checks are inspected after pushing.
+
+### Release limits and next 3 tasks
+- **Global only:** the walkthrough directly confirmed that the old For You reader still exposed the synthetic `only_me` post. For You/Following, Local, profile/explore/ranked/share-preview paths and raw rules remain to be migrated; do not claim global privacy. Legacy media URLs, age authority, private interaction endpoints, deep-scroll read costs, delayed browser timers and physical devices remain release work. The new reader polls visible pages every 30 seconds; long sessions can reach the existing callable rate limit and show retry rather than raw fallback.
+- No production deployment or Lovable Publish. Stage the matching callable/client/indexes together; never deploy all Functions or change production auth2faRequest. Full integration feed access still requires reviewed consent, age and controlled media delivery.
+1. Migrate For You/Following and Local while preserving ranking/location behavior, then close remaining raw content paths and implement controlled media/age policy.
+2. Complete embedded feed consent and game/mod adapters with native lifecycle verification.
+3. Continue mini-app and soft UI audits (including the preview's white story tile), then selective staging/device verification. The original goal remains active and unfulfilled.
+
+---
+
 ## ACTIVE (2026-10-04) - Author-approved follows and follower management
 
 ### What changed
