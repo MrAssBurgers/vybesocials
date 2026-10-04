@@ -1,3 +1,4 @@
+import { useDraftContinuationGuard } from '@/hooks/useDraftContinuationGuard';
 import { CommentLoadError } from '@/components/comments/CommentLoadError';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useRef } from 'react';
@@ -262,6 +263,7 @@ function PostDetailContent() {
   const submitSafetyReport = useSafetyReport(id);
   const [newComment, setNewComment] = useState('');
   const [commentGifUrl, setCommentGifUrl] = useState<string | null>(null);
+  const captureCommentSend = useDraftContinuationGuard(JSON.stringify([id, newComment, commentGifUrl]));
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [reportReason, setReportReason] = useState('');
@@ -421,16 +423,22 @@ function PostDetailContent() {
     e.preventDefault();
     if ((!newComment.trim() && !commentGifUrl) || !post || !profile) return;
 
-    await createComment.mutateAsync({
-      postId: post.id,
-      text: newComment,
-      authorId: post.author.id,
-      imageUrl: commentGifUrl || undefined,
-    });
+    if (createComment.isPending) return;
+    const current = captureCommentSend();
+    if (!current()) return;
+    try {
+      await createComment.mutateAsync({
+        postId: post.id,
+        text: newComment,
+        authorId: post.author.id,
+        imageUrl: commentGifUrl || undefined,
+      });
 
-    setNewComment('');
-    setCommentGifUrl(null);
-    toast.success('Comment added!');
+      if (!current()) return;
+      setNewComment('');
+      setCommentGifUrl(null);
+      toast.success('Comment added!');
+    } catch { /* Mutation displays the error; keep the draft available to retry. */ }
   };
 
   const handleReport = async () => {
