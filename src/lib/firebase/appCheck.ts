@@ -7,6 +7,7 @@ import {
 } from 'firebase/app-check';
 import { getFirebaseApp } from './app';
 import { isFirebaseConfigured } from './config';
+import { isLocalPreview } from './localPreview';
 
 let initialized = false;
 let tokenVerified = false;
@@ -38,6 +39,7 @@ function buildProvider(siteKey: string) {
  * Web uses reCAPTCHA Enterprise or v3; native providers are configured in Firebase Console.
  */
 export function initFirebaseAppCheck(): void {
+  if (isLocalPreview()) return;
   if (initialized || typeof window === 'undefined') return;
   if (!isFirebaseConfigured()) return;
 

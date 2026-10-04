@@ -28,6 +28,7 @@ const controller = new AbortController();
 
 // Generate once for this exact capture and persist for network retries.
 const captureKey = crypto.randomUUID();
+let allocatedCaptureId: string | null = null;
 const capture = await vybe.stageCapture({
   gameId: 'your-registered-game',
   idempotencyKey: captureKey,
@@ -36,6 +37,8 @@ const capture = await vybe.stageCapture({
   caption: 'That last-second finish!',
   tags: ['racing', 'highlights'],
   signal: controller.signal,
+  onCaptureReserved: id => { allocatedCaptureId = id; }, // Retain for explicit discard.
+  onPhase: phase => updateCaptureStatus(phase), // preparing/uploading/verifying/ready
   onProgress: fraction => updateUploadProgress(fraction),
 });
 
@@ -49,7 +52,9 @@ const latest = await vybe.getCapture(capture.captureId);
 if (latest.status === 'imported') showPublished(latest.postId);
 ```
 
-`stageCapture` checks for an already uploaded file before attempting another upload. Reuse the same key and exact metadata/bytes after a network failure. Changing metadata under an existing key is rejected; the bytes themselves are not hashed by the SDK, so never reuse a key for another same-sized capture. To cancel an in-flight upload, abort the controller. To discard its private draft too, call `discardCapture(captureId)` if the ID is available; otherwise it expires automatically.
+`stageCapture` checks for an already uploaded file before attempting another upload. Reuse the same key and exact metadata/bytes after a network failure. Changing metadata under an existing key is rejected; the bytes themselves are not hashed by the SDK, so never reuse a key for another same-sized capture. `onCaptureReserved` exposes the capture ID as soon as allocation returns, before media upload. Retain it with the original key. To cancel an in-flight upload, abort the controller, then explicitly call `discardCapture(allocatedCaptureId)` if the player also wants to discard the private draft. Cancellation alone does not discard it. If no allocation response arrived, retry the same key and original media to recover the ID, or let the draft expire.
+
+Progress measures bytes, while `onPhase` distinguishes preparing, uploading, verifying, and ready. A progress value of 1 can precede a failed verification. Offer review only after `stageCapture` resolves; a `ready` capture is still private. In VYBE, failed acknowledgement syncing has a receipt-only retry. After a publish/discard error, the screen checks for an already committed post; when that lookup is unavailable, the original error remains and a retry uses the same deterministic post identity. The screen prevents updates from a prior account/route visit and shows the capture's actual expiry.
 
 The Firebase SDK handles token refresh, callable serialization, and resumable media transfer. Initialize App Check in the game when the project's Storage policy requires it. Never embed service-account files, admin tokens, or another person's Firebase token. See the official [callable SDK documentation](https://firebase.google.com/docs/functions/callable) and [Unity Storage upload documentation](https://firebase.google.com/docs/storage/unity/upload-files).
 

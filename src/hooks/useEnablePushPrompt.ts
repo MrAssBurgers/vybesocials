@@ -1,8 +1,11 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { usePushNotifications } from './usePushNotifications';
 import { useAuth } from '@/lib/auth';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { checkDespiaPushPermission } from '@/lib/despiaOneSignal';
+import { useCrashReportConsentState } from '@/lib/crashReportConsent';
+import { readDevicePreference, subscribeDevicePreference, writeDevicePreference } from '@/lib/devicePreferences';
+import { useOptionalPromptBlocked } from './useOptionalPromptBlocked';
 
 const SNOOZE_KEY = 'vybe_push_prompt_snoozed_until';
 const DISABLED_KEY = 'vybe_push_prompt_disabled';
@@ -10,8 +13,8 @@ const SNOOZE_DAYS = 30;
 
 function isSnoozed(): boolean {
   try {
-    if (localStorage.getItem(DISABLED_KEY) === '1') return true;
-    const raw = localStorage.getItem(SNOOZE_KEY);
+    if (readDevicePreference(DISABLED_KEY) === '1') return true;
+    const raw = readDevicePreference(SNOOZE_KEY);
     if (!raw) return false;
     const until = new Date(raw).getTime();
     return Number.isFinite(until) && until > Date.now();
@@ -32,69 +35,67 @@ export function useEnablePushPrompt() {
   } = usePushNotifications();
 
   const [ready, setReady] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [snoozed, setSnoozed] = useState(isSnoozed);
   const [despiaPushEnabled, setDespiaPushEnabled] = useState<boolean | null>(null);
+  const consent = useCrashReportConsentState();
+  const generation = useRef(0);
+  const native = isDespiaRuntime();
 
   useEffect(() => {
-    const delayMs = isDespiaRuntime() ? 1_500 : 3_000;
-    const t = setTimeout(() => setReady(true), delayMs);
-    return () => clearTimeout(t);
+    const update = () => setSnoozed(isSnoozed());
+    const snooze = subscribeDevicePreference(SNOOZE_KEY, update);
+    const disable = subscribeDevicePreference(DISABLED_KEY, update);
+    update();
+    return () => { snooze(); disable(); };
   }, []);
 
   useEffect(() => {
-    if (!ready || !profile?.id || !isDespiaRuntime()) return;
-    void checkDespiaPushPermission().then((enabled) => {
-      setDespiaPushEnabled(enabled);
-      if (enabled === true) {
-        setOpen(false);
-        try { localStorage.setItem(DISABLED_KEY, '1'); } catch { /* */ }
-      }
-    });
-  }, [ready, profile?.id]);
+    generation.current++;
+    setReady(false);
+    setDespiaPushEnabled(null);
+    const delayMs = native ? 1_500 : 3_000;
+    const t = setTimeout(() => setReady(true), delayMs);
+    return () => { generation.current++; clearTimeout(t); };
+  }, [profile?.id, native]);
 
   useEffect(() => {
-    if (!ready) return;
-    if (!profile?.id) return;
-    if (!isSupported) return;
-    if (isCheckingSubscription) return;
-    if (isSubscribed) return;
-    if (isDespiaRuntime() && despiaPushEnabled === true) return;
-    if (!isDespiaRuntime() && permission === 'denied') return;
-    if (isSnoozed()) return;
-    setOpen(true);
-  }, [
-    ready,
-    profile?.id,
-    isSupported,
-    isCheckingSubscription,
-    isSubscribed,
-    permission,
-    despiaPushEnabled,
-  ]);
+    if (!ready || !profile?.id || !native) return;
+    let active = true;
+    void checkDespiaPushPermission().then((enabled) => {
+      if (!active) return;
+      setDespiaPushEnabled(enabled === true);
+      if (enabled === true) {
+        writeDevicePreference(DISABLED_KEY, '1');
+      }
+    }).catch(() => { if (active) setDespiaPushEnabled(false); });
+    return () => { active = false; };
+  }, [ready, profile?.id, native]);
 
   useEffect(() => {
     if (isSubscribed || permission === 'granted' || despiaPushEnabled === true) {
-      setOpen(false);
-      try { localStorage.setItem(DISABLED_KEY, '1'); } catch { /* */ }
+      writeDevicePreference(DISABLED_KEY, '1');
     }
   }, [isSubscribed, permission, despiaPushEnabled]);
 
   const onEnable = useCallback(async () => {
+    const started = generation.current;
     const ok = await subscribe();
-    if (ok) {
-      setOpen(false);
+    if (ok && started === generation.current) {
       setDespiaPushEnabled(true);
-      try { localStorage.setItem(DISABLED_KEY, '1'); } catch { /* */ }
+      writeDevicePreference(DISABLED_KEY, '1');
     }
   }, [subscribe]);
 
   const onDismiss = useCallback(() => {
-    try {
-      const until = new Date(Date.now() + SNOOZE_DAYS * 86400_000).toISOString();
-      localStorage.setItem(SNOOZE_KEY, until);
-    } catch { /* */ }
-    setOpen(false);
+    const until = new Date(Date.now() + SNOOZE_DAYS * 86400_000).toISOString();
+    writeDevicePreference(SNOOZE_KEY, until);
   }, []);
+
+  const eligible = ready && !!profile?.id && consent !== null && !snoozed
+    && isSupported && !isCheckingSubscription && !isSubscribed && permission !== 'granted'
+    && (native ? despiaPushEnabled === false : permission !== 'denied');
+  const blocked = useOptionalPromptBlocked('push', eligible);
+  const open = eligible && !blocked;
 
   return { open, onEnable, onDismiss, isLoading };
 }

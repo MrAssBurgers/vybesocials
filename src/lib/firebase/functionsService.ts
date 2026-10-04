@@ -2,6 +2,7 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getFirebaseApp } from './app';
 import { getFirebaseConfig } from './config';
 import { firebaseAuth } from './authService';
+import { isLocalPreview, LOCAL_PREVIEW_PORTS } from './localPreview';
 import type { FunctionInvokeResult, VybeAuthError } from './types';
 
 /**
@@ -119,6 +120,7 @@ export function invokeFunction<T = any>(
 
 export function getFunctionUrl(functionName: string): string {
   const { projectId, functionsRegion } = getFirebaseConfig();
+  if (isLocalPreview()) return `http://127.0.0.1:${LOCAL_PREVIEW_PORTS.functions}/${projectId}/${functionsRegion}/${functionName}`;
   return `https://${functionsRegion}-${projectId}.cloudfunctions.net/${functionName}`;
 }
 

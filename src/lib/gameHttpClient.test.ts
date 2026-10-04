@@ -237,6 +237,31 @@ describe('device authorization lifecycle', () => {
 });
 
 describe('private capture transport', () => {
+  it('returns the allocated public ID before upload so explicit cancellation can discard it', async () => {
+    const { client, calls } = harness(); await link(client);
+    const abort = new AbortController(); let reserved = '';
+    await expect(client.stageCapture(capture({ signal: abort.signal, onCaptureReserved: (id: string) => { reserved = id; abort.abort(); } }))).rejects.toMatchObject({ code: 'aborted' });
+    expect(reserved).toBe(ID); expect(calls.some(call => call.path.includes('/chunks/') || call.path.endsWith('/finish') || call.init.method === 'DELETE')).toBe(false);
+    await client.discardCapture(reserved); expect(calls.at(-1)).toMatchObject({ path: `/v1/captures/${ID}`, init: { method: 'DELETE' } });
+  });
+  it.each([false, true])('reports readiness only after a confirmed receipt (already ready: %s)', async alreadyReady => {
+    const { client } = harness(call => alreadyReady && call.path === '/v1/captures' ? json(receipt({ status: 'ready' })) : undefined);
+    await link(client); const phases: string[] = []; const reserved = vi.fn();
+    await client.stageCapture(capture({ onCaptureReserved: reserved, onPhase: (phase: string) => phases.push(phase) }));
+    expect(reserved).toHaveBeenCalledExactlyOnceWith(ID);
+    expect(phases).toEqual(alreadyReady ? ['preparing', 'ready'] : ['preparing', 'uploading', 'verifying', 'ready']);
+  });
+  it('does not describe fully transferred bytes as ready when final verification fails', async () => {
+    const { client } = harness(call => call.path.endsWith('/finish') ? failure('invalid_request', 400) : undefined);
+    await link(client); const phases: string[] = []; const progress = vi.fn();
+    await expect(client.stageCapture(capture({ onPhase: (phase: string) => phases.push(phase), onProgress: progress }))).rejects.toMatchObject({ code: 'invalid_request' });
+    expect(progress).toHaveBeenCalledWith(1); expect(phases).toEqual(['preparing', 'uploading', 'verifying']);
+  });
+  it('stops before uploading if the reservation callback starts a new account link', async () => {
+    const { client, calls } = harness(); await link(client); let replacement: Promise<unknown> | undefined;
+    await expect(client.stageCapture(capture({ onCaptureReserved: () => { replacement = client.startDeviceAuthorization(); } }))).rejects.toMatchObject({ code: 'authorization_changed' });
+    await replacement; expect(calls.some(call => call.path.includes('/chunks/') || call.path.endsWith('/finish'))).toBe(false);
+  });
   it('uploads exact chunks and checksums, reports progress, and returns only a safe review link', async () => {
     const media = new Uint8Array(PARTNER_CHUNK_BYTES + 19).fill(6);
     const onProgress = vi.fn();

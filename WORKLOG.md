@@ -2,6 +2,36 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-03) - Creator recovery, interaction polish and isolated live QA
+
+### What changed
+- Mini-app draft creation now retains one recovery identity across retries/reloads, preserves code after failures, and separates confirmed saves from publishing. A real emulator walkthrough found that an exact document-ID query denied a missing private draft; the final bounded owner-filtered range query accepts only the exact returned ID. Eight new real-rule cases verify missing, existing, neighboring and other-account identities without relaxing rules. Updating preview stops stale code and requires an explicit Run; Phone/Fit controls preserve the running frame. Mobile actions sit below the editor rather than cover it.
+- Game SDKs expose a capture identity before upload so failed/cancelled uploads can be discarded. Capture review validates receipts/downloads, handles expiry and publish/discard races, recovers acknowledged posts, and retries receipt synchronization without publishing twice. Account/route lifetimes suppress stale asynchronous UI. Unity is documented as a trusted first-party example; native/partner certification is not implied.
+- Theme changes apply immediately, with one short glow respecting reduced motion and low-performance preferences. Menus fit the viewport and have larger touch targets. Sound mute cancels queued playback, respects sound categories and cross-tab changes. Real live QA found crash-consent and push prompts competing for focus; they now queue, yield to existing dialogs and expose correct accessible titles.
+- The requested upgrade notice remains suppressed in app banners, announcements, notifications, realtime toasts and unread counts. Its old maintenance seeder now refuses all writes. The social push trigger also ignores only this retired notice before provider calls; unrelated announcements and personal content remain unchanged. Historical records were not deleted.
+- Added an explicit demo-only local preview with actual Auth, Firestore, Storage and 21 selected domain callables, synthetic users and a real game SDK fixture. Exact project/origin/port guards, separate session persistence and skipped normal auth-storage migrations protect real login backups. FCM module registration and App Check stay out of this preview; ordinary provider requests are blocked by its development CSP. Setup and limitations are in docs/LOCAL_PREVIEW_QA.md.
+
+### Verification
+- Final full Vitest: **189 files / 1,728 tests passed**. App and standalone SDK typechecks passed. Functions build passed after the push filter. Full lint: **0 errors**, the same 5 inherited unused-disable warnings. CSS/boot, bundle budget and static DM/inbox/camera contracts passed.
+- Final production build passed: entry **app-uE2vI38q.js**, **1,056,931 bytes raw / 316,693 bytes gzip** (1032.2 / 309.3 KiB), within 1125 / 335 KiB budgets.
+- Fresh isolated creator-rules run: **172 checks passed**, including eight new draft-recovery cases. No Firestore/Storage rules changed in this pass. Broader rules/transaction totals from the prior entry are prior-checkpoint evidence until the new GitHub run completes.
+- Actual SDK/client/Auth/Storage/Functions fixture: **5 flows passed**, covering upload verification, authenticated identical-byte download, same-key retry, another-account denial, and early-ID cancellation/idempotent discard. No fake success provider, Admin post creation or production access was used.
+- Live synthetic-account walkthrough: sequential crash No thanks / push Not now; mini-app save, confirmed publish, private draft update and unchanged public v2 snapshot all passed. Run/Stop/update/Phone/Fit controls render; 390px layout exposed and fixed the editor-covering action row. Nested-frame interaction automation could not safely click the game button, so gameplay interaction is not certified by that walkthrough.
+- The owner's production preview remains separate. No real posts, messages, purchases, gifts, equipment, permissions or provider sessions were mutated. Final proof image is retained in the workspace outputs as vybe-mini-app-live-test.png.
+
+### Release limits and remaining risks
+- **Source-only checkpoint; no production Functions/rules deployment or Lovable Publish. Never deploy all Functions or alter production auth2faRequest.** The new push suppression needs a reviewed selective rollout. Existing wallet/XP/community/provider migration requirements in prior entries still apply.
+- Browser capture review in the isolated preview still times out despite the direct SDK fixture passing and a direct unauthenticated endpoint probe responding promptly. Removing eager FCM registration improved isolation but did not resolve that browser timeout. Capture review/publish and shop purchase/equip walkthroughs remain unverified in this browser session. Do not describe these as passing end-to-end flows.
+- This preview deliberately excludes provider-backed moderation, email, push, billing, AI, scheduled triggers and partner HTTP upload. Normal moderated game publishing must remain fail-closed when its provider is unavailable. Native engines, production GCS composition, partner consent/revocation and actual sound quality still need device/provider validation.
+- CSP and nested-frame controls are not a complete arbitrary-code network/CPU/abuse sandbox. Mini-app runtime operational limits, quota/retention/moderation and broader responsive coverage remain. The goal stays active; this checkpoint does not certify the whole app as perfected or release-ready.
+
+### Next 3 tasks
+1. Diagnose the browser-only local callable timeout, then complete isolated game review/publish and wallet/shop/equipment UI flows with real service responses.
+2. Continue native/partner SDK certification and mini-app operational controls, followed by wider responsive, keyboard, reduced-motion and audio checks.
+3. Prepare the coordinated staging rollout and evidence-based wallet/XP/entitlement reconciliation described below, then selectively deploy reviewed services/rules before Lovable Publish.
+
+---
+
 ## ACTIVE (2026-10-03) - Verified wallet, token shop, inventory and reward fulfilment
 
 ### What changed

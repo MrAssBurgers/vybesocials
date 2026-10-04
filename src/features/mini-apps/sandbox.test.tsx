@@ -44,9 +44,21 @@ describe('mini app isolation', () => {
     expect(container.querySelector('iframe')!.getAttribute('sandbox')).toBe('allow-scripts');
     rerender(<MiniAppRunner source={{ ...source, html: '<h1>Edited code</h1>' }} />);
     expect(container.querySelector('iframe')!.srcdoc).toBe(document);
-    fireEvent.click(screen.getByRole('button', { name: 'Restart' }));
+    expect(screen.getByText('New code is ready. The running app has not changed.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Run latest' }));
     expect(container.querySelector('iframe')!.srcdoc).not.toBe(document);
     fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
     expect(container.querySelector('iframe')).toBeNull();
+  });
+  it('changes preview width without restarting authored runtime state', () => {
+    const { container } = render(<MiniAppRunner source={source} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Run app' }));
+    const frame = container.querySelector('iframe')!;
+    fireEvent.click(screen.getByRole('button', { name: 'Phone', exact: true }));
+    expect(frame.parentElement).toHaveStyle({ width: '320px' });
+    expect(container.querySelector('iframe')).toBe(frame);
+    fireEvent.click(screen.getByRole('button', { name: 'Fit', exact: true }));
+    expect(frame.parentElement).toHaveStyle({ width: '100%' });
+    expect(container.querySelector('iframe')).toBe(frame);
   });
 });

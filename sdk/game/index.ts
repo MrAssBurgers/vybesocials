@@ -1,6 +1,7 @@
 /** VYBE Game Capture SDK v1 — engine-neutral transport, no privileged keys. */
 export const CAPTURE_LIMIT_BYTES = 48 * 1024 * 1024;
 export type CaptureMime = 'image/png' | 'image/jpeg' | 'image/webp' | 'video/mp4' | 'video/webm';
+export type CapturePhase = 'preparing' | 'uploading' | 'verifying' | 'ready';
 export interface CaptureReceipt {
   captureId: string;
   status: 'uploading' | 'ready' | 'imported' | 'cancelled' | 'expired';
@@ -24,7 +25,12 @@ export interface CaptureRequest {
   caption?: string;
   tags?: string[];
   signal?: AbortSignal;
+  /** Bytes transferred only; 100% is not a ready or published acknowledgement. */
   onProgress?: (fraction: number) => void;
+  /** Persist this ID immediately so cancellation can discard the private draft. */
+  onCaptureReserved?: (captureId: string) => void;
+  /** "ready" means reviewable; only receipt.status === "imported" means published. */
+  onPhase?: (phase: CapturePhase) => void;
 }
 export interface GameCaptureTransport {
   call<T>(name: string, data: Record<string, unknown>): Promise<T>;
@@ -46,25 +52,37 @@ export class VybeGameClient {
     if (!Number.isSafeInteger(byteSize) || byteSize < 12 || byteSize > CAPTURE_LIMIT_BYTES) throw new Error('Captures must be between 12 bytes and 48 MiB.');
     if (!['image/png', 'image/jpeg', 'image/webp', 'video/mp4', 'video/webm'].includes(input.contentType)) throw new Error('Unsupported capture format.');
     if (!/^[A-Za-z0-9_-]{8,128}$/.test(input.idempotencyKey)) throw new Error('A unique upload key of 8–128 characters is required.');
+    input.onPhase?.('preparing'); aborted(input.signal);
     const receipt = await this.transport.call<CaptureReceipt>('createGameCapture', {
       gameId: input.gameId, idempotencyKey: input.idempotencyKey, contentType: input.contentType,
       byteSize, caption: input.caption ?? '', tags: input.tags ?? [],
     });
+    if (!/^[a-f0-9]{48}$/.test(receipt.captureId) || receipt.byteSize !== byteSize || receipt.contentType !== input.contentType || receipt.gameId !== input.gameId) throw new Error('Invalid capture response.');
+    input.onCaptureReserved?.(receipt.captureId);
     aborted(input.signal);
-    if (receipt.status === 'ready' || receipt.status === 'imported') return receipt;
+    if (receipt.status === 'ready' || receipt.status === 'imported') { input.onProgress?.(1); input.onPhase?.('ready'); return receipt; }
     if (receipt.status !== 'uploading') throw new Error('This capture is no longer available.');
     // A previous upload may have completed even if its network response was lost.
     // Probe before uploading again: storage intentionally refuses overwrites.
     try {
-      return await this.finishCapture(receipt.captureId);
+      input.onPhase?.('verifying'); aborted(input.signal);
+      const resumed = await this.finishCapture(receipt.captureId);
+      aborted(input.signal);
+      if (resumed.captureId !== receipt.captureId || !['ready', 'imported'].includes(resumed.status)) throw new Error('Capture verification was not confirmed.');
+      input.onProgress?.(1); input.onPhase?.('ready'); return resumed;
     } catch (error) {
       const details = typeof error === 'object' && error && 'details' in error ? error.details : null;
       if (!details || typeof details !== 'object' || !('reason' in details) || details.reason !== 'upload-required') throw error;
     }
     aborted(input.signal);
+    input.onPhase?.('uploading'); aborted(input.signal);
     await this.transport.upload(receipt, input.media, { signal: input.signal, onProgress: input.onProgress });
     aborted(input.signal);
-    return this.finishCapture(receipt.captureId);
+    input.onPhase?.('verifying'); aborted(input.signal);
+    const completed = await this.finishCapture(receipt.captureId);
+    aborted(input.signal);
+    if (completed.captureId !== receipt.captureId || !['ready', 'imported'].includes(completed.status)) throw new Error('Capture verification was not confirmed.');
+    input.onProgress?.(1); input.onPhase?.('ready'); return completed;
   }
 
   finishCapture(captureId: string) {

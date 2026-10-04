@@ -83,4 +83,28 @@ describe('game capture SDK', () => {
     await expect(sdk.stageCapture({ ...input, media: new Uint8Array(2) })).rejects.toThrow('48 MiB');
     expect(call).not.toHaveBeenCalled();
   });
+  it('exposes the allocated ID before upload so cancellation can discard it', async () => {
+    const { sdk, call, upload } = setup(); const controller = new AbortController();
+    call.mockResolvedValueOnce(receipt).mockResolvedValueOnce({ ok: true });
+    let allocated = '';
+    await expect(sdk.stageCapture({ ...input, signal: controller.signal, onCaptureReserved: id => { allocated = id; controller.abort(); } })).rejects.toThrow('cancelled');
+    expect(allocated).toBe(receipt.captureId); expect(upload).not.toHaveBeenCalled();
+    await sdk.discardCapture(allocated); expect(call).toHaveBeenLastCalledWith('discardGameCapture', { captureId: allocated });
+  });
+  it('separates transfer completion from verified readiness', async () => {
+    const { sdk, call, upload } = setup(); const phases: string[] = [];
+    call.mockResolvedValueOnce(receipt).mockRejectedValueOnce({ details: { reason: 'upload-required' } }).mockRejectedValueOnce(new Error('Verification unavailable'));
+    upload.mockImplementationOnce(async (receipt, media, options) => options.onProgress?.(1));
+    const progress = vi.fn();
+    await expect(sdk.stageCapture({ ...input, onPhase: phase => phases.push(phase), onProgress: progress })).rejects.toThrow('Verification unavailable');
+    expect(progress).toHaveBeenCalledWith(1); expect(phases).toEqual(['preparing', 'verifying', 'uploading', 'verifying']); expect(phases).not.toContain('ready');
+  });
+  it('does not announce readiness for an aborted verification or wrong receipt', async () => {
+    const { sdk, call } = setup(); const controller = new AbortController(); const phases: string[] = [];
+    call.mockResolvedValueOnce(receipt).mockImplementationOnce(async () => { controller.abort(); return { ...receipt, status: 'ready' }; });
+    await expect(sdk.stageCapture({ ...input, signal: controller.signal, onPhase: phase => phases.push(phase) })).rejects.toThrow('cancelled');
+    expect(phases).not.toContain('ready');
+    call.mockResolvedValueOnce(receipt).mockResolvedValueOnce({ ...receipt, captureId: 'b'.repeat(48), status: 'ready' });
+    await expect(sdk.stageCapture(input)).rejects.toThrow('not confirmed');
+  });
 });

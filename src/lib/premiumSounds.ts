@@ -52,6 +52,12 @@ const BUNDLED_BY_TYPE: Partial<Record<PremiumSoundType, string>> = {
   callRing: VYBE_SOUNDS.callRing,
 };
 
+const CATEGORY_BY_TYPE: Record<PremiumSoundType, SoundMixCategory> = {
+  messageSend: 'messages', messageReceive: 'messages', notification: 'messages',
+  tap: 'ui', toggle: 'ui', success: 'ui', error: 'ui',
+  callRing: 'calls', callConnect: 'calls', callEnd: 'calls',
+};
+
 function normalizeSoundSettings(value: unknown): SoundSettings {
   const parsed = value && typeof value === 'object' ? value as Partial<SoundSettings> : {};
   return {
@@ -122,7 +128,9 @@ function shouldDebounce(soundId: string, minInterval = 500): boolean {
 }
 
 let audioContext: AudioContext | null = null;
-const activeOscillators: Set<OscillatorNode> = new Set();
+const activeOscillators = new Map<OscillatorNode, SoundMixCategory>();
+// Muting invalidates pending downloads/silent-mode checks, even if quickly unmuted.
+const categoryGeneration: Record<SoundMixCategory, number> = { messages: 0, calls: 0, ui: 0 };
 const audioBufferCache = new Map<string, AudioBuffer>();
 const activePlayers = new Map<() => void, SoundMixCategory>();
 let preloadPromise: Promise<void> | null = null;
@@ -203,14 +211,16 @@ export async function playCustomAudio(
   cancelled: () => boolean = () => false,
 ): Promise<{ stop: () => void } | null> {
   if (cancelled() || !isCategoryEnabled(category)) return null;
+  const generation = categoryGeneration[category];
+  const isCancelled = () => cancelled() || generation !== categoryGeneration[category];
   const { shouldPlayNotificationSound } = await import('@/lib/deviceSilentMode');
-  if (cancelled() || !(await shouldPlayNotificationSound(category))) return null;
+  if (isCancelled() || !(await shouldPlayNotificationSound(category)) || isCancelled()) return null;
   const ctx = getAudioContext();
   if (!ctx) return null;
   try {
     const buffer = await loadBuffer(url);
     // Download/decoding may finish after a call ends or the user turns sound off.
-    if (!buffer || cancelled() || !isCategoryEnabled(category)) return null;
+    if (!buffer || isCancelled() || !isCategoryEnabled(category)) return null;
     const source = ctx.createBufferSource();
     const gain = ctx.createGain();
     const bus = getSoundOutputBus(ctx);
@@ -251,16 +261,19 @@ async function playBundledUrl(
   category: SoundMixCategory,
   options?: { loop?: boolean; volume?: number; debounceMs?: number; cancelled?: () => boolean },
 ): Promise<{ stop: () => void } | null> {
+  if (!isCategoryEnabled(category)) return null;
+  const generation = categoryGeneration[category];
+  const cancelled = () => !!options?.cancelled?.() || generation !== categoryGeneration[category];
   const debounceMs = options?.debounceMs ?? 150;
   if (shouldDebounce(url, debounceMs)) return null;
 
   const ok = await import('@/lib/deviceSilentMode').then((m) =>
     m.shouldPlayNotificationSound(category),
   );
-  if (!ok || !isCategoryEnabled(category)) return null;
+  if (!ok || cancelled() || !isCategoryEnabled(category)) return null;
 
   void preloadVybeSounds();
-  return playCustomAudio(url, options?.loop ?? false, options?.volume, category, options?.cancelled);
+  return playCustomAudio(url, options?.loop ?? false, options?.volume, category, cancelled);
 }
 
 function playSynth(soundType: PremiumSoundType, cancelled: () => boolean = () => false): void {
@@ -286,9 +299,11 @@ function playSynth(soundType: PremiumSoundType, cancelled: () => boolean = () =>
   };
 
   const config = configs[soundType];
+  if (!isCategoryEnabled(config.category)) return;
+  const generation = categoryGeneration[config.category];
   void import('@/lib/deviceSilentMode').then(({ shouldPlayNotificationSound }) =>
     shouldPlayNotificationSound(config.category).then((allowed) => {
-      if (cancelled() || !allowed || !isCategoryEnabled(config.category)) return;
+      if (cancelled() || generation !== categoryGeneration[config.category] || !allowed || !isCategoryEnabled(config.category)) return;
       if (shouldDebounce(soundType, 150)) return;
       const ctx = getAudioContext();
       if (!ctx) return;
@@ -315,7 +330,7 @@ function playSynth(soundType: PremiumSoundType, cancelled: () => boolean = () =>
         gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
         osc.start(start);
         osc.stop(start + dur + 0.02);
-        activeOscillators.add(osc);
+        activeOscillators.set(osc, config.category);
         osc.onended = () => {
           activeOscillators.delete(osc);
           osc.disconnect();
@@ -330,7 +345,7 @@ function playSynth(soundType: PremiumSoundType, cancelled: () => boolean = () =>
 export function playPremiumSound(soundType: PremiumSoundType): void {
   const bundled = BUNDLED_BY_TYPE[soundType];
   if (bundled) {
-    const category = soundType === 'success' ? 'ui' : soundType === 'callRing' ? 'calls' : 'messages';
+    const category = CATEGORY_BY_TYPE[soundType];
     void playBundledUrl(bundled, category).catch(() => playSynth(soundType));
     return;
   }
@@ -340,10 +355,7 @@ export function playPremiumSound(soundType: PremiumSoundType): void {
 export function previewSound(soundType: PremiumSoundType): void {
   const bundled = BUNDLED_BY_TYPE[soundType];
   if (bundled) {
-    const category =
-      soundType === 'callRing' || soundType === 'callConnect' || soundType === 'callEnd'
-        ? 'calls'
-        : 'messages';
+    const category = CATEGORY_BY_TYPE[soundType];
     void playCustomAudio(bundled, false, undefined, category);
     return;
   }
@@ -444,6 +456,7 @@ export async function startRingback(): Promise<void> {
 
 export function stopAllCallSounds(): void {
   callSoundGeneration++;
+  categoryGeneration.calls++;
   if (callRingInterval) {
     clearInterval(callRingInterval);
     callRingInterval = null;
@@ -460,19 +473,36 @@ export function stopAllCallSounds(): void {
     bundledRingPlayer.stop();
     bundledRingPlayer = null;
   }
-  activeOscillators.forEach((osc) => {
+  activePlayers.forEach((category, stop) => { if (category === 'calls') stop(); });
+  stopSynthCategory('calls');
+  import('./callSounds').then((m) => m.stopAllCallSounds()).catch(() => {});
+}
+
+function stopSynthCategory(category: SoundMixCategory): void {
+  activeOscillators.forEach((activeCategory, osc) => {
+    if (activeCategory !== category) return;
+    activeOscillators.delete(osc);
     try {
       osc.stop();
     } catch { /* ignore */ }
   });
-  activeOscillators.clear();
-  import('./callSounds').then((m) => m.stopAllCallSounds()).catch(() => {});
 }
 
 subscribeDevicePreference(SOUND_SETTINGS_KEY, () => {
+  (['messages', 'calls', 'ui'] as const).forEach(category => {
+    if (!isCategoryEnabled(category)) {
+      categoryGeneration[category]++;
+      stopSynthCategory(category);
+    }
+  });
   activePlayers.forEach((category, stop) => {
     if (!isCategoryEnabled(category)) stop();
   });
+  if (!isCategoryEnabled('messages')) {
+    if (messageDebounceTimer) clearTimeout(messageDebounceTimer);
+    messageDebounceTimer = null;
+    pendingMessageCount = 0;
+  }
   if (!isCategoryEnabled('calls')) stopAllCallSounds();
 });
 

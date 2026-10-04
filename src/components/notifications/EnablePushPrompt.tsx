@@ -8,7 +8,7 @@ export function EnablePushPrompt() {
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onDismiss(); }}>
-      <DialogContent className="max-w-sm bg-card border-border">
+      <DialogContent className="max-w-sm bg-card border-border" data-vybe-optional-prompt="push">
         <DialogHeader className="items-center text-center">
           <div className="w-14 h-14 rounded-full bg-primary/15 flex items-center justify-center mb-2">
             <Bell className="w-7 h-7 text-primary" />

@@ -52,6 +52,7 @@ Use a unique key for each capture and keep that key, the original media, and its
 const upload = new AbortController();
 const captureKey = crypto.randomUUID();
 const originalMedia: Blob = await getEncodedGameCapture();
+let allocatedCaptureId: string | null = null;
 
 const capture = {
   idempotencyKey: captureKey,
@@ -65,6 +66,12 @@ try {
   const receipt = await vybe.stageCapture({
     ...capture,
     signal: upload.signal,
+    onCaptureReserved(id) {
+      allocatedCaptureId = id; // Save with the original capture key and bytes.
+    },
+    onPhase(phase) {
+      showCapturePhase(phase); // preparing, uploading, verifying, or ready
+    },
     onProgress(fraction) {
       showUploadProgress(Math.round(fraction * 100));
     },
@@ -81,7 +88,7 @@ The game supplies `getEncodedGameCapture` and the UI callbacks. Encoding or reco
 
 Every chunk has a SHA-256 checksum. The create request also binds the whole-file SHA-256 to the idempotency key. Server-side immutable chunk handling lets identical retries recover lost acknowledgements; different content with the same key fails with `conflict`. Transient network, service, and rate-limit failures receive at most two automatic retries per capture request. Each network attempt has a 30-second timeout. Retry delays honor the server's bounded retry interval. Backoff longer than sixty seconds returns the error immediately for the game to handle, preserving `retryAfter` up to one day; the SDK does not shorten a daily limit into a rapid retry. Device polling never continues past the code's expiration.
 
-Progress measures uploaded bytes. A progress value of 1 is not confirmation that final verification has succeeded: wait for `stageCapture()` to resolve before offering the review link. A receipt contains capture status and public game metadata, without the owner's Firebase UID or private storage path. The SDK rebuilds review links on `https://vybehub.app` rather than trusting a server-provided URL.
+Progress measures uploaded bytes. A progress value of 1 is not confirmation that final verification has succeeded: `onPhase` reports `verifying` during the final check and `ready` only after a confirmed receipt. Wait for `stageCapture()` to resolve before offering the review link. Ready means available for private review; only `receipt.status === 'imported'` means published. A receipt contains capture status and public game metadata, without the owner's Firebase UID or private storage path. The SDK rebuilds review links on `https://vybehub.app` rather than trusting a server-provided URL.
 
 ## Status, cancel, discard, and revoke
 
@@ -97,7 +104,7 @@ await vybe.discardCapture(captureId); // Explicitly discard this connection's ca
 await vybe.revokeConnection();       // Revoke this connection and clear local access.
 ```
 
-Only captures created by the active connection are accessible. A published/imported capture cannot be discarded through this API. Abort may happen after a server accepted a request, so check status or retry with the same key when the connection is still valid. If the game has not yet received a capture ID, repeating `stageCapture()` with the same key and original bytes recovers that receipt.
+Only captures created by the active connection are accessible. A published/imported capture cannot be discarded through this API. `onCaptureReserved` delivers the public capture ID before any chunks are sent; save it for status and explicit discard if an upload is interrupted. Abort may happen after a server accepted a request, so check status or retry with the same key when the connection is still valid. If the allocation response itself was interrupted and the callback never ran, repeating `stageCapture()` with the same key and original bytes recovers that receipt. Cancellation does not silently delete media or revoke the connection.
 
 Access lasts at most ten minutes from player approval. There are no refresh tokens. Expired or revoked access produces `invalid_token`; the game must request a new link. A new connection has its own capture namespace and cannot resume or inspect uploads owned by an earlier connection. The player can still review eligible captures in VYBE while they remain available there.
 
@@ -120,5 +127,21 @@ Access lasts at most ten minutes from player approval. There are no refresh toke
 | `invalid_response` | Stop and report a protocol/configuration problem without logging response secrets. |
 
 Bearer requests are sent only to paths under the configured fixed endpoint. Fetch uses `redirect: 'error'`, omits cookies and referrers, and rejects a redirected response or changed response URL. Any custom fetch implementation must honor these settings; response checks cannot undo a credential leak caused by a broken polyfill that already followed a redirect. Do not substitute a general proxy or a fetch wrapper that forwards Authorization across hosts.
+
+## Native engine implementation map
+
+For Unity, Unreal, or a console engine, implement the same [partner HTTP contract](PARTNER_GAME_API.md) using the engine's HTTPS client and SHA-256 library. The existing `sdk/game/unity/VybeGameCapture.cs` is a **trusted first-party Firebase example**; third-party publishers must not copy its authentication model. This repository does not yet ship a compiled native partner plugin.
+
+| Player-facing state | Native integration step | Retain / verify |
+|---|---|---|
+| Connect VYBE | `POST /v1/device/code`, display the public code and official browser link | Keep `deviceCode` in memory only; never put it in a URL or analytics |
+| Waiting for approval | Poll `POST /v1/device/token` at the stated interval | Respect pending/slow-down/expiry; keep the resulting bearer in memory only |
+| Preparing capture | Encode the original media; calculate its SHA-256; `POST /v1/captures` | Persist the public capture ID and immutable original key/metadata; no Firebase account token |
+| Uploading | `PUT` numbered 8 MiB chunks with each SHA-256 | Verify the returned index, size and checksum; repeat identical bytes after a lost acknowledgement |
+| Verifying | `POST /v1/captures/{id}/finish` | Do not show ready merely because all chunks were transferred |
+| Ready for review | Show an explicit browser button to the official capture URL | The player signs into VYBE and chooses Publish; the game cannot publish |
+| Published / discarded | `GET /v1/captures/{id}` while the original connection is live | Use the server status; a browser opening or an upload completing is not publication |
+
+Marshal progress/UI callbacks onto the engine's main thread. Stop outstanding work when the local player changes. Keep authorization headers out of telemetry, disable redirects before sending credentials, enforce request timeouts, and show a deliberate retry after cancellation. Once the ten-minute connection expires, re-linking creates a different namespace: do not automatically resend an old capture as though it resumed. Offer the previously saved VYBE review link for an already-ready draft, or explain that a new upload creates a separate private capture. Console browser availability, deep-link return behavior, codec playback, memory limits, actual GCS composition, and platform review still require staging/native testing.
 
 Automated mocked-transport tests are in [`src/lib/gameHttpClient.test.ts`](../src/lib/gameHttpClient.test.ts). Run `npm test -- --run src/lib/gameHttpClient.test.ts`. These cover consent timing, cancellation, credential expiry, relinking, six-chunk uploads, checksum binding, retry recovery, redirect defenses, error redaction, and receipt privacy. A real engine integration and staging consent/upload/review walkthrough are still required before a partner release.

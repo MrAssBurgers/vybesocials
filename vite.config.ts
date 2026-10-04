@@ -7,6 +7,8 @@ import { despiaLocalPlugin } from '@despia/local/vite';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
+  const localQa = env.VITE_FIREBASE_EMULATORS === 'true';
+  if ((mode === 'local-qa' || localQa) && (!localQa || mode !== 'local-qa' || env.VITE_FIREBASE_PROJECT_ID !== 'demo-vybe-preview')) throw new Error('Use local-qa mode, VITE_FIREBASE_EMULATORS=true and demo-vybe-preview for the isolated preview.');
   // Always emit despia/local.json (Native Offline). VITE_OFFLINE_MODE=pwa only
   // affects client SW strategy — never skip the Despia manifest or deployed_at stalls.
   const offlineMode = env.VITE_OFFLINE_MODE || 'despia-local';
@@ -40,8 +42,11 @@ export default defineConfig(({ mode }) => {
       port: 8080,
       strictPort: false,
       open: false,
+      // Block ordinary HTTP/resource/WebSocket calls to live providers in QA.
+      // This is not a general network sandbox for arbitrary user-authored code.
+      ...(localQa ? { headers: { 'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; img-src 'self' data: blob: http://127.0.0.1:*; media-src 'self' blob: http://127.0.0.1:*; font-src 'self' data:; frame-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'" } } : {}),
       // Local QA profiles and scratch artifacts can contain OS-locked files.
-      watch: { ignored: [normalizePath(path.resolve(__dirname, 'work')) + '/**'] },
+      watch: { ignored: [normalizePath(path.resolve(__dirname, 'work')) + '/**', '**/*.test.ts', '**/*.test.tsx'] },
     },
     define: {
       ...firebaseDefine,

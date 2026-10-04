@@ -25,6 +25,8 @@ import {
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { getFirebaseApp } from './app';
+import { connectLocalPreviewAuth } from './emulators';
+import { isLocalPreview } from './localPreview';
 import { getFirebaseConfig, isFirebaseConfigured } from './config';
 import {
   clearMirroredAuth,
@@ -66,6 +68,7 @@ function currentApiKey(): string {
 }
 
 async function settleAuthStorage(): Promise<void> {
+  if (isLocalPreview()) return;
   const apiKey = currentApiKey();
   if (!apiKey) return;
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
@@ -74,11 +77,12 @@ async function settleAuthStorage(): Promise<void> {
 
 function resolveAuth(): Auth | null {
   if (!isFirebaseConfigured()) return null;
-  if (!isAuthStorageReady()) return null;
-  if (authInstance) return authInstance;
+  const localPreview = isLocalPreview();
+  if (!localPreview && !isAuthStorageReady()) return null;
+  if (authInstance) { connectLocalPreviewAuth(authInstance); return authInstance; }
   const app = getFirebaseApp();
   const apiKey = currentApiKey();
-  if (typeof localStorage !== 'undefined' && apiKey) {
+  if (!localPreview && typeof localStorage !== 'undefined' && apiKey) {
     seedFirebaseAuthFromBackup(localStorage, apiKey);
   }
   try {
@@ -88,7 +92,8 @@ function resolveAuth(): Auth | null {
       typeof navigator !== 'undefined' &&
       prefersLocalAuthPersistence(navigator.userAgent || '');
     authInstance = initializeAuth(app, {
-      persistence: mobile
+      // Demo sessions remain in this tab and never enter the normal recovery mirror.
+      persistence: localPreview ? [browserSessionPersistence] : mobile
         ? [browserLocalPersistence, browserSessionPersistence]
         : [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence],
     });
@@ -96,10 +101,12 @@ function resolveAuth(): Auth | null {
     // HMR / duplicate init — reuse existing Auth on the app
     authInstance = getAuth(app);
   }
+  connectLocalPreviewAuth(authInstance);
   return authInstance;
 }
 
 function rememberAuthUser(user: FirebaseUser | null) {
+  if (isLocalPreview()) return;
   if (!user || typeof localStorage === 'undefined') return;
   const apiKey = currentApiKey();
   if (!apiKey) return;
@@ -492,7 +499,7 @@ export const firebaseAuth = {
       // Always clear local Firebase persistence. A prior "local = no-op" stub left
       // firebase:authUser:* in localStorage so logout → refresh restored the session.
       await firebaseSignOut(auth);
-      if (typeof localStorage !== 'undefined') {
+      if (!isLocalPreview() && typeof localStorage !== 'undefined') {
         try {
           clearMirroredAuth(localStorage);
         } catch {

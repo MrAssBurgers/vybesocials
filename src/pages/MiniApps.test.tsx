@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,15 +7,16 @@ import MiniApps from './MiniApps';
 import { MINI_APP_TEMPLATES } from '@/features/mini-apps/templates';
 import type { MiniAppRecord, MiniAppSource } from '@/features/mini-apps/model';
 
-const state = vi.hoisted(() => ({ uid: 'alice', reducedMotion: false }));
+const state = vi.hoisted(() => ({ uid: 'alice', reducedMotion: false, systemReducedMotion: false, sound: vi.fn(), success: vi.fn() }));
 const repository = vi.hoisted(() => ({ list: vi.fn(), save: vi.fn(), publish: vi.fn(), unpublish: vi.fn(), get: vi.fn() }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: state.uid }, profile: { id: `${state.uid}-profile` } }) }));
 vi.mock('@/lib/theme', () => ({ useTheme: () => ({ reducedMotion: state.reducedMotion }) }));
 vi.mock('@/lib/firebase/firestoreDb', () => ({ getFirestoreDb: vi.fn() }));
-vi.mock('framer-motion', () => ({ useReducedMotion: () => false }));
+vi.mock('framer-motion', () => ({ useReducedMotion: () => state.systemReducedMotion }));
 vi.mock('@/components/layout/AppLayout', () => ({ AppLayout: ({ children }: { children: ReactNode }) => <div>{children}</div> }));
 vi.mock('@/lib/haptics', () => ({ triggerHaptic: vi.fn() }));
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock('@/lib/sounds', () => ({ playSound: state.sound }));
+vi.mock('sonner', () => ({ toast: { success: state.success, error: vi.fn() } }));
 vi.mock('@/features/mini-apps/repository', () => ({ listMiniApps: repository.list, saveMiniAppDraft: repository.save, publishMiniApp: repository.publish, unpublishMiniApp: repository.unpublish, getPublishedMiniApp: repository.get }));
 
 const record = (source: MiniAppSource, owner = 'alice'): MiniAppRecord => ({ ...source, id: 'app-1', owner_id: owner, schema_version: 1, created_at: { seconds: 1 } });
@@ -27,7 +28,7 @@ function mount() {
 }
 
 beforeEach(() => {
-  state.uid = 'alice'; state.reducedMotion = false;
+  state.uid = 'alice'; state.reducedMotion = false; state.systemReducedMotion = false;
   vi.clearAllMocks();
   repository.list.mockResolvedValue([]);
   repository.save.mockImplementation(async (owner: string, source: MiniAppSource) => record(source, owner));
@@ -48,12 +49,14 @@ describe('mini apps studio flow', () => {
     expect(container.querySelector('iframe')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(screen.getByText('Private draft saved')).toBeInTheDocument());
-    expect(repository.save).toHaveBeenCalledWith('alice', expect.objectContaining({ title: 'My small game' }), null);
+    expect(repository.save).toHaveBeenCalledWith('alice', expect.objectContaining({ title: 'My small game' }), null, expect.any(String));
     expect(repository.publish).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Publish to Hub' }));
     expect(repository.publish).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Publish app' }));
     await waitFor(() => expect(repository.publish).toHaveBeenCalledWith('alice', expect.objectContaining({ title: 'My small game', owner_id: 'alice' })));
+    expect(await screen.findByRole('link', { name: 'Open published app' })).toHaveAttribute('href', '/mini-apps/app-1');
+    expect(state.sound).toHaveBeenCalledWith('success');
   });
   it('tears down private source and a running iframe when the account changes', () => {
     const { client, container, rerender } = mount();
@@ -99,5 +102,91 @@ describe('mini apps studio flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
     fireEvent.click(screen.getByRole('button', { name: 'Run app' }));
     expect(container.querySelector('iframe')?.srcdoc).toContain('animation: none !important');
+    fireEvent.click(screen.getByRole('button', { name: 'Phone', exact: true }));
+    expect(container.querySelector('iframe')?.parentElement).toHaveStyle({ transition: 'none' });
+  });
+  it('stops the old preview and explicitly loads updated code before running it', () => {
+    const { container } = mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Build a mini app' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Preview', exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run app' }));
+    fireEvent.change(screen.getByLabelText('HTML code'), { target: { value: '<main>My updated app</main>' } });
+    expect(screen.getByText('Your code has changed. Update preview to load the latest version.')).toBeInTheDocument();
+    expect(container.querySelector('iframe')?.srcdoc).not.toContain('My updated app');
+    fireEvent.click(screen.getByRole('button', { name: 'Update preview' }));
+    expect(container.querySelector('iframe')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Run app' }));
+    expect(container.querySelector('iframe')?.srcdoc).toContain('My updated app');
+  });
+  it('preserves code and the pending identity across a failed save, navigation and retry', async () => {
+    repository.save.mockRejectedValueOnce(new Error('Response lost'));
+    const first = mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Build a mini app' }));
+    fireEvent.change(screen.getByLabelText('HTML code'), { target: { value: '<main>Keep my code</main>' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Response lost');
+    expect(screen.getByLabelText('HTML code')).toHaveValue('<main>Keep my code</main>');
+    const pendingId = repository.save.mock.calls[0][3];
+    first.unmount(); mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Build a mini app' }));
+    expect(screen.getByLabelText('HTML code')).toHaveValue('<main>Keep my code</main>');
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(2));
+    expect(repository.save.mock.calls[1][3]).toBe(pendingId);
+  });
+  it('keeps a successfully saved draft when publishing fails and offers an explicit retry', async () => {
+    repository.publish.mockRejectedValueOnce(new Error('Publishing unavailable'));
+    mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Build a mini app' }));
+    fireEvent.change(screen.getByLabelText('App name'), { target: { value: 'My retained app' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Publish to Hub' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Publish app' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Your private draft was saved, but publishing failed.');
+    expect(screen.getByText('Private draft saved')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open published app' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('App name')).toHaveValue('My retained app');
+    expect(state.sound).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry publishing' }));
+    expect(await screen.findByRole('link', { name: 'Open published app' })).toBeInTheDocument();
+    expect(repository.save.mock.calls[1][2]).toMatchObject({ id: 'app-1', title: 'My retained app' });
+  });
+  it('supports keyboard save and preview shortcuts without running code automatically', async () => {
+    const { container } = mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Build a mini app' }));
+    fireEvent.keyDown(screen.getByLabelText('HTML code'), { key: 's', ctrlKey: true });
+    await screen.findByText('Private draft saved');
+    fireEvent.keyDown(screen.getByLabelText('HTML code'), { key: 'Enter', metaKey: true });
+    expect(screen.getByRole('button', { name: 'Run app' })).toBeInTheDocument();
+    expect(container.querySelector('iframe')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Wrap code' }));
+    expect(screen.getByLabelText('HTML code')).toHaveAttribute('wrap', 'off');
+  });
+  it.each(['app', 'system'])('respects %s reduced motion when bringing the preview into view', preference => {
+    if (preference === 'app') state.reducedMotion = true; else state.systemReducedMotion = true;
+    const previous = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView');
+    const scroll = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scroll });
+    try {
+      mount();
+      fireEvent.click(screen.getByRole('button', { name: 'Build a mini app' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Preview', exact: true }));
+      expect(scroll).toHaveBeenCalledWith({ behavior: 'auto', block: 'start' });
+      expect(screen.getByText('Latest code loaded. Choose Run app to start it.').parentElement).toHaveFocus();
+    } finally {
+      if (previous) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', previous);
+      else delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
+  });
+  it('does not announce an old account unpublish result in the next account', async () => {
+    let finish!: () => void;
+    repository.list.mockResolvedValue([{ ...record(MINI_APP_TEMPLATES[0].source), status: 'published' }]);
+    repository.unpublish.mockReturnValue(new Promise<void>(resolve => { finish = resolve; }));
+    const { client, rerender } = mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Unpublish', exact: true }));
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Unpublish', exact: true }));
+    await waitFor(() => expect(repository.unpublish).toHaveBeenCalled());
+    state.uid = 'bob'; rerender(view(client)); finish();
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(state.success).not.toHaveBeenCalled();
   });
 });

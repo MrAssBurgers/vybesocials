@@ -10,6 +10,7 @@ import {
   type NotificationPrefKey,
 } from './_shared/pushPreferences.js';
 import { logPushDelivery, shouldSkipRecipientPush } from './_shared/smartPushGate.js';
+import { isRetiredUpgradeNotice } from './_shared/retiredUpgradeNotice.js';
 
 function asString(value: unknown): string | undefined {
   if (typeof value === 'string' && value.trim()) return value.trim();
@@ -424,6 +425,9 @@ function routeForNotificationDoc(n: Record<string, unknown>, type: string): stri
 }
 
 async function notifySocialPush(notification: Record<string, unknown>, notificationId: string): Promise<void> {
+  // Retired announcements must never reach a push provider or recipient lookup.
+  if (isRetiredUpgradeNotice(notification)
+    || isRetiredUpgradeNotice({ type: notification.type, id: notificationId })) return;
   const type = (asString(notification.type) || 'general').toLowerCase();
   if (SKIP_BELL_PUSH_TYPES.has(type)) return;
   if (!SOCIAL_PUSH_TYPES.has(type) && type !== 'general') return;

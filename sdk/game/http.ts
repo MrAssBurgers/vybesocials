@@ -192,7 +192,7 @@ export class VybePartnerClient {
   async stageCapture(input: PartnerCaptureRequest): Promise<PartnerCaptureReceipt> {
     const session = this.#requireSession();
     checkAbort(input.signal);
-    const { contentType, idempotencyKey, caption = '', signal, onProgress } = input;
+    const { contentType, idempotencyKey, caption = '', signal, onProgress, onCaptureReserved, onPhase } = input;
     if (input.tags !== undefined && !Array.isArray(input.tags)) throw new VybePartnerError('invalid_request');
     if (!(input.media instanceof Uint8Array) && (!input.media || typeof input.media.arrayBuffer !== 'function')) throw new VybePartnerError('invalid_request');
     const tags = input.tags === undefined ? [] : [...input.tags];
@@ -200,6 +200,7 @@ export class VybePartnerClient {
     if (!Number.isSafeInteger(byteSize) || byteSize < 12 || byteSize > MAX_CAPTURE_BYTES
       || !MIME_TYPES.includes(contentType) || !/^[A-Za-z0-9_-]{8,128}$/.test(idempotencyKey)) throw new VybePartnerError('invalid_request');
     if (typeof caption !== 'string' || caption.length > 2200 || tags.length > 10 || tags.some(tag => typeof tag !== 'string' || tag.length > 40)) throw new VybePartnerError('invalid_request');
+    onPhase?.('preparing'); checkAbort(signal);
     // Snapshot caller-owned bytes so hashes/retries cannot change mid-upload.
     const media = input.media instanceof Uint8Array ? new Uint8Array(input.media) : new Uint8Array(await input.media.arrayBuffer());
     if (media.byteLength !== byteSize) throw new VybePartnerError('invalid_request');
@@ -209,8 +210,10 @@ export class VybePartnerClient {
     const request = { idempotencyKey, contentType, byteSize, caption, tags, contentSha256 };
     const receipt = this.#receipt(await this.#request('/v1/captures', 'POST', { session, body: request, signal, retry: true }));
     if (receipt.byteSize !== byteSize || receipt.contentType !== contentType) throw new VybePartnerError('invalid_response');
-    if (receipt.status === 'ready' || receipt.status === 'imported') { onProgress?.(1); return receipt; }
+    onCaptureReserved?.(receipt.captureId); checkAbort(signal); this.#checkSession(session);
+    if (receipt.status === 'ready' || receipt.status === 'imported') { onProgress?.(1); onPhase?.('ready'); return receipt; }
     if (receipt.status !== 'uploading') throw new VybePartnerError('expired_capture');
+    onPhase?.('uploading');
     for (let offset = 0, index = 0; offset < byteSize; offset += PARTNER_CHUNK_BYTES, index++) {
       checkAbort(signal);
       this.#checkSession(session);
@@ -220,8 +223,10 @@ export class VybePartnerClient {
       if (acknowledgement.index !== index || acknowledgement.byteSize !== bytes.byteLength || acknowledgement.sha256 !== checksum) throw new VybePartnerError('invalid_response');
       onProgress?.((offset + bytes.byteLength) / byteSize);
     }
+    onPhase?.('verifying'); checkAbort(signal); this.#checkSession(session);
     const completed = this.#receipt(await this.#request(`/v1/captures/${receipt.captureId}/finish`, 'POST', { session, body: {}, signal, retry: true }), receipt.captureId);
     if (!['ready', 'imported'].includes(completed.status) || completed.byteSize !== byteSize || completed.contentType !== contentType) throw new VybePartnerError('invalid_response');
+    onPhase?.('ready');
     return completed;
   }
 

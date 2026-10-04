@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clearMiniAppRecovery, readMiniAppRecovery, saveMiniAppRecovery } from './recovery';
+import { clearMiniAppRecovery, readMiniAppRecovery, readMiniAppRecoveryEntry, saveMiniAppRecovery } from './recovery';
 import { MINI_APP_TEMPLATES } from './templates';
 
 describe('private local mini app recovery', () => {
@@ -19,6 +19,15 @@ describe('private local mini app recovery', () => {
   });
   it('rejects corrupt recovery input', () => {
     localStorage.setItem('vybe.mini-app.recovery.alice.new', '{oops');
+    expect(readMiniAppRecovery('alice')).toBeNull();
+  });
+  it('retains a pending draft identity only in its own account recovery', () => {
+    saveMiniAppRecovery('alice', MINI_APP_TEMPLATES[0].source, undefined, 'same-draft-after-reload');
+    expect(readMiniAppRecoveryEntry('alice')?.pendingId).toBe('same-draft-after-reload');
+    expect(readMiniAppRecoveryEntry('bob')).toBeNull();
+  });
+  it.each([undefined, 'bad', Date.now() + 86400000, Date.now() - 31 * 86400000])('rejects missing, malformed or expired recovery timestamps: %s', savedAt => {
+    localStorage.setItem('vybe.mini-app.recovery.alice.new', JSON.stringify({ source: MINI_APP_TEMPLATES[0].source, savedAt }));
     expect(readMiniAppRecovery('alice')).toBeNull();
   });
 });

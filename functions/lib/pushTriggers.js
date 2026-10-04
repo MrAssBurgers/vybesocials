@@ -4,6 +4,7 @@ import { dispatchDmPushToProfile, dispatchCallPushToProfile, messagePreview } fr
 import { resolvePushTargetProfileId } from './_shared/onesignalPush.js';
 import { isBlockedByQuietHours, isPushAllowedForType, loadNotificationPreferences, sanitizeDmPushBody, } from './_shared/pushPreferences.js';
 import { logPushDelivery, shouldSkipRecipientPush } from './_shared/smartPushGate.js';
+import { isRetiredUpgradeNotice } from './_shared/retiredUpgradeNotice.js';
 function asString(value) {
     if (typeof value === 'string' && value.trim())
         return value.trim();
@@ -379,6 +380,10 @@ function routeForNotificationDoc(n, type) {
     }
 }
 async function notifySocialPush(notification, notificationId) {
+    // Retired announcements must never reach a push provider or recipient lookup.
+    if (isRetiredUpgradeNotice(notification)
+        || isRetiredUpgradeNotice({ type: notification.type, id: notificationId }))
+        return;
     const type = (asString(notification.type) || 'general').toLowerCase();
     if (SKIP_BELL_PUSH_TYPES.has(type))
         return;

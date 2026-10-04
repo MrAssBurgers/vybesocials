@@ -3,6 +3,7 @@ import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { Check, ChevronRight, Circle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import "@/styles/interaction-controls.css";
 
 const DropdownMenu = DropdownMenuPrimitive.Root;
 
@@ -25,7 +26,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
   <DropdownMenuPrimitive.SubTrigger
     ref={ref}
     className={cn(
-      "flex cursor-default select-none items-center rounded-lg px-2 py-1.5 text-sm outline-none data-[state=open]:bg-accent focus:bg-accent",
+      "vybe-menu-item flex cursor-default select-none items-center rounded-lg px-2 py-1.5 text-sm outline-none data-[state=open]:bg-accent focus:bg-accent",
       inset && "pl-8",
       className,
     )}
@@ -41,16 +42,18 @@ const DropdownMenuSubContent = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.SubContent>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubContent>
 >(({ className, ...props }, ref) => (
-  <DropdownMenuPrimitive.SubContent
+  <DropdownMenuPrimitive.Portal>
+    <DropdownMenuPrimitive.SubContent
     ref={ref}
     className={cn(
-      "z-50 min-w-[8rem] overflow-hidden rounded-xl liquid-glass p-1.5 text-popover-foreground shadow-xl",
+      "vybe-menu-content z-50 min-w-[8rem] overflow-x-hidden overflow-y-auto overscroll-contain rounded-xl liquid-glass p-1.5 text-popover-foreground shadow-xl",
       "origin-[var(--radix-dropdown-menu-content-transform-origin)]",
       "data-[state=open]:animate-bubble-pop-in data-[state=closed]:animate-bubble-pop-out",
       className,
     )}
     {...props}
-  />
+    />
+  </DropdownMenuPrimitive.Portal>
 ));
 DropdownMenuSubContent.displayName = DropdownMenuPrimitive.SubContent.displayName;
 
@@ -63,7 +66,7 @@ const DropdownMenuContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        "z-50 min-w-[8rem] overflow-hidden rounded-xl liquid-glass p-1.5 text-popover-foreground shadow-xl",
+        "vybe-menu-content z-50 min-w-[8rem] overflow-x-hidden overflow-y-auto overscroll-contain rounded-xl liquid-glass p-1.5 text-popover-foreground shadow-xl",
         // Bubble pop animation - grows from trigger
         "origin-[var(--radix-dropdown-menu-content-transform-origin)]",
         "data-[state=open]:animate-bubble-pop-in data-[state=closed]:animate-bubble-pop-out",
@@ -84,7 +87,7 @@ const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex cursor-pointer select-none items-center rounded-lg px-3 py-2 text-sm outline-none transition-all duration-200 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-accent/50 focus:text-accent-foreground hover:bg-accent/30",
+      "vybe-menu-item relative flex cursor-pointer select-none items-center rounded-lg px-3 py-2 text-sm outline-none transition-colors duration-150 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-accent/50 focus:text-accent-foreground hover:bg-accent/30",
       inset && "pl-8",
       className,
     )}
@@ -100,7 +103,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-lg py-1.5 pl-8 pr-2 text-sm outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-accent focus:text-accent-foreground",
+      "vybe-menu-item relative flex cursor-default select-none items-center rounded-lg py-1.5 pl-8 pr-2 text-sm outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-accent focus:text-accent-foreground",
       className,
     )}
     checked={checked}
@@ -123,7 +126,7 @@ const DropdownMenuRadioItem = React.forwardRef<
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-lg py-1.5 pl-8 pr-2 text-sm outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-accent focus:text-accent-foreground",
+      "vybe-menu-item relative flex cursor-default select-none items-center rounded-lg py-1.5 pl-8 pr-2 text-sm outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-accent focus:text-accent-foreground",
       className,
     )}
     {...props}

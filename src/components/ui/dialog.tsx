@@ -68,7 +68,6 @@ const DialogContent = React.forwardRef<
         style={{ position: 'relative', margin: 0, inset: 'auto', ...(style || {}) }}
         {...props}
       >
-        <DialogPrimitive.Title className="sr-only">Dialog</DialogPrimitive.Title>
         <div className="vybe-dialog-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain p-6">
           {children}
         </div>

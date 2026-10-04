@@ -2,6 +2,13 @@
 
 Open **Create → Hub → Mini Apps**, or `/mini-apps`. Signed-in members can start with a tap game, idea picker, or color tool, edit HTML/CSS/JavaScript, explicitly run a preview, save private drafts, and publish a snapshot. Published apps have a `/mini-apps/:appId` URL. Readers choose **Run app** before any creator code executes.
 
+## Creator workflow
+
+- **Preview** loads a validated code snapshot and brings its controls into view. **Update preview** stops the previous runtime, loads the latest editor content, and waits for another explicit **Run app**. Editing source never silently replaces a running app.
+- **Phone** constrains the preview to 320px (or the available width on smaller screens); **Fit** restores the container width without restarting runtime state. The host's width transition and scroll behavior respect reduced motion. Code wrapping is optional; Ctrl/Command+S saves and Ctrl/Command+Enter prepares a preview while editing.
+- **Save draft** confirms the private write. **Publish** separately confirms the community snapshot and then provides **Open published app**. If publishing fails after saving, the studio says that the private draft is safe and offers an explicit publishing retry. Failure leaves authored source in the editor.
+- Draft retries reuse a pending document identity, including recovery after navigation/reload when local storage is available. An owner-filtered `owner_id` + document-ID query finds a previously committed draft before retrying a lost acknowledgement, preserving its creation time. A confirmed save does not depend on a second read succeeding. Blocked browser storage still preserves source and retry identity while the studio remains mounted, but cannot provide reload recovery.
+
 ## Persistence and deployment
 
 - Firebase is the only backend. Deploy the new `mini_app_drafts` and `mini_apps` rules before enabling publishing on a deployed client.
@@ -29,6 +36,6 @@ Reduced-motion preferences from both the device and VYBE are propagated into pre
 
 `npm exec vitest -- run src/features/mini-apps src/pages/MiniApps.test.tsx`
 
-Covers schema/size checks, ownership checks, published-only queries, draft/snapshot isolation, unpublish preservation, explicit-run behavior, outer/inner sandbox attributes, hostile delimiter containment, reduced motion, account-switch teardown, stale save completion, confirmation before publishing, and local recovery boundaries. Firestore emulator enforcement tests are maintained separately with the rules.
+Covers schema/size checks, ownership/session checks (including switching away and back), published-only queries, draft/snapshot isolation, lost-acknowledgement retries, unpublish preservation, explicit-run and stale-preview behavior, phone width without runtime restart, outer/inner sandbox attributes, hostile delimiter containment, reduced motion, account-switch teardown, stale save completion, partial publishing failure, confirmation before publishing, keyboard shortcuts, and local recovery boundaries. Firestore emulator enforcement tests are maintained separately with the rules.
 
 Browser checks should verify a template's controls, Stop/Restart, a 320px viewport, denied fetch and storage access, denied parent access, disabled WebRTC entry points, and attempted self-navigation being blocked by the outer CSP. Unit tests cannot establish browser sandbox enforcement on their own.

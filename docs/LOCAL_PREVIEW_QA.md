@@ -1,0 +1,112 @@
+# Isolated local preview QA
+
+This setup runs VYBE against **`demo-vybe-preview` only**. It uses synthetic accounts and real local Firebase Auth, Firestore, Storage and selected Cloud Functions. It is not staging, does not use the owner's signed-in account, and must never be deployed.
+
+Run the PowerShell blocks below from the repository root, in three separate terminals. Keep existing production preview tabs untouched. Open only `http://127.0.0.1:8082` for these tests, preferably in a fresh browser profile or private window. Do not use `npm run dev` without the explicit mode and environment below: normal development uses the repository's ordinary Firebase configuration.
+
+## Fixed endpoints and prerequisites
+
+| Service | Exact local endpoint |
+|---|---|
+| Vite app | `http://127.0.0.1:8082` |
+| Auth emulator | `127.0.0.1:9199` |
+| Firestore emulator | `127.0.0.1:8280` |
+| Storage emulator | `127.0.0.1:9399` |
+| Functions emulator | `127.0.0.1:5101` |
+| Emulator hub / logging | `127.0.0.1:4500` / `127.0.0.1:4600` |
+| Firebase project / bucket | `demo-vybe-preview` / `demo-vybe-preview.appspot.com` |
+
+The local emulator run was verified with Firebase CLI **15.28.2**, Java **21.0.8**, and Node **24.20.0** on Windows. Functions still declare Node 20 as their deployment runtime; this local result is not deployment runtime certification. Java must be available on `PATH`. Firebase CLI may download emulator binaries on the first run. No `firebase login`, service account, provider key, production secret, or cloud project creation is needed.
+
+Use fresh PowerShell terminals without inherited provider credentials. Do not supply production credential files or change auth/provider settings to make a missing feature appear to work. If a fixed port is occupied, identify the existing process and reuse only a confirmed instance of this demo environment, or stop the known test process in its terminal. Do not kill unrelated processes or allow the app to silently move to another port.
+
+## Terminal 1: build the selected Functions and start emulators
+
+Install dependencies if not already installed. The app's peer dependency exception matches existing CI:
+
+```powershell
+npm ci --legacy-peer-deps
+npm ci --prefix functions
+npm run build --prefix functions
+node scripts/qa/prepare-local-preview.mjs
+
+$env:GCLOUD_PROJECT = 'demo-vybe-preview'
+$env:FIREBASE_AUTH_EMULATOR_HOST = '127.0.0.1:9199'
+$env:FIRESTORE_EMULATOR_HOST = '127.0.0.1:8280'
+$env:FIREBASE_STORAGE_EMULATOR_HOST = '127.0.0.1:9399'
+$env:FUNCTIONS_EMULATOR_HOST = '127.0.0.1:5101'
+
+npx --yes firebase-tools@15.28.2 emulators:start --project demo-vybe-preview --config work/local-preview/firebase.json --only "auth,firestore,storage,functions"
+```
+
+Wait for all four emulators to report ready before continuing. Keep this terminal running. The helper generates a narrow Functions entry point, runtime guard, copied rules/indexes, and `firebase.json` under ignored `work/local-preview/`. Its dependency link points to the repository's installed Functions dependencies. It does not copy production credentials, invoke a deployment, or export every Function.
+
+After changing Functions source, rebuild it. After changing rules/indexes or the exported preview list, rerun the preparation script and restart this emulator session so the generated snapshot matches the source. Do not use the root production Firebase config or `npm run deploy`. The separate rules-test environment on other ports/project names is not this preview.
+
+## Terminal 2: seed synthetic users and run the game fixture
+
+The seed and game scripts check these environment values before loading Firebase clients:
+
+```powershell
+$env:GCLOUD_PROJECT = 'demo-vybe-preview'
+$env:FIREBASE_AUTH_EMULATOR_HOST = '127.0.0.1:9199'
+$env:FIRESTORE_EMULATOR_HOST = '127.0.0.1:8280'
+$env:FIREBASE_STORAGE_EMULATOR_HOST = '127.0.0.1:9399'
+$env:FUNCTIONS_EMULATOR_HOST = '127.0.0.1:5101'
+
+node scripts/qa/seed-local-preview.mjs
+node scripts/qa/test-game-capture-preview.mjs
+```
+
+| Synthetic sign-in | UID | Profile document |
+|---|---|---|
+| `alice@vybe.test` | `preview-alice` | `preview-profile-alice` |
+| `bob@vybe.test` | `preview-bob` | `preview-profile-bob` |
+
+Both use **`Vybe-local-preview-only-2026!`**, an intentionally public emulator-only password. Never create these credentials in production. The seed creates email-verified demo users, profiles/auth mappings, 1,000 test tokens per new wallet, local 2FA preferences, and the `preview-game` registration. Rerunning it preserves existing demo wallets and authored content; it refreshes the synthetic auth index mapping. It grants no staff roles or premium membership. Existing-user passwords are not reset by the seed.
+
+The game fixture compiles the actual source Firebase adapter into ignored `work/local-preview/game-sdk/`, signs in through the real Auth emulator, and checks:
+
+1. Private PNG staging through authenticated callables and Storage, including server verification.
+2. Owner-authenticated download with identical bytes.
+3. Same-key retry returns the original ready capture.
+4. Bob cannot read Alice's capture receipt.
+5. The early draft-ID callback permits cancellation followed by idempotent explicit discard.
+
+It leaves one ready synthetic capture for browser review and prints its **local** URL. The latest URL is also saved in `work/local-preview/game-sdk/latest-capture.json`. This file contains no access token or password. Each fixture run creates fresh test captures and counts against the real local capture quotas; the seed does not reset those quotas. The fixture does not publish a post, fake moderation success, or exercise partner GCS composition.
+
+## Terminal 3: start the isolated browser app
+
+```powershell
+$env:VITE_FIREBASE_EMULATORS = 'true'
+$env:VITE_FIREBASE_PROJECT_ID = 'demo-vybe-preview'
+
+npm run dev -- --mode local-qa --host 127.0.0.1 --port 8082 --strictPort
+```
+
+Open `http://127.0.0.1:8082`, sign in with a synthetic account, and use the fixture's local capture URL. Do not follow the SDK's public `vybehub.app` review URL for a demo capture: that origin is production and cannot read this emulator data. Use the printed loopback URL instead.
+
+The application accepts emulator mode only in a development build on loopback **port 8082**, with the exact demo project and flag. It configures Firestore, Storage and Functions before returning the shared Firebase app, then connects Auth before use. Raw Function URLs also route to the emulator. Reusing an already-initialized real project is rejected. A stored real auth backup or ordinary Firebase/Supabase auth key in local storage is rejected without deleting it; use a separate fresh origin/profile rather than clearing someone's login.
+
+Demo authentication uses tab-session persistence and skips the normal auth recovery mirror. App Check and push messaging initialization are disabled for this local mode. These branches do not change production auth settings, production 2FA, or production permissions.
+
+## What is available, and what a passing result means
+
+The generated entry point runs the actual source-built marketplace, premium gift/status, first-party game capture, game consent management, challenge progress/claims, and community create/join/invite/manage/message callables. Client Firestore and Storage operations still run through the copied rules. Synthetic Admin seeding supplies initial fixtures; mutations made through the UI or game script use the real SDK/service paths.
+
+The preview intentionally excludes billing, email, push delivery, provider-backed AI/moderation, live audio/video token issuance, broad auth exports and scheduled cleanup jobs. `gamePartnerApi` is not currently exported in this preview, and the seed is a first-party registration, not a verified partner registration. Consent UI alone does not demonstrate a partner device/token/upload round trip. A missing callable or denied provider request is a truthful unavailable result, not permission to add a fake successful response.
+
+Game staging/review can be checked here. Normal post publishing requires Vybe Check; the preview does not supply its provider-backed pipeline. An unavailable scan must remain a failed publication. Owner bypass, direct Admin post insertion, or mocked success would not prove the normal publish path and must not be counted as such. Lost-acknowledgement/replay behavior also has dedicated unit and Firestore transaction tests, distinct from this browser walkthrough.
+
+The Vite Content Security Policy blocks ordinary browser fetch, resource, WebSocket, frame and form requests to non-loopback providers. This helps contain the preview; it is **not an operating-system network sandbox**. Top-level navigation, browser extensions, native bridges, arbitrary local services and server processes are outside that promise. Do not run untrusted mini-app code or click real external integration links while treating this as a fully isolated hostile-code environment.
+
+Emulators do not certify deployed indexes, IAM, App Check enforcement, GCS generation/composition behavior, cleanup throughput, provider billing, OAuth/native return links, console browser support, real-device codecs, native SDK compilation, or production historical data. No test here enables public partner onboarding or deploys the app.
+
+## Stop and troubleshoot
+
+- Stop Vite and emulators with `Ctrl+C` in their own terminals, then close the dedicated QA terminals so their environment variables cannot affect a later build. Keep the ordinary production tab and its storage intact.
+- This startup does not import/export emulator state. A stopped emulator session may lose its demo data. Restart all services, reseed, and create a new capture link; an old browser session or saved receipt is not proof that the new instance still has that record.
+- A project/port/origin guard failure is intentional. Correct the exact launch settings; do not remove the guard or point it at a real Firebase project.
+- If Functions fail to load, confirm the Functions build succeeded and rerun preparation. The generated entry point imports source-built `functions/lib`; source edits alone do not rebuild it.
+- A normal application action may invoke a Function outside the narrow preview list. Preserve the unavailable state, record the missing integration, and expand the local export list only after reviewing its external effects.
+- Do not run the broad `npm run debug`/production probes as part of this guide. Do not deploy `work/local-preview/firebase.json`, alter production `auth2faRequest`, or publish a `local-qa` build.

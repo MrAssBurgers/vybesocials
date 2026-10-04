@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { addDoc, collection } from 'firebase/firestore';
@@ -36,6 +36,8 @@ function MiniAppsForUser() {
   const [unpublishTarget, setUnpublishTarget] = useState<MiniAppRecord | null>(null);
   const [unpublishing, setUnpublishing] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const ownerId = user?.id || '';
   const apps = useQuery({ queryKey: ['mini-apps', 'published', ownerId], queryFn: () => listMiniApps(), enabled: Boolean(ownerId) && !appId, staleTime: 30_000 });
   const drafts = useQuery({ queryKey: ['mini-apps', 'drafts', ownerId], queryFn: () => listMiniApps(ownerId), enabled: Boolean(ownerId) && !appId, staleTime: 30_000 });
@@ -49,12 +51,13 @@ function MiniAppsForUser() {
     setUnpublishing(true);
     try {
       await unpublishMiniApp(ownerId, unpublishTarget);
+      if (!mounted.current) return;
       refresh();
       toast.success('App unpublished. Your private draft is still available.');
       setUnpublishTarget(null);
       if (appId) navigate('/mini-apps');
-    } catch (error) { toast.error(miniAppError(error)); }
-    finally { setUnpublishing(false); }
+    } catch (error) { if (mounted.current) toast.error(miniAppError(error)); }
+    finally { if (mounted.current) setUnpublishing(false); }
   };
 
   const report = async (reason: string) => {
@@ -66,8 +69,8 @@ function MiniAppsForUser() {
         description: `Mini app /mini-apps/${detail.data.id}; creator auth ID ${detail.data.owner_id}`,
         content_type: 'mini_app', content_id: detail.data.id, status: 'pending', created_at: new Date().toISOString(),
       });
-      toast.success('Report submitted for review.');
-    } catch (error) { toast.error(miniAppError(error)); }
+      if (mounted.current) toast.success('Report submitted for review.');
+    } catch (error) { if (mounted.current) toast.error(miniAppError(error)); }
   };
 
   const content = appId ? (

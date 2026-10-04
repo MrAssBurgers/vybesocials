@@ -1,3 +1,6 @@
+// TRUSTED FIRST-PARTY ONLY: this example uses the player's full Firebase session.
+// Third-party publishers must use docs/PARTNER_GAME_API.md device consent and
+// capture-only bearer tokens instead. Never request a player's Firebase token.
 // Integration example for Unity with Firebase Auth, Functions and Storage SDKs.
 // Initialize Firebase and sign the player into their VYBE account first.
 // This file is a source example; it has not been compiled in a Unity project here.

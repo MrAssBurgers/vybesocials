@@ -7,6 +7,7 @@ import { ensureAuthStorageReady } from './authSessionMirror';
 import { getFirebaseConfig, isFirebaseConfigured } from './firebase/config';
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from './passwordRecoveryUrl';
 import { clearStaleOAuthRedirectPending } from '@/lib/firebase/oauthRedirect';
+import { isLocalPreview } from './firebase/localPreview';
 
 if (typeof window !== 'undefined') {
   try {
@@ -18,11 +19,15 @@ if (typeof window !== 'undefined') {
   }
 }
 
-clearObsoleteAuthStorage();
-repairLegacyAuthStorage();
-clearStaleOAuthRedirectPending();
+// The isolated demo must never migrate, repair or seed normal login backups.
+const localPreview = isLocalPreview();
+if (!localPreview) {
+  clearObsoleteAuthStorage();
+  repairLegacyAuthStorage();
+  clearStaleOAuthRedirectPending();
+}
 
-if (typeof window !== 'undefined' && isFirebaseConfigured()) {
+if (!localPreview && typeof window !== 'undefined' && isFirebaseConfigured()) {
   try {
     void ensureAuthStorageReady(getFirebaseConfig().apiKey, navigator.userAgent || '');
   } catch {

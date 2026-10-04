@@ -5,6 +5,7 @@
 
 import { getFirebaseAuthDomain } from './authDomain';
 import { authWarn } from '@/lib/authLog';
+import { assertLocalPreviewStorage, isLocalPreview, LOCAL_PREVIEW_API_KEY, LOCAL_PREVIEW_PROJECT } from './localPreview';
 
 export interface FirebaseEnvConfig {
   apiKey: string;
@@ -23,6 +24,14 @@ function envValue(name: string): string {
 }
 
 export function getFirebaseConfig(): FirebaseEnvConfig {
+  if (isLocalPreview()) {
+    if (typeof localStorage !== 'undefined') assertLocalPreviewStorage(localStorage);
+    return {
+      apiKey: LOCAL_PREVIEW_API_KEY, projectId: LOCAL_PREVIEW_PROJECT, authDomain: 'localhost',
+      storageBucket: `${LOCAL_PREVIEW_PROJECT}.appspot.com`, messagingSenderId: '1234567890',
+      appId: '1:1234567890:web:local-preview', functionsRegion: 'us-central1',
+    };
+  }
   const apiKey = envValue('VITE_FIREBASE_API_KEY');
   const projectId = envValue('VITE_FIREBASE_PROJECT_ID');
   const messagingSenderId = envValue('VITE_FIREBASE_MESSAGING_SENDER_ID');
