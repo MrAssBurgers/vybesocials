@@ -303,7 +303,13 @@ describe('room tokens require verified authority before minting', () => {
     state.rows.set(`server_members/server-one_${id}`, { server_id: 'server-one', user_id: id });
     await expect(community()).resolves.toMatchObject({ room: communityRoom() });
   });
-  it.each([undefined, { server_id: 'different', type: 'voice' }, { server_id: 'server-one', type: 'text' }])('rejects a missing, cross-server or nonvoice channel %j', async row => {
+  it.each([undefined, 'text', 'voice'])('supports migrated live rooms with type %s', async type => {
+    state.rows.set('server_members/server-one_profile-a', { server_id: 'server-one', user_id: 'profile-a' });
+    state.rows.set('channels/voice-one', { server_id: 'server-one', room_type: 'live', ...(type ? { type } : {}) });
+    await expect(community()).resolves.toMatchObject({ room: communityRoom() });
+    expect(state.mints).toBe(1);
+  });
+  it.each([undefined, { server_id: 'different', type: 'voice' }, { server_id: 'different', room_type: 'live' }, { server_id: 'server-one', type: 'text' }])('rejects a missing, cross-server or nonvoice channel %j', async row => {
     state.rows.set('server_members/server-one_profile-a', { server_id: 'server-one', user_id: 'profile-a' });
     if (row) state.rows.set('channels/voice-one', row); else state.rows.delete('channels/voice-one');
     await expect(community()).rejects.toMatchObject({ code: 'permission-denied' });

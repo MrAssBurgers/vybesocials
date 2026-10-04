@@ -62,7 +62,10 @@ async function assertServerMember(serverId, channelId, profileId, authUid) {
             || (byAuth.data()?.server_id === serverId && byAuth.data()?.user_id === authUid))) {
             throw new HttpsError('permission-denied', 'Not a member of this community');
         }
-        if (channel.data()?.server_id !== serverId || channel.data()?.type !== 'voice') {
+        const channelData = channel.data();
+        // Match the existing client classifier for migrated live rooms.
+        const voice = channelData?.type === 'voice' || channelData?.room_type === 'live';
+        if (channelData?.server_id !== serverId || !voice) {
             throw new HttpsError('permission-denied', 'Voice channel is not part of this community');
         }
     });
