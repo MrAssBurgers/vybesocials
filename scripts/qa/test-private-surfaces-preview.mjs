@@ -43,14 +43,14 @@ try {
   assert.equal((await database.doc(`channels/${channelId}`).get()).data()?.server_id, serverId);
   const grant = await preserve(`community_admissions/${owner('bob')}/grants/${serverId}`);
   await grant.set({ auth_uid: owner('bob'), server_id: serverId, user_id: profile('bob'), active: true, role: 'member' });
-  const bytes = await readFile(new URL('../../public/splash.png', import.meta.url));
-  const reserveInput = { action: 'reserve', requestId: randomUUID(), channelId, byteSize: bytes.length, contentType: 'image/png', content: 'Local QA: private attachment, current members only.' };
+  const bytes = await readFile(new URL('../../public/splash.jpg', import.meta.url));
+  const reserveInput = { action: 'reserve', requestId: randomUUID(), channelId, byteSize: bytes.length, contentType: 'image/jpeg', content: 'Local QA: private attachment, current members only.' };
   const reserved = await alice.call('communityAttachment', reserveInput);
   assert.equal((await alice.call('communityAttachment', reserveInput)).assetId, reserved.assetId);
   assert.equal((await alice.call('communityAttachment', { action: 'finalize', assetId: reserved.assetId })).uploadRequired, true);
-  await denied(() => uploadBytes(ref(alice.storage, reserved.objectPath), bytes, { contentType: 'image/png' }));
+  await denied(() => uploadBytes(ref(alice.storage, reserved.objectPath), bytes, { contentType: 'image/jpeg' }));
   const uploadUrl = `http://127.0.0.1:5101/demo-vybe-preview/us-central1/communityAttachmentBytes/uploads/${reserved.assetId}`;
-  const uploadHeaders = { Authorization: `Bearer ${await alice.auth.currentUser.getIdToken()}`, 'X-Vybe-Owner': owner('alice'), 'Content-Type': 'image/png' };
+  const uploadHeaders = { Authorization: `Bearer ${await alice.auth.currentUser.getIdToken()}`, 'X-Vybe-Owner': owner('alice'), 'Content-Type': 'image/jpeg' };
   const upload = await fetch(uploadUrl, { method: 'PUT', headers: uploadHeaders, body: bytes });
   assert.equal(upload.status, 200, await upload.text());
   const sent = await alice.call('communityAttachment', { action: 'finalize', assetId: reserved.assetId });

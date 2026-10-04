@@ -8,8 +8,8 @@ const SHELL_CACHE = 'vybe-shell-v7';
 const ASSETS_CACHE = 'vybe-assets-v8';
 const SHELL_URL = '/';
 const ASSETS_CACHE_MAX = 180;
-const APP_ICON = '/icons/icon-192x192.png';
-const BADGE_ICON = '/icons/icon-96x96.png';
+const APP_ICON = '/icons/icon-192x192.jpg';
+const BADGE_ICON = '/icons/icon-96x96.jpg';
 
 // Assets to precache on install
 const PRECACHE_ASSETS = [

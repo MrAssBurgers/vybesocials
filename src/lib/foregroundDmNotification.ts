@@ -53,8 +53,8 @@ async function showWebNotification(
       if (!current()) return;
       await registration.showNotification(title, {
         body,
-        icon: '/icons/icon-192x192.png',
-        badge: '/icons/icon-96x96.png',
+        icon: '/icons/icon-192x192.jpg',
+        badge: '/icons/icon-96x96.jpg',
         tag,
         data: {
           url: `/messages/${conversationId}`,
@@ -72,7 +72,7 @@ async function showWebNotification(
   if (!current()) return;
   const notification = new Notification(title, {
     body,
-    icon: '/icons/icon-192x192.png',
+    icon: '/icons/icon-192x192.jpg',
     tag,
   });
   notification.onclick = () => {

@@ -2,6 +2,24 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Correct shipped image formats
+
+### What changed
+- Audited raster asset signatures after the SDK correctly rejected the mislabeled splash sample. Renamed 14 JPEG files from `.png` to `.jpg` without changing their bytes; updated notification/service-worker references and the offline source manifest. Removed a misleading `.gif` that was byte-identical to the existing static PNG.
+- Corrected the private attachment preview fixture to use the JPEG filename and MIME type. Added `validate:images` to both production and development builds: it checks every supported raster asset in public, source assets and branding, rejecting unknown signatures and extension mismatches. This is a format check, not a full decoder or content safety scanner.
+
+### Verification
+- The new guard rejected all 15 original mismatches, then passed all **114 remaining source images**. Browser checks decoded the renamed splash and notification icon. All **11 renamed public JPEGs** returned HTTP 200, `image/jpeg`, and exact original bytes from the live demo.
+- Full suite: **293 files / 2,801 tests passed**. Build, typecheck and CSS/boot checks passed; app bundle **1069.2 KiB raw / 322.2 KiB gzip** remains within budget. Lint has **0 errors / 5 inherited warnings**.
+- The previous checkpoint is `c120ef169af9f878e5445c582a9283b5bac605e8`; its CI 37194622031 and Rules QA 37194622030 passed. This change does not deploy production or modify accounts. The existing preview remains available.
+
+### Next 3 tasks
+1. Continue the viewer-aware feed read contract and reviewed host bridge so integrations can browse social content beyond their own captures.
+2. Implement and certify a concrete game/mod adapter, including capture, input/focus, permissions and lifecycle behavior.
+3. Continue privacy, native asset/notification and soft UI audits; verify old-shell refresh behavior during selective staging release. The broader goal remains active.
+
+---
+
 ## ACTIVE (2026-10-04) - Embedded capture gallery for apps and game mods
 
 ### What changed

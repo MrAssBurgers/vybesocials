@@ -133,8 +133,8 @@ async function showCallNotification(caller: CallUser, callType: CallType, callId
       const registration = await navigator.serviceWorker.ready;
       await registration.showNotification(`VYBE - Incoming ${callTypeLabel} Call`, {
         body: `${callerName} is calling you`,
-        icon: caller.avatar_url || '/icons/icon-192x192.png',
-        badge: '/icons/icon-96x96.png',
+        icon: caller.avatar_url || '/icons/icon-192x192.jpg',
+        badge: '/icons/icon-96x96.jpg',
         tag: `vybe-call-${callId}`,
         requireInteraction: true,
         data: { url: '/', type: 'call', callId, callerName, callType },
@@ -147,7 +147,7 @@ async function showCallNotification(caller: CallUser, callType: CallType, callId
   
   const notification = new Notification(`VYBE - Incoming ${callTypeLabel} Call`, {
     body: `${callerName} is calling you`,
-    icon: caller.avatar_url || '/icons/icon-192x192.png',
+    icon: caller.avatar_url || '/icons/icon-192x192.jpg',
     tag: 'vybe-incoming-call',
     requireInteraction: true,
   });
