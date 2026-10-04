@@ -231,7 +231,7 @@ describe('device authorization lifecycle', () => {
   it('clears credentials on a 401 even with a malformed error body', async () => {
     const { client } = harness(call => call.path.includes('/captures/') ? new Response('not-json', { status: 401 }) : undefined);
     await link(client);
-    await expect(client.getCapture(ID)).rejects.toMatchObject({ code: 'invalid_response' });
+    await expect(client.getCapture(ID)).rejects.toMatchObject({ code: 'invalid_token' });
     expect(client.authorization).toBeNull();
   });
 });
@@ -370,6 +370,44 @@ describe('private capture transport', () => {
     await expect(client.getCapture(ID)).rejects.toMatchObject({ code: 'rate_limited', status: 429, retryAfter: 86400 });
     await vi.advanceTimersByTimeAsync(180_000);
     expect(calls.filter(call => call.path.includes('/captures/'))).toHaveLength(1);
+  });
+  it.each([
+    ['120', 2, 120], ['20', 180, 180], ['999999999999999999999999999999999999', undefined, 86400],
+    ['not-a-date', 121, 121], ['-10', 122, 122],
+  ])('respects the longer header/body cooldown (%s)', async (header, body, expected) => {
+    const { client, calls } = harness(call => call.path.includes('/captures/')
+      ? new Response(JSON.stringify({ error: 'rate_limited', retryAfter: body }), { status: 429, headers: { 'Retry-After': header } }) : undefined);
+    await link(client);
+    await expect(client.getCapture(ID)).rejects.toMatchObject({ code: 'rate_limited', retryAfter: expected });
+    expect(calls.filter(call => call.path.includes('/captures/'))).toHaveLength(1);
+  });
+  it.each([429, 503])('preserves header cooldown on a non-JSON %s gateway failure', async status => {
+    const { client, calls } = harness(call => call.path.includes('/captures/')
+      ? new Response('<html>upstream unavailable SECRET</html>', { status, headers: { 'Retry-After': '180' } }) : undefined);
+    await link(client);
+    await expect(client.getCapture(ID)).rejects.toMatchObject({ code: status === 429 ? 'rate_limited' : 'unavailable', retryAfter: 180 });
+    expect(calls.filter(call => call.path.includes('/captures/'))).toHaveLength(1);
+  });
+  it('uses HTTP-date cooldowns without retrying before the given time', async () => {
+    let reads = 0;
+    const { client, calls } = harness(call => {
+      if (call.path.includes('/captures/') && ++reads === 1) return new Response('{}', { status: 429,
+        headers: { 'Retry-After': new Date(Date.now() + 20_000).toUTCString() } });
+    });
+    await link(client); vi.useFakeTimers(); vi.setSystemTime(Math.floor(Date.now() / 1000) * 1000);
+    const result = client.getCapture(ID);
+    await vi.advanceTimersByTimeAsync(19_999);
+    expect(calls.filter(call => call.path.includes('/captures/'))).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1); await expect(result).resolves.toMatchObject({ captureId: ID });
+    expect(calls.filter(call => call.path.includes('/captures/'))).toHaveLength(2);
+  });
+  it('stops link polling at expiry when a gateway requests a longer header cooldown', async () => {
+    const { client, calls } = harness(call => call.path === '/v1/device/token'
+      ? new Response('unavailable', { status: 503, headers: { 'Retry-After': '86400' } }) : undefined);
+    vi.useFakeTimers(); await client.startDeviceAuthorization();
+    const outcome = expect(client.waitForAuthorization()).rejects.toMatchObject({ code: 'expired_token' });
+    await vi.advanceTimersByTimeAsync(600_000); await outcome;
+    expect(calls.filter(call => call.path === '/v1/device/token')).toHaveLength(1);
   });
   it('does not retry an upload after its credential expires during backoff', async () => {
     const { client, calls } = harness(call => {

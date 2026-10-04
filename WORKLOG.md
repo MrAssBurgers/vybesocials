@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Partner SDK gateway cooldown handling
+
+### What changed
+- JavaScript partner requests now respect both JSON cooldown metadata and HTTP Retry-After, taking the longer delay and preserving the existing one-day bound. Supports delta seconds and HTTP dates, ignores malformed/past values, and returns waits above 60 seconds rather than automatically retrying early.
+- Non-JSON 429/503 gateway errors retain sanitized rate-limit/unavailable codes and header cooldowns. Malformed 401 responses now correctly request relinking while still clearing credentials. Preview HEAD failures preserve relevant status/cooldown information. Device polling uses the same delay metadata and stops at the original link expiry.
+- Rebuilt the local JavaScript SDK archive; updated workspace output `vybe-integration-sdk-gallery-pilot.tgz`.
+
+### Verification
+- **305 files / 2,885 tests passed**, including nine new header/body precedence, oversized delay, HTTP-date timing, non-JSON gateway and link-expiry cases. SDK strict typecheck/build and scoped lint passed. App build passed with unchanged **app-CqIufOOX.js: 1068.1 KiB raw / 321.8 KiB gzip**.
+- Ran the built SDK against a real loopback HTTP server: completed device exchange, received an HTML 429 with Retry-After 120, and observed the correct public cooldown error after exactly one request. No early retry or production traffic. Ignored helper: `work/sdk-cooldown-smoke.mjs`; logs: `work/sdk-cooldown-tests.log`, `work/sdk-cooldown-build.log`, `work/sdk-cooldown-package.log`.
+- Native SDK CI **37204099208** was confirmed running; follow its exact handle to completion. Retained demo state from the previous checkpoint was exported successfully to ignored `work/local-preview/dotnet-verified-checkpoint-export`.
+
+### Next 3 tasks and limits
+1. Continue native capture-gallery/host lifecycle adapters and verify .NET CI on Linux. Engine/mod-loader certification and general in-game social feeds remain incomplete.
+2. Continue mini-app execution isolation/quotas and content-reader audience/media/age migrations.
+3. Continue physical-device and visual audits before selective staging. No production or registry publication occurred; the original goal remains active and unfulfilled.
+
+---
+
 ## ACTIVE (2026-10-04) - Compiled C# partner integration for native hosts
 
 ### What changed

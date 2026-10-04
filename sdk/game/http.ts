@@ -75,6 +75,26 @@ function boundedString(value: unknown, max: number): value is string {
 function checkAbort(signal?: AbortSignal) { if (signal?.aborted) throw new VybePartnerError('aborted'); }
 function captureId(value: string) { if (!/^[a-f0-9]{48}$/.test(value)) throw new VybePartnerError('invalid_request'); return value; }
 
+/** Gateways may return only Retry-After, or a longer delay than the JSON body. */
+function responseRetryAfter(response: Response, bodyDelay?: unknown): number | undefined {
+  const body = typeof bodyDelay === 'number' && Number.isFinite(bodyDelay) ? Math.max(0, bodyDelay) : 0;
+  const header = response.headers.get('retry-after')?.trim();
+  let seconds = 0;
+  if (header && header.length <= 128) {
+    if (/^\d+$/.test(header)) seconds = Number(header);
+    else if (/^[A-Za-z]{3}/.test(header)) {
+      const date = Date.parse(header);
+      if (Number.isFinite(date)) seconds = Math.max(0, (date - Date.now()) / 1000);
+    }
+  }
+  const delay = Math.max(body, seconds);
+  return delay > 0 ? Math.min(86400, Math.ceil(delay)) : undefined;
+}
+
+function responseErrorCode(status: number): string {
+  return status === 401 ? 'invalid_token' : status === 429 ? 'rate_limited' : status >= 500 ? 'unavailable' : 'invalid_response';
+}
+
 async function boundedBody(response: Response, limit: number, signal: AbortSignal): Promise<Uint8Array> {
   const reader = response.body?.getReader();
   if (!reader) throw new VybePartnerError('invalid_response');
@@ -377,7 +397,8 @@ export class VybePartnerClient {
         if (response.redirected || (response.url && response.url !== `${this.#base}${path}`)) throw new VybePartnerError('invalid_response');
         if (method === 'HEAD') {
           if (response.status === 401 && options.session === this.#session) this.#session = null;
-          if (response.status !== 204) throw new VybePartnerError(response.status === 401 ? 'invalid_token' : response.status === 403 ? 'insufficient_scope' : 'not_found', response.status);
+          if (response.status !== 204) throw new VybePartnerError(response.status === 403 ? 'insufficient_scope'
+            : response.status === 404 ? 'not_found' : responseErrorCode(response.status), response.status, responseRetryAfter(response));
           return undefined;
         }
         if (options.preview && response.ok) {
@@ -399,10 +420,11 @@ export class VybePartnerClient {
         if (response.status === 401 && options.session === this.#session) this.#session = null;
         let data: Record<string, unknown>;
         try { if (text.length > 256 * 1024) throw new Error(); data = object(JSON.parse(text)); }
-        catch { throw new VybePartnerError(response.status >= 500 ? 'unavailable' : 'invalid_response', response.status); }
+        catch { throw new VybePartnerError(responseErrorCode(response.status), response.status, responseRetryAfter(response)); }
         if (!response.ok) {
-          const code = typeof data.error === 'string' && Object.prototype.hasOwnProperty.call(ERROR_MESSAGES, data.error) ? data.error : response.status >= 500 ? 'unavailable' : response.status === 401 ? 'invalid_token' : 'invalid_request';
-          const retryAfter = Number.isFinite(data.retryAfter) && Number(data.retryAfter) > 0 ? Math.min(86400, Math.ceil(Number(data.retryAfter))) : undefined;
+          const code = typeof data.error === 'string' && Object.prototype.hasOwnProperty.call(ERROR_MESSAGES, data.error) ? data.error
+            : [401, 429].includes(response.status) || response.status >= 500 ? responseErrorCode(response.status) : 'invalid_request';
+          const retryAfter = responseRetryAfter(response, data.retryAfter);
           throw new VybePartnerError(code, response.status, retryAfter);
         }
         return data;
