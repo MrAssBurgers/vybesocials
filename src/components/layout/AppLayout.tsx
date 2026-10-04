@@ -85,105 +85,62 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
     );
   }
 
-  if (isDesktop) {
-    return (
-      <>
-        <a
-          href="#main-content"
-          className="skip-link sr-only"
-        >
-          Skip to content
-        </a>
-        <div ref={ref} className="app-shell h-screen w-full overflow-hidden relative bg-transparent">
-          <div className="relative z-[1] flex h-screen w-full">
-            <DesktopLeftSidebar
-              collapsed={leftCollapsed}
-              onCollapsedChange={setLeftCollapsed}
-            />
-            <main
-              id="main-content"
-              className={cn(
-                'main-content main-scroll flex-1 min-w-0 h-screen overflow-x-hidden relative z-[1] bg-transparent',
-                noPadding ? 'overflow-hidden' : 'overflow-y-auto scroller',
-              )}
-              style={{
-                overscrollBehavior: 'contain',
-                WebkitOverflowScrolling: 'touch',
-              }}
-            >
-              <div
-                className={cn(
-                  'mx-auto w-full',
-                  noPadding ? 'h-full' : 'px-2 lg:px-3 py-3',
-                  fullWidth ? '' : 'max-w-full',
-                )}
-              >
-                {children}
-              </div>
-            </main>
-            {!hideRightSidebar && <DesktopRightSidebar />}
-          </div>
-          <Enable2FANudge />
-        </div>
-      </>
-    );
-  }
-
+  // Keep the content subtree in one position across breakpoints. Replacing the
+  // desktop/mobile trees remounts editors, players and other stateful children.
   return (
-    <div
+    <>
+      {isDesktop && <a href="#main-content" className="skip-link sr-only">Skip to content</a>}
+      <div
         ref={ref}
-        className="app-shell h-[100dvh] w-full overflow-hidden overflow-x-hidden relative bg-transparent"
-        {...(swipeBackAllowed ? swipeBackHandlers : {})}
+        className={cn('app-shell w-full overflow-hidden relative bg-transparent', isDesktop ? 'h-screen' : 'h-[100dvh] overflow-x-hidden')}
+        {...(!isDesktop && swipeBackAllowed ? swipeBackHandlers : {})}
       >
-        <div className="relative z-[1] flex flex-col h-full min-h-0">
-          {swipeProgress > 0 && (
-            <div
-              className="fixed left-0 top-0 bottom-0 z-50 w-1 bg-primary/60 rounded-r-full transition-opacity"
-              style={{ opacity: swipeProgress, transform: `scaleX(${1 + swipeProgress * 3})` }}
-            />
-          )}
-
-          {!hideNav && <MobileHeader />}
-
+        <div className={cn('relative z-[1] flex w-full', isDesktop ? 'h-screen' : 'flex-col h-full min-h-0')}>
+          {isDesktop && <DesktopLeftSidebar collapsed={leftCollapsed} onCollapsedChange={setLeftCollapsed} />}
+          {!isDesktop && swipeProgress > 0 && <div
+            className="fixed left-0 top-0 bottom-0 z-50 w-1 bg-primary/60 rounded-r-full transition-opacity"
+            style={{ opacity: swipeProgress, transform: `scaleX(${1 + swipeProgress * 3})` }}
+          />}
+          {!isDesktop && !hideNav && <MobileHeader />}
           <main
+            key="page-content"
             id="main-content"
-            data-app-scroll-container="true"
+            data-app-scroll-container={isDesktop ? undefined : 'true'}
             className={cn(
-              'main-content main-scroll overflow-x-hidden relative z-[2] bg-transparent',
-              noPadding ? 'overflow-hidden flex flex-col min-h-0' : 'overflow-y-auto scroller native-scroll-shell',
-              !hideNav && !noPadding ? 'content-with-header' : '',
+              'main-content main-scroll overflow-x-hidden relative bg-transparent',
+              isDesktop ? 'flex-1 min-w-0 h-screen z-[1]' : 'z-[2]',
+              noPadding ? isDesktop ? 'overflow-hidden' : 'overflow-hidden flex flex-col min-h-0' : isDesktop ? 'overflow-y-auto scroller' : 'overflow-y-auto scroller native-scroll-shell',
+              !isDesktop && !hideNav && !noPadding && 'content-with-header',
             )}
-            style={{
-              height: hideNav
-                ? '100dvh'
-                : noPadding
-                  ? 'calc(100dvh - var(--app-header-height))'
-                  : '100dvh',
+            style={isDesktop ? {
+              overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch',
+            } : {
+              height: hideNav ? '100dvh' : noPadding ? 'calc(100dvh - var(--app-header-height))' : '100dvh',
               marginTop: hideNav || !noPadding ? undefined : 'var(--app-header-height)',
-              // noPadding shells (DMs) are overflow:hidden — do not advertise pan-y or
-              // iOS sends document/body pans that look like the whole UI is draggable.
+              // noPadding shells (DMs) contain their own scroller.
               touchAction: noPadding ? 'manipulation' : undefined,
-              paddingBottom:
-                reserveBottomNavSpace
-                  ? navEffectiveVisible
-                    ? 'calc(6rem + var(--sab, env(safe-area-inset-bottom, 0px)))'
-                    : 'calc(1.25rem + var(--sab, env(safe-area-inset-bottom, 0px)))'
-                  : undefined,
+              paddingBottom: reserveBottomNavSpace
+                ? navEffectiveVisible
+                  ? 'calc(6rem + var(--sab, env(safe-area-inset-bottom, 0px)))'
+                  : 'calc(1.25rem + var(--sab, env(safe-area-inset-bottom, 0px)))'
+                : undefined,
               WebkitOverflowScrolling: noPadding ? undefined : 'touch',
               overscrollBehaviorY: 'contain',
               transform: !nativePerf && swipeProgress > 0 && !document.documentElement.classList.contains('is-scrolling')
-                ? `translateX(${swipeProgress * 60}px)`
-                : undefined,
+                ? `translateX(${swipeProgress * 60}px)` : undefined,
               transition: swipeProgress === 0 ? 'transform 0.2s ease-out' : undefined,
             }}
           >
-            {children}
+            <div className={isDesktop ? cn('mx-auto w-full', noPadding ? 'h-full' : 'px-2 lg:px-3 py-3', fullWidth ? '' : 'max-w-full') : 'contents'}>
+              {children}
+            </div>
           </main>
-
-          <PWAInstallBanner />
-          {!hideNav && <SelfNowPlayingPill floating />}
+          {isDesktop && !hideRightSidebar && <DesktopRightSidebar />}
+          {!isDesktop && <PWAInstallBanner />}
+          {!isDesktop && !hideNav && <SelfNowPlayingPill floating />}
           <Enable2FANudge />
         </div>
       </div>
+    </>
   );
 }));

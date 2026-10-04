@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Preserve page state across screen sizes
+
+### What changed
+- Live 390px studio testing reproduced a shared-layout bug: moving from desktop to mobile destroyed and recreated page children. A newly saved/imported studio reverted to its starter template because its internal saved identity was lost.
+- AppLayout now keeps one stable main element, content wrapper and child subtree across desktop/mobile breakpoints. Navigation and responsive sizing still change; mobile uses a display-contents wrapper to preserve existing flex layout. This retains editors and other page-local state through resizing without relying on local-storage recovery.
+- Added lifecycle regression checks for same DOM node, unsaved text, cursor selection, focus and no unmount across both directions; no-padding mobile containment and desktop style cleanup are covered.
+
+### Verification
+- Live retained demo: saved Resize persistence QA at 390px, returned to desktop and retained source and Private draft saved status. Changed title to Resize persistence QA · unsaved, crossed both breakpoints, retained text and explicitly saved. One main element and no document overflow at 390px. Desktop proof outputs/vybe-responsive-studio.png.
+- Messages inbox rendered at desktop and 390px with its conversation visible and no horizontal overflow. Temporary viewport override reset. Physical iOS/Android keyboard/rotation checks remain pending.
+- App typecheck, scoped lint, full 311 files / 2,947 tests and production build passed. Logs work/layout-*.log. Generated version/offline churn restored. Prior 63d1fe6e CI 37215767791 and 37215767846 both succeeded.
+
+### Next 3 tasks and limits
+1. Address local mini-app recovery serialization bounds: current raw JSON bound can reject an otherwise valid maximum-length source with many escaped characters after reporting successful recovery save. Continue isolation and operation-receipt retention work.
+2. Continue concrete game/mod integrations and audience/media-reader migrations. Prior engine automation review restriction remains in effect; full combined Godot upload flow is not verified.
+3. Verify native-device behavior and selective production rollout. Broad goal active/incomplete; this checkpoint is pushed source, not a production deployment.
+
+---
+
 ## ACTIVE (2026-10-04) - Portable mini-app source files
 
 ### What changed
