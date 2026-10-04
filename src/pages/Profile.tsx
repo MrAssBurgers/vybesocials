@@ -34,6 +34,7 @@ import { ProfileAboutDetails } from '@/components/profile/ProfileAboutDetails';
 import { ProfileVibeBoard } from '@/components/profile/ProfileVibeBoard';
 import { NowPlayingCard } from '@/components/music/NowPlayingCard';
 import { useLiveMusicPresence } from '@/hooks/useLiveMusicPresence';
+import { MARKETPLACE_EQUIP_MAP } from '@/lib/marketplaceEquip';
 
 import {
   NAME_COLOR_MAP, THEME_GRADIENTS, THEME_IMAGES, THEME_ACCENTS,
@@ -84,7 +85,7 @@ export default function ProfilePage() {
   const { data: lockerData } = useLockerItems(profile?.id);
 
   const equippedTheme = lockerData?.equippedProfileTheme;
-  const { setBackgroundImage, refreshBackground } = useAppBackground();
+  const { setBackgroundImage, refreshBackground, hasUserWallpaper } = useAppBackground();
 
   // Apply the VIEWED profile's custom background while on this page.
   // For the OWN profile, AppBackgroundProvider already applies it globally,
@@ -155,6 +156,7 @@ export default function ProfilePage() {
   const frameClass = lockerData?.equippedFrame ? FRAME_CLASS_MAP[lockerData.equippedFrame] : undefined;
   const themeGradient = lockerData?.equippedProfileTheme ? THEME_GRADIENTS[lockerData.equippedProfileTheme] : undefined;
   const themeImage = lockerData?.equippedProfileTheme ? THEME_IMAGES[lockerData.equippedProfileTheme] : undefined;
+  const paidProfileEffect = equippedTheme && MARKETPLACE_EQUIP_MAP[equippedTheme]?.type === 'profile_theme';
 
   const handleFollow = async () => {
     if (!profile) return;
@@ -256,7 +258,7 @@ export default function ProfilePage() {
       {(themeImage || themeGradient) && (
         <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
           {!themeImage && themeGradient && (
-            <div className="absolute inset-0" style={{ background: themeGradient }} />
+            <div className="absolute inset-0" style={{ background: themeGradient, opacity: paidProfileEffect && hasUserWallpaper ? 0.35 : undefined }} />
           )}
           {/* Soft scrim only — keep theme/wallpaper readable; avoid hard black cliff above nav */}
           <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/25 to-black/35" />

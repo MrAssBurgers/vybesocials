@@ -2,6 +2,7 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { consumeChallengeReward, reconcileChallenge, rewardAuthorityId } from '../../functions/src/_shared/challengeRewardAuthority';
+import { tokenAuthorityId } from '../../functions/src/_shared/tokenCreditAuthority';
 
 type Row = Record<string, unknown>;
 const now = Date.parse('2026-10-03T12:00:00Z');
@@ -103,11 +104,120 @@ const claim = (id = 'auth-player_daily-post') => consumeChallengeReward(database
 
 beforeEach(() => {
   rows.clear(); created.clear(); beforeCommit = null; failCommit = false; attempts = 0;
+  rows.set(`profiles/${actor.profileId}`, { user_id: actor.authUid });
+  rows.set(`user_auth_index/${actor.authUid}`, { profile_id: actor.profileId });
   rows.set('challenges/daily-post', challenge());
   rows.set('battle_pass_tiers/one', { level: 1, xp_required: 0 });
   rows.set('battle_pass_tiers/two', { level: 2, xp_required: 100 });
   rows.set('profiles/other-profile', { user_id: 'other-auth' });
   rows.set('posts/same-target', { author_id: 'other-profile' });
+});
+
+describe('protected challenge XP boosts and verified XP balance', () => {
+  const verifiedPath = `_verified_xp_authority/${actor.authUid}`;
+  const boostPath = `token_boosts/${tokenAuthorityId([actor.authUid, 'xp_2x'])}`;
+  const activeBoost = (extra: Row = {}) => ({ id: tokenAuthorityId([actor.authUid, 'xp_2x']), schema_version: 1,
+    user_id: actor.authUid, boost_type: 'xp_2x', source_item_id: 'xp_boost_2x', consumed: false, uses_remaining: null,
+    activated_at: new Date(now - 1000).toISOString(), expires_at: new Date(now + 3_599_000).toISOString(), ...extra });
+  it('denies issuance through a stale profile mapping before writing reward proof', async () => {
+    activity(); rows.set(`user_auth_index/${actor.authUid}`, { profile_id: 'foreign' });
+    await expect(sync()).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(rows.has(proofPath)).toBe(false);
+  });
+  it('rechecks caller mapping at consumption without granting verified XP', async () => {
+    activity(); await sync(); rows.set(`profiles/${actor.profileId}`, { user_id: 'someone-else' });
+    await expect(claim()).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(rows.has(verifiedPath)).toBe(false);
+    expect(rows.get(proofPath)?.is_claimed).toBe(false);
+  });
+  it('applies the current protected boost once at claim and records actual awarded XP', async () => {
+    activity(); await sync(); rows.set(boostPath, activeBoost());
+    const results = await Promise.all([claim(), claim()]);
+    expect(results.reduce((sum, result) => sum + result.xp_gained, 0)).toBe(50);
+    expect(results[0].challenge_id).toBe('daily-post');
+    expect(rows.get(levelPath)?.total_xp).toBe(50);
+    expect(rows.get(verifiedPath)).toMatchObject({ schema_version: 1, user_id: actor.authUid, profile_id: actor.profileId, verified_total_xp: 50 });
+    expect(rows.get(proofPath)).toMatchObject({ xp_amount: 25, awarded_xp: 50, xp_multiplier: 2, is_claimed: true });
+  });
+  it('preserves boosted receipt amount when replaying a migrated reward alias', async () => {
+    activity(); await sync(); rows.set(boostPath, activeBoost()); await claim();
+    rows.set('challenge_rewards/alias', reward({ user_id: actor.profileId }));
+    expect((await claim('alias')).xp_gained).toBe(0);
+    expect(rows.get('challenge_rewards/alias')?.xp_amount).toBe(50);
+    expect(rows.get(verifiedPath)?.verified_total_xp).toBe(50);
+  });
+  it('ignores forged legacy multipliers and historical projected XP', async () => {
+    activity(); await sync(); rows.set('active_boosts/legacy', activeBoost());
+    rows.set(levelPath, { user_id: actor.profileId, total_xp: 1000, current_level: 10, verified_xp_version: 1, verified_total_xp: 100_000 });
+    expect((await claim()).xp_gained).toBe(25);
+    expect(rows.get(levelPath)).toMatchObject({ total_xp: 1025, current_level: 10, verified_total_xp: 25 });
+    expect(rows.get(verifiedPath)?.verified_total_xp).toBe(25);
+  });
+  it.each([{ consumed: true }, { expires_at: new Date(now).toISOString() }, { activated_at: new Date(now + 1).toISOString() }, { user_id: 'wrong' }, { boost_type: 'tokens_2x' }, { expires_at: new Date(now + 7_200_000).toISOString() }])('leaves base XP unchanged for invalid or expired boost %j', async extra => {
+    activity(); await sync(); rows.set(boostPath, activeBoost(extra));
+    expect((await claim()).xp_gained).toBe(25);
+  });
+  it('does not retroactively certify or multiply already consumed protected rewards', async () => {
+    activity(); await sync(); await claim(); rows.delete(verifiedPath);
+    rows.set(boostPath, activeBoost());
+    expect((await claim()).xp_gained).toBe(0);
+    expect(rows.get(levelPath)?.total_xp).toBe(25);
+    expect(rows.has(verifiedPath)).toBe(false);
+  });
+  it.each([{ user_id: 'foreign' }, { profile_id: 'foreign' }, { schema_version: 0 }, { verified_total_xp: -1 }, { verified_total_xp: Number.MAX_SAFE_INTEGER }])('rejects malformed or overflowing private XP authority %j', async extra => {
+    activity(); await sync();
+    rows.set(verifiedPath, { schema_version: 1, user_id: actor.authUid, profile_id: actor.profileId, verified_total_xp: 10, ...extra });
+    await expect(claim()).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(rows.get(proofPath)?.is_claimed).toBe(false);
+    expect(rows.has(levelPath)).toBe(false);
+  });
+  it('commits level, verified XP, and boosted reward receipt atomically', async () => {
+    activity(); await sync(); rows.set(boostPath, activeBoost()); failCommit = true;
+    await expect(claim()).rejects.toThrow('atomic commit failure');
+    expect(rows.has(verifiedPath)).toBe(false); expect(rows.has(levelPath)).toBe(false);
+    expect(rows.get(proofPath)?.is_claimed).toBe(false);
+  });
+});
+
+describe('staff badge revocation across challenge claims', () => {
+  const badgePath = 'user_badges/auth-player_earned-badge';
+  const staffProofPath = `_badge_grant_authority/${tokenAuthorityId([actor.authUid, 'earned-badge'])}`;
+  const revoked = (extra: Row = {}) => ({ schema_version: 1, source: 'staff', user_id: actor.authUid, profile_id: actor.profileId,
+    badge_id: 'earned-badge', issued_by: 'staff', issued_at: new Date(now - 1000).toISOString(), active: false,
+    revoked_at: new Date(now - 1000).toISOString(), expires_at: null, ...extra });
+  it('credits verified XP without recreating a badge revoked before claim', async () => {
+    activity(); await sync(); rows.set(staffProofPath, revoked());
+    expect(await claim()).toMatchObject({ xp_gained: 25, awarded_badge_id: null, badge_suppressed: true });
+    expect(rows.has(badgePath)).toBe(false);
+    expect(rows.get(publicPath)).toMatchObject({ is_claimed: true, badge_id: null });
+    expect(rows.get(proofPath)).toMatchObject({ badge_id: 'earned-badge', awarded_badge_id: null, is_claimed: true });
+    expect(rows.get(levelPath)?.total_xp).toBe(25);
+  });
+  it('keeps a suppressed badge absent when a migrated receipt is replayed', async () => {
+    activity(); await sync(); rows.set(staffProofPath, revoked()); await claim();
+    rows.set('challenge_rewards/alias', reward({ user_id: actor.profileId }));
+    expect((await claim('alias')).xp_gained).toBe(0);
+    expect(rows.get('challenge_rewards/alias')?.badge_id).toBeNull();
+    expect(rows.has(badgePath)).toBe(false);
+  });
+  it('rechecks a staff revocation racing reward commit', async () => {
+    activity(); await sync();
+    // Reconciliation is read-only for the already issued proof. Install the
+    // conflict immediately before the following consumption transaction commits.
+    beforeCommit = () => { beforeCommit = () => rows.set(staffProofPath, revoked()); };
+    expect(await claim()).toMatchObject({ xp_gained: 25, badge_suppressed: true });
+    expect(rows.has(badgePath)).toBe(false);
+  });
+  it.each([{ user_id: 'foreign' }, { profile_id: 'foreign' }, { badge_id: 'other' }, { schema_version: 0 }, { source: 'client' }, { active: 'false' }, { revoked_at: null }])('fails closed on malformed protected badge proof %j', async extra => {
+    activity(); await sync(); rows.set(staffProofPath, revoked(extra));
+    await expect(claim()).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(rows.get(proofPath)?.is_claimed).toBe(false); expect(rows.has(levelPath)).toBe(false);
+  });
+  it('does not revive an expired staff grant through another challenge', async () => {
+    activity(); await sync(); rows.set(staffProofPath, revoked({ active: true, revoked_at: null, grant_id: 'old', expires_at: new Date(now).toISOString() }));
+    expect(await claim()).toMatchObject({ xp_gained: 25, badge_suppressed: true });
+    expect(rows.has(badgePath)).toBe(false);
+  });
 });
 
 describe('trusted challenge issuance', () => {

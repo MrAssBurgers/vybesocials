@@ -1,6 +1,11 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
+import { useTokenAction, useTokenMarketplaceState } from './useTokenMarketplaceState';
+import { tokenMarketplaceRequest, type EquipType } from '@/lib/tokenMarketplaceService';
+import { usePremiumStatus } from './usePremiumStatus';
+import { toast } from 'sonner';
+import { MARKETPLACE_EQUIP_MAP } from '@/lib/marketplaceEquip';
 
 export interface LockerItem {
   id: string;
@@ -10,7 +15,7 @@ export interface LockerItem {
   reward_icon: string;
   reward_description: string | null;
   is_premium: boolean;
-  unlocked: boolean;
+  unlocked: boolean; equip_value?: string;
 }
 
 export interface LockerData {
@@ -29,20 +34,24 @@ export interface LockerData {
 }
 
 export function useLockerItems(userId?: string) {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const targetId = userId || profile?.id;
+  const own = targetId === profile?.id || targetId === user?.id;
+  const state = useTokenMarketplaceState(own);
+  const { hasPremiumCosmetics } = usePremiumStatus();
 
-  return useQuery({
-    queryKey: ['locker-items', targetId],
+  const query = useQuery({
+    queryKey: ['locker-items', user?.id, targetId, state.data?.verified_total_xp, state.data?.inventory, hasPremiumCosmetics],
     queryFn: async (): Promise<LockerData> => {
       if (!targetId) throw new Error('No user');
 
-      const { data: prof } = await db
+      const { data: prof, error: profileError } = await db
         .from('profiles')
         .select('user_id, equipped_title, equipped_effect, equipped_frame, equipped_name_color, equipped_profile_theme, equipped_badge_id')
         .eq('id', targetId)
         .single();
 
+      if (profileError) throw profileError;
       const authId = prof?.user_id || targetId;
 
       const [levelRes, tiersRes] = await Promise.all([
@@ -50,6 +59,8 @@ export function useLockerItems(userId?: string) {
         db.from('battle_pass_tiers').select('*').order('level', { ascending: true }),
       ]);
 
+      if (levelRes.error) throw levelRes.error;
+      if (tiersRes.error) throw tiersRes.error;
       const userLevel = levelRes.data?.current_level || 1;
       const tiers = tiersRes.data || [];
 
@@ -61,15 +72,19 @@ export function useLockerItems(userId?: string) {
         reward_icon: t.reward_icon,
         reward_description: t.reward_description,
         is_premium: t.is_premium,
-        unlocked: userLevel >= t.level,
+        unlocked: own && (t.is_premium ? hasPremiumCosmetics : t.level <= 1 || (state.data?.verified_total_xp !== undefined && typeof t.xp_required === 'number' && state.data.verified_total_xp >= t.xp_required)),
       });
 
+      const purchased = (own ? state.data?.catalog || [] : []).filter(item => item.kind === 'permanent' && state.data?.inventory.some(owned => owned.item_id === item.id && owned.quantity > 0)).map(item => ({
+        id: item.id, level: 1, reward_type: MARKETPLACE_EQUIP_MAP[item.id]?.type === 'frame' ? 'cosmetic' : 'profile_theme', reward_name: item.name, reward_icon: item.icon,
+        reward_description: item.description, is_premium: false, unlocked: own, equip_value: MARKETPLACE_EQUIP_MAP[item.id]?.value,
+      }));
       return {
         titles: tiers.filter((t: any) => t.reward_type === 'title').map(mapTier),
         effects: tiers.filter((t: any) => t.reward_type === 'effect').map(mapTier),
-        cosmetics: tiers.filter((t: any) => t.reward_type === 'cosmetic').map(mapTier),
+        cosmetics: [...tiers.filter((t: any) => t.reward_type === 'cosmetic').map(mapTier), ...purchased.filter(item => item.reward_type === 'cosmetic')],
         name_colors: tiers.filter((t: any) => t.reward_type === 'name_color').map(mapTier),
-        profile_themes: tiers.filter((t: any) => t.reward_type === 'profile_theme').map(mapTier),
+        profile_themes: [...tiers.filter((t: any) => t.reward_type === 'profile_theme').map(mapTier), ...purchased.filter(item => item.reward_type === 'profile_theme')],
         userLevel,
         equippedTitle: (prof as any)?.equipped_title || null,
         equippedEffect: (prof as any)?.equipped_effect || null,
@@ -79,51 +94,14 @@ export function useLockerItems(userId?: string) {
         equippedBadgeId: (prof as any)?.equipped_badge_id || null,
       };
     },
-    enabled: !!targetId,
+    enabled: !!targetId && !!user?.id,
     staleTime: 1000 * 60 * 10,
     gcTime: 1000 * 60 * 30,
   });
+  return { ...query, equipmentReady: !own || (state.isSuccess && !state.isError), equipmentError: own && state.isError, retryEquipment: state.refetch, legacyReview: own && !!state.data?.legacy_review };
 }
 
 export function useEquipItem() {
-  const queryClient = useQueryClient();
-  const { profile } = useAuth();
-
-  return useMutation({
-    mutationFn: async ({ type, value }: { type: 'title' | 'effect' | 'frame' | 'name_color' | 'profile_theme' | 'badge'; value: string | null }) => {
-      if (!profile?.id) throw new Error('Not authenticated');
-
-      const colMap: Record<string, string> = {
-        title: 'equipped_title',
-        effect: 'equipped_effect',
-        frame: 'equipped_frame',
-        name_color: 'equipped_name_color',
-        profile_theme: 'equipped_profile_theme',
-        badge: 'equipped_badge_id',
-      };
-
-      const updatePayload = { [colMap[type]]: value };
-      console.log('[useEquipItem] Updating profile', profile.id, 'with', updatePayload);
-      
-      const { error, data, count } = await db
-        .from('profiles')
-        .update(updatePayload as any)
-        .eq('id', profile.id)
-        .select('id, equipped_badge_id');
-
-      console.log('[useEquipItem] Result:', { error, data, count });
-      if (error) throw error;
-      if (!data || data.length === 0) {
-        console.warn('[useEquipItem] No rows updated! Profile ID may not match or RLS blocked the update.');
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['locker-items'] });
-      queryClient.invalidateQueries({ queryKey: ['profile'] });
-      queryClient.invalidateQueries({ queryKey: ['profile-by-username'] });
-      queryClient.invalidateQueries({ queryKey: ['display-style'] });
-      queryClient.invalidateQueries({ queryKey: ['user-badges'] });
-      queryClient.invalidateQueries({ queryKey: ['profile-by-id'] });
-    },
-  });
+  return useTokenAction(({ type, value }: { type: EquipType; value: string | null }, guard) =>
+    tokenMarketplaceRequest({ action: 'equip', type, value }, guard), undefined, error => toast.error(error.message));
 }

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   find: vi.fn(), save: vi.fn(), capture: vi.fn(), check: vi.fn(), activity: vi.fn(), invalidate: vi.fn(),
-  insert: vi.fn(), remove: vi.fn(), detect: vi.fn(),
+  insert: vi.fn(), remove: vi.fn(), detect: vi.fn(), credit: vi.fn(), accountEpoch: 0,
 }));
 vi.mock('@tanstack/react-query', () => ({
   useMutation: (options: unknown) => options,
@@ -24,6 +24,7 @@ vi.mock('@/lib/firebase/users', () => ({ getUserProfile: vi.fn() }));
 vi.mock('@/lib/firebase/firestoreDb', () => ({ getDocuments: vi.fn(), getDocumentsFromServer: vi.fn(), where: vi.fn(), firestoreLimit: vi.fn() }));
 vi.mock('@/lib/vybeCheck/runPublishVybeCheck', () => ({ runPublishVybeCheck: mocks.check }));
 vi.mock('@/lib/challengeProgressClient', () => ({ recordChallengeActivity: mocks.activity, challengeTypeForPost: () => 'post' }));
+vi.mock('@/lib/tokenMarketplaceService', () => ({ tokenMarketplaceRequest: mocks.credit, tokenAccountGuard: () => { const started = mocks.accountEpoch; return () => { if (mocks.accountEpoch !== started) throw new Error('Account changed'); }; } }));
 vi.mock('@/lib/gameCaptureService', () => ({ getGameCapture: mocks.capture }));
 vi.mock('@/lib/gameCapturePost', () => ({ findGameCapturePost: mocks.find, saveGameCapturePost: mocks.save }));
 vi.mock('@/lib/rateLimit', () => ({ RATE_LIMITS: { createPost: () => true } }));
@@ -41,6 +42,8 @@ type Mutation = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.accountEpoch = 0;
+  mocks.credit.mockResolvedValue({ success: true, balance: 10, credited: 10 });
   mocks.capture.mockResolvedValue({ status: 'ready' });
   mocks.find.mockResolvedValue(null);
   mocks.save.mockResolvedValue({ post, created: true });
@@ -91,5 +94,22 @@ describe('game capture publish challenge credit', () => {
     mutation.onSuccess(created, ordinary);
     expect(created.id).toBe('ordinary-post');
     expect(mocks.activity).toHaveBeenCalledExactlyOnceWith('profile', 'post');
+    expect(mocks.credit).toHaveBeenCalledWith({ action: 'earn', type: 'post_created', referenceId: 'ordinary-post' }, expect.any(Function));
+  });
+  it('does not credit or show stale success after an account switch and return', async () => {
+    const { result } = renderHook(useCreatePost);
+    const mutation = result.current as unknown as Mutation;
+    const created = await mutation.mutationFn(variables);
+    mocks.accountEpoch += 2;
+    mutation.onSuccess(created, variables);
+    expect(mocks.credit).not.toHaveBeenCalled();
+    expect(mocks.activity).not.toHaveBeenCalled();
+    expect(mocks.invalidate).not.toHaveBeenCalled();
+  });
+  it('does not publish when the account changes during the content check', async () => {
+    mocks.check.mockImplementation(async () => { mocks.accountEpoch++; return { allowed: true, blocked: false, ageRating: 'safe' }; });
+    const { result } = renderHook(useCreatePost);
+    await expect((result.current as unknown as Mutation).mutationFn(variables)).rejects.toThrow('Account changed');
+    expect(mocks.save).not.toHaveBeenCalled(); expect(mocks.credit).not.toHaveBeenCalled();
   });
 });

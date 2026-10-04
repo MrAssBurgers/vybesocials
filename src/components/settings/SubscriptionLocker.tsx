@@ -4,6 +4,8 @@ import { Palette, Type, Wand2, Diamond, Layers, Lock, Check, Crown } from 'lucid
 import { useAuth } from '@/lib/auth';
 import { useEquipItem } from '@/hooks/useLockerItems';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
+import { useTokenMarketplaceState } from '@/hooks/useTokenMarketplaceState';
+import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
@@ -57,9 +59,9 @@ const TAB_TO_EQUIPPED_KEY: Record<TabId, string> = {
 };
 
 function usePremiumItems() {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   return useQuery({
-    queryKey: ['premium-locker-items', profile?.id],
+    queryKey: ['premium-locker-items', user?.id, profile?.id],
     queryFn: async () => {
       if (!profile?.id) throw new Error('No user');
 
@@ -76,7 +78,7 @@ function usePremiumItems() {
         equipped: profileRes.data as Record<string, string | null> | null,
       };
     },
-    enabled: !!profile?.id,
+    enabled: !!profile?.id && !!user?.id,
     staleTime: 1000 * 60 * 10,
   });
 }
@@ -198,10 +200,12 @@ const CompactItemCard = memo(function CompactItemCard({ item, isEquipped, onTap,
 
 // ── Main Component ──────────────────────────────────────────────
 export function SubscriptionLocker() {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const [activeTab, setActiveTab] = useState<TabId>('colors');
   const { data } = usePremiumItems();
   const equipItem = useEquipItem();
+  const marketplace = useTokenMarketplaceState();
+  const equipmentReady = marketplace.isSuccess && !marketplace.isError;
   const { hasPremiumCosmetics: isPremium } = usePremiumStatus();
 
   const displayName = profile?.display_name || profile?.username || 'You';
@@ -219,7 +223,7 @@ export function SubscriptionLocker() {
   }, [data?.equipped, currentItem, activeTab]);
 
   const handleEquip = useCallback((item: PremiumItem) => {
-    if (!isPremium || equipItem.isPending) return;
+    if (!isPremium || equipItem.isPending || !equipmentReady) return;
     haptics.select();
 
     const equipType = TAB_TO_EQUIP_TYPE[activeTab];
@@ -240,8 +244,9 @@ export function SubscriptionLocker() {
         },
       }
     );
-  }, [data?.equipped, equipItem, activeTab, isPremium]);
+  }, [data?.equipped, equipItem, activeTab, isPremium, equipmentReady]);
 
+  const serviceNotice = marketplace.isError ? <div role="alert" className="text-sm"><p>Equipment is unavailable.</p><Button onClick={() => void marketplace.refetch()}>Try again</Button></div> : !equipmentReady ? <p role="status">Checking equipment…</p> : null;
   const equippedCount = data?.equipped
     ? Object.values(data.equipped).filter(Boolean).length
     : 0;
@@ -259,6 +264,7 @@ export function SubscriptionLocker() {
           <Crown className="h-4 w-4 text-primary" />
           <h3 className="font-semibold text-sm">Premium Cosmetics</h3>
         </div>
+        {serviceNotice}
         {equippedCount > 0 && (
           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary font-bold">
             {equippedCount} equipped
@@ -305,7 +311,7 @@ export function SubscriptionLocker() {
               onTap={() => handleEquip(currentItem)}
               tabId={activeTab}
               displayName={displayName}
-              locked={!isPremium}
+              locked={!isPremium || !equipmentReady}
             />
           </div>
         </div>

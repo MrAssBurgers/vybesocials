@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { PurchasedItems } from './PurchasedItems';
 import {
-  NAME_COLOR_MAP, RESTRICTED_COLORS, THEME_PREVIEW, THEME_IMAGES,
+  NAME_COLOR_MAP, RESTRICTED_COLORS, THEME_PREVIEW, THEME_IMAGES, THEME_GRADIENTS,
   EFFECT_CLASS_MAP, FRAME_STYLE_MAP, FRAME_COLORS,
 } from '@/lib/cosmeticConstants';
 
@@ -78,13 +78,15 @@ const ItemCard = memo(function ItemCard({ item, isEquipped, isSelected, onSelect
   isRestricted?: boolean;
   justEquipped?: boolean;
 }) {
-  const color = tabId === 'colors' ? NAME_COLOR_MAP[item.reward_name] : undefined;
+  const visualKey = item.equip_value || item.reward_name;
+  const color = tabId === 'colors' ? NAME_COLOR_MAP[visualKey] : undefined;
   const isGradient = color?.startsWith('linear');
-  const preview = tabId === 'themes' ? THEME_PREVIEW[item.reward_name] : undefined;
-  const themeImage = tabId === 'themes' ? THEME_IMAGES[item.reward_name] : undefined;
-  const effectClass = tabId === 'effects' ? EFFECT_CLASS_MAP[item.reward_name] : undefined;
-  const frameStyle = tabId === 'frames' ? FRAME_STYLE_MAP[item.reward_name] : undefined;
-  const frameColor = tabId === 'frames' ? FRAME_COLORS[item.reward_name] : undefined;
+  const preview = tabId === 'themes' ? THEME_PREVIEW[visualKey] : undefined;
+  const themeGradient = tabId === 'themes' ? THEME_GRADIENTS[visualKey] : undefined;
+  const themeImage = tabId === 'themes' ? THEME_IMAGES[visualKey] : undefined;
+  const effectClass = tabId === 'effects' ? EFFECT_CLASS_MAP[visualKey] : undefined;
+  const frameStyle = tabId === 'frames' ? FRAME_STYLE_MAP[visualKey] : undefined;
+  const frameColor = tabId === 'frames' ? FRAME_COLORS[visualKey] : undefined;
 
   return (
     <button
@@ -190,7 +192,7 @@ const ItemCard = memo(function ItemCard({ item, isEquipped, isSelected, onSelect
             {themeImage ? (
               <img src={themeImage} alt={item.reward_name} className="w-full h-full object-cover" loading="lazy" />
             ) : (
-              <div className="w-full h-full" style={{ background: preview ? `linear-gradient(135deg, ${preview.from}, ${preview.to})` : 'hsl(var(--muted))' }} />
+              <div className="w-full h-full" style={{ background: themeGradient || (preview ? `linear-gradient(135deg, ${preview.from}, ${preview.to})` : 'hsl(var(--muted))') }} />
             )}
             <div className="absolute inset-0 bg-black/20 flex flex-col items-center justify-center gap-1.5 px-2">
               <div className="w-7 h-7 rounded-full bg-white/25 border border-white/40 shadow-sm" />
@@ -237,7 +239,7 @@ export function ProfileLocker() {
   const { data: userBadges = [] } = useUserBadges(profile?.id);
   const { data: allBadges = [] } = useAllBadges();
   const { data: userRole } = useUserRoleById(profile?.id);
-  const { data: lockerData } = useLockerItems();
+  const { data: lockerData, equipmentReady, equipmentError, retryEquipment, legacyReview } = useLockerItems();
   const equipItem = useEquipItem();
 
   const [settings, setSettings] = useState<BadgeSettings>(() => {
@@ -300,7 +302,7 @@ export function ProfileLocker() {
 
   const handleEquip = useCallback((type: 'title' | 'effect' | 'frame' | 'name_color' | 'profile_theme', item: LockerItem) => {
     if (!item.unlocked && !hasRoleUnlock(item.reward_name)) return;
-    if (equipItem.isPending) return;
+    if (equipItem.isPending || !equipmentReady) return;
     if (type === 'name_color' && isColorRestricted(item.reward_name)) return;
     haptics.select();
 
@@ -313,7 +315,8 @@ export function ProfileLocker() {
     };
 
     const currentlyEquipped = equippedMap[type];
-    const newValue = currentlyEquipped === item.reward_name ? null : item.reward_name;
+    const equipValue = item.equip_value || item.reward_name;
+    const newValue = currentlyEquipped === equipValue ? null : equipValue;
 
     equipItem.mutate(
       { type, value: newValue },
@@ -334,7 +337,7 @@ export function ProfileLocker() {
         },
       }
     );
-  }, [lockerData, equipItem, hasRoleUnlock, isColorRestricted]);
+  }, [lockerData, equipItem, hasRoleUnlock, isColorRestricted, equipmentReady]);
 
   const tabItems = useMemo((): LockerItem[] => {
     if (!lockerData) return [];
@@ -354,7 +357,7 @@ export function ProfileLocker() {
     if (!lockerData) return false;
     const key = TAB_TO_EQUIPPED_KEY[activeTab];
     if (!key) return false;
-    return ((lockerData as any)[key] as string | null) === item.reward_name;
+    return ((lockerData as any)[key] as string | null) === (item.equip_value || item.reward_name);
   }, [lockerData, activeTab]);
 
   const equippedCount = [
@@ -370,6 +373,9 @@ export function ProfileLocker() {
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-200px)] pb-24">
+      {equipmentError && <div role="alert" className="rounded-xl border p-3 text-sm"><p>Equipment could not be verified. Your saved appearance has not changed.</p><Button onClick={() => void retryEquipment()}>Try again</Button></div>}
+      {!equipmentReady && !equipmentError && <p role="status" className="text-sm text-muted-foreground">Checking equipment…</p>}
+      {legacyReview && <p className="text-sm text-muted-foreground">Earlier token purchases are retained for review. New level unlocks use verified challenge XP.</p>}
       {/* ── Header ────────────────────────────────────────── */}
       <div className="text-center py-3">
         <div className="inline-flex items-center gap-2.5 px-5 py-2 rounded-2xl bg-gradient-to-r from-primary/15 via-accent/10 to-primary/15 border border-primary/20 shadow-sm">
@@ -437,6 +443,7 @@ export function ProfileLocker() {
               savingBadges={savingBadges}
               equippedBadgeId={lockerData?.equippedBadgeId || null}
               onEquipBadge={(badgeId) => {
+                if (!equipmentReady) return;
                 const newValue = lockerData?.equippedBadgeId === badgeId ? null : badgeId;
                 equipItem.mutate(
                   { type: 'badge', value: newValue },
@@ -452,7 +459,7 @@ export function ProfileLocker() {
                   }
                 );
               }}
-              isEquipping={equipItem.isPending}
+              isEquipping={equipItem.isPending || !equipmentReady}
             />
           )}
 
@@ -537,7 +544,7 @@ export function ProfileLocker() {
                 variant="secondary"
                 className="w-full rounded-xl"
                 size="lg"
-                disabled={equipItem.isPending}
+                disabled={equipItem.isPending || !equipmentReady}
                 onClick={() => {
                   const equipType = TAB_TO_EQUIP_TYPE[activeTab];
                   if (equipType) handleEquip(equipType, selectedItem);
@@ -550,7 +557,7 @@ export function ProfileLocker() {
               <Button
                 className="w-full rounded-xl bg-green-600 hover:bg-green-700 text-white"
                 size="lg"
-                disabled={equipItem.isPending}
+                disabled={equipItem.isPending || !equipmentReady}
                 onClick={() => {
                   const equipType = TAB_TO_EQUIP_TYPE[activeTab];
                   if (equipType) handleEquip(equipType, selectedItem);

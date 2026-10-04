@@ -5,6 +5,7 @@ import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeC
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { navigationRef } from '@/lib/navigationRef';
+import { tokenAccountGuard, tokenMarketplaceRequest } from '@/lib/tokenMarketplaceService';
 
 export interface UserLevel {
   id: string;
@@ -174,15 +175,19 @@ export function useClaimReward() {
   return useMutation({
     mutationFn: async (rewardId: string) => {
       if (!profile || !user || profile.user_id !== user.id || getFirebaseAuth().currentUser?.uid !== user.id) throw new Error('Not authenticated');
+      const actorGuard = tokenAccountGuard(user.id);
+      actorGuard();
       
       const { data, error } = await db.rpc('claim_challenge_reward', {
         p_reward_id: rewardId,
       });
       
       if (error) throw error;
+      actorGuard();
       
       const result = data as unknown as {
         success: boolean;
+        challenge_id?: string;
         xp_gained: number;
         level_result: {
           old_level: number;
@@ -193,14 +198,21 @@ export function useClaimReward() {
         };
       };
       
-      return { ...result, actorUid: user.id, profileId: profile.id };
+      if (result?.success !== true) throw new Error('Your reward was not confirmed. Please try again.');
+      return { ...result, actorUid: user.id, profileId: profile.id, actorGuard };
     },
     onSuccess: (data) => {
       if (getFirebaseAuth().currentUser?.uid !== data.actorUid) return;
+      try { data.actorGuard(); } catch { return; }
       queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards', data.profileId, data.actorUid] });
       queryClient.invalidateQueries({ queryKey: ['user-level', data.actorUid] });
       queryClient.invalidateQueries({ queryKey: ['user-badges', data.profileId] });
       queryClient.invalidateQueries({ queryKey: ['claimed-rewards', data.actorUid] });
+      if (typeof data.challenge_id === 'string' && data.challenge_id) {
+        void tokenMarketplaceRequest({ action: 'earn', type: 'challenge_completed', referenceId: data.challenge_id }, data.actorGuard)
+          .then(() => { data.actorGuard(); queryClient.invalidateQueries({ queryKey: ['token-marketplace', data.actorUid] }); })
+          .catch(() => {});
+      }
       
       if (data.level_result?.level_up) {
         toast.success(`🎉 Level Up! You're now level ${data.level_result.new_level}!`, {

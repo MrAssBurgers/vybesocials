@@ -1,6 +1,7 @@
 import type { Firestore, Transaction, QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { createHash } from 'node:crypto';
+import { assertTokenActor, tokenAuthorityId, validatedTokenBoostMultiplier } from './tokenCreditAuthority.js';
 
 type Row = Record<string, unknown>;
 export type ChallengeActor = { authUid: string; profileId: string };
@@ -137,6 +138,19 @@ function validateAuthority(row: Row, actor: ChallengeActor, challengeId: string)
   integer(row.requirement_count, 1, MAX_ACTIVITY);
   if (row.badge_id != null) rewardDocumentId(row.badge_id);
   if (typeof row.is_claimed !== 'boolean') throw review();
+  if (row.awarded_xp != null && (integer(row.awarded_xp, 0, MAX_REWARD_XP * 2) !== Number(row.xp_amount) * Number(row.xp_multiplier)
+    || ![1, 2].includes(Number(row.xp_multiplier)) || row.is_claimed !== true)) throw review();
+  if (row.awarded_badge_id != null && (rewardDocumentId(row.awarded_badge_id) !== row.badge_id || row.is_claimed !== true)) throw review();
+}
+
+function badgeSuppressed(proof: Row | undefined, actor: ChallengeActor, badgeId: unknown, nowMs: number): boolean {
+  if (!proof) return false;
+  const date = (value: unknown) => typeof value === 'string' && Number.isFinite(Date.parse(value));
+  if (proof.schema_version !== 1 || proof.source !== 'staff' || proof.user_id !== actor.authUid || proof.profile_id !== actor.profileId
+    || proof.badge_id !== badgeId || typeof proof.issued_by !== 'string' || !proof.issued_by || !date(proof.issued_at)
+    || typeof proof.active !== 'boolean' || !(proof.expires_at === null || date(proof.expires_at))
+    || (proof.active ? proof.revoked_at !== null || typeof proof.grant_id !== 'string' || !proof.grant_id : !date(proof.revoked_at))) throw review();
+  return !proof.active || (typeof proof.expires_at === 'string' && Date.parse(proof.expires_at) <= nowMs);
 }
 
 export interface ProgressChange {
@@ -157,6 +171,7 @@ export async function reconcileChallenge(db: Firestore, actor: ChallengeActor, c
   const progressRef = db.collection('challenge_progress').doc(`${actor.profileId}_${challengeId}`);
   const rewardRef = db.collection('challenge_rewards').doc(id);
   return db.runTransaction(async tx => {
+    await assertTokenActor(tx, db, actor);
     const [grantSnap, progressSnap, challengeSnap, rewardSnap] = await Promise.all([
       tx.get(grantRef), tx.get(progressRef), tx.get(db.collection('challenges').doc(challengeId)), tx.get(rewardRef),
     ]);
@@ -219,15 +234,18 @@ export async function consumeChallengeReward(db: Firestore, actor: ChallengeActo
   // A legacy consumed receipt must not be revived, including when its old
   // challenge has already been deleted. No new credit is authorized here.
   if (requested.is_claimed === true && !(await grantRef.get()).exists) {
-    return { success: true, xp_gained: 0, already_claimed: true };
+    return { success: true, challenge_id: challengeId, xp_gained: 0, already_claimed: true };
   }
   await reconcileChallenge(db, actor, challengeId, nowMs);
   const now = new Date(nowMs).toISOString();
+  const verifiedRef = db.collection('_verified_xp_authority').doc(actor.authUid);
   return db.runTransaction(async tx => {
-    const [grantSnap, receiptSnap, levels, tiers] = await Promise.all([
+    await assertTokenActor(tx, db, actor);
+    const [grantSnap, receiptSnap, levels, tiers, boostSnap, verifiedSnap] = await Promise.all([
       tx.get(grantRef), tx.get(rewardRef),
       tx.get(db.collection('user_levels').where('user_id', 'in', aliases(actor)).limit(3)),
       tx.get(db.collection('battle_pass_tiers').orderBy('level', 'asc').limit(500)),
+      tx.get(db.collection('token_boosts').doc(tokenAuthorityId([actor.authUid, 'xp_2x']))), tx.get(verifiedRef),
     ]);
     const receipt = receiptSnap.data();
     if (!receipt || !aliases(actor).includes(String(receipt.user_id)) || receipt.challenge_id !== challengeId) throw new HttpsError('permission-denied', 'Reward changed');
@@ -238,9 +256,10 @@ export async function consumeChallengeReward(db: Firestore, actor: ChallengeActo
       // Multiple migrated receipt IDs can point at this one consumed grant.
       // Settle the requested UI mirror without crediting the account again.
       if (receipt.is_claimed !== true) tx.update(rewardRef, {
-        is_claimed: true, claimed_at: grant.claimed_at || now, xp_amount: grant.xp_amount, badge_id: grant.badge_id,
+        is_claimed: true, claimed_at: grant.claimed_at || now, xp_amount: grant.awarded_xp ?? grant.xp_amount,
+        badge_id: Object.hasOwn(grant, 'awarded_badge_id') ? grant.awarded_badge_id : grant.badge_id,
       });
-      return { success: true, xp_gained: 0, already_claimed: true };
+      return { success: true, challenge_id: challengeId, xp_gained: 0, already_claimed: true };
     }
     if (levels.size > 1) throw review();
     const levelRef = levels.docs[0]?.ref || db.collection('user_levels').doc(actor.profileId);
@@ -249,8 +268,14 @@ export async function consumeChallengeReward(db: Firestore, actor: ChallengeActo
     if (level && !aliases(actor).includes(String(level.user_id))) throw review();
     const oldXp = level ? integer(level.total_xp, 0, Number.MAX_SAFE_INTEGER) : 0;
     const oldLevel = level ? integer(level.current_level, 1, Number.MAX_SAFE_INTEGER) : 1;
-    const xp = integer(grant.xp_amount, 0, MAX_REWARD_XP);
+    const multiplier = validatedTokenBoostMultiplier(boostSnap.data(), actor.authUid, 'xp_2x', nowMs);
+    const xp = integer(grant.xp_amount, 0, MAX_REWARD_XP) * multiplier;
     const total = integer(oldXp + xp, 0, Number.MAX_SAFE_INTEGER);
+    const verified = verifiedSnap.data();
+    if (verified && (verified.schema_version !== 1 || verified.user_id !== actor.authUid || verified.profile_id !== actor.profileId)) throw review();
+    // This new private ledger starts at zero; legacy levels and client-written
+    // projected fields cannot certify earlier XP or shop eligibility.
+    const verifiedTotal = integer((verified ? integer(verified.verified_total_xp, 0, Number.MAX_SAFE_INTEGER) : 0) + xp, 0, Number.MAX_SAFE_INTEGER);
     let newLevel = oldLevel;
     for (const tierDoc of tiers.docs) {
       const tier = tierDoc.data();
@@ -259,20 +284,27 @@ export async function consumeChallengeReward(db: Firestore, actor: ChallengeActo
       if (total >= threshold) newLevel = Math.max(newLevel, tierLevel);
     }
     const badgeRef = grant.badge_id ? db.collection('user_badges').doc(`${actor.authUid}_${grant.badge_id}`) : null;
-    const badge = badgeRef ? (await tx.get(badgeRef)).data() : undefined;
+    const [badgeSnap, badgeProofSnap] = badgeRef ? await Promise.all([
+      tx.get(badgeRef), tx.get(db.collection('_badge_grant_authority').doc(tokenAuthorityId([actor.authUid, String(grant.badge_id)]))),
+    ]) : [undefined, undefined];
+    const badge = badgeSnap?.data();
     if (badge && (!aliases(actor).includes(String(badge.user_id)) || badge.badge_id !== grant.badge_id)) throw review();
-    const result = { success: true, xp_gained: xp, already_claimed: false,
+    const suppressBadge = badgeSuppressed(badgeProofSnap?.data(), actor, grant.badge_id, nowMs);
+    const awardedBadge = suppressBadge ? null : grant.badge_id;
+    const result = { success: true, challenge_id: challengeId, xp_gained: xp, already_claimed: false,
+      awarded_badge_id: awardedBadge, badge_suppressed: suppressBadge,
       level_result: { old_level: oldLevel, new_level: newLevel, total_xp: total, level_up: newLevel > oldLevel, new_rewards: [] } };
     tx.set(levelRef, {
       user_id: actor.authUid, profile_id: actor.profileId, total_xp: total,
-      current_level: newLevel, updated_at: now,
+      current_level: newLevel, updated_at: now, verified_total_xp: verifiedTotal, verified_xp_version: 1,
       ...(!level ? { id: levelRef.id, unclaimed_rewards: [], created_at: now } : {}),
     }, { merge: true });
-    tx.update(grantRef, { is_claimed: true, claimed_at: now });
-    const consumed = { is_claimed: true, claimed_at: now, xp_amount: xp, badge_id: grant.badge_id };
+    tx.set(verifiedRef, { schema_version: 1, user_id: actor.authUid, profile_id: actor.profileId, verified_total_xp: verifiedTotal, updated_at: now });
+    tx.update(grantRef, { is_claimed: true, claimed_at: now, awarded_xp: xp, xp_multiplier: multiplier, awarded_badge_id: awardedBadge });
+    const consumed = { is_claimed: true, claimed_at: now, xp_amount: xp, badge_id: awardedBadge };
     tx.update(rewardRef, consumed);
     if (rewardRef.id !== id) tx.set(db.collection('challenge_rewards').doc(id), consumed, { merge: true });
-    if (badgeRef && !badge) tx.create(badgeRef, {
+    if (badgeRef && !badge && !suppressBadge) tx.create(badgeRef, {
       user_id: actor.authUid, badge_id: grant.badge_id, earned_at: now, is_primary: false,
     });
     return result;

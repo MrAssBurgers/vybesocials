@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion';
-import { useEffect } from 'react';
 import { Coins, TrendingUp, ArrowUpRight, ArrowDownRight, Sparkles, ShoppingBag } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useTokenBalance, useTokenTransactions, TOKEN_RATES } from '@/hooks/useVybeTokens';
+import { useTokenBalance, useTokenTransactions, TOKEN_RATES, TOKEN_DAILY_LIMITS } from '@/hooks/useVybeTokens';
+import { useTheme } from '@/lib/theme';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
@@ -38,7 +38,7 @@ function TransactionItem({ amount, type, description, created_at }: {
         <div>
           <p className="font-medium text-sm">{description || type}</p>
           <p className="text-xs text-muted-foreground">
-            {formatDistanceToNow(new Date(created_at), { addSuffix: true })}
+            {Number.isFinite(Date.parse(created_at)) ? formatDistanceToNow(new Date(created_at), { addSuffix: true }) : 'Date unavailable'}
           </p>
         </div>
       </div>
@@ -55,16 +55,17 @@ function TransactionItem({ amount, type, description, created_at }: {
 function EarnRate({ action, rate }: { action: string; rate: number }) {
   return (
     <div className="flex items-center justify-between py-2 text-sm">
-      <span className="text-muted-foreground capitalize">{action.replace(/_/g, ' ')}</span>
+      <span className="text-muted-foreground capitalize">{action.replace(/_/g, ' ')} · up to {TOKEN_DAILY_LIMITS[action as keyof typeof TOKEN_DAILY_LIMITS]} per day</span>
       <span className="font-medium text-primary">+{rate} 💎</span>
     </div>
   );
 }
 
 export default function TokenWallet() {
-  const { data: balance, isLoading: balanceLoading } = useTokenBalance();
+  const { data: balance, isLoading: balanceLoading, isError, refetch, legacyReview } = useTokenBalance();
   const { data: transactions = [], isLoading: txLoading } = useTokenTransactions();
   const navigate = useNavigate();
+  const { reducedMotion } = useTheme();
 
   const purchases = transactions.filter(tx => tx.transaction_type === 'purchase');
 
@@ -81,13 +82,13 @@ export default function TokenWallet() {
             <div className="text-center">
               <p className="text-muted-foreground text-sm mb-2">Your Balance</p>
               <motion.div
-                initial={{ scale: 0.5, opacity: 0 }}
+                initial={reducedMotion ? false : { scale: 0.98, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 className="flex items-center justify-center gap-2"
               >
                 <Coins className="w-8 h-8 text-primary" />
                 <span className="text-5xl font-bold">
-                  {balanceLoading ? '...' : (balance?.balance || 0).toLocaleString()}
+                  {isError ? '—' : balanceLoading || !balance ? '…' : balance.balance.toLocaleString()}
                 </span>
               </motion.div>
               <p className="text-primary font-medium mt-2">VYBE Tokens</p>
@@ -97,19 +98,21 @@ export default function TokenWallet() {
               <div className="text-center">
                 <p className="text-xs text-muted-foreground">Lifetime Earned</p>
                 <p className="text-lg font-semibold text-emerald-500">
-                  {(balance?.lifetime_earned || 0).toLocaleString()}
+                  {isError || !balance ? '—' : balance.lifetime_earned.toLocaleString()}
                 </p>
               </div>
               <div className="text-center">
                 <p className="text-xs text-muted-foreground">Lifetime Spent</p>
                 <p className="text-lg font-semibold text-orange-500">
-                  {(balance?.lifetime_spent || 0).toLocaleString()}
+                  {isError || !balance ? '—' : balance.lifetime_spent.toLocaleString()}
                 </p>
               </div>
             </div>
           </div>
         </Card>
 
+        {isError && <div role="alert" className="rounded-xl border p-4 space-y-2"><p>Your wallet is unavailable. We could not verify your balance or history.</p><Button onClick={() => void refetch()}>Try again</Button></div>}
+        {legacyReview && <p role="status" className="rounded-xl border p-4 text-sm">Your earlier token and purchase history is retained for review. It is not included in this verified spendable balance yet.</p>}
         {/* Watch & Earn — rewarded ads */}
         <WatchAndEarnCard />
 
@@ -131,6 +134,7 @@ export default function TokenWallet() {
             </CardTitle>
           </CardHeader>
           <CardContent className="divide-y divide-border/50">
+            <p className="text-xs text-muted-foreground pb-3">Rewards require verified activity. Comments must be on another person's available post; post and comment rewards apply to content created today. XP boosts apply only to verified challenge XP.</p>
             {Object.entries(TOKEN_RATES).map(([action, rate]) => (
               <EarnRate key={action} action={action} rate={rate} />
             ))}
@@ -146,7 +150,7 @@ export default function TokenWallet() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {txLoading ? (
+            {isError ? <p className="text-muted-foreground">History unavailable. Please retry your wallet.</p> : txLoading ? (
               <p className="text-center text-muted-foreground py-8">Loading...</p>
             ) : transactions.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">

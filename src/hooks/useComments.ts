@@ -8,6 +8,9 @@ import { toast } from 'sonner';
 import { useBumpReactionStreak } from './useReactionStreaks';
 import { useTokenReward } from './useVybeTokens';
 import { recordChallengeActivity } from '@/lib/challengeProgressClient';
+import { tokenAccountGuard, type TokenAccountGuard } from '@/lib/tokenMarketplaceService';
+
+const COMMENT_REWARD_ACCOUNT = Symbol('comment-reward-account');
 
 interface Comment {
   id: string;
@@ -97,9 +100,11 @@ export function useCreateComment() {
   const bumpStreak = useBumpReactionStreak();
   const { rewardComment } = useTokenReward();
 
-  return useMutation({
+  const mutation = useMutation({
     mutationFn: async ({ postId, text, authorId, imageUrl }: { postId: string; text: string; authorId: string; imageUrl?: string }) => {
-      if (!profile) throw new Error('Not authenticated');
+      if (!user || !profile || profile.user_id !== user.id) throw new Error('Not authenticated');
+      const rewardAccount = tokenAccountGuard(user.id);
+      rewardAccount();
 
       // Check for blocked content before submitting
       const check = containsBlockedContent(text);
@@ -136,6 +141,7 @@ export function useCreateComment() {
         }
       }
 
+      rewardAccount();
       const { data, error } = await db
         .from('comments')
         .insert({
@@ -151,6 +157,10 @@ export function useCreateComment() {
         .single();
 
       if (error) throw error;
+      const saved = { ...data, [COMMENT_REWARD_ACCOUNT]: rewardAccount };
+      // The comment is durable. A changed account must not trigger follow-up
+      // requests or turn that successful save into a failed-send retry.
+      try { rewardAccount(); } catch { return saved; }
 
       // Create notification + bump reaction streak (best-effort — must NEVER
       // fail the comment mutation, otherwise the composer keeps the GIF/text
@@ -166,6 +176,7 @@ export function useCreateComment() {
         } catch (notifErr) {
           console.warn('comment notification insert failed (non-fatal):', notifErr);
         }
+        try { rewardAccount(); } catch { return saved; }
 
         // Bump reaction streak with post author (fire and forget)
         try { bumpStreak.mutate(authorId); } catch { /* ignore */ }
@@ -174,6 +185,7 @@ export function useCreateComment() {
       // Run additional AI moderation in background (non-blocking)
       if (filteredText.trim()) {
         moderateContent(filteredText, 'comment', data.id).then(result => {
+          try { rewardAccount(); } catch { return; }
           if (result.requires_review) {
             // Update the flag status if moderation catches something
             db.from('comments').update({ is_flagged: true }).eq('id', data.id).then(() => {});
@@ -181,21 +193,39 @@ export function useCreateComment() {
         }).catch(console.error);
       }
 
-      return data;
+      return saved;
     },
-    onSuccess: (_, { postId }) => {
+    onSuccess: (comment, { postId }) => {
+      try { (comment[COMMENT_REWARD_ACCOUNT] as TokenAccountGuard)(); } catch { return; }
       queryClient.invalidateQueries({ queryKey: ['comments', postId] });
       queryClient.invalidateQueries({ queryKey: ['posts'] });
-      rewardComment();
+      rewardComment(comment.id);
       recordChallengeActivity(profile?.id, 'comment');
     },
     onError: (error: Error) => {
+      if ('code' in error && error.code === 'account-changed') return;
       const msg = error.message || 'Failed to post comment';
       if (!msg.includes('blocked')) {
         toast.error(msg.includes('permission') ? "Couldn't post comment — try again" : msg);
       }
     },
   });
+  type CommentCallbacks = Parameters<typeof mutation.mutate>[1];
+  const guardCallbacks = (options: CommentCallbacks): CommentCallbacks => {
+    if (!options) return options;
+    const guard = tokenAccountGuard(user?.id);
+    const current = () => { if (!user || profile?.user_id !== user.id) return false; try { guard(); return true; } catch { return false; } };
+    return {
+      ...options,
+      onSuccess: (...args) => { if (current()) options.onSuccess?.(...args); },
+      onError: (...args) => { if (current()) options.onError?.(...args); },
+      onSettled: (...args) => { if (current()) options.onSettled?.(...args); },
+    };
+  };
+  return { ...mutation,
+    mutate: (input: Parameters<typeof mutation.mutate>[0], options?: CommentCallbacks) => mutation.mutate(input, guardCallbacks(options)),
+    mutateAsync: (input: Parameters<typeof mutation.mutateAsync>[0], options?: CommentCallbacks) => mutation.mutateAsync(input, guardCallbacks(options)),
+  };
 }
 
 export function useDeleteComment() {

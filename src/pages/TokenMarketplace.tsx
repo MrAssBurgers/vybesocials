@@ -1,12 +1,12 @@
-import { useState, memo, useCallback } from 'react';
-import { Coins, Lock, Check, ShoppingBag, Zap, Sparkles } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, memo } from 'react';
+import { Coins, Check, ShoppingBag, Zap } from 'lucide-react';
+
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { cn } from '@/lib/utils';
+
 import { useTokenMarketplace, CATEGORY_LABELS, type MarketplaceItem } from '@/hooks/useTokenMarketplace';
 import { useMarketplacePurchase } from '@/hooks/useMarketplacePurchase';
 import { useActivateBoost } from '@/hooks/useActiveBoosts';
@@ -14,10 +14,11 @@ import { useEquipItem } from '@/hooks/useLockerItems';
 import { ActiveBoostsBanner } from '@/components/tokens/ActiveBoostsBanner';
 import { PurchaseSuccessModal } from '@/components/tokens/PurchaseSuccessModal';
 import { MARKETPLACE_EQUIP_MAP } from '@/lib/marketplaceEquip';
+import { THEME_GRADIENTS } from '@/lib/cosmeticConstants';
 import { useAuth } from '@/lib/auth';
-import { useAuthProfileId } from '@/hooks/useAuthProfileId';
-import { useQuery } from '@tanstack/react-query';
-import { db } from '@/lib/firebase';
+
+
+import { tokenAccountSnapshot } from '@/lib/tokenMarketplaceService';
 import { toast } from 'sonner';
 
 // Maps marketplace item ids -> { equip type, equip value } for permanent cosmetics
@@ -28,7 +29,7 @@ const ItemPreview = memo(({ item }: { item: MarketplaceItem }) => {
   const previewStyles: Record<string, React.ReactNode> = {
     // Themes show color swatches
     theme_neon: (
-      <div className="w-full h-16 rounded-lg bg-gradient-to-br from-fuchsia-500 via-violet-600 to-cyan-400 flex items-end p-2">
+      <div className="w-full h-16 rounded-lg flex items-end p-2" style={{ background: THEME_GRADIENTS.theme_neon }}>
         <div className="flex gap-1">
           {['bg-fuchsia-400', 'bg-violet-500', 'bg-cyan-400', 'bg-pink-500'].map((c, i) => (
             <div key={i} className={`w-3 h-3 rounded-full ${c} ring-1 ring-white/20`} />
@@ -37,7 +38,7 @@ const ItemPreview = memo(({ item }: { item: MarketplaceItem }) => {
       </div>
     ),
     theme_ocean: (
-      <div className="w-full h-16 rounded-lg bg-gradient-to-br from-blue-600 via-teal-500 to-emerald-400 flex items-end p-2">
+      <div className="w-full h-16 rounded-lg flex items-end p-2" style={{ background: THEME_GRADIENTS.theme_ocean }}>
         <div className="flex gap-1">
           {['bg-blue-400', 'bg-teal-400', 'bg-emerald-400', 'bg-sky-300'].map((c, i) => (
             <div key={i} className={`w-3 h-3 rounded-full ${c} ring-1 ring-white/20`} />
@@ -125,282 +126,76 @@ const ItemPreview = memo(({ item }: { item: MarketplaceItem }) => {
   );
 });
 
-// Hook to get user's purchased items
-function usePurchasedItems() {
-  const profileId = useAuthProfileId();
-  const { user } = useAuth();
-  const ownerId = profileId ?? user?.id;
-
-  return useQuery({
-    queryKey: ['marketplace-purchases', ownerId],
-    queryFn: async () => {
-      if (!ownerId) return [];
-      const { data, error } = await db
-        .from('marketplace_purchases')
-        .select('item_id')
-        .eq('user_id', ownerId);
-      if (error) throw error;
-      return data.map(p => p.item_id);
-    },
-    enabled: !!ownerId,
-    staleTime: 1000 * 60 * 5,
-  });
-}
-
-const ItemCard = memo(({ item, canAfford, isPremium, onBuy, onActivate, isPurchased, isPurchasing, isActivating }: {
-  item: MarketplaceItem; canAfford: boolean; isPremium: boolean;
-  onBuy: (item: MarketplaceItem) => void;
-  onActivate: (item: MarketplaceItem) => void;
-  isPurchased: boolean; isPurchasing: boolean; isActivating: boolean;
+const ItemCard = memo(({ item, quantity, canAfford, busy, onBuy, onActivate, onEquip }: {
+  item: MarketplaceItem; quantity: number; canAfford: boolean; busy: boolean;
+  onBuy: (item: MarketplaceItem) => void; onActivate: (item: MarketplaceItem) => void; onEquip: (item: MarketplaceItem) => void;
 }) => {
-  const locked = item.premiumOnly && !isPremium;
-  const isConsumable = item.kind === 'consumable';
-  const showActivate = isPurchased && isConsumable;
-
-  const handleClick = () => {
-    if (showActivate) { onActivate(item); return; }
-    if (isPurchased) { toast.info('Already owned — check your Locker'); return; }
-    if (locked) { toast.error('This item is locked'); return; }
-    if (!canAfford) { toast.error('Not enough tokens'); return; }
-    onBuy(item);
-  };
-
-  return (
-    <Card className={cn(
-      "liquid-glass border-white/10 overflow-hidden transition-all duration-300 hover:scale-[1.02] active:scale-[0.97]",
-      locked && "opacity-60",
-      isPurchased && !showActivate && "ring-1 ring-primary/30",
-      showActivate && "ring-1 ring-amber-400/50"
-    )}>
-      <CardContent className="p-3 flex flex-col items-center text-center gap-1.5">
-        <div className="w-full">
-          <ItemPreview item={item} />
-        </div>
-
-        <h3 className="font-semibold text-xs text-foreground leading-tight">{item.name}</h3>
-        <p className="text-[10px] text-muted-foreground line-clamp-2 leading-snug">{item.description}</p>
-        <p className="text-[9px] text-primary/80 font-medium leading-tight line-clamp-1">{item.perk}</p>
-
-        <div className="flex items-center gap-1 text-amber-500 font-bold text-xs mt-0.5">
-          <Coins className="h-3 w-3" />
-          {item.cost}
-        </div>
-
-        <Button
-          size="sm"
-          onClick={handleClick}
-          disabled={isPurchasing || isActivating || (isPurchased && !isConsumable) || (!isPurchased && !canAfford && !locked)}
-          className={cn(
-            "w-full mt-0.5 text-[11px] h-7",
-            showActivate
-              ? "bg-amber-500 text-black hover:bg-amber-400"
-              : isPurchased
-                ? "bg-primary/10 text-primary border border-primary/20"
-                : locked
-                  ? "bg-muted text-muted-foreground"
-                  : canAfford
-                    ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                    : "bg-muted/50 text-muted-foreground"
-          )}
-        >
-          {showActivate ? (
-            isActivating ? 'Activating…' : <><Zap className="h-3 w-3 mr-1" /> Activate</>
-          ) : isPurchased ? (
-            <><Check className="h-3 w-3 mr-1" /> Owned</>
-          ) : locked ? (
-            <><Lock className="h-3 w-3 mr-1" /> Locked</>
-          ) : canAfford ? (
-            isPurchasing ? 'Buying...' : 'Buy'
-          ) : 'Not enough'}
-        </Button>
-      </CardContent>
-    </Card>
-  );
+  const permanentOwned = item.kind === 'permanent' && quantity > 0;
+  return <Card className="border-border/60 overflow-hidden"><CardContent className="p-4 space-y-3 text-center">
+    <ItemPreview item={item} />
+    <h2 className="font-semibold text-sm">{item.name}</h2>
+    <p className="text-xs text-muted-foreground">{item.description}</p>
+    <p className="text-xs text-primary">{item.perk}</p>
+    {item.kind === 'consumable' && <p className="text-xs" aria-label={`${item.name} quantity`}>{quantity} ready to use</p>}
+    {!item.available ? <Button disabled className="w-full">Unavailable</Button> : permanentOwned ?
+      <Button className="w-full" disabled={busy || !PERMANENT_EQUIP_MAP[item.id]} onClick={() => onEquip(item)}><Check className="h-4 w-4 mr-1" />Owned · Equip</Button> :
+      <Button className="w-full" disabled={busy || !canAfford} onClick={() => onBuy(item)} aria-label={`Buy ${item.name} for ${item.cost} tokens`}>
+        <Coins className="h-4 w-4 mr-1" />{item.cost} · {busy ? 'Please wait…' : canAfford ? 'Buy' : 'Not enough tokens'}
+      </Button>}
+    {item.kind === 'consumable' && quantity > 0 && item.available &&
+      <Button variant="outline" className="w-full" disabled={busy} onClick={() => onActivate(item)} aria-label={`Activate ${item.name}`}><Zap className="h-4 w-4 mr-1" />Activate one</Button>}
+  </CardContent></Card>;
 });
 
-export default function TokenMarketplace() {
+function TokenMarketplaceSession() {
   const [tab, setTab] = useState<string>('all');
-  const [showRoulette, setShowRoulette] = useState(false);
   const [purchaseSuccessItem, setPurchaseSuccessItem] = useState<MarketplaceItem | null>(null);
-  const filterCat = tab === 'all' ? undefined : tab as MarketplaceItem['category'];
-  const { items, balance, canAfford, isPremium } = useTokenMarketplace(filterCat);
+  const filter = tab === 'all' ? undefined : tab as MarketplaceItem['category'];
+  const state = useTokenMarketplace(filter);
   const purchase = useMarketplacePurchase();
   const activate = useActivateBoost();
   const equip = useEquipItem();
-  const { data: purchasedIds = [] } = usePurchasedItems();
-
-  const handleBuy = useCallback((item: MarketplaceItem) => {
-    purchase.mutate({ itemId: item.id, cost: item.cost, name: item.name }, {
-      onSuccess: () => {
-        setPurchaseSuccessItem(item);
-      },
-    });
-  }, [purchase]);
-
-  const handleEquipFromModal = useCallback(async () => {
-    if (!purchaseSuccessItem) return;
-    const equipSpec = PERMANENT_EQUIP_MAP[purchaseSuccessItem.id];
-    if (!equipSpec) {
-      setPurchaseSuccessItem(null);
-      return;
-    }
-    try {
-      await equip.mutateAsync(equipSpec);
-      toast.success(`${purchaseSuccessItem.name} equipped!`);
-      setPurchaseSuccessItem(null);
-    } catch {
-      toast.error('Could not equip — try from your locker');
-    }
-  }, [purchaseSuccessItem, equip]);
-
-  const handleLockerFromModal = useCallback(() => {
-    if (purchaseSuccessItem) {
-      toast.success(`${purchaseSuccessItem.name} saved to your locker`);
-    }
-    setPurchaseSuccessItem(null);
-  }, [purchaseSuccessItem]);
-
-  const handleActivate = useCallback((item: MarketplaceItem) => {
-    // Show the spinning roulette animation for the roulette pack
-    if (item.id === 'roulette_pack') {
-      setShowRoulette(true);
-    }
-    activate.mutate({ itemId: item.id, name: item.name }, {
-      onSettled: () => {
-        if (item.id === 'roulette_pack') {
-          setTimeout(() => setShowRoulette(false), 2400);
-        }
-      },
-    });
-  }, [activate]);
-
-  return (
-    <AppLayout>
-      <PageTransition>
-        <PurchaseSuccessModal
-          item={purchaseSuccessItem}
-          open={!!purchaseSuccessItem}
-          onOpenChange={(open) => { if (!open) setPurchaseSuccessItem(null); }}
-          onEquip={handleEquipFromModal}
-          onLocker={handleLockerFromModal}
-          isEquipping={equip.isPending}
-        />
-
-        {/* Roulette spin overlay */}
-        <AnimatePresence>
-          {showRoulette && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm"
-            >
-              <motion.div
-                initial={{ scale: 0.4, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.6, opacity: 0 }}
-                className="relative flex flex-col items-center gap-4"
-              >
-                <div className="relative h-44 w-44">
-                  {/* Outer glow */}
-                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-fuchsia-500 to-amber-400 blur-2xl opacity-60" />
-                  {/* Spinning roulette */}
-                  <motion.div
-                    animate={{ rotate: [0, 1440] }}
-                    transition={{ duration: 2.2, ease: [0.16, 0.9, 0.3, 1] }}
-                    className="absolute inset-0 rounded-full border-[6px] border-foreground/10"
-                    style={{
-                      background:
-                        'conic-gradient(from 0deg, #ef4444, #f59e0b, #eab308, #22c55e, #06b6d4, #8b5cf6, #ec4899, #ef4444)',
-                    }}
-                  />
-                  {/* Center hub */}
-                  <div className="absolute inset-1/3 rounded-full bg-card border border-white/10 flex items-center justify-center text-3xl">
-                    🎰
-                  </div>
-                  {/* Pointer */}
-                  <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[10px] border-r-[10px] border-b-[16px] border-l-transparent border-r-transparent border-b-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.6)]" />
-                </div>
-                <div className="text-center">
-                  <p className="text-base font-bold text-foreground">+5 Roulette Spins!</p>
-                  <p className="text-xs text-muted-foreground">Added to your VYBE Roulette balance</p>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-                <ShoppingBag className="h-6 w-6" />
-                Token Shop
-              </h1>
-              <p className="text-xs text-muted-foreground mt-1">Spend tokens on cosmetics, boosts & exclusives</p>
-            </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30">
-              <Coins className="h-4 w-4 text-amber-500" />
-              <span className="font-bold text-amber-500">{balance}</span>
-            </div>
-          </div>
-
+  const busy = purchase.isPending || activate.isPending || equip.isPending || !state.ready;
+  const buy = (item: MarketplaceItem) => {
+    if (busy || !item.available) return;
+    purchase.mutate({ itemId: item.id, cost: item.cost, name: item.name }, { onSuccess: () => setPurchaseSuccessItem(item) });
+  };
+  const equipItem = (item: MarketplaceItem) => {
+    const spec = PERMANENT_EQUIP_MAP[item.id];
+    if (!spec || equip.isPending) return;
+    equip.mutate(spec, { onSuccess: () => { toast.success(`${item.name} equipped on your profile`); setPurchaseSuccessItem(null); } });
+  };
+  return <AppLayout><PageTransition>
+    <PurchaseSuccessModal item={purchaseSuccessItem} open={!!purchaseSuccessItem}
+      onOpenChange={open => { if (!open) setPurchaseSuccessItem(null); }}
+      onEquip={() => { if (purchaseSuccessItem) equipItem(purchaseSuccessItem); }}
+      onLocker={() => setPurchaseSuccessItem(null)} isEquipping={equip.isPending} />
+    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
+      <div className="flex items-center justify-between gap-3">
+        <div><h1 className="text-2xl font-bold flex items-center gap-2"><ShoppingBag className="h-6 w-6" />Token Shop</h1><p className="text-xs text-muted-foreground mt-1">Profile cosmetics and verified reward boosts</p></div>
+        <div className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-2 flex gap-2 items-center"><Coins className="h-4 w-4 text-amber-500" /><span aria-label="Token balance">{state.balance === undefined ? '—' : state.balance.toLocaleString()}</span></div>
+      </div>
+      {state.legacyReview && <p role="status" className="rounded-xl border p-3 text-sm">Your earlier token and purchase history is retained for review. It is not included in the verified spendable balance or inventory yet.</p>}
+      {state.isLoading ? <p role="status">Loading your wallet and shop…</p> : state.isError ?
+        <div role="alert" className="rounded-xl border p-4 space-y-3"><p>The token shop is unavailable. Your balance and purchases could not be verified.</p><Button onClick={() => void state.refetch()}>Try again</Button></div> :
+        <>
           <ActiveBoostsBanner />
           <Tabs value={tab} onValueChange={setTab}>
-            <TabsList className="w-full h-10 p-1 bg-muted/50 rounded-xl">
-              <TabsTrigger value="all" className="flex-1 rounded-lg text-xs">All</TabsTrigger>
-              {Object.entries(CATEGORY_LABELS).map(([key, { label, icon }]) => (
-                <TabsTrigger key={key} value={key} className="flex-1 rounded-lg text-xs">
-                  {icon} {label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-
+            <TabsList className="w-full"><TabsTrigger value="all" className="flex-1">All</TabsTrigger>{Object.entries(CATEGORY_LABELS).map(([key, { label }]) => <TabsTrigger key={key} value={key} className="flex-1">{label}</TabsTrigger>)}</TabsList>
             <TabsContent value={tab} className="mt-4">
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {items.map(item => (
-                  <ItemCard
-                    key={item.id}
-                    item={item}
-                    canAfford={canAfford(item.cost)}
-                    isPremium={isPremium}
-                    onBuy={handleBuy}
-                    onActivate={handleActivate}
-                    isPurchased={purchasedIds.includes(item.id)}
-                    isPurchasing={purchase.isPending}
-                    isActivating={activate.isPending}
-                  />
-                ))}
-
-                {/* "More coming soon" placeholder cards */}
-                {Array.from({ length: 2 }).map((_, i) => (
-                  <Card
-                    key={`soon-${i}`}
-                    className="liquid-glass border-dashed border-white/10 overflow-hidden opacity-70"
-                  >
-                    <CardContent className="p-3 flex flex-col items-center text-center gap-1.5 min-h-[180px] justify-center">
-                      <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-                        <Sparkles className="h-6 w-6 text-primary animate-pulse" />
-                      </div>
-                      <h3 className="font-semibold text-xs text-foreground leading-tight">More coming soon</h3>
-                      <p className="text-[10px] text-muted-foreground leading-snug">
-                        New cosmetics & boosts dropping every season
-                      </p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-              {items.length === 0 && (
-                <div className="text-center py-12 text-muted-foreground">
-                  <p className="text-4xl mb-2">🏪</p>
-                  <p className="text-sm">No items in this category</p>
-                </div>
-              )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">{state.items.map(item => <ItemCard key={item.id} item={item}
+                quantity={state.inventory.find(owned => owned.item_id === item.id)?.quantity || 0}
+                canAfford={state.canAfford(item.cost)} busy={busy} onBuy={buy} onEquip={equipItem}
+                onActivate={selected => { if (!busy && selected.available) activate.mutate({ itemId: selected.id, name: selected.name }); }} />)}</div>
+              {state.items.length === 0 && <p className="py-10 text-center text-muted-foreground">No items in this category.</p>}
             </TabsContent>
           </Tabs>
-        </div>
-      </PageTransition>
-    </AppLayout>
-  );
+        </>}
+    </div>
+  </PageTransition></AppLayout>;
+}
+
+export default function TokenMarketplace() {
+  const uid = useAuth().user?.id;
+  return <TokenMarketplaceSession key={`${uid || 'signed-out'}:${tokenAccountSnapshot().epoch}`} />;
 }

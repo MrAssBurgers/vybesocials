@@ -19,6 +19,12 @@ on:
       - 'scripts/test-community-authority-rules.mjs'
       - 'scripts/test-reward-authority-backend.mjs'
       - 'scripts/test-premium-authority-backend.mjs'
+      - 'scripts/test-token-marketplace-rules.mjs'
+      - 'scripts/test-token-marketplace-backend.mjs'
+      - 'functions/src/tokenMarketplace.ts'
+      - 'functions/src/_shared/tokenMarketplaceAuthority.ts'
+      - 'functions/src/_shared/tokenCreditAuthority.ts'
+      - 'src/lib/tokenMarketplaceService*'
       - 'functions/package.json'
       - 'functions/package-lock.json'
       - 'functions/src/premiumGifts.ts'
@@ -80,6 +86,12 @@ on:
       - 'scripts/test-community-authority-rules.mjs'
       - 'scripts/test-reward-authority-backend.mjs'
       - 'scripts/test-premium-authority-backend.mjs'
+      - 'scripts/test-token-marketplace-rules.mjs'
+      - 'scripts/test-token-marketplace-backend.mjs'
+      - 'functions/src/tokenMarketplace.ts'
+      - 'functions/src/_shared/tokenMarketplaceAuthority.ts'
+      - 'functions/src/_shared/tokenCreditAuthority.ts'
+      - 'src/lib/tokenMarketplaceService*'
       - 'functions/package.json'
       - 'functions/package-lock.json'
       - 'functions/src/premiumGifts.ts'
@@ -183,6 +195,8 @@ jobs:
           node --check scripts/test-community-authority-rules.mjs
           node --check scripts/test-reward-authority-backend.mjs
           node --check scripts/test-premium-authority-backend.mjs
+          node --check scripts/test-token-marketplace-rules.mjs
+          node --check scripts/test-token-marketplace-backend.mjs
 
       # Explicit demo project + QA-only config prevents the repository's
       # production default in .firebaserc from being selected.
@@ -201,7 +215,9 @@ jobs:
           node scripts/test-reward-authority-rules.mjs &&
           node scripts/test-community-authority-rules.mjs &&
           node scripts/test-reward-authority-backend.mjs &&
-          node scripts/test-premium-authority-backend.mjs"
+          node scripts/test-premium-authority-backend.mjs &&
+          node scripts/test-token-marketplace-rules.mjs &&
+          node scripts/test-token-marketplace-backend.mjs"
 
       - name: Upload emulator diagnostics
         if: always()

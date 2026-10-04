@@ -2,6 +2,37 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-03) - Verified wallet, token shop, inventory and reward fulfilment
+
+### What changed
+- Replaced browser wallet writes with a verified server wallet, atomic purchases, immutable retry receipts, inventory quantities, paid equipment validation and once-only timed boost activation. Concurrent purchases cannot overspend; retries cannot charge twice or restart expired boosts. Old balances, purchase records and boosts remain retained for reconciliation and cannot create new entitlements. See docs/MARKETPLACE_AUTHORITY.md.
+- Token earning verifies retained activity IDs and actual server creation times, fixes rates and daily caps, and credits wallet/receipt/history together. Supported sources are daily login, published posts, valid comments and verified claimed challenges. Caller amounts, historical boosts and browser ad callbacks cannot mint tokens. Posts/comments retain immutable source ownership; supported author-only legacy comments remain compatible without accepting conflicting owners.
+- Protected XP records authorize new level unlocks, separate from old displayed XP. Staff badge proofs and revocation tombstones authorize equipment; claiming a challenge cannot recreate a staff-revoked badge, including during a race. Valid XP still credits when the badge is suppressed.
+- Migrated wallet, shop, inventory, locker, profile equipment and reward UI together, with account-epoch cancellation, persistent same-tab retry IDs, source IDs and truthful loading/error states. Confirmed purchases have reduced-motion-aware feedback and preference-aware sounds. Unfulfilled catalog perks and unverified ad rewards are unavailable.
+- Paid neon/ocean profile gradients now render, with matching shop/locker previews and paid frame previews. Locker visual lookup uses actual equipment IDs. Paid effects tint uploaded wallpapers at 35% opacity and preserve their saved settings; without a wallpaper they render the full profile gradient. All four permanent products have catalog-to-render regressions.
+- Closed legacy browser purchase/boost writes and protected six profile equipment fields. Added private wallet, inventory, credit, XP and badge namespaces plus two query indexes. GitHub emulator QA covers the new rules and integrated transactions. The requested upgrade notification remains removed from announcements, notifications, toasts and unread counts.
+
+### Verification
+- Final full Vitest: **178 files / 1,597 tests passed**. App and standalone SDK typechecks passed. Functions build passed. Full lint: **0 errors**, the same 5 inherited unused-disable warnings; final cosmetic edits also passed scoped lint/typecheck. Final whitespace check passed.
+- Firestore/Storage demo emulators: **1,146 rules checks passed**: 164 creator, 22 game post, 112 customization, 115 account, 98 commerce, 85 conversation/call, 99 premium, 92 reward, 84 community and 275 token marketplace. Four separate inherited staff-role alias read-budget probes remain confirmed, not fixed.
+- **44 real Firestore transaction checks passed**: 8 reward/badge, 12 premium and 24 token marketplace. The final built backend was rerun after the author-only comment and badge-revocation fixes. Only premium recipient Auth lookup is stubbed; token tests use actual Firestore transactions with no provider stubs or production access.
+- Final production build passed: entry app-DftAY6Fa.js approximately **1,085.1 KB raw / 317.0 KB gzip**, below 1,125 / 335 KB budgets. CSS/boot and static DM/inbox/camera contracts passed.
+- Read-only signed-in preview: Token Shop shows an unavailable/Retry state and unknown balance until its callable is deployed; it does not offer purchases from unverified data. The user's live Home and Mini App Studio tabs remain open. No real posts, messages, purchases, gifts, roles, equipment or ad sessions were changed. Successful purchase/equipment mutations were verified in isolated fixtures, not the owner's production account.
+
+### Release limits and remaining risks
+- Source-only checkpoint. **No production Functions/rules deployment or data migration. Never deploy all Functions or alter production auth2faRequest.** Coordinate selective callable/rules rollout, both new indexes and compatible clients in staging before Lovable Publish updates vybehub.app and store bundles.
+- Historical wallets, inventory, boosts and displayed XP are retained but unverified. New spendable wallets and verified XP begin at zero; legitimate historical balances and unlocks need independently evidenced, idempotent operator reconciliation. Previously displayed cosmetics are not automatically stripped, but re-equipping needs current proof. Do not publish this migration without a communicated recovery plan.
+- RevenueCat-only client entitlements do not certify server equipment; provider fulfilment and Stripe subscription/catalog/settlement work remain. Rewarded ads, streak shields, visibility boosts and roulette packs remain unavailable. This pass adds no real-money token sale or cash-out.
+- Financial/consumption receipts need durable retention, monitoring and an account-deletion/archive plan. State exposes the newest 20 token events; larger history pagination remains. Browser-blocked session storage reduces lost-acknowledgement recovery across reloads, while normal same-tab reloads retain request IDs.
+- Existing community media/session revocation, staff-role projection, partner native/GCS certification and mini-app runtime/network/abuse limitations from prior entries remain. The goal stays active; this checkpoint does not certify the entire app as perfected or release-ready.
+
+### Next 3 tasks
+1. Prepare controlled staging and evidence-based wallet/XP/entitlement reconciliation; complete provider fulfilment and a canonical staff-role projection without broadening browser authority.
+2. Add private community media delivery and provider-side session revocation, then stage owner recovery/rejoining and larger-community pagination.
+3. Continue game/mini-app operational and native certification plus responsive interaction/animation testing in isolated accounts, preserving the signed-in owner's production data.
+
+---
+
 ## ACTIVE (2026-10-03) - Community, reward, premium gift, and customization repair
 
 ### What changed

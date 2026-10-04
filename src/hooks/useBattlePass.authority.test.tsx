@@ -1,7 +1,7 @@
 import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({ uid: 'player', currentUid: 'player', profileId: 'legacy', profileUid: 'player',
-  read: vi.fn(), rpc: vi.fn(), filters: [] as Array<[string, unknown]>, invalidate: vi.fn(), toast: vi.fn(), subscribe: vi.fn(), remove: vi.fn(), queryData: {} as Record<string, unknown> }));
+  read: vi.fn(), rpc: vi.fn(), credit: vi.fn(), epoch: 0, filters: [] as Array<[string, unknown]>, invalidate: vi.fn(), toast: vi.fn(), subscribe: vi.fn(), remove: vi.fn(), queryData: {} as Record<string, unknown> }));
 vi.mock('@tanstack/react-query', () => ({
   useQuery: (options: { queryKey: string[] }) => ({ ...options, data: state.queryData[options.queryKey[0]] }),
   useMutation: (options: unknown) => options, useQueryClient: () => ({ invalidateQueries: state.invalidate }),
@@ -23,6 +23,7 @@ vi.mock('@/lib/firebase', () => ({ getFirebaseAuth: () => ({ currentUser: { uid:
 vi.mock('@/lib/realtimeChannel', () => ({ subscribePostgresChannel: state.subscribe, removeRealtimeChannel: state.remove }));
 vi.mock('sonner', () => ({ toast: { success: state.toast } }));
 vi.mock('@/lib/navigationRef', () => ({ navigationRef: { current: vi.fn() } }));
+vi.mock('@/lib/tokenMarketplaceService', () => ({ tokenMarketplaceRequest: state.credit, tokenAccountGuard: (uid: string) => { const epoch = state.epoch; return () => { if (uid !== state.currentUid || epoch !== state.epoch) throw new Error('Account changed'); }; } }));
 import { useUserLevel, useUnclaimedRewards, useClaimReward, useRealtimeChallengeRewards, useRealtimeLevelUpdates, type ChallengeReward } from './useBattlePass';
 import { useChallengesWithProgress } from './useChallenges';
 type Query<T> = { queryKey: string[]; enabled: boolean; queryFn: () => Promise<T> };
@@ -32,6 +33,7 @@ beforeEach(() => {
   vi.clearAllMocks(); state.filters = []; state.uid = 'player'; state.currentUid = 'player'; state.profileId = 'legacy'; state.profileUid = 'player'; state.queryData = {};
   state.read.mockResolvedValue({ data: [], error: null }); state.rpc.mockResolvedValue({ data: { success: true, xp_gained: 25 }, error: null });
   state.subscribe.mockReturnValue({ topic: 'fixture' });
+  state.epoch = 0; state.credit.mockResolvedValue({ success: true, balance: 25, credited: 25 });
 });
 describe('reward identity and replay presentation', () => {
   it('reads both aliases, coalesces unclaimed duplicates, and hides all aliases of a settled challenge', async () => {
@@ -71,6 +73,20 @@ describe('reward identity and replay presentation', () => {
     const { result } = renderHook(useClaimReward); const mutation = result.current as unknown as Mutation;
     const data = await mutation.mutationFn('reward'); state.currentUid = 'other'; mutation.onSuccess(data);
     expect(state.invalidate).not.toHaveBeenCalled(); expect(state.toast).not.toHaveBeenCalled();
+  });
+  it('credits only the returned verified challenge identity, never a parsed reward ID', async () => {
+    state.rpc.mockResolvedValue({ data: { success: true, challenge_id: 'server-challenge', xp_gained: 25 }, error: null });
+    const { result } = renderHook(useClaimReward); const mutation = result.current as unknown as Mutation;
+    const data = await mutation.mutationFn('ambiguous_uid_and_challenge'); mutation.onSuccess(data);
+    expect(state.credit).toHaveBeenCalledWith({ action: 'earn', type: 'challenge_completed', referenceId: 'server-challenge' }, expect.any(Function));
+  });
+  it('rejects unconfirmed rewards and account-switch completion before token earning', async () => {
+    state.rpc.mockResolvedValue({ data: { success: false, challenge_id: 'forged' }, error: null });
+    const { result } = renderHook(useClaimReward); const mutation = result.current as unknown as Mutation;
+    await expect(mutation.mutationFn('reward')).rejects.toThrow('not confirmed');
+    state.rpc.mockImplementation(async () => { state.epoch += 2; return { data: { success: true, challenge_id: 'daily' }, error: null }; });
+    await expect(mutation.mutationFn('reward')).rejects.toThrow('Account changed');
+    expect(state.credit).not.toHaveBeenCalled();
   });
   it('subscribes to both level identities and invalidates the UID key', () => {
     renderHook(useRealtimeLevelUpdates);

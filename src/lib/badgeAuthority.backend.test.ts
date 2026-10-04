@@ -7,7 +7,7 @@ vi.mock('../../functions/src/_shared/admin', () => ({
   db: { collection: auth.collection }, requireAdmin: auth.requireAdmin, rateLimit: auth.rateLimit,
   enforceRateLimit: (allowed: boolean) => { if (!allowed) throw Object.assign(new Error('Rate limited'), { code: 'resource-exhausted' }); },
 }));
-import { awardBadge, revokeBadge, changeBadgeGrant } from '../../functions/src/badgeAuthority';
+import { awardBadge, revokeBadge, changeBadgeGrant, badgeAuthorityId } from '../../functions/src/badgeAuthority';
 
 type Row = Record<string, unknown>;
 const rows = new Map<string, Row>();
@@ -37,6 +37,8 @@ const database = {
         return 'path' in target ? snap(target.path) : target.read();
       },
       create: (target: ReturnType<typeof ref>, row: Row) => writes.push(() => { if (rows.has(target.path)) throw new Error('Already exists'); rows.set(target.path, row); }),
+      set: (target: ReturnType<typeof ref>, row: Row) => writes.push(() => rows.set(target.path, row)),
+      update: (target: ReturnType<typeof ref>, row: Row) => writes.push(() => rows.set(target.path, { ...rows.get(target.path), ...row })),
       delete: (target: ReturnType<typeof ref>) => writes.push(() => rows.delete(target.path)),
     };
     const result = await body(tx); writes.forEach(write => write()); return result;
@@ -45,6 +47,7 @@ const database = {
 const now = Date.parse('2026-10-03T12:00:00Z');
 const input = { p_user_id: 'legacy-target', p_badge_id: 'special' };
 const grantPath = 'user_badges/target-auth_special';
+const proofPath = `_badge_grant_authority/${badgeAuthorityId('target-auth', 'special')}`;
 const change = (operation: 'award' | 'revoke', data: Row = input) => changeBadgeGrant(database, 'staff', data, operation, now);
 
 beforeEach(() => {
@@ -78,12 +81,14 @@ describe('staff badge authority', () => {
     expect(rows.get(grantPath)).not.toHaveProperty('badge_name');
     expect(rows.get(grantPath)?.earned_at).toBe(new Date(now).toISOString());
     expect([...rows.keys()].some(key => key.startsWith('user_roles'))).toBe(false);
+    expect(rows.get(proofPath)).toMatchObject({ schema_version: 1, user_id: 'target-auth', profile_id: 'legacy-target', badge_id: 'special', source: 'staff', issued_by: 'staff', active: true, grant_id: 'target-auth_special' });
   });
   it('preserves legacy award and display preferences on retry', async () => {
     const old = { user_id: 'legacy-target', badge_id: 'special', is_primary: true, earned_at: 'old', expires_at: '2030-01-01T00:00:00Z' };
     rows.set('user_badges/random', old);
     await expect(change('award')).resolves.toMatchObject({ id: 'random', already_awarded: true });
     expect(rows.get('user_badges/random')).toEqual(old); expect(rows.has(grantPath)).toBe(false);
+    expect(rows.get(proofPath)).toMatchObject({ active: true, grant_id: 'random', expires_at: old.expires_at });
   });
   it('removes all matching aliases idempotently without deleting another account’s badge', async () => {
     rows.set(grantPath, { user_id: 'target-auth', badge_id: 'special' });
@@ -92,6 +97,23 @@ describe('staff badge authority', () => {
     await expect(change('revoke')).resolves.toEqual({ success: true, removed: 2 });
     await expect(change('revoke')).resolves.toEqual({ success: true, removed: 0 });
     expect(rows.has('user_badges/other')).toBe(true);
+    expect(rows.get(proofPath)).toMatchObject({ active: false, badge_id: 'special' });
+  });
+  it('clears a revoked equipped badge and retains a negative authority receipt', async () => {
+    rows.set('profiles/legacy-target', { user_id: 'target-auth', equipped_badge_id: 'special' });
+    await change('award');
+    await change('revoke');
+    expect(rows.get('profiles/legacy-target')?.equipped_badge_id).toBeNull();
+    expect(rows.get(proofPath)).toMatchObject({ active: false, revoked_at: new Date(now).toISOString() });
+  });
+  it('does not certify an expired legacy grant or a mismatched protected proof', async () => {
+    rows.set(grantPath, { user_id: 'target-auth', badge_id: 'special', expires_at: '2020-01-01' });
+    await expect(change('award')).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(rows.has(proofPath)).toBe(false);
+    rows.delete(grantPath);
+    rows.set(proofPath, { schema_version: 1, user_id: 'someone-else', profile_id: 'legacy-target', badge_id: 'special' });
+    await expect(change('award')).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(rows.has(grantPath)).toBe(false);
   });
   it('can revoke an old grant whose definition was removed', async () => {
     rows.delete('badges/special'); rows.set(grantPath, { user_id: 'target-auth', badge_id: 'special' });

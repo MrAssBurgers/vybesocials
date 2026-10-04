@@ -30,12 +30,12 @@ function ClockWidget() {
 
 // Token Balance Widget
 function TokenBalanceWidget() {
-  const { data: balance } = useTokenBalance();
+  const { data: balance, isError, isLoading } = useTokenBalance();
   
   return (
     <div className="flex items-center gap-2">
       <Coins className="w-5 h-5 text-yellow-500" />
-      <span className="text-xl font-bold">{balance?.balance || 0}</span>
+      <span className="text-xl font-bold">{isError ? 'Unavailable' : isLoading || !balance ? '…' : balance.balance}</span>
       <VybeWordmark size="xs" className="opacity-70" />
     </div>
   );

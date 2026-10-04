@@ -288,13 +288,17 @@ service cloud.firestore {
         && request.resource.data.user_id == uid()
         && request.resource.data.get('id', userId) == userId
         && !request.resource.data.keys().hasAny(['stripe_customer_id', 'stripe_account_id',
-          'is_verified', 'is_premium', 'premium_status', 'premium_expires_at', 'coins_balance']);
+          'is_verified', 'is_premium', 'premium_status', 'premium_expires_at', 'coins_balance',
+          'equipped_title', 'equipped_effect', 'equipped_frame', 'equipped_name_color',
+          'equipped_profile_theme', 'equipped_badge_id']);
       allow update: if signedIn() && (ownsProfileId(userId) || isAdmin())
         && request.resource.data.get('user_id', userId) == resource.data.get('user_id', userId)
         && request.resource.data.get('id', userId) == resource.data.get('id', userId)
         && !request.resource.data.diff(resource.data).affectedKeys()
           .hasAny(['stripe_customer_id', 'stripe_account_id',
-            'is_verified', 'is_premium', 'premium_status', 'premium_expires_at', 'coins_balance']);
+            'is_verified', 'is_premium', 'premium_status', 'premium_expires_at', 'coins_balance',
+            'equipped_title', 'equipped_effect', 'equipped_frame', 'equipped_name_color',
+            'equipped_profile_theme', 'equipped_badge_id']);
       allow delete: if isAdmin();
     }
     // Sensitive owner-only profile fields. Public profile documents are broadly
@@ -652,8 +656,8 @@ service cloud.firestore {
     }
     match /user_active_boosts/{docId} {
       allow read: if signedIn() && (ownsUserField('user_id') || ownsProfileId(docId));
-      allow create, update: if signedIn() && (willOwnUserField('user_id') || ownsUserField('user_id'));
-      allow delete: if ownsUserField('user_id') || isAdmin();
+      // Historical rows are retained for reconciliation, never new authority.
+      allow create, update, delete: if false;
     }
     match /screen_time_sessions/{docId} {
       allow read: if signedIn() && (ownsUserField('user_id') || ownsProfileId(docId));
@@ -848,13 +852,19 @@ service cloud.firestore {
       allow create: if willOwnProfile('author_id')
         && (reservedGamePost() ? validGameCaptureCreate() : !request.resource.data.keys().hasAny(['game_capture_id']));
       allow update: if (isOwnerProfile('author_id') || isStaffModerator())
+        && request.resource.data.author_id == resource.data.author_id
         && (reservedGamePost() ? preservesGameCaptureIdentity() : !request.resource.data.diff(resource.data).affectedKeys().hasAny(['game_capture_id']));
       allow delete: if isOwnerProfile('author_id') || isStaffModerator();
     }
     match /comments/{commentId} {
       allow read: if signedIn();
-      allow create: if willOwnUserField('user_id') || willOwnUserField('author_id');
-      allow update, delete: if ownsUserField('user_id') || ownsUserField('author_id') || isStaffModerator();
+      allow create: if signedIn()
+        && (willOwnUserField('user_id') || willOwnUserField('author_id'))
+        && (!('user_id' in request.resource.data) || willOwnUserField('user_id'))
+        && (!('author_id' in request.resource.data) || willOwnUserField('author_id'));
+      allow update: if (ownsUserField('user_id') || ownsUserField('author_id') || isStaffModerator())
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['user_id', 'author_id', 'post_id']);
+      allow delete: if ownsUserField('user_id') || ownsUserField('author_id') || isStaffModerator();
     }
     match /comment_likes/{docId} {
       allow read: if signedIn();
@@ -1430,20 +1440,30 @@ service cloud.firestore {
     match /subscriptions/{id} { allow read, write: if false; }
     match /vybe_tokens/{docId} {
       allow read: if ownsUserField('user_id') || ownsProfileId(docId) || isAdmin();
-      // Balance writes restricted to Cloud Functions (admin SDK) to prevent self-minting.
-      allow create, update, delete: if isAdmin();
+      // Historical balances require reconciliation. Browser staff cannot mint.
+      allow create, update, delete: if false;
     }
     match /token_transactions/{docId} {
       allow read: if ownsUserField('user_id') || isAdmin();
       // Transaction ledger writes restricted to Cloud Functions only.
-      allow create, update, delete: if isAdmin();
+      allow create, update, delete: if false;
     }
 
     match /marketplace_purchases/{docId} {
       allow read: if ownsUserField('user_id') || isAdmin();
-      allow create: if willOwnUserField('user_id') || isAdmin();
-      allow update, delete: if isAdmin();
+      allow create, update, delete: if false;
     }
+    // Wallet state, receipts, entitlement and boosts are returned by verified
+    // callables. Keeping browser reads closed prevents broad-list data leaks.
+    match /token_wallets/{id} { allow read, write: if false; }
+    match /token_entitlements/{id} { allow read, write: if false; }
+    match /token_boosts/{id} { allow read, write: if false; }
+    match /token_events/{id} { allow read, write: if false; }
+    match /_token_purchase_requests/{id} { allow read, write: if false; }
+    match /_token_credit_receipts/{id} { allow read, write: if false; }
+    match /_token_credit_day_limits/{id} { allow read, write: if false; }
+    match /_verified_xp_authority/{id} { allow read, write: if false; }
+    match /_badge_grant_authority/{id} { allow read, write: if false; }
     match /sounds/{id} {
       allow read: if signedIn();
       allow create: if signedIn();
@@ -1470,9 +1490,6 @@ service cloud.firestore {
       allow delete: if ownsUserField('user_id') || isAdmin();
     }
     match /user_custom_sounds/{id} {
-      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
-    }
-    match /user_active_boosts/{id} {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
     match /screen_time_sessions/{id} {

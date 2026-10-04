@@ -1,152 +1,31 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { db } from '@/lib/firebase';
-import { useAuth } from '@/lib/auth';
-import { useAuthProfileId } from '@/hooks/useAuthProfileId';
-import { useDNAPerks } from '@/hooks/useDNAPerks';
-import { useHasBoost } from '@/hooks/useActiveBoosts';
-import {
-  applyTokenMultiplier,
-  parseTokenBalance,
-  parseTokenTransaction,
-  type TokenBalance,
-  type TokenTransaction,
-} from '@/lib/tokenMath';
+import { useTokenAction, useTokenMarketplaceState } from './useTokenMarketplaceState';
+import { tokenMarketplaceRequest, type TokenEarnType } from '@/lib/tokenMarketplaceService';
+export type { TokenBalance, TokenTransaction } from '@/lib/tokenMath';
+export { parseTokenBalance } from '@/lib/tokenMath';
 
-export type { TokenBalance, TokenTransaction };
-export { parseTokenBalance };
-
-// Token earning rates
-export const TOKEN_RATES = {
-  post_created: 10,
-  comment_added: 2,
-  like_received: 1,
-  streak_bonus: 5,
-  challenge_completed: 25,
-  daily_login: 3,
-  invite_accepted: 50,
-  quiz_completed: 15,
-} as const;
+/** Base verified rewards; daily limits and multipliers are enforced by the server. */
+export const TOKEN_RATES = { post_created: 10, comment_added: 2, challenge_completed: 25, daily_login: 3 } as const;
+export const TOKEN_DAILY_LIMITS = { post_created: 3, comment_added: 10, challenge_completed: 5, daily_login: 1 } as const;
 
 export function useTokenBalance() {
-  const { user } = useAuth();
-  const profileId = useAuthProfileId();
-  const tokenUserId = profileId ?? user?.id;
-
-  return useQuery({
-    queryKey: ['vybe-tokens', tokenUserId],
-    queryFn: async (): Promise<TokenBalance | null> => {
-      if (!tokenUserId) return null;
-
-      const { data, error } = await db
-        .from('vybe_tokens')
-        .select('*')
-        .eq('user_id', tokenUserId)
-        .maybeSingle();
-
-      if (error && error.code !== 'PGRST116') throw error;
-
-      if (!data) {
-        const { data: byAuth } = user?.id && user.id !== tokenUserId
-          ? await db.from('vybe_tokens').select('*').eq('user_id', user.id).maybeSingle()
-          : { data: null };
-        if (byAuth) return parseTokenBalance(byAuth, tokenUserId);
-        // No wallet row yet — zero balance until the first earn creates one.
-        return parseTokenBalance(null, tokenUserId);
-      }
-
-      return parseTokenBalance(data, tokenUserId);
-    },
-    enabled: !!tokenUserId,
-    staleTime: 30_000,
-  });
+  const state = useTokenMarketplaceState();
+  return { ...state, data: state.isError ? undefined : state.data?.wallet, legacyReview: state.data?.legacy_review ?? false };
 }
-
 export function useTokenTransactions(limit = 20) {
-  const { user } = useAuth();
-
-  return useQuery({
-    queryKey: ['token-transactions', user?.id, limit],
-    queryFn: async (): Promise<TokenTransaction[]> => {
-      if (!user?.id) return [];
-
-      const { data, error } = await db
-        .from('token_transactions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(limit);
-
-      if (error) throw error;
-      return ((data as unknown[]) || [])
-        .map(parseTokenTransaction)
-        .filter((t): t is TokenTransaction => t !== null);
-    },
-    enabled: !!user?.id,
-  });
+  const state = useTokenMarketplaceState();
+  return { ...state, data: state.isError ? undefined : state.data?.transactions.slice(0, limit), legacyReview: state.data?.legacy_review ?? false };
 }
-
 export function useEarnTokens() {
-  const { user, profile } = useAuth();
-  const profileId = useAuthProfileId();
-  const tokenUserId = profileId ?? profile?.id ?? user?.id;
-  const qc = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ 
-      amount, 
-      type, 
-      description, 
-      referenceId 
-    }: { 
-      amount: number; 
-      type: keyof typeof TOKEN_RATES | string; 
-      description?: string; 
-      referenceId?: string 
-    }) => {
-      if (!tokenUserId) throw new Error('Not authenticated');
-
-      const { data, error } = await db.rpc('earn_vybe_tokens', {
-        p_user_id: tokenUserId,
-        p_amount: amount,
-        p_type: type,
-        p_description: description || null,
-        p_reference_id: referenceId || null,
-      });
-
-      if (error) throw error;
-      const newBalance = Number(data);
-      return Number.isFinite(newBalance) ? newBalance : 0;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['vybe-tokens', tokenUserId] });
-      qc.invalidateQueries({ queryKey: ['vybe-tokens'] });
-      qc.invalidateQueries({ queryKey: ['token-transactions', tokenUserId] });
-    },
-  });
+  return useTokenAction(({ type, referenceId }: { type: TokenEarnType; referenceId?: string }, guard) =>
+    tokenMarketplaceRequest({ action: 'earn', type, referenceId }, guard));
 }
-
-/**
- * Convenience hook to earn tokens for common actions
- */
 export function useTokenReward() {
   const earn = useEarnTokens();
-  const perks = useDNAPerks();
-  const tokens2x = useHasBoost('tokens_2x');
-
-  // DNA multiplier × active 2x token boost from token shop
-  const applyMultiplier = (base: number) =>
-    applyTokenMultiplier(base, perks.tokenMultiplier, tokens2x);
-
   return {
-    rewardPost: () => earn.mutate({ amount: applyMultiplier(TOKEN_RATES.post_created), type: 'post_created', description: 'Created a post' }),
-    rewardComment: () => earn.mutate({ amount: applyMultiplier(TOKEN_RATES.comment_added), type: 'comment_added', description: 'Added a comment' }),
-    rewardLike: () => earn.mutate({ amount: applyMultiplier(TOKEN_RATES.like_received), type: 'like_received', description: 'Received a like' }),
-    rewardStreak: (days: number) => earn.mutate({ amount: applyMultiplier(TOKEN_RATES.streak_bonus * days), type: 'streak_bonus', description: `${days}-day streak bonus` }),
-    rewardChallenge: (name: string) => earn.mutate({ amount: applyMultiplier(TOKEN_RATES.challenge_completed), type: 'challenge_completed', description: `Completed: ${name}` }),
-    rewardDailyLogin: () => earn.mutate({ amount: applyMultiplier(TOKEN_RATES.daily_login), type: 'daily_login', description: 'Daily login bonus' }),
-    rewardInvite: () => earn.mutate({ amount: applyMultiplier(TOKEN_RATES.invite_accepted), type: 'invite_accepted', description: 'Friend accepted invite' }),
-    rewardQuiz: () => earn.mutate({ amount: applyMultiplier(TOKEN_RATES.quiz_completed), type: 'quiz_completed', description: 'Completed personality quiz' }),
+    rewardPost: (referenceId: string) => earn.mutate({ type: 'post_created', referenceId }),
+    rewardComment: (referenceId: string) => earn.mutate({ type: 'comment_added', referenceId }),
+    rewardChallenge: (referenceId: string) => earn.mutate({ type: 'challenge_completed', referenceId }),
+    rewardDailyLogin: () => earn.mutate({ type: 'daily_login' }),
     earn,
-    perks,
   };
 }

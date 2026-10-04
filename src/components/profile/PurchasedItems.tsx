@@ -1,114 +1,30 @@
-import { useQuery } from '@tanstack/react-query';
-import { db } from '@/lib/firebase';
-import { useAuth } from '@/lib/auth';
-import { Package, ShoppingBag, Zap, Palette, Crown } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
-
-interface Purchase {
-  id: string;
-  item_id: string;
-  cost: number;
-  purchased_at: string;
-}
-
-const CATEGORY_ICONS: Record<string, typeof Package> = {
-  cosmetic: Palette,
-  boost: Zap,
-  feature: Crown,
-  default: ShoppingBag,
-};
-
-function getItemCategory(itemId: string): string {
-  if (itemId.includes('boost') || itemId.includes('xp') || itemId.includes('multiplier')) return 'boost';
-  if (itemId.includes('frame') || itemId.includes('color') || itemId.includes('effect') || itemId.includes('theme')) return 'cosmetic';
-  if (itemId.includes('premium') || itemId.includes('unlock')) return 'feature';
-  return 'default';
-}
-
-function formatItemName(itemId: string): string {
-  return itemId
-    .replace(/_/g, ' ')
-    .replace(/-/g, ' ')
-    .replace(/\b\w/g, c => c.toUpperCase());
-}
+import { Package } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useTokenMarketplaceState } from '@/hooks/useTokenMarketplaceState';
+import { useActivateBoost } from '@/hooks/useActiveBoosts';
+import { useEquipItem } from '@/hooks/useLockerItems';
+import { MARKETPLACE_EQUIP_MAP } from '@/lib/marketplaceEquip';
 
 export function PurchasedItems() {
-  const { profile } = useAuth();
-
-  const { data: purchases = [], isLoading } = useQuery({
-    queryKey: ['marketplace-purchases', profile?.id],
-    queryFn: async () => {
-      if (!profile?.id) return [];
-      const { data, error } = await db
-        .from('marketplace_purchases')
-        .select('*')
-        .eq('user_id', profile.id)
-        .order('purchased_at', { ascending: false });
-      if (error) throw error;
-      return (data || []) as Purchase[];
-    },
-    enabled: !!profile?.id,
-  });
-
-  if (isLoading) {
-    return (
-      <div className="grid grid-cols-2 gap-2">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-24 rounded-2xl bg-muted/30 animate-pulse" />
-        ))}
-      </div>
-    );
-  }
-
-  if (purchases.length === 0) {
-    return (
-      <div className="rounded-2xl bg-card/40 p-6 text-center">
-        <ShoppingBag className="w-10 h-10 mx-auto text-muted-foreground/40 mb-2" />
-        <h3 className="text-sm font-bold text-foreground mb-1">No Purchases Yet</h3>
-        <p className="text-xs text-muted-foreground">
-          Items you buy from the Token Shop will appear here
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-          {purchases.length} item{purchases.length !== 1 ? 's' : ''} purchased
-        </span>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        {purchases.map((purchase, i) => {
-          const category = getItemCategory(purchase.item_id);
-          const Icon = CATEGORY_ICONS[category] || CATEGORY_ICONS.default;
-          return (
-            <motion.div
-              key={purchase.id}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: i * 0.05 }}
-              className={cn(
-                "relative flex flex-col items-center gap-1.5 p-3 rounded-2xl border transition-all",
-                "border-border/30 bg-card/30 backdrop-blur-xl"
-              )}
-            >
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                <Icon className="w-5 h-5 text-primary" />
-              </div>
-              <span className="text-[10px] font-semibold text-foreground text-center leading-tight truncate w-full">
-                {formatItemName(purchase.item_id)}
-              </span>
-              <span className="text-[9px] text-muted-foreground">
-                {format(new Date(purchase.purchased_at), 'MMM d')} · 🪙 {purchase.cost}
-              </span>
-            </motion.div>
-          );
-        })}
-      </div>
-    </div>
-  );
+  const state = useTokenMarketplaceState();
+  const activate = useActivateBoost();
+  const equip = useEquipItem();
+  if (state.isLoading) return <p role="status">Loading your verified inventory…</p>;
+  if (state.isError || !state.data) return <div role="alert"><p>Your inventory is unavailable.</p><Button onClick={() => void state.refetch()}>Try again</Button></div>;
+  const owned = state.data.inventory.filter(item => item.quantity > 0);
+  return <div className="space-y-3">
+    {state.data.legacy_review && <p role="status" className="text-sm text-muted-foreground">Earlier purchase history is retained for review. Only verified items appear as usable inventory.</p>}
+    {owned.length === 0 ? <p className="rounded-xl border p-5 text-sm text-muted-foreground">No verified items in your inventory yet.</p> :
+      <div className="grid grid-cols-2 gap-3">{owned.map(item => {
+        const catalog = state.data.catalog.find(entry => entry.id === item.item_id);
+        const spec = MARKETPLACE_EQUIP_MAP[item.item_id];
+        const disabled = activate.isPending || equip.isPending || !catalog?.available;
+        return <div key={item.item_id} className="rounded-xl border p-3 space-y-2">
+          <Package className="h-5 w-5 text-primary" /><p className="font-medium text-sm">{catalog?.name || item.item_id}</p>
+          <p className="text-xs text-muted-foreground">{item.kind === 'consumable' ? `${item.quantity} ready to use` : 'Owned'}</p>
+          {item.kind === 'consumable' ? <Button size="sm" disabled={disabled} onClick={() => activate.mutate({ itemId: item.item_id, name: catalog?.name || 'Boost' })}>Activate one</Button> :
+            spec && <Button size="sm" disabled={disabled} onClick={() => equip.mutate(spec)}>Equip</Button>}
+        </div>;
+      })}</div>}
+  </div>;
 }

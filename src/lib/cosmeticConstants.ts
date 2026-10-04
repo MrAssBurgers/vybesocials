@@ -54,6 +54,9 @@ export const THEME_PREVIEW: Record<string, { from: string; to: string }> = {
   'Void': { from: '#0a0a0a', to: '#1c1917' },
   // Premium exclusive
   'Obsidian': { from: '#0c0c0c', to: '#1a1a2e' },
+  // Purchased profile color effects have their own visuals, without replacing wallpapers.
+  theme_neon: { from: '#29104f', to: '#c026d3' },
+  theme_ocean: { from: '#062b49', to: '#0891b2' },
 };
 
 // ── Theme Images ────────────────────────────────────────────────
@@ -80,6 +83,8 @@ export const THEME_ACCENTS: Record<string, { bg: string; text: string; card: str
   'Void': { bg: '#0a0a0a', text: '#a8a29e', card: 'rgba(28,25,23,0.6)', accent: '#57534e' },
   // Premium exclusive
   'Obsidian': { bg: '#0c0c0c', text: '#d4d4d8', card: 'rgba(26,26,46,0.5)', accent: '#a78bfa' },
+  theme_neon: { bg: '#170a2e', text: '#f5d0fe', card: 'rgba(88,28,135,0.45)', accent: '#e879f9' },
+  theme_ocean: { bg: '#031d32', text: '#cffafe', card: 'rgba(8,90,118,0.45)', accent: '#22d3ee' },
 };
 
 // ── Theme Gradients (for backward compat) ───────────────────────
@@ -94,6 +99,8 @@ export const THEME_GRADIENTS: Record<string, string> = {
   'Void': 'linear-gradient(135deg, #0a0a0a 0%, #1c1917 50%, #292524 100%)',
   // Premium exclusive
   'Obsidian': 'linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16132e 100%)',
+  theme_neon: 'linear-gradient(135deg, #29104f 0%, #6d28d9 45%, #c026d3 75%, #0e7490 100%)',
+  theme_ocean: 'linear-gradient(135deg, #062b49 0%, #075985 45%, #0891b2 75%, #115e59 100%)',
 };
 
 // ── Effect Class Map ────────────────────────────────────────────
@@ -161,6 +168,8 @@ export const FRAME_COLORS: Record<string, string> = {
   'Lightning Frame': '#FDE047',
   'Obsidian Frame': '#52525B',
   'Holographic Frame': '#A78BFA',
+  avatar_frame_gold: '#FACC15',
+  avatar_frame_fire: '#FB923C',
 };
 
 // ── Frame style map for locker cards ────────────────────────────
@@ -177,4 +186,6 @@ export const FRAME_STYLE_MAP: Record<string, { ring: string; shadow: string }> =
   'Lightning Frame': { ring: 'ring-2 ring-yellow-300', shadow: 'shadow-[0_0_8px_rgba(253,224,71,0.5)]' },
   'Obsidian Frame': { ring: 'ring-2 ring-zinc-600', shadow: 'shadow-[0_0_8px_rgba(82,82,91,0.5)]' },
   'Holographic Frame': { ring: 'ring-2 ring-violet-400', shadow: 'shadow-[0_0_8px_rgba(167,139,250,0.5)]' },
+  avatar_frame_gold: { ring: 'ring-2 ring-yellow-400', shadow: 'shadow-[0_0_8px_rgba(250,204,21,0.5)]' },
+  avatar_frame_fire: { ring: 'ring-2 ring-orange-400', shadow: 'shadow-[0_0_8px_rgba(251,146,60,0.5)]' },
 };

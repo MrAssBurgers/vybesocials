@@ -12,6 +12,7 @@ import { getUserProfile } from '@/lib/firebase/users';
 import { isValidMediaUrl } from '@/lib/mediaUrl';
 import { runPublishVybeCheck } from '@/lib/vybeCheck/runPublishVybeCheck';
 import { challengeTypeForPost, recordChallengeActivity } from '@/lib/challengeProgressClient';
+import { tokenAccountGuard, tokenMarketplaceRequest, type TokenAccountGuard } from '@/lib/tokenMarketplaceService';
 import {
   getDocuments as getFirestoreDocuments,
   getDocumentsFromServer as getFirestoreDocumentsFromServer,
@@ -23,6 +24,7 @@ export { isValidMediaUrl };
 
 // Mutation-only metadata; never part of a persisted post or its public JSON.
 const REUSED_GAME_POST = Symbol('reusedGamePost');
+const POST_ACTOR_GUARD = Symbol('postActorGuard');
 
 interface Post {
   id: string;
@@ -439,6 +441,8 @@ export function useCreatePost() {
         toast.error('Please sign in again to create a post.');
         throw new Error('Not authenticated');
       }
+      const actorGuard = tokenAccountGuard(profile.user_id);
+      actorGuard();
 
       if (data.gameCaptureId) {
         const [{ getGameCapture }, { findGameCapturePost }] = await Promise.all([
@@ -448,7 +452,8 @@ export function useCreatePost() {
         // a deterministic post. A supplied capture ID never grants ownership.
         const capture = await getGameCapture(data.gameCaptureId);
         const existing = await findGameCapturePost(data.gameCaptureId, profile.id);
-        if (existing) return { ...existing, [REUSED_GAME_POST]: true };
+        actorGuard();
+        if (existing) return { ...existing, [REUSED_GAME_POST]: true, [POST_ACTOR_GUARD]: actorGuard };
         if (capture.status !== 'ready') throw new Error('This game capture is not ready to publish.');
       }
 
@@ -594,6 +599,7 @@ export function useCreatePost() {
         }
 
         const vybe = await checkPromise;
+        actorGuard();
         if (vybe.blocked || !vybe.allowed) {
           if (uploadedPaths.length) {
             await db.storage.from('media').remove(uploadedPaths).catch(() => {});
@@ -620,6 +626,7 @@ export function useCreatePost() {
         let post: any;
         if (data.gameCaptureId) {
           const { saveGameCapturePost } = await import('@/lib/gameCapturePost');
+          actorGuard();
           // Do not race a timeout against a transaction: it could commit after
           // cleanup removed its media. Firestore owns this operation's retries.
           gamePostWriteStarted = true;
@@ -627,7 +634,7 @@ export function useCreatePost() {
           post = saved.post;
           if (!saved.created) {
             if (uploadedPaths.length) await db.storage.from('media').remove(uploadedPaths).catch(() => {});
-            return { ...post, [REUSED_GAME_POST]: true };
+            return { ...post, [REUSED_GAME_POST]: true, [POST_ACTOR_GUARD]: actorGuard };
           }
         } else {
           const result = await withTimeout(
@@ -665,7 +672,7 @@ export function useCreatePost() {
             .catch(console.error);
         });
 
-        return post;
+        return { ...post, [POST_ACTOR_GUARD]: actorGuard };
       } catch (err) {
         if (uploadedPaths.length && !gamePostWriteStarted) {
           await db.storage.from('media').remove(uploadedPaths).catch(() => {});
@@ -674,6 +681,8 @@ export function useCreatePost() {
       }
     },
     onSuccess: (_post, variables) => {
+      const actorGuard = _post?.[POST_ACTOR_GUARD] as TokenAccountGuard | undefined;
+      try { actorGuard?.(); } catch { return; }
       queryClient.invalidateQueries({ queryKey: ['posts'] });
       // Profile counts are cached separately from profile post grids. Refresh
       // them so a successful publish never leaves “0 Posts” beside a visible post.
@@ -691,6 +700,14 @@ export function useCreatePost() {
       });
       if (!_post?.[REUSED_GAME_POST]) {
         recordChallengeActivity(profile?.id, challengeTypeForPost(variables.type));
+      }
+      // Retrying a recovered game post is safe: the server deduplicates its
+      // retained source ID. A wallet outage must not turn a saved post into a
+      // failed publish or pretend that a reward was granted.
+      if (actorGuard && typeof _post?.id === 'string') {
+        void tokenMarketplaceRequest({ action: 'earn', type: 'post_created', referenceId: _post.id }, actorGuard)
+          .then(() => { actorGuard(); queryClient.invalidateQueries({ queryKey: ['token-marketplace', profile?.user_id] }); })
+          .catch(() => {});
       }
     },
     onError: (error) => {

@@ -1,5 +1,15 @@
 {
   "indexes": [
+    { "collectionGroup": "token_events", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "user_id", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ] },
+    { "collectionGroup": "_challenge_reward_authority", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "auth_uid", "order": "ASCENDING" },
+        { "fieldPath": "badge_id", "order": "ASCENDING" }
+      ] },
     { "collectionGroup": "challenge_rewards", "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "user_id", "order": "ASCENDING" },
