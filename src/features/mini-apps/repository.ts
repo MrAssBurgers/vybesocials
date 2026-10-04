@@ -70,22 +70,17 @@ export async function saveMiniAppDraft(ownerId: string, source: MiniAppSource, e
 export async function deleteMiniAppDraft(ownerId: string, draft: MiniAppRecord): Promise<void> {
   const guard = miniAppAccountGuard(ownerId); guard();
   if (draft.owner_id !== ownerId || !/^[\w-]{1,128}$/.test(draft.id)) throw new Error('You can only delete your own drafts.');
-  const expectedSource = JSON.stringify(validateMiniApp(draft));
-  const reference = doc(getFirestoreDb(), 'mini_app_drafts', draft.id);
-  await runTransaction(getFirestoreDb(), async transaction => {
-    guard();
-    const snapshot = await transaction.get(reference);
-    guard();
-    if (!snapshot.exists()) return;
-    const current = snapshot.data();
-    if (current.owner_id !== ownerId) throw new Error('You can only delete your own drafts.');
-    // Compare the reviewed source; a stale library must not erase another editor's work.
-    if (JSON.stringify(validateMiniApp(current)) !== expectedSource) {
-      throw Object.assign(new Error('This draft changed since you opened it. Refresh and review the latest version before deleting.'), { code: 'mini-app-draft-conflict' });
-    }
-    transaction.delete(reference);
+  const result = await invokeFunction<unknown>('deleteMiniAppDraft', {
+    expectedOwnerUid: ownerId, appId: draft.id, expectedSource: validateMiniApp(draft),
   });
   guard();
+  if (result.error) {
+    const code = (result.error.code || result.error.name || 'unknown').replace(/^functions\//, '');
+    throw Object.assign(new Error(result.error.message), { code: code === 'aborted' ? 'mini-app-draft-conflict' : code });
+  }
+  const receipt = result.data as Record<string, unknown> | null;
+  if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt) || Object.keys(receipt).length !== 2
+    || receipt.appId !== draft.id || receipt.deleted !== true) throw new Error('Deletion could not be confirmed. Refresh your library or retry.');
 }
 
 export type MiniAppPublishIntent = { requestId: string; expectedVersion?: string | null; sourceKey?: string };

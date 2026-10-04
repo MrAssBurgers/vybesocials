@@ -38,6 +38,17 @@ try {
   await denied('owner cannot bypass draft admission', () => setDoc(privateRef, app()));
   await env.withSecurityRulesDisabled(context => setDoc(doc(context.firestore(), privateRef.path), app()));
   await allowed('owner reads own draft', () => getDoc(privateRef));
+  await denied('owner cannot delete without durable identity retirement', () => deleteDoc(privateRef));
+  await denied('owner cannot transactionally bypass checked deletion', () => runTransaction(aliceDb, async transaction => {
+    await transaction.get(privateRef); transaction.delete(privateRef);
+  }));
+  const identityPath = '_mini_app_draft_identities/test-app';
+  await env.withSecurityRulesDisabled(context => setDoc(doc(context.firestore(), identityPath), { version: 1, owner_uid: 'creator-alice', status: 'deleted' }));
+  for (const [label, client] of [['owner', alice], ['foreign', bob], ['guest', guest], ['staff', staff]]) {
+    await denied(`${label} cannot read identity ledger`, () => getDoc(doc(client.firestore(), identityPath)));
+    await denied(`${label} cannot write identity ledger`, () => setDoc(doc(client.firestore(), identityPath), { status: 'active' }));
+    await denied(`${label} cannot remove retirement marker`, () => deleteDoc(doc(client.firestore(), identityPath)));
+  }
   await denied('another account cannot read draft code', () => getDoc(doc(bobDb, privateRef.path)));
   await denied('signed-out clients cannot read drafts', () => getDoc(doc(guest.firestore(), privateRef.path)));
   await denied('creator cannot forge an owner', () => setDoc(doc(bobDb, 'mini_app_drafts', 'forged'), app()));

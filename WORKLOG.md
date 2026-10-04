@@ -2,6 +2,26 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Permanent mini-app draft retirement
+
+### What changed
+- Draft save now creates/backfills a server-only identity ledger. Missing or retired identities reject both delayed first-save requests and stale edits. Checked delete atomically compares reviewed source, deletes the private draft and retains a permanent source fingerprint; matching lost-response retries return the same acknowledgement. Published snapshots, moderation holds and daily allowance are preserved.
+- Client deletion now calls deleteMiniAppDraft with account and reviewed source, rejects malformed or late-account receipts and preserves conflict recovery. Rules close direct draft deletion. Staff/owner/foreign/guest clients cannot modify or read the identity ledger.
+- Documented selective two-callable rollout, rollback dependencies and permanent retention. Historical deletions without ledger entries cannot be retroactively protected. No TTL is allowed on the uniqueness markers; bounded archival remains future work.
+- Reconfirmed the earlier loading-screen replacement is already present: soft radial colors, rounded brand, moving indicator, reduced-motion support and no misleading percentage. Existing visual proof outputs/vybe-soft-loading-screen.png.
+
+### Verification
+- Full 319 files / 3,013 app tests, typecheck, scoped lint, production build and functions build passed. Isolated demo emulator passed 16 backend groups and 199 creator-platform rules checks, including concurrent save/delete, stale delete, repeated deletion, delayed create after quota expiry, malformed ledger, legacy backfill, ownership and publication/hold preservation. Logs work/draft-retirement-*.log.
+- Retained 8082 preview: My drafts loads, the review dialog names the chosen saved version, and Keep draft closes it without removing the card. Proof outputs/vybe-draft-delete-review.png. Did not confirm a permanent browser deletion; actual deletion/replay was exercised against isolated synthetic emulator fixtures. Local preview exports include the new callable. Retained preview data was not reset.
+- Generated version/offline churn restored. No production data changed or production deployment performed.
+
+### Next 3 tasks and limits
+1. Continue mini-app runtime isolation and publication operation retention; preserve permanent draft identity uniqueness when designing archival.
+2. Continue profile/explore/comment authority work and concrete game/mod adapters. Prior native engine automation restriction still applies; actual decode/playback and combined native capture/upload remain unverified on permitted staging media/devices.
+3. Stage named save/delete callables, compatible Lovable client and matching rules together per docs/MINI_APPS.md. Broad goal remains active/incomplete.
+
+---
+
 ## ACTIVE (2026-10-04) - Checked long-video watch page and reliable controls
 
 ### What changed

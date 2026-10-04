@@ -33,6 +33,17 @@ import { invokeFunction } from '@/lib/firebase/functionsService';
 import { getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
 
 beforeEach(() => { vi.mocked(invokeFunction).mockImplementation(async (_name, body: any) => {
+  if (_name === 'deleteMiniAppDraft') {
+    const path = `mini_app_drafts/${body.appId}`;
+    const markerPath = `_mini_app_draft_identities/${body.appId}`;
+    const old = state.rows.get(path);
+    const source = old && Object.fromEntries(['title', 'description', 'category', 'html', 'css', 'javascript'].map(key => [key, old[key]]));
+    if (JSON.stringify(source ?? state.rows.get(markerPath)?.source) !== JSON.stringify(body.expectedSource)) return { data: null, error: { name: 'aborted', message: 'Draft changed' } } as any;
+    state.rows.set(markerPath, { source: body.expectedSource });
+    state.rows.delete(path);
+    if (state.loseAck) { state.loseAck = false; throw new Error('Response lost'); }
+    return { data: { appId: body.appId, deleted: true }, error: null } as any;
+  }
   if (_name === 'saveMiniAppDraft') {
     const path = `mini_app_drafts/${body.appId}`;
     const old = state.rows.get(path);
@@ -68,12 +79,22 @@ describe('mini app private drafts and public snapshots', () => {
     expect(state.rows.get(`mini_app_drafts/${draft.id}`)?.title).toBe('Newer edit');
     await expect(deleteMiniAppDraft('alice', { ...draft, owner_id: 'bob' })).rejects.toThrow('own drafts');
   });
-  it('does not delete when the account changes during the read', async () => {
+  it('does not confirm deletion after an account change during the request', async () => {
     const draft = await saveMiniAppDraft('alice', source);
-    const read = state.transactionRead.getMockImplementation()!;
-    state.transactionRead.mockImplementationOnce(async ref => { const result = await read(ref); switchAccount('bob'); return result; });
+    vi.mocked(invokeFunction).mockImplementationOnce(async () => { switchAccount('bob'); return { data: { appId: draft.id, deleted: true }, error: null }; });
     await expect(deleteMiniAppDraft('alice', draft)).rejects.toMatchObject({ code: 'account-changed' });
-    expect(state.rows.has(`mini_app_drafts/${draft.id}`)).toBe(true);
+    expect(state.transactionRead).not.toHaveBeenCalled();
+  });
+  it.each(['wrong-id', 'not-deleted', 'extra-field', 'null'])('rejects a %s deletion receipt', async mode => {
+    const draft = await saveMiniAppDraft('alice', source);
+    const receipt: any = { appId: draft.id, deleted: true };
+    if (mode === 'wrong-id') receipt.appId = 'another';
+    if (mode === 'not-deleted') receipt.deleted = false;
+    if (mode === 'extra-field') receipt.extra = true;
+    vi.mocked(invokeFunction).mockResolvedValueOnce({ data: mode === 'null' ? null : receipt, error: null });
+    await expect(deleteMiniAppDraft('alice', draft)).rejects.toThrow('could not be confirmed');
+    expect(invokeFunction).toHaveBeenLastCalledWith('deleteMiniAppDraft', { expectedOwnerUid: 'alice', appId: draft.id, expectedSource: source });
+    expect(state.transactionRead).not.toHaveBeenCalled();
   });
   it('sends reviewed source to the checked callable without direct writes', async () => {
     const saved = await saveMiniAppDraft('alice', source, null, 'stable-draft');

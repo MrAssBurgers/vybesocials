@@ -1773,9 +1773,9 @@ service cloud.firestore {
       // Transactions must distinguish an unused draft identity from an existing
       // owned draft. Existing private source remains owner-only.
       allow get: if signedIn() && (!exists(/databases/$(database)/documents/mini_app_drafts/$(id)) || resource.data.owner_id == uid());
-      allow list, delete: if signedIn() && resource.data.owner_id == uid();
-      // Checked callable owns validation, conflict detection and admission quotas.
-      allow create, update: if false;
+      allow list: if signedIn() && resource.data.owner_id == uid();
+      // Checked callables own admission and permanent identity retirement.
+      allow create, update, delete: if false;
     }
     match /mini_apps/{id} {
       allow get: if signedIn() && (!exists(/databases/$(database)/documents/mini_apps/$(id))
