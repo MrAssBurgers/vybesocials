@@ -8,7 +8,7 @@ import { Link } from 'react-router-dom';
 const MODES: { value: AutoPilotMode; label: string; icon: any; desc: string }[] = [
   { value: 'off', label: 'Off', icon: Pause, desc: 'No changes' },
   { value: 'suggest', label: 'Suggest', icon: Eye, desc: 'Review first' },
-  { value: 'autonomous', label: 'Autonomous', icon: Zap, desc: 'Just do it' },
+  { value: 'autonomous', label: 'Autonomous', icon: Zap, desc: 'Suggestions for now' },
 ];
 
 const ICON_FOR_TYPE: Record<string, any> = {
@@ -31,9 +31,9 @@ function timeAgo(iso: string | null) {
 }
 
 export function DNAAutoPilot() {
-  const { settings, actions, loading, running, setMode, runNow, revert, applyPending } = useDNAAutoPilot();
+  const { settings, actions, loading, loadError, running, setMode, runNow, revert, applyPending, refresh } = useDNAAutoPilot();
   const mode: AutoPilotMode = settings?.mode || 'suggest';
-  const isOn = mode !== 'off';
+  const isOn = mode !== 'off' && !settings?.learning_paused && !settings?.personalization_opted_out;
 
   return (
     <div className="space-y-3">
@@ -55,8 +55,8 @@ export function DNAAutoPilot() {
               <h2 className="text-base font-bold leading-tight">VYBE Auto-Pilot</h2>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {isOn
-                  ? `Reshaping your VYBE in the background · last tuned ${timeAgo(settings?.last_run_at || null)}`
-                  : 'Paused · turn on to let your DNA reshape your experience'}
+                  ? 'Suggestions based on your VYBE DNA'
+                  : 'Paused · your Auto-Pilot is not learning'}
               </p>
             </div>
             <Button asChild variant="ghost" size="icon" className="h-8 w-8 rounded-full shrink-0">
@@ -73,6 +73,7 @@ export function DNAAutoPilot() {
               return (
                 <button
                   key={value}
+                  disabled={loading || !!loadError}
                   onClick={() => setMode(value)}
                   className={cn(
                     "flex flex-col items-center gap-0.5 py-2 px-1 rounded-xl text-[11px] font-medium transition-all active:scale-95",
@@ -91,11 +92,11 @@ export function DNAAutoPilot() {
 
           <Button
             onClick={runNow}
-            disabled={running || !isOn}
+            disabled={running || loading || !!loadError || !isOn}
             className="w-full rounded-full bg-gradient-to-r from-primary to-accent hover:opacity-90"
           >
             <Zap className={cn("w-4 h-4 mr-2", running && "animate-pulse")} />
-            {running ? 'Tuning your VYBE...' : 'Run Auto-Pilot now'}
+            {running ? 'Finding suggestions...' : 'Run Auto-Pilot now'}
           </Button>
         </CardContent>
       </Card>
@@ -104,17 +105,23 @@ export function DNAAutoPilot() {
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold">What I changed for you</h3>
+            <h3 className="text-sm font-semibold">Auto-Pilot history</h3>
             <span className="text-[10px] text-muted-foreground">{actions.length} action{actions.length === 1 ? '' : 's'}</span>
           </div>
+          <p className="text-xs text-muted-foreground mb-3">Applying and undoing Auto-Pilot changes is temporarily unavailable. Your current settings stay in place.</p>
 
-          {loading ? (
+          {loadError ? (
+            <div role="alert" className="space-y-3 py-4 text-center">
+              <p className="text-xs text-muted-foreground">{loadError}</p>
+              <Button variant="secondary" size="sm" className="rounded-full" onClick={() => void refresh()} disabled={loading}>Retry</Button>
+            </div>
+          ) : loading ? (
             <p className="text-xs text-muted-foreground py-4 text-center">Loading...</p>
           ) : actions.length === 0 ? (
             <div className="py-6 text-center">
               <Sparkles className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-50" />
               <p className="text-xs text-muted-foreground">
-                Auto-Pilot hasn't tuned anything yet. Tap <span className="font-semibold">Run</span> above to kick it off.
+                No suggestions yet. Tap <span className="font-semibold">Run</span> above to get ideas based on your DNA.
               </p>
             </div>
           ) : (
@@ -141,17 +148,17 @@ export function DNAAutoPilot() {
                         <span>·</span>
                         <span className="capitalize">{a.action_type.replace('_', ' ')}</span>
                         {a.reverted && <span className="text-destructive">· reverted</span>}
-                        {!a.applied && !a.reverted && <span className="text-accent">· pending</span>}
+                        {!a.applied && !a.reverted && <span className="text-accent">· suggestion</span>}
                       </div>
                     </div>
                     <div className="flex flex-col gap-1 shrink-0">
                       {!a.applied && !a.reverted && (
-                        <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => applyPending(a.id)}>
+                        <Button size="sm" variant="ghost" disabled title="Applying Auto-Pilot changes is temporarily unavailable" className="h-7 px-2 text-[11px]" onClick={() => applyPending(a.id)}>
                           <Check className="w-3 h-3 mr-1" /> Apply
                         </Button>
                       )}
                       {a.applied && !a.reverted && (
-                        <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => revert(a.id)}>
+                        <Button size="sm" variant="ghost" disabled title="Undoing Auto-Pilot changes is temporarily unavailable" className="h-7 px-2 text-[11px]" onClick={() => revert(a.id)}>
                           <RotateCcw className="w-3 h-3 mr-1" /> Undo
                         </Button>
                       )}

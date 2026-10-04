@@ -4,13 +4,13 @@ import type { SocialFeedInput, SocialFeedPage } from '@/lib/socialFeedService';
 
 const PAGE_SIZE = 15;
 
-/** Callable missing from production (HTTP 404 / functions/not-found). */
+/** A structured unavailable-implementation response; never infer this from text. */
 export function missingSocialFeedFunction(error: { code?: string; name?: string; message?: string } | null | undefined): boolean {
   if (!error) return false;
-  const code = `${error.code || ''} ${error.name || ''}`.toLowerCase();
-  if (/\bnot[-_ ]?found\b/.test(code) || code.includes('unimplemented')) return true;
-  const message = (error.message || '').toLowerCase();
-  return message.includes('not found') || message.includes('not-found') || message.includes('404') || message.includes('does not exist');
+  // Structured failures take precedence over incidental text such as a missing
+  // profile ID. Never turn permission, auth or validation errors into raw reads.
+  const codes = [error.code, error.name].filter(Boolean).map(value => value!.toLowerCase().replace(/^functions\//, ''));
+  return codes.length > 0 && codes.every(code => code === 'not-found' || code === 'unimplemented');
 }
 
 export function clientFeedOffset(cursor?: string): number | null {
@@ -58,20 +58,19 @@ function rowToPost(row: Record<string, unknown>): Post | null {
 }
 
 /**
- * Production does not have readSocialFeed deployed. Read the same signed-in
- * timeline the app used before that callable, so Home is not an empty error.
+ * Legacy discovery candidates only. The caller must obtain current server
+ * admission before displaying content; this query does not enforce audiences.
  */
 export async function readClientSocialFeed(input: SocialFeedInput, guard: () => void): Promise<SocialFeedPage> {
   guard();
+  // The legacy query has no trustworthy locality proof, current follow
+  // admission or personalized ranking. Do not relabel its general timeline.
+  if (input.feed && input.feed !== 'discover') throw new Error('This feed is temporarily unavailable. Please retry shortly.');
   const offset = clientFeedOffset(input.cursor);
   if (offset === null) throw new Error('Your feed could not be refreshed.');
   const type = input.contentType ?? null;
   const viewer = input.expectedProfileId;
-  const rpc = input.feed === 'following' ? 'get_following_posts_with_counts' : 'get_posts_with_counts';
-  const params = input.feed === 'following'
-    ? { p_user_id: viewer, p_type: type, p_offset: offset, p_limit: PAGE_SIZE }
-    : { p_type: type, p_user_id: viewer, p_offset: offset, p_limit: PAGE_SIZE };
-  const rows = await runFeedRpc(rpc, params);
+  const rows = await runFeedRpc('get_posts_with_counts', { p_type: type, p_user_id: viewer, p_offset: offset, p_limit: PAGE_SIZE });
   guard();
   const posts = rows.map(rowToPost).filter((post): post is Post => !!post);
   const nextCursor = rows.length >= PAGE_SIZE ? `c:${offset + PAGE_SIZE}` : null;

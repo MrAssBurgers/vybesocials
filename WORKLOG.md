@@ -2,6 +2,37 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Verify existing behavior: feed admission, reporting and DNA reset
+
+### Priority
+- Stability only. User explicitly requested verification of existing functionality before any more features. The broad goal remains active; category/SDK/mini-app expansion is deferred.
+
+### Fixes in this pass
+- Discovery fallback treats legacy rows only as candidates: current `readSocialPostPreviews` admission supplies every displayed caption, author, media URL and count. Rejected content never renders from its old snapshot. Structured auth/permission/validation failures cannot trigger fallback merely because their message contains "404". Local/Following/personalized readers fail explicitly rather than silently showing a general timeline when the required reader is absent. Legacy pagination continues its checked path if the primary service appears mid-scroll.
+- Reporting requires a checked callable acknowledgement. Removed the direct `content_flags` fallback: callable `not-found` also means deleted/missing target and must not be treated as submission success. Failed submissions retain their retry identity and selected reason.
+- DNA adaptation reset removes owned auto-theme/history/feed preferences in resumable transactional pages, preserves personality/settings/other accounts, validates receipts and safely retries after lost responses. Old-generation Auto-Pilot writes cannot restore cleared history; direct adaptation writes are denied. Canonical UID settings rules prevent another user taking over a victim's pause/opt-out document. Added the owner/history index, cache/overlay clearing and explicit read retry. Root review also fixed a reset spinner stuck after away-and-back account changes without releasing a newer request.
+- Auto-Pilot Apply/Undo had no executable change/undo authority: controls are explicitly unavailable, backend rejects without changing labels, and generated suggestions never claim applied changes. This prevents false success; real Apply/Undo still needs implementation and provider-backed runs remain unverified. DEPLOY.md now reflects actual Firebase-only backend, main/Lovable publication, named functions, rules/index ordering and separate native verification.
+
+### Verification / rollout limits
+- Feed focused checks passed (46 tests at the initial checkpoint); report focused checks passed (84). Integration and final counts recorded below after completion.
+- DNA: 17 focused client tests, functions build, typecheck and scoped lint passed. Isolated demo-vybe-draft-qa passed 10 backend groups and 60 rules checks, including 230-row deletion across pages, interrupted/concurrent retry, lost-receipt recovery, ownership and post-reset write denial. Log work/dna-reset-emulator.log; isolated emulators stopped cleanly. Named rollout prerequisites: dnaAutopilot, dnaAutopilotRevert, clearDnaAdaptationData, reviewed Firestore rules and the action-history index. Retained preview rules remain untouched; its genuine failed read displayed the new Retry state.
+- Local browser signed in as synthetic Alice, loaded For You and Global, and verified Local requests approximate-area selection. Report form disables submit until a reason is selected and cancels correctly. Opened/cancelled adaptation-reset confirmation only; no permanent deletion through the UI. Screenshot outputs/vybe-stability-feed-verified.png. Existing unsaved mini-app/comment tabs preserved.
+- No production deployment. Required feed/report endpoints and new DNA callable must be deployed by named scope before production can satisfy these flows. Missing endpoints produce explicit errors; this is not proof everything works. Broad legacy Firestore post/comment read access and cached feed access freshness remain separate authority gaps. Native playback/provider-backed flows remain unverified.
+- Fixed legacy flag queue account/epoch scoping and removed both old and new flag snapshots from disk-cache persistence/restore. Errors show Retry rather than No flags; late context navigation/toasts are suppressed after account changes/unmount. Context uses exact target types and checked profile/comment resolution; message/unknown targets are explicitly unavailable, never shown as fabricated context. Invalid dates/text and zero AI score no longer break/mislabel cards. 37 focused tests and scoped lint/typecheck passed. Legacy flag write authority remains unchanged; other missing backend targets remain outstanding.
+- Additional reachable failures confirmed: ContactDiscovery calls missing discoverUsersByPhone and renders empty after errors; existing matchContacts trusts editable phone hashes, so verified-phone authority must precede reuse. Friends/unlisted theme shares are unreadable to intended recipients under current private-theme rules; delivery errors are ignored and visible code import calls missing useThemeCode. Friend notes call missing getFriendsNotes, mask errors and need immutable ownership/private-cache repair. Music quiz/gallery currently promise XP from absent addUserXp; a bounded false-success correction is included in this pass. Do not implement arbitrary caller-supplied XP grants to silence these errors.
+
+### Final verification
+- Music quiz/gallery now require confirmed profile/post writes, retain failed quiz results with Retry, and no longer promise unsupported XP. Optional usage counters cannot delay share confirmation or cause late account/view feedback. Root also removed unsupported DNA Boost percentages from the result and shared caption. Local synthetic Alice completed all eight questions, saw Acoustic Soul, and the saving state completed without a save error. No feed share was submitted. Screenshot outputs/vybe-music-quiz-verified.png. Empty sample-track audio and missing usage service remain separate failures.
+- Full client suite: 333 files / 3,141 tests passed. Production build, typecheck, full lint (0 errors, 5 pre-existing unused-disable warnings), boot/distribution and bundle checks passed. After the final music copy removal, all 16 affected music tests, typecheck, scoped lint, production build and boot checks passed again. Logs work/stability-final-*.log. Generated public build manifests restored to their prior tracked content; release builds must stamp the actual deployed commit.
+- No production deployment or Lovable Publish. Not all existing features work yet; this is a verified repair checkpoint. All three delegated workstreams are frozen and temporary audit browser tabs were closed; retained unsaved draft tabs remain available.
+
+### Next 3 tasks
+1. Continue missing-endpoint repairs, starting with verified contact discovery, actual theme delivery/import, friend notes and unavailable music previews; never replace errors with empty/success messages.
+2. Finish Auto-Pilot action authority and remaining actual-flow audits (DM/calls/media, SDKs, mini apps, settings) before feature expansion.
+3. Verify deployment access, roll out reviewed named resources and publish matching main via Lovable; test actual production/native paths before claiming readiness.
+
+---
+
 ## ACTIVE (2026-10-04) - Stability first: broad audit and comment display fixes
 
 ### User priority (supersedes feature sequencing)

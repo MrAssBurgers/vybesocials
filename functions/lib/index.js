@@ -92,4 +92,5 @@ export const setAdminClaim = onCall(async (request) => {
 export { managePostLocalArea } from './postLocalArea.js';
 export { publishMiniApp } from './miniAppPublish.js';
 export { saveMiniAppDraft, deleteMiniAppDraft } from './miniAppDrafts.js';
+export { clearDnaAdaptationData } from './dnaAdaptation.js';
 //# sourceMappingURL=index.js.map

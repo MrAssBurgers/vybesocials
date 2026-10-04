@@ -1,11 +1,11 @@
 import { webcrypto } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const state = vi.hoisted(() => ({ uid: 'alice' as string | null, listeners: new Set<(user: { uid: string } | null) => void>(), invoke: vi.fn(), flag: vi.fn() }));
+const state = vi.hoisted(() => ({ uid: 'alice' as string | null, listeners: new Set<(user: { uid: string } | null) => void>(), invoke: vi.fn(), directWrite: vi.fn() }));
 const auth = vi.hoisted(() => ({ get currentUser() { return state.uid ? { uid: state.uid } : null; }, onAuthStateChanged: (listener: (user: { uid: string } | null) => void) => { state.listeners.add(listener); return () => { state.listeners.delete(listener); }; } }));
 vi.mock('@/lib/firebase/authService', () => ({ getFirebaseAuth: () => auth }));
 vi.mock('@/lib/firebase/functionsService', () => ({ invokeFunction: state.invoke }));
-vi.mock('@/lib/reportFlagFallback', () => ({ missingCloudFunction: (error: { name?: string; code?: string; message?: string } | null) => /not-found|not found|404/i.test(`${error?.name || ''} ${error?.code || ''} ${error?.message || ''}`), saveReportFlag: (...args: unknown[]) => state.flag(...args) }));
+vi.mock('@/lib/firebase', () => ({ db: { from: state.directWrite } }));
 import { getPendingReportCount, getReportPage, inspectSafetyReport, performReportAction, reportAccountGuard, reportAccountSnapshot, reportModerationRequest, submitSafetyReport } from './reportModerationService';
 
 const input = { targetType: 'post' as const, targetId: 'retained-post', reason: 'spam' };
@@ -13,7 +13,7 @@ const ack = { data: { success: true, reportId: 'confirmed-report', status: 'pend
 const report = { id: 'report-1', verification: 'verified', targetType: 'mini_app', targetId: 'app-1', reason: 'spam', details: '', status: 'pending', createdAt: '2026-10-04T12:00:00.000Z' };
 const source = { title: 'Example', description: 'Inspect me', category: 'tool', html: '<script>window.pwned=true</script>', css: '', javascript: 'fetch("https://example.invalid")' };
 function switchTo(uid: string | null) { state.uid = uid; state.listeners.forEach(listener => listener(uid ? { uid } : null)); }
-beforeEach(() => { vi.stubGlobal('crypto', webcrypto); sessionStorage.clear(); state.invoke.mockReset(); state.flag.mockReset(); switchTo('alice'); reportAccountSnapshot(); });
+beforeEach(() => { vi.stubGlobal('crypto', webcrypto); sessionStorage.clear(); state.invoke.mockReset(); state.directWrite.mockReset(); switchTo('alice'); reportAccountSnapshot(); });
 afterEach(() => vi.unstubAllGlobals());
 
 describe('authenticated reporting request and retry boundary', () => {
@@ -33,12 +33,27 @@ describe('authenticated reporting request and retry boundary', () => {
     await expect(submitSafetyReport(value as typeof input)).rejects.toThrow();
     expect(state.invoke).not.toHaveBeenCalled();
   });
-  it('saves a staff-visible flag when the report function is not deployed', async () => {
+  it.each([
+    { name: 'not-found', message: 'NOT_FOUND' },
+    { code: 'not-found', message: 'Reported content is unavailable' },
+    { name: 'unimplemented', message: 'Reporting is not deployed' },
+    { code: 'permission-denied', message: 'The reported message does not exist for this account' },
+    { name: 'unauthenticated', message: 'Sign in again' },
+    { code: 'invalid-argument', message: 'Target 404 is invalid' },
+  ])('preserves callable rejection without creating a flag: $message', async error => {
+    state.invoke.mockResolvedValueOnce({ data: null, error }).mockResolvedValueOnce(ack);
+    await expect(submitSafetyReport(input)).rejects.toMatchObject({ code: error.code || error.name, message: error.message });
+    expect(state.directWrite).not.toHaveBeenCalled();
+    // Retain the request identity until a checked server acknowledgement exists.
+    await expect(submitSafetyReport(input)).resolves.toMatchObject(ack.data);
+    expect(state.invoke.mock.calls[1][1]).toEqual(state.invoke.mock.calls[0][1]);
+    expect(sessionStorage.getItem('vybe-report-attempts-v1')).toBe('{}');
+  });
+  it.each(['profile', 'post', 'comment', 'mini_app', 'message'] as const)('requires server acknowledgement for %s reports even when the endpoint is missing', async targetType => {
     state.invoke.mockResolvedValue({ data: null, error: { name: 'not-found', message: 'NOT_FOUND' } });
-    state.flag.mockResolvedValue({ success: true, reportId: 'flag-1', status: 'pending' });
-    await expect(submitSafetyReport(input)).resolves.toMatchObject({ success: true, reportId: 'flag-1', status: 'pending' });
-    expect(state.flag).toHaveBeenCalledWith(expect.objectContaining({ targetType: 'post', targetId: 'retained-post', reason: 'spam', reporterUid: 'alice' }));
-    expect(JSON.stringify(state.flag.mock.calls[0][0])).not.toContain('reporter_id');
+    await expect(submitSafetyReport({ ...input, targetType })).rejects.toMatchObject({ code: 'not-found' });
+    expect(state.directWrite).not.toHaveBeenCalled();
+    expect(Object.keys(JSON.parse(sessionStorage.getItem('vybe-report-attempts-v1')!))).toHaveLength(1);
   });
   it('retains the same receipt ID after an unconfirmed response and persists no report text or target ID', async () => {
     state.invoke.mockResolvedValueOnce({ data: null, error: { name: 'unavailable', message: 'Response lost' } }).mockResolvedValueOnce(ack);

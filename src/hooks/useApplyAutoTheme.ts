@@ -50,8 +50,10 @@ export function useApplyAutoTheme() {
     if (!user?.id) return;
     let active = true;
     let autoThemeApplied = false;
+    let applyRevision = 0;
 
     async function apply() {
+      const revision = ++applyRevision;
       if (readEquippedThemeTokens(user!.id)?.colorPrimary) {
         // An explicit equip owns theme identity and all palette variables.
         autoThemeApplied = false;
@@ -62,7 +64,7 @@ export function useApplyAutoTheme() {
         db.from('dna_agent_settings').select('mode').eq('user_id', user!.id).maybeSingle(),
         db.from('dna_auto_theme').select('*').eq('user_id', user!.id).maybeSingle(),
       ]);
-      if (!active) return;
+      if (!active || revision !== applyRevision) return;
 
       // Re-check after network latency: the user may have equipped a theme meanwhile.
       if (readEquippedThemeTokens(user!.id)?.colorPrimary) {
@@ -97,14 +99,25 @@ export function useApplyAutoTheme() {
       if (isEquippedThemeStorageKey(event.key)) void apply();
     };
     const onThemeEquipped = () => void apply();
+    const onAdaptationCleared = (event: Event) => {
+      if ((event as CustomEvent<string>).detail !== user.id) return;
+      applyRevision++;
+      if (autoThemeApplied && !readEquippedThemeTokens(user.id)?.colorPrimary) {
+        APPLIED_VARS.forEach(v => document.documentElement.style.removeProperty(v));
+      }
+      autoThemeApplied = false;
+    };
     window.addEventListener('storage', onThemeStorage);
     window.addEventListener('vybeThemeEquipped', onThemeEquipped);
+    window.addEventListener('vybeDnaAdaptationCleared', onAdaptationCleared);
 
     return () => {
       active = false;
+      applyRevision++;
       try {
         window.removeEventListener('storage', onThemeStorage);
         window.removeEventListener('vybeThemeEquipped', onThemeEquipped);
+        window.removeEventListener('vybeDnaAdaptationCleared', onAdaptationCleared);
         removeRealtimeChannel(ch);
         if (autoThemeApplied && !readEquippedThemeTokens(user.id)?.colorPrimary) {
           APPLIED_VARS.forEach(v => document.documentElement.style.removeProperty(v));

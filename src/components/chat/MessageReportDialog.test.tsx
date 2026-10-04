@@ -21,8 +21,12 @@ beforeEach(() => { vi.stubGlobal('crypto', webcrypto); vi.clearAllMocks(); state
 afterEach(() => { cleanup(); clients.splice(0).forEach(client => client.clear()); vi.unstubAllGlobals(); });
 
 describe('message report dialog', () => {
-  it('keeps the selected reason and dialog on failure, then closes only on a confirmed retry', async () => {
-    state.invoke.mockResolvedValueOnce({ error: { code: 'unavailable', message: 'Unavailable' } }).mockResolvedValueOnce(ack);
+  it.each([
+    { code: 'unavailable', message: 'Unavailable' },
+    { code: 'not-found', message: 'NOT_FOUND' },
+    { code: 'not-found', message: 'Reported content is unavailable' },
+  ])('keeps the selected reason and dialog on $message, then closes only on a confirmed retry', async error => {
+    state.invoke.mockResolvedValueOnce({ error }).mockResolvedValueOnce(ack);
     mount();
     expect(screen.getByText(/Submitting shares a copy of this message/)).toBeInTheDocument();
     submit('Harassment');

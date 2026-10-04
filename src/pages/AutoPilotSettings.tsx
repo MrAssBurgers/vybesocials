@@ -37,7 +37,7 @@ function timeAgo(iso: string) {
 
 export default function AutoPilotSettings() {
   const nav = useNavigate();
-  const { settings, loading, updateSettings, clearAdaptationData } = useDNAAutoPilot();
+  const { settings, loading, loadError, clearing, updateSettings, clearAdaptationData, refresh } = useDNAAutoPilot();
   const { data: signals, loading: signalsLoading } = useLearningSignals();
   const [tab, setTab] = useState('settings');
 
@@ -65,10 +65,16 @@ export default function AutoPilotSettings() {
             <TabsTrigger value="signals"  className="rounded-xl"><Activity className="w-3.5 h-3.5 mr-1" />Signals</TabsTrigger>
             <TabsTrigger value="privacy"  className="rounded-xl"><ShieldCheck className="w-3.5 h-3.5 mr-1" />Privacy</TabsTrigger>
           </TabsList>
+          {loadError && (
+            <Card className="mt-4"><CardContent className="p-4 space-y-3" role="alert">
+              <p className="text-sm text-muted-foreground">{loadError}</p>
+              <Button variant="secondary" size="sm" className="rounded-full" onClick={() => void refresh()} disabled={loading}>Retry</Button>
+            </CardContent></Card>
+          )}
 
           {/* SETTINGS */}
           <TabsContent value="settings" className="space-y-3 mt-4">
-            {loading || !settings ? (
+            {loadError ? null : loading || !settings ? (
               <Card><CardContent className="py-8 text-center text-xs text-muted-foreground">Loading…</CardContent></Card>
             ) : (
               <>
@@ -217,7 +223,7 @@ export default function AutoPilotSettings() {
 
           {/* PRIVACY */}
           <TabsContent value="privacy" className="space-y-3 mt-4">
-            {!settings ? null : (
+            {!settings || loadError ? null : (
               <>
                 <Card>
                   <CardContent className="p-4 space-y-3">
@@ -275,8 +281,8 @@ export default function AutoPilotSettings() {
                     </div>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="sm" className="w-full rounded-full">
-                          <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Clear my adaptation data
+                        <Button variant="destructive" size="sm" className="w-full rounded-full" disabled={clearing}>
+                          <Trash2 className="w-3.5 h-3.5 mr-1.5" /> {clearing ? 'Clearing adaptation data…' : 'Clear my adaptation data'}
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
@@ -288,7 +294,7 @@ export default function AutoPilotSettings() {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={clearAdaptationData} className="bg-destructive text-destructive-foreground">
+                          <AlertDialogAction onClick={clearAdaptationData} disabled={clearing} className="bg-destructive text-destructive-foreground">
                             Clear everything
                           </AlertDialogAction>
                         </AlertDialogFooter>

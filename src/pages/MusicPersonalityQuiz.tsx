@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/lib/auth';
-import { db } from '@/lib/firebase';
+import { publishMusicPost, saveMusicPersonality } from '@/lib/musicWriteResults';
 import { toast } from 'sonner';
 
 const QUIZ_QUESTIONS = [
@@ -101,7 +101,6 @@ const PERSONALITIES: Record<string, {
   strengths: string[];
   compatibleWith: string[];
   emoji: string;
-  dnaBoost: string;
 }> = {
   edm: {
     title: "The Bass Dropper",
@@ -110,7 +109,6 @@ const PERSONALITIES: Record<string, {
     strengths: ["High energy in social settings", "Natural hype builder", "Loves collaboration"],
     compatibleWith: ["synthwave", "pop"],
     emoji: "🎧",
-    dnaBoost: "Social +15%",
   },
   acoustic: {
     title: "Acoustic Soul",
@@ -119,7 +117,6 @@ const PERSONALITIES: Record<string, {
     strengths: ["Deep emotional intelligence", "Authentic communicator", "Values quality over quantity"],
     compatibleWith: ["indie", "lofi"],
     emoji: "🎸",
-    dnaBoost: "Creative +15%",
   },
   lofi: {
     title: "Chill Lo-Fi Thinker",
@@ -128,7 +125,6 @@ const PERSONALITIES: Record<string, {
     strengths: ["Deep focus & flow states", "Calm under pressure", "Thoughtful decision maker"],
     compatibleWith: ["acoustic", "indie"],
     emoji: "☕",
-    dnaBoost: "Activity +10%",
   },
   synthwave: {
     title: "Neon Synthwave Rider",
@@ -137,7 +133,6 @@ const PERSONALITIES: Record<string, {
     strengths: ["Visionary thinker", "Trend-aware", "Strong personal brand"],
     compatibleWith: ["edm", "pop"],
     emoji: "🚗",
-    dnaBoost: "Creative +10%, Social +5%",
   },
   pop: {
     title: "Main Character Energy",
@@ -146,7 +141,6 @@ const PERSONALITIES: Record<string, {
     strengths: ["Natural social connector", "Optimistic outlook", "Adaptable to any group"],
     compatibleWith: ["edm", "synthwave"],
     emoji: "✨",
-    dnaBoost: "Social +15%",
   },
   rock: {
     title: "Rebel Rocker",
@@ -155,7 +149,6 @@ const PERSONALITIES: Record<string, {
     strengths: ["Independent thinker", "Passionate advocate", "Natural leader"],
     compatibleWith: ["indie", "acoustic"],
     emoji: "🎸",
-    dnaBoost: "Activity +15%",
   },
   indie: {
     title: "Indie Explorer",
@@ -164,7 +157,6 @@ const PERSONALITIES: Record<string, {
     strengths: ["Cultural tastemaker", "Open-minded explorer", "Creative collaborator"],
     compatibleWith: ["acoustic", "lofi"],
     emoji: "🌼",
-    dnaBoost: "Creative +15%",
   }
 };
 
@@ -178,6 +170,7 @@ export default function MusicPersonalityQuiz() {
   const [result, setResult] = useState<keyof typeof PERSONALITIES | null>(null);
   const [isSharing, setIsSharing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const handleOptionSelect = (points: Record<string, number>) => {
     const newScores = { ...scores };
@@ -200,29 +193,21 @@ export default function MusicPersonalityQuiz() {
       });
       
       setResult(topPersonality);
-      saveResult(topPersonality, newScores);
+      void saveResult(topPersonality);
     }
   };
 
-  const saveResult = async (personality: string, finalScores: Record<string, number>) => {
+  const saveResult = async (personality: string) => {
     if (!profile) return;
     setIsSaving(true);
+    setSaveError(null);
     try {
-      // Save music personality to profile
-      await db
-        .from('profiles')
-        .update({ music_personality: personality } as any)
-        .eq('id', profile.id);
-
-      // Award XP for completing the quiz
-      await db.rpc('add_user_xp', {
-        p_user_id: profile.id,
-        p_xp: 100,
-        p_source: 'music_quiz'
-      });
-      toast.success('Quiz completed! +100 XP 🎉');
+      await saveMusicPersonality(profile.id, personality);
+      toast.success('Music personality saved.');
     } catch (e) {
-      console.error('Failed to save quiz result', e);
+      const message = e instanceof Error ? e.message : 'Your music result could not be saved. Try again.';
+      setSaveError(message);
+      toast.error(message);
     } finally {
       setIsSaving(false);
     }
@@ -235,22 +220,14 @@ export default function MusicPersonalityQuiz() {
     try {
       const personality = PERSONALITIES[result];
       
-      const { error } = await db.from('posts').insert({
+      await publishMusicPost({
         author_id: profile.id,
         type: 'post',
-        caption: `${personality.emoji} I just discovered my Music DNA — I'm **${personality.title}**!\n\n"${personality.description}"\n\n🎵 My strengths: ${personality.strengths.join(', ')}\n⚡ DNA Boost: ${personality.dnaBoost}\n\nDiscover your sound identity on VYBE! #MusicDNA #VybeQuiz`,
+        caption: `${personality.emoji} I just discovered my Music DNA — I'm **${personality.title}**!\n\n"${personality.description}"\n\n🎵 My strengths: ${personality.strengths.join(', ')}\n\nDiscover your sound identity on VYBE! #MusicDNA #VybeQuiz`,
       });
 
-      if (error) throw error;
-      
-      await db.rpc('add_user_xp', {
-        p_user_id: profile.id,
-        p_xp: 50,
-        p_source: 'music_quiz_share'
-      });
-
-      toast.success('Shared to your feed! +50 XP 🚀');
-      setTimeout(() => navigate('/'), 1500);
+      toast.success('Shared to your feed.');
+      navigate('/');
     } catch (error) {
       console.error('Error sharing quiz:', error);
       toast.error('Failed to share results');
@@ -260,6 +237,7 @@ export default function MusicPersonalityQuiz() {
   };
 
   const resetQuiz = () => {
+    setSaveError(null);
     setCurrentStep(0);
     setScores({ edm: 0, acoustic: 0, lofi: 0, synthwave: 0, pop: 0, rock: 0, indie: 0 });
     setResult(null);
@@ -389,13 +367,6 @@ export default function MusicPersonalityQuiz() {
                     {PERSONALITIES[result].description}
                   </p>
 
-                  {/* DNA Boost */}
-                  <div className="flex justify-center">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20">
-                      <Sparkles className="w-4 h-4 text-primary" />
-                      <span className="text-sm font-semibold text-primary">DNA Boost: {PERSONALITIES[result].dnaBoost}</span>
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -462,6 +433,8 @@ export default function MusicPersonalityQuiz() {
               </Card>
 
               {/* Actions */}
+              {isSaving && <p role="status" className="text-center text-sm text-muted-foreground">Saving your music personality…</p>}
+              {saveError && <div role="alert" className="text-center space-y-2"><p className="text-sm text-destructive">{saveError}</p><Button variant="outline" disabled={isSaving} onClick={() => void saveResult(result)}>Retry saving result</Button></div>}
               <div className="flex flex-col sm:flex-row gap-3 justify-center items-center pt-2">
                 <Button 
                   size="lg" 
@@ -470,13 +443,14 @@ export default function MusicPersonalityQuiz() {
                   disabled={isSharing}
                 >
                   <Share2 className="w-5 h-5 mr-2" />
-                  {isSharing ? 'Sharing...' : 'Share to Feed (+50 XP)'}
+                  {isSharing ? 'Sharing...' : 'Share to Feed'}
                 </Button>
                 <Button 
                   variant="ghost" 
                   size="lg"
                   className="w-full sm:w-auto h-12 px-8"
                   onClick={resetQuiz}
+                  disabled={isSaving || isSharing}
                 >
                   <RefreshCcw className="w-4 h-4 mr-2" />
                   Retake Quiz

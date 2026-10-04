@@ -49,14 +49,40 @@ export async function readSocialPostPreviews(input: SocialPostPreviewsInput, gua
   return result.posts;
 }
 
-/** A denied or malformed read stays a failure. A missing callable uses the signed-in timeline. */
+/** A legacy discovery list supplies candidates only; current server admission
+ * supplies every displayed caption, author and media URL. */
+async function readAdmittedFallback(input: SocialFeedInput, guard: () => void): Promise<SocialFeedPage> {
+  const candidates = await readClientSocialFeed(input, guard);
+  const byId = new Map(candidates.posts.map(candidate => [candidate.id, candidate]));
+  if (!byId.size) return { posts: [], nextCursor: candidates.nextCursor };
+  const admitted = await readSocialPostPreviews({ expectedOwnerUid: input.expectedOwnerUid, expectedProfileId: input.expectedProfileId, postIds: [...byId.keys()] }, guard);
+  const posts = admitted.filter(row => !input.contentType || row.type === input.contentType).map(row => {
+    const candidate = byId.get(row.id)!;
+    const reaction = z.enum(['like', 'love', 'care', 'haha', 'wow', 'sad', 'angry']).safeParse(candidate.reaction_type);
+    const reactionType = candidate.is_liked ? (reaction.success ? reaction.data : 'like') : null;
+    return {
+      id: row.id, type: row.type, caption: row.caption, created_at: row.createdAt, tags: row.tags,
+      media_url: row.mediaUrl ?? '', media_urls: row.mediaUrls, thumbnail_url: row.thumbnailUrl, age_rating: row.ageRating,
+      is_pinned: row.isPinned, like_count: row.likeCount, comment_count: row.commentCount, view_count: row.viewCount,
+      is_liked: reactionType !== null, reaction_type: reactionType, is_bookmarked: candidate.is_bookmarked,
+      author: { id: row.author.id, username: row.author.username, avatar_url: row.author.avatarUrl },
+    };
+  });
+  return { posts, nextCursor: candidates.nextCursor };
+}
+
+/** A denied or malformed read stays a failure. No raw post is displayed. */
 export async function readSocialFeed(input: SocialFeedInput, guard: () => void): Promise<SocialFeedPage> {
   guard();
   if (input.feed === 'local' ? !validLocalArea(input.area) : input.area !== undefined) throw new Error('Choose an approximate area for Local.');
+  // Finish an admitted legacy page sequence if the primary reader comes online
+  // mid-scroll. Its server cursors cannot interpret legacy offsets. Refreshing
+  // without a cursor starts a new sequence through the primary reader.
+  if (input.cursor?.startsWith('c:')) return readAdmittedFallback(input, guard);
   const response = await invokeFunction<unknown>('readSocialFeed', input);
   guard();
   if (response.error) {
-    if (missingSocialFeedFunction(response.error)) return readClientSocialFeed(input, guard);
+    if (missingSocialFeedFunction(response.error)) return readAdmittedFallback(input, guard);
     throw Object.assign(new Error(response.error.message || 'Your feed could not be refreshed.'), { code: response.error.code || response.error.name });
   }
   const parsed = page.safeParse(response.data);

@@ -652,7 +652,10 @@ service cloud.firestore {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || docId == uid() || ownsProfileId(docId);
     }
     match /dna_content_preferences/{docId} {
-      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || docId == uid() || ownsProfileId(docId);
+      allow read: if ownsUserField('user_id') || docId == uid() || ownsProfileId(docId);
+      // Adaptation state is server-owned. Old client writes must not restore
+      // preferences after a checked reset or reassign another user's row.
+      allow write: if false;
     }
     match /user_active_boosts/{docId} {
       allow read: if signedIn() && (ownsUserField('user_id') || ownsProfileId(docId));
@@ -1566,7 +1569,18 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     match /dna_agent_settings/{id} {
-      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+      allow read: if ownsUserField('user_id');
+      allow create: if signedIn() && id == uid() && willOwn('user_id');
+      allow update: if signedIn() && id == uid() && isOwner('user_id') && willOwn('user_id');
+      allow delete: if signedIn() && id == uid() && isOwner('user_id');
+    }
+    match /dna_agent_actions/{id} {
+      allow read: if isOwner('user_id');
+      allow write: if false;
+    }
+    match /dna_auto_theme/{id} {
+      allow read: if isOwner('user_id');
+      allow write: if false;
     }
     match /user_backgrounds/{id} {
       // Profile covers query only active backgrounds. The rest of a user's

@@ -12,10 +12,11 @@ vi.mock('@tanstack/query-async-storage-persister', () => ({
 vi.mock('idb-keyval', () => ({ get: vi.fn(), set: vi.fn(), del: vi.fn() }));
 import { shouldPersistQueryKey } from './queryPersister';
 
-const privateKeys = ['admin-reports', 'report-inspection', 'pending-moderation-count', 'post-deletion-log', 'feed-mutes'];
+const privateKeys = ['admin-reports', 'content-flags', 'report-inspection', 'pending-moderation-count', 'post-deletion-log', 'feed-mutes'];
 function cachedClient(): PersistedClient {
   const client = new QueryClient();
   for (const key of privateKeys) client.setQueryData([key, 'staff-uid', 1], { note: 'private review', source: 'private inspected source' });
+  client.setQueryData(['content-flags'], [{ flagged_text: 'Private legacy flag' }]);
   client.setQueryData(['public-fixture'], { title: 'Public content' });
   const result = { timestamp: Date.now(), buster: 'fixture', clientState: dehydrate(client) };
   client.clear();

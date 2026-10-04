@@ -76,19 +76,25 @@ export type Report = ReportSummary;
 export function useContentFlags() {
   const { user, authReady } = useAuth();
   const profileId = useAuthProfileId();
+  const session = useReportAccountSession();
+  const guard = reportAccountGuard(user?.id || '');
 
   return useQuery({
-    queryKey: ['content-flags'],
+    queryKey: ['content-flags', user?.id, session.epoch],
     queryFn: async () => {
+      guard();
       const { data, error } = await db
         .from('content_flags')
         .select('*')
         .order('created_at', { ascending: false });
       
+      guard();
       if (error) throw error;
+      if (!Array.isArray(data)) throw new Error('Content flags could not be loaded.');
       return data as ContentFlag[];
     },
-    enabled: isStaffQueryEnabled(authReady, user, profileId),
+    enabled: !!user?.id && session.uid === user.id && isStaffQueryEnabled(authReady, user, profileId),
+    gcTime: 0, retry: false,
     networkMode: 'always',
   });
 }

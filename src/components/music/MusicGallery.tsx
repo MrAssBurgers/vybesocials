@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Play, Pause, Heart, X, Clock, Disc, TrendingUp, Star, Share } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { publishMusicPost, recordMusicUsage } from '@/lib/musicWriteResults';
+import { reportAccountGuard } from '@/lib/reportModerationService';
 
 interface Track {
   track_id: string;
@@ -59,6 +61,15 @@ export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const [activeTab, setActiveTab] = useState('trending');
+  const [usageUnavailable, setUsageUnavailable] = useState(false);
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const trackUsageSeparately = useCallback((trackId: string, kind: 'plays' | 'shares', guard = reportAccountGuard()) => {
+    try { guard(); } catch { return; }
+    void recordMusicUsage(trackId, kind).then(available => {
+      try { guard(); if (mounted.current && !available) setUsageUnavailable(true); } catch { /* Retired account. */ }
+    });
+  }, []);
 
   const genres = useMemo(() => {
     const allGenres = tracks.map(t => t.genre).filter(Boolean);
@@ -189,16 +200,13 @@ export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
         setCurrentlyPlaying(track.track_id);
 
         // Update play count
-        await db.rpc('update_track_usage', {
-          p_track_id: track.track_id,
-          p_plays: 1
-        });
+        trackUsageSeparately(track.track_id, 'plays');
       } catch (error) {
         console.error('Error playing audio:', error);
         toast.error('Failed to play preview');
       }
     }
-  }, [currentlyPlaying, audioElement]);
+  }, [currentlyPlaying, audioElement, trackUsageSeparately]);
 
   const handleUseSound = (track: Track) => {
     // Stop any playing audio
@@ -212,21 +220,26 @@ export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
   };
 
   const handleShareTrack = async (track: Track) => {
+    const accountGuard = reportAccountGuard();
+    const guard = () => { accountGuard(); if (!mounted.current) throw new Error('Music gallery closed.'); };
     try {
+      guard();
       const { data: { user } } = await db.auth.getUser();
+      guard();
       if (!user) {
         toast.error('You must be logged in to share music');
         return;
       }
 
       // Check profile
-      const { data: profile } = await db
+      const { data: profile, error: profileError } = await db
         .from('profiles')
         .select('id')
         .eq('user_id', user.id)
         .single();
+      guard();
       
-      if (!profile) throw new Error('Profile not found');
+      if (profileError || !profile) throw new Error('Profile could not be verified');
 
       // Stop audio if playing
       if (audioElement) {
@@ -236,34 +249,17 @@ export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
       }
 
       // Create a feed post sharing the track
-      const { error } = await db.from('posts').insert({
+      await publishMusicPost({
         author_id: profile.id,
         type: 'post',
         caption: `Vibing to "${track.title}" by ${track.artist} 🎵\n#music #discovery #${track.genre.replace(/\s+/g, '').toLowerCase()}`,
         media_url: track.artwork_url || 'https://images.unsplash.com/photo-1614149162883-504ce4d13909?q=80&w=800&auto=format&fit=crop',
       });
-
-      if (error) throw error;
-
-      // Update track usage stats (shares)
-      await db.rpc('update_track_usage', {
-        p_track_id: track.track_id,
-        p_shares: 1
-      });
-
-      // Simple way to award XP directly (like 50 XP for sharing a track)
-      try {
-        await db.rpc('add_user_xp', {
-          p_user_id: user.id,
-          p_xp: 50,
-          p_source: 'music_share'
-        });
-      } catch (e) {
-        console.warn('Failed to add XP for sharing track', e);
-      }
-
-      toast.success('Track shared to your feed! +50 XP 🎵');
+      guard();
+      toast.success('Track shared to your feed.');
+      trackUsageSeparately(track.track_id, 'shares', guard);
     } catch (error) {
+      try { guard(); } catch { return; }
       console.error('Error sharing track:', error);
       toast.error('Failed to share track');
     }
@@ -311,6 +307,7 @@ export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
         </Button>
       </div>
 
+      {usageUnavailable && <p role="status" className="px-4 py-2 text-sm text-muted-foreground">Music activity counts are unavailable. Playback and confirmed shares are unaffected.</p>}
       {/* Search */}
       <div className="p-4 border-b">
         <div className="relative">

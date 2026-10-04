@@ -5,6 +5,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { requireAuth, requireAdmin, db } from './_shared/admin.js';
 import { chatCompletion } from './_shared/geminiAi.js';
 import { modelForTier, TOKEN_BUDGET } from './_shared/aiModels.js';
+import { readDnaAdaptationGeneration, saveDnaActions, runDnaActionChange, parseDnaSuggestions } from './dnaAdaptation.js';
 import {
   AGENT_NAV_PATHS,
   AGENT_TOOL_NAME,
@@ -234,12 +235,14 @@ export const analyzeError = onCall({ secrets: SECRETS }, async (request) => {
 export const dnaAutopilot = onCall({ secrets: SECRETS }, async (request) => {
   const uid = requireAuth(request);
   const settingsSnap = await db.collection('dna_agent_settings').doc(uid).get();
-  const mode = (settingsSnap.data() as any)?.mode || 'suggest';
-  if (mode === 'off') return { ok: true, mode: 'off', actions: [] };
+  const policy = settingsSnap.data();
+  const mode = policy?.mode || 'suggest';
+  if (mode === 'off' || policy?.learning_paused === true || policy?.personalization_opted_out === true) return { ok: true, mode: 'off', actions: [] };
+  const generation = await readDnaAdaptationGeneration(db, uid);
   const dnaSnap = await db.collection('vybe_dna').doc(uid).get();
   const { content } = await chatCompletion({
     messages: [
-      { role: 'system', content: 'You are the DNA Autopilot. Suggest 3 actions to optimize the user\'s feed/theme/layout based on their DNA. Output JSON: [{"type":"apply_theme|navigate|generate_theme","reason":"..."}].' },
+      { role: 'system', content: 'You are the DNA Autopilot. Suggest up to 3 ideas for the user\'s feed/theme/layout based on their DNA. These are suggestions only; do not claim to have changed anything. Output JSON: {"actions":[{"type":"apply_theme|navigate|generate_theme","reason":"..."}]}.' },
       { role: 'user', content: JSON.stringify(dnaSnap.data() || {}).slice(0, 1500) },
     ],
     response_format: { type: 'json_object' },
@@ -247,25 +250,13 @@ export const dnaAutopilot = onCall({ secrets: SECRETS }, async (request) => {
     model: modelForTier('micro'),
     max_tokens: TOKEN_BUDGET.standard,
   });
-  let actions: any[] = [];
-  try { actions = JSON.parse(content); } catch { actions = []; }
-  for (const action of actions) {
-    await db.collection('dna_agent_actions').add({
-      user_id: uid, action_type: action.type, reason: action.reason,
-      mode, status: mode === 'autonomous' ? 'applied' : 'suggested',
-      created_at: new Date().toISOString(),
-    });
-  }
-  return { ok: true, mode, actions };
+  const saved = await saveDnaActions(db, uid, generation, parseDnaSuggestions(content, mode));
+  return { ok: true, mode, actions: saved, changesAvailable: false };
 });
 
 export const dnaAutopilotRevert = onCall(async (request) => {
   const uid = requireAuth(request);
-  const { action_id } = (request.data || {}) as any;
-  const doc = await db.collection('dna_agent_actions').doc(action_id).get();
-  if (!doc.exists || (doc.data() as any).user_id !== uid) throw new HttpsError('permission-denied', 'not yours');
-  await doc.ref.update({ status: 'reverted', reverted_at: new Date().toISOString() });
-  return { ok: true };
+  return runDnaActionChange(db, uid, request.data);
 });
 
 // Vybe agent / commander — Gemini tool-calling for app control + chat
