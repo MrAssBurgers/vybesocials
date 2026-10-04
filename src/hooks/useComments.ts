@@ -10,6 +10,8 @@ import { useTokenReward } from './useVybeTokens';
 import { recordChallengeActivity } from '@/lib/challengeProgressClient';
 import { tokenAccountGuard, type TokenAccountGuard } from '@/lib/tokenMarketplaceService';
 
+import { changeComment } from '@/lib/commentChanges';
+
 const COMMENT_REWARD_ACCOUNT = Symbol('comment-reward-account');
 
 interface Comment {
@@ -229,75 +231,62 @@ export function useCreateComment() {
   };
 }
 
-export function useDeleteComment() {
-  const { profile } = useAuth();
+type CommentChangeInput = { commentId: string; postId: string; text?: string };
+
+function useChangeComment(action: 'edit' | 'delete') {
+  const { profile, user } = useAuth();
   const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ commentId, postId }: { commentId: string; postId: string }) => {
-      if (!profile) throw new Error('Not authenticated');
-
-      const { data: comment, error: fetchError } = await db
-        .from('comments')
-        .select('user_id')
-        .eq('id', commentId)
-        .single();
-
-      if (fetchError) throw fetchError;
-      if (comment.user_id !== profile.id) {
-        throw new Error('You can only delete your own comments');
+  const mutation = useMutation({
+    mutationFn: async ({ input, guard }: { input: CommentChangeInput; guard: TokenAccountGuard }) => {
+      try {
+        guard();
+        if (!user || !profile || profile.user_id !== user.id) throw new Error('Not authenticated');
+        if (action === 'edit') {
+          if (typeof input.text !== 'string' || !input.text.trim()) throw new Error('Enter a comment before saving.');
+          if (containsBlockedContent(input.text).blocked) throw new Error('Your comment contains inappropriate content. Please revise.');
+          return await changeComment({ ...input, action, text: filterBlockedContent(input.text) }, profile.id, guard);
+        }
+        return await changeComment({ ...input, action }, profile.id, guard);
+      } catch (error) {
+        guard(); // Convert late failures into a silent account-change result.
+        throw error;
       }
-
-      const { error } = await db
-        .from('comments')
-        .delete()
-        .eq('id', commentId);
-
-      if (error) throw error;
-      return { postId };
     },
-    onSuccess: ({ postId }) => {
+    onSuccess: ({ postId, guard }) => {
+      try { guard(); } catch { return; }
       queryClient.invalidateQueries({ queryKey: ['comments', postId] });
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
-      toast.success('Comment deleted');
+      if (action === 'delete') queryClient.invalidateQueries({ queryKey: ['posts'] });
+      toast.success(action === 'delete' ? 'Comment deleted' : 'Comment updated');
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Failed to delete comment');
+      if ('code' in error && error.code === 'account-changed') return;
+      toast.error(error.message || 'Could not change comment. Please try again.');
     },
   });
+  type Options = Parameters<typeof mutation.mutate>[1];
+  // Preserve the public callback input while keeping the dispatch-time guard
+  // private. Also covers away-and-back account switches before a response.
+  type Callbacks = {
+    onSuccess?: (data: Awaited<ReturnType<typeof changeComment>>, input: CommentChangeInput, context: unknown) => void;
+    onError?: (error: Error, input: CommentChangeInput, context: unknown) => void;
+    onSettled?: (data: Awaited<ReturnType<typeof changeComment>> | undefined, error: Error | null, input: CommentChangeInput, context: unknown) => void;
+  };
+  const prepare = (input: CommentChangeInput, callbacks?: Callbacks) => {
+    const guard = tokenAccountGuard(user?.id);
+    const current = () => { try { guard(); return true; } catch { return false; } };
+    const options: Options = {
+      onSuccess: (data, _variables, context) => { if (current()) callbacks?.onSuccess?.(data, input, context); },
+      onError: (error, _variables, context) => { if (current()) callbacks?.onError?.(error, input, context); },
+      onSettled: (data, error, _variables, context) => { if (current()) callbacks?.onSettled?.(data, error, input, context); },
+    };
+    return { variables: { input, guard }, options };
+  };
+  return {
+    ...mutation,
+    mutate: (input: CommentChangeInput, callbacks?: Callbacks) => { const request = prepare(input, callbacks); mutation.mutate(request.variables, request.options); },
+    mutateAsync: (input: CommentChangeInput, callbacks?: Callbacks) => { const request = prepare(input, callbacks); return mutation.mutateAsync(request.variables, request.options); },
+  };
 }
 
-export function useEditComment() {
-  const { profile } = useAuth();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ commentId, postId, text }: { commentId: string; postId: string; text: string }) => {
-      if (!profile) throw new Error('Not authenticated');
-
-      const check = containsBlockedContent(text);
-      if (check.blocked) {
-        toast.error('Your comment contains inappropriate content. Please revise.');
-        throw new Error('Comment contains blocked content');
-      }
-
-      const filteredText = filterBlockedContent(text);
-
-      const { error } = await db
-        .from('comments')
-        .update({ text: filteredText })
-        .eq('id', commentId)
-        .eq('user_id', profile.id);
-
-      if (error) throw error;
-      return { postId };
-    },
-    onSuccess: ({ postId }) => {
-      queryClient.invalidateQueries({ queryKey: ['comments', postId] });
-      toast.success('Comment updated');
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Failed to update comment');
-    },
-  });
-}
+export function useDeleteComment() { return useChangeComment('delete'); }
+export function useEditComment() { return useChangeComment('edit'); }

@@ -2,6 +2,23 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Atomic comment editing and deletion
+
+### What changed
+- Replaced comment edit/delete legacy adapter writes with a Firestore transaction that reads existence, owner and post identity before writing. Editing a missing/mismatched comment now fails instead of reporting success on zero affected rows; deletion no longer separates the ownership read from the write.
+- Captured the initiating account guard at dispatch, checked it during transaction retries/after reads, and suppressed late toasts/cache updates/caller callbacks after account changes, including away-and-back. Committed writes remain successful even if the account changes afterward. Failed edits retain the caller's editor text.
+- Firebase rules remain authoritative; this does not close broad comment read access, add source-version conflict UI, or change comment creation idempotency.
+
+### Verification
+- Full 321 files / 3,041 tests, production build, typecheck and scoped lint passed. Ten new cases cover edit/delete success, missing/foreign/mismatched rows, account change before delete, late UI callbacks, stale profile and failed edit. Logs work/comment-changes-*.log.
+- Retained local emulator/browser: created named synthetic post/comment qa-comment-edit-20261004 for preview Alice; edited through PostDetail and confirmed displayed saved text. No UI deletion or production data changes. Screenshot outputs/vybe-comment-edit-verified.png. Preserved unsaved mini-app recovery tab.
+
+### Next 3 tasks and limits
+1. Continue comment read visibility/session scoping and server authority.
+2. Continue game/mod adapter verification and mini-app runtime isolation.
+3. Publish completed client through Lovable and stage named backend/rules separately. Broad goal remains active.
+
+---
 ## ACTIVE (2026-10-04) - More visible soft loading background
 
 ### What changed
@@ -8837,4 +8854,5 @@ All eight migration phases complete. See `.lovable/plan.md` for per-phase detail
 1. Run the iOS manual checklist above on an iPhone build and collect screenshots/recording for each auth flow.
 2. If iOS deep-link takeover is still flaky on QR camera scans, verify associated domains/Universal Link entitlement for `vybehub.app` in the native shell.
 3. Push to `origin/main`, then run Lovable Publish and production smoke test on `vybehub.app`.
+
 
