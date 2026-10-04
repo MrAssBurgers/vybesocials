@@ -42,8 +42,11 @@ recommendations use `useSocialFeed` with opaque continuation; the selected clip
 is deduplicated and denied selections never fall back to the recommendation
 feed. Old initial/recommendation disk roots are dropped. Raw RPC reads and
 speculative detached video preloading were removed from this surface. The
-existing long-video redirect still leads to `/watch/:id`, whose reader requires
-its own migration; this checkpoint does not certify that destination.
+long-video redirect leads to `/watch/:id`, which now uses the same checked
+mounted-page subscription. Watch only enables related videos and its scoped
+comments after admission. Its interaction cache binds account and access lease,
+and legacy `video` snapshots are excluded from disk write/restore. It preserves
+the dedicated player controls; non-video content redirects to its own viewer.
 
 Other legacy readers still require migration. Comments still use their existing
 backend read path after page admission; this is not transactional comment

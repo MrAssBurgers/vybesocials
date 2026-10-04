@@ -23,6 +23,7 @@ interface InlineCommentsProps {
   postId: string;
   authorId: string;
   commentCount?: number;
+  accessScope?: string;
 }
 
 type SortOption = 'newest' | 'top';
@@ -35,9 +36,10 @@ export const InlineComments = memo(function InlineComments({
   postId,
   authorId,
   commentCount = 0,
+  accessScope,
 }: InlineCommentsProps) {
   const { profile } = useAuth();
-  const { data: comments, isLoading } = useComments(postId);
+  const { data: comments, isLoading } = useComments(postId, accessScope ? { scope: accessScope } : undefined);
   const createComment = useCreateComment();
 
   const [text, setText] = useState('');

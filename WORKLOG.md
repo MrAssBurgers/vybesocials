@@ -2,6 +2,26 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-04) - Checked long-video watch page and reliable controls
+
+### What changed
+- Watch now uses the checked mounted-post store rather than a raw posts/profile query. Related videos and scoped inline comments only start after admission; interaction reads bind account/epoch/profile and access lease. Legacy video/watch interaction disk snapshots are excluded. Other content types retain their own viewer routes.
+- Replaced legacy likes writes with the shared reaction hook. Bookmark failures roll back and report failure. Checked media/avatars no longer use raw signing fallback.
+- Playback state follows play/pause events; rejected Play reports an error without pretending playback started. Seek is a labeled keyboard-accessible range input that ignores missing/infinite duration and clamps position. Fullscreen state follows the browser event and failures are caught. Media changes reset progress/autoplay state. Added control labels and removed an inert dislike button with no handler.
+- Watch has a named soft loading state and consistent unavailable/retry UI. Comments retain their existing backend after admission, so transactional comment authority remains a follow-up.
+
+### Verification
+- All 319 files / 3,009 tests and production build passed; app typecheck and scoped lint passed. New checks cover denied/no-raw-read/no-comments/no-related states, retry, type routing, rejected playback, event-driven play state and finite/unknown-duration seek. Disk exclusion tests cover both new keys. Logs work/watch-*.log and work/watch-*-final.log.
+- Retained local 8082: a private watch URL rendered unavailable; an admitted synthetic long video showed its dedicated controls/comments. Play rejection produced the expected error while keeping Resume visible. After narrowing the synthetic fixture to owner-only, the page showed unavailable with no video, caption or composer at the next check. Proof outputs/vybe-watch-unavailable.png. No comment/share was sent and no production data changed.
+- External sample video remains blocked by local-only preview CSP, so actual decode/playback/native fullscreen is not certified. Policy unchanged. Generated version/offline churn restored.
+
+### Next 3 tasks and limits
+1. Continue remaining profile/explore and server-side comment admission; test decode/playback/fullscreen on permitted staging media and physical devices. Watch's raw reader removal is not a global raw-Firestore closure.
+2. Continue concrete game/mod adapters and mini-app runtime isolation/operation retention. Prior engine automation restriction remains; full native upload walkthrough remains unverified.
+3. Stage named reader functions and matching client, then Lovable publication. Broad goal active/incomplete; no production deployment this checkpoint.
+
+---
+
 ## ACTIVE (2026-10-04) - Checked clip links and share-panel render stability
 
 ### What changed

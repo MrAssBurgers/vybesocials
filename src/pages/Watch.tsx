@@ -6,7 +6,6 @@ import {
   Share2, 
   Bookmark, 
   ThumbsUp,
-  ThumbsDown,
   Play,
   Pause,
   Volume2,
@@ -21,7 +20,10 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { VideoCard } from '@/components/explore/VideoCard';
-import { useSignedUrl } from '@/hooks/useSignedUrl';
+import { SharedPostPreviewProvider, useActivePostPreview } from '@/components/chat/SharedPostPreviews';
+import { useProfileAccount } from '@/hooks/useProfileAccount';
+import { getViewerPostReaction } from '@/lib/postReactions';
+import { usePostReaction } from '@/hooks/usePostReaction';
 import { usePersonalizedFeed } from '@/hooks/useInfinitePosts';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -31,9 +33,14 @@ import { ShareSheet } from '@/components/share/ShareSheet';
 import { HoldToShare } from '@/components/share/HoldToShare';
 
 export default function WatchPage() {
+  const { id = '' } = useParams<{ id: string }>();
+  return <SharedPostPreviewProvider conversationId={`watch:${id}`}><WatchContent /></SharedPostPreviewProvider>;
+}
+
+function WatchContent() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { isMobileOrTablet } = useIsMobileOrTablet();
   
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -44,40 +51,44 @@ export default function WatchPage() {
   const [progress, setProgress] = useState(0);
   const [showControls, setShowControls] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
-  const [likeCount, setLikeCount] = useState(0);
-  const [commentCount, setCommentCount] = useState(0);
   const [showShareSheet, setShowShareSheet] = useState(false);
 
-  // Fetch video details
-  const { data: video, isLoading } = useQuery({
-    queryKey: ['video', id],
-    queryFn: async () => {
-      if (!id) return null;
-      
-      const { data, error } = await db
-        .from('posts')
-        .select(`
-          *,
-          author:profiles!author_id (
-            id,
-            username,
-            display_name,
-            avatar_url
-          )
-        `)
-        .eq('id', id)
-        .single();
-
-      if (error) throw error;
-      return data;
+  const account = useProfileAccount();
+  const { entry, retry: retryVideo } = useActivePostPreview(id || '');
+  const checked = entry.post;
+  const isLoading = entry.status === 'queued' || entry.status === 'loading';
+  const video = checked ? {
+    id: checked.id, type: checked.type, media_url: checked.mediaUrl, caption: checked.caption,
+    tags: checked.tags, created_at: checked.createdAt, view_count: checked.viewCount,
+    author: { id: checked.author.id, username: checked.author.username, display_name: checked.author.displayName, avatar_url: checked.author.avatarUrl },
+  } : null;
+  const { data: interaction } = useQuery({
+    queryKey: ['watch-detail-interaction', account.session.uid, account.session.epoch, profile?.id, id, entry.expires],
+    enabled: !!video && account.ready,
+    queryFn: async ({ signal }) => {
+      account.guard();
+      const [reaction, bookmark] = await Promise.all([
+        getViewerPostReaction(id!, profile!.id, user?.id),
+        db.from('bookmarks').select('id').eq('user_id', profile!.id).eq('post_id', id!).maybeSingle(),
+      ]);
+      account.guard();
+      if (signal.aborted) throw new Error('Video session changed.');
+      if (bookmark.error) throw bookmark.error;
+      return { reaction, bookmarked: !!bookmark.data };
     },
-    enabled: !!id,
+    gcTime: 0, staleTime: 0, retry: false,
   });
+  useEffect(() => { setIsBookmarked(!!interaction?.bookmarked); }, [interaction]);
+  const { isLiked, likeCount, handleReaction } = usePostReaction({
+    id: video?.id || '', author: { id: video?.author.id || '' },
+    is_liked: !!interaction?.reaction.is_liked, reaction_type: interaction?.reaction.reaction_type || null,
+    like_count: checked?.likeCount || 0,
+  });
+  const commentCount = checked?.commentCount || 0;
 
   // Related long-form videos from personalized feed
-  const { data: relatedFeed } = usePersonalizedFeed('video', { enabled: !!id });
+  const { data: relatedFeed } = usePersonalizedFeed('video', { enabled: video?.type === 'video' });
   const relatedVideos = useMemo(
     () =>
       relatedFeed?.pages
@@ -89,8 +100,8 @@ export default function WatchPage() {
 
   // Short clips belong in the vertical viewer
   useEffect(() => {
-    if (video?.type === 'short' && id) {
-      navigate(`/clips/${id}`, { replace: true });
+    if (video && video.type !== 'video' && id) {
+      navigate(video.type === 'short' ? `/clips/${id}` : `/p/${id}`, { replace: true });
     }
   }, [video?.type, id, navigate]);
 
@@ -101,29 +112,12 @@ export default function WatchPage() {
     void db.rpc('increment_view_count', { post_id_param: id }).then(() => {}, () => {});
   }, [isPlaying, id]);
 
-  // Fetch like/bookmark status
+  const signedUrl = video?.media_url;
+  const signedAvatar = video?.author.avatar_url;
   useEffect(() => {
-    if (!profile || !id) return;
-
-    const fetchStatus = async () => {
-      const [likeRes, bookmarkRes, countRes, commentRes] = await Promise.all([
-        db.from('likes').select('id').eq('post_id', id).eq('user_id', profile.id).single(),
-        db.from('bookmarks').select('id').eq('post_id', id).eq('user_id', profile.id).single(),
-        db.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', id),
-        db.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', id),
-      ]);
-
-      setIsLiked(!!likeRes.data);
-      setIsBookmarked(!!bookmarkRes.data);
-      setLikeCount(countRes.count || 0);
-      setCommentCount(commentRes.count || 0);
-    };
-
-    fetchStatus();
-  }, [profile, id]);
-
-  const signedUrl = useSignedUrl(video?.media_url);
-  const signedAvatar = useSignedUrl(video?.author?.avatar_url);
+    didAutoplayRef.current = false;
+    setIsPlaying(false); setProgress(0);
+  }, [signedUrl]);
 
   // Autoplay when signed URL loads (mobile starts muted — browser policy)
   useEffect(() => {
@@ -138,14 +132,13 @@ export default function WatchPage() {
   }, [signedUrl, video?.type, isMobileOrTablet]);
 
   // Video controls
-  const togglePlay = () => {
+  const togglePlay = async () => {
     if (videoRef.current) {
       if (isPlaying) {
         videoRef.current.pause();
       } else {
-        videoRef.current.play();
+        try { await videoRef.current.play(); } catch { toast.error('Playback could not start. Try again.'); }
       }
-      setIsPlaying(!isPlaying);
     }
   };
 
@@ -156,58 +149,51 @@ export default function WatchPage() {
     }
   };
 
-  const toggleFullscreen = () => {
-    if (videoRef.current) {
-      if (document.fullscreenElement) {
-        document.exitFullscreen();
-        setIsFullscreen(false);
-      } else {
-        videoRef.current.requestFullscreen();
-        setIsFullscreen(true);
-      }
-    }
+  useEffect(() => {
+    const update = () => setIsFullscreen(!!videoRef.current && document.fullscreenElement === videoRef.current);
+    document.addEventListener('fullscreenchange', update);
+    return () => document.removeEventListener('fullscreenchange', update);
+  }, []);
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await videoRef.current?.requestFullscreen();
+    } catch { toast.error('Fullscreen is unavailable on this device.'); }
   };
 
   const handleTimeUpdate = () => {
     if (videoRef.current) {
-      const prog = (videoRef.current.currentTime / videoRef.current.duration) * 100;
+      const duration = videoRef.current.duration;
+      const prog = Number.isFinite(duration) && duration > 0 ? Math.min(100, Math.max(0, videoRef.current.currentTime / duration * 100)) : 0;
       setProgress(prog);
     }
   };
 
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (videoRef.current) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const pos = (e.clientX - rect.left) / rect.width;
-      videoRef.current.currentTime = pos * videoRef.current.duration;
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const el = videoRef.current;
+    if (el && Number.isFinite(el.duration) && el.duration > 0) {
+      el.currentTime = Math.min(1, Math.max(0, Number(e.target.value) / 100)) * el.duration;
+      handleTimeUpdate();
     }
   };
-
-  const handleLike = async () => {
-    if (!profile || !id) return;
-
-    const newIsLiked = !isLiked;
-    setIsLiked(newIsLiked);
-    setLikeCount(prev => newIsLiked ? prev + 1 : prev - 1);
-
-    if (newIsLiked) {
-      await db.from('likes').upsert({ user_id: profile.id, post_id: id }, { onConflict: 'user_id,post_id', ignoreDuplicates: true });
-    } else {
-      await db.from('likes').delete().match({ user_id: profile.id, post_id: id });
-    }
-  };
+  const handleLike = () => { if (video) void handleReaction(isLiked ? null : 'like'); };
 
   const handleBookmark = async () => {
-    if (!profile || !id) return;
+    if (!profile || !id || !video) return;
 
     const newIsBookmarked = !isBookmarked;
     setIsBookmarked(newIsBookmarked);
 
-    if (newIsBookmarked) {
-      await db.from('bookmarks').insert({ user_id: profile.id, post_id: id });
-      toast.success('Saved to bookmarks');
-    } else {
-      await db.from('bookmarks').delete().match({ user_id: profile.id, post_id: id });
+    try {
+      account.guard();
+      const result = newIsBookmarked
+        ? await db.from('bookmarks').insert({ user_id: profile.id, post_id: id })
+        : await db.from('bookmarks').delete().match({ user_id: profile.id, post_id: id });
+      account.guard();
+      if (result.error) throw result.error;
+      if (newIsBookmarked) toast.success('Saved to bookmarks');
+    } catch {
+      setIsBookmarked(!newIsBookmarked); toast.error('Could not update your bookmarks.');
     }
   };
 
@@ -223,11 +209,11 @@ export default function WatchPage() {
     setShowShareSheet(true);
   };
 
-  if (isLoading || video?.type === 'short') {
+  if (isLoading || (video && video.type !== 'video')) {
     return (
       <AppLayout hideNav={isMobileOrTablet}>
-        <div className="flex items-center justify-center h-96">
-          <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+        <div className="flex flex-col gap-4 items-center justify-center h-96 rounded-3xl bg-gradient-to-br from-primary/10 via-background to-accent/10">
+          <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full motion-safe:animate-spin" /><p role="status" className="text-sm text-muted-foreground">Opening your video…</p>
         </div>
       </AppLayout>
     );
@@ -238,7 +224,9 @@ export default function WatchPage() {
       <AppLayout>
         <div className="flex flex-col items-center justify-center h-96">
           <span className="text-6xl mb-4">📹</span>
-          <h2 className="text-xl font-semibold mb-2">Video not found</h2>
+          <h2 className="text-xl font-semibold mb-2">{entry.status === 'error' ? 'Could not refresh this video' : 'This video is unavailable'}</h2>
+          <p className="text-sm text-muted-foreground mb-4">It may have been removed or its audience changed.</p>
+          {entry.status === 'error' && <Button className="rounded-full mb-3" onClick={retryVideo}>Try again</Button>}
           <Button onClick={() => navigate('/clips')}>Back to Clips</Button>
         </div>
       </AppLayout>
@@ -260,6 +248,7 @@ export default function WatchPage() {
               onClick={() => isMobileOrTablet && setShowControls((v) => !v)}
             >
               <video
+                key={signedUrl}
                 ref={videoRef}
                 src={signedUrl || undefined}
                 className="w-full h-full object-contain"
@@ -287,6 +276,7 @@ export default function WatchPage() {
                     variant="ghost"
                     size="icon"
                     className="text-white hover:bg-white/20"
+                    aria-label="Back from video"
                     onClick={goBack}
                   >
                     <ArrowLeft className="h-5 w-5" />
@@ -296,6 +286,7 @@ export default function WatchPage() {
                 {/* Center play button */}
                 {!isPlaying && (
                   <button
+                    aria-label="Play video"
                     onClick={togglePlay}
                     className="absolute inset-0 flex items-center justify-center"
                   >
@@ -308,17 +299,8 @@ export default function WatchPage() {
                 {/* Bottom controls */}
                 <div className="absolute bottom-0 left-0 right-0 p-4 space-y-2">
                   {/* Progress bar */}
-                  <div 
-                    className="w-full h-1 bg-white/30 rounded-full cursor-pointer group/progress"
-                    onClick={handleSeek}
-                  >
-                    <div 
-                      className="h-full bg-gradient-to-r from-primary via-accent to-[hsl(var(--neon-pink))] rounded-full relative"
-                      style={{ width: `${progress}%` }}
-                    >
-                      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-primary rounded-full opacity-0 group-hover/progress:opacity-100 transition-opacity" />
-                    </div>
-                  </div>
+                  <input type="range" aria-label="Video position" min={0} max={100} step={0.1}
+                    value={progress} onChange={handleSeek} className="w-full h-2 rounded-full accent-primary cursor-pointer" />
 
                   {/* Control buttons */}
                   <div className="flex items-center justify-between">
@@ -327,6 +309,7 @@ export default function WatchPage() {
                         variant="ghost"
                         size="icon"
                         className="text-white hover:bg-white/20 h-8 w-8"
+                        aria-label={isPlaying ? "Pause video" : "Resume video"}
                         onClick={togglePlay}
                       >
                         {isPlaying ? (
@@ -339,6 +322,7 @@ export default function WatchPage() {
                         variant="ghost"
                         size="icon"
                         className="text-white hover:bg-white/20 h-8 w-8"
+                        aria-label={isMuted ? "Unmute video" : "Mute video"}
                         onClick={toggleMute}
                       >
                         {isMuted ? (
@@ -352,6 +336,7 @@ export default function WatchPage() {
                       variant="ghost"
                       size="icon"
                       className="text-white hover:bg-white/20 h-8 w-8"
+                      aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
                       onClick={toggleFullscreen}
                     >
                       <Maximize className="h-5 w-5" />
@@ -378,13 +363,12 @@ export default function WatchPage() {
                     variant="secondary"
                     size="sm"
                     className={cn("gap-2", isLiked && "bg-primary text-primary-foreground")}
+                    aria-label={isLiked ? 'Remove like' : 'Like video'}
+                    aria-pressed={isLiked}
                     onClick={handleLike}
                   >
                     <ThumbsUp className={cn("h-4 w-4", isLiked && "fill-current")} />
                     {likeCount}
-                  </Button>
-                  <Button variant="secondary" size="sm">
-                    <ThumbsDown className="h-4 w-4" />
                   </Button>
                   <HoldToShare postId={id!} postType="video" mediaUrl={signedUrl || undefined}>
                     <Button variant="secondary" size="sm" className="gap-2" onClick={handleShare}>
@@ -452,6 +436,7 @@ export default function WatchPage() {
                 postId={id!} 
                 authorId={video.author?.id || ''} 
                 commentCount={commentCount}
+                accessScope={`${account.session.uid}:${account.session.epoch}:${profile?.id}:${entry.expires}`}
               />
             </div>
           </div>
