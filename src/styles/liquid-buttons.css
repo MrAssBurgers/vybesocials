@@ -1,0 +1,113 @@
+/* Shared liquid controls: soft color pools drift independently over a still base.
+   Specificity keeps legacy platform/animation overrides from restarting the
+   old striped fill. No animated blur, background position, or per-frame JS. */
+html:root :is(.vybe-liquid-button, .gradient-animated, .create-button-gradient) {
+  --bubble-x: 14%;
+  --bubble-y: 18%;
+  isolation: isolate;
+  background: linear-gradient(135deg, hsl(var(--vybe-brand-purple, 275 78% 55%)), hsl(var(--vybe-brand-primary, 330 90% 60%)) 48%, hsl(var(--vybe-brand-accent, 185 85% 50%)));
+  background-size: 100% 100%;
+  animation: none !important;
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / .24), 0 4px 16px hsl(var(--primary) / .24);
+}
+
+html:root :is(.vybe-liquid-button, .gradient-animated, .create-button-gradient)::before,
+html:root :is(.vybe-liquid-button, .gradient-animated, .create-button-gradient)::after,
+html:root .vybe-bubble-shimmer::before,
+html:root .vybe-bubble-shimmer::after {
+  content: '';
+  display: block;
+  position: absolute;
+  inset: -42%;
+  width: auto;
+  height: auto;
+  border-radius: 46%;
+  pointer-events: none;
+  z-index: -1;
+  filter: none !important;
+  mix-blend-mode: normal;
+  transform-origin: 50% 50%;
+  opacity: .88;
+  background: radial-gradient(ellipse at 28% 35%, hsl(var(--vybe-brand-primary, 330 90% 60%)) 5%, hsl(var(--vybe-brand-primary, 330 90% 60%) / .7) 23%, transparent 58%),
+    radial-gradient(ellipse at 75% 72%, hsl(var(--vybe-brand-purple, 275 78% 55%)) 4%, transparent 57%);
+  animation: vybe-bubble-drift-a calc(var(--bubble-duration-a, 23s) * var(--anim-speed, 1)) ease-in-out infinite !important;
+  animation-delay: var(--bubble-delay-a, -7s) !important;
+  will-change: transform;
+}
+
+html:root :is(.vybe-liquid-button, .gradient-animated, .create-button-gradient)::after,
+html:root .vybe-bubble-shimmer::after {
+  opacity: .82;
+  background: radial-gradient(ellipse at 72% 32%, hsl(var(--vybe-brand-accent, 185 85% 50%)) 6%, hsl(var(--vybe-brand-accent, 185 85% 50%) / .64) 26%, transparent 60%),
+    radial-gradient(ellipse at 25% 78%, hsl(var(--vybe-brand-purple, 275 78% 55%) / .9) 3%, transparent 54%);
+  animation-name: vybe-bubble-drift-b !important;
+  animation-duration: calc(var(--bubble-duration-b, 31s) * var(--anim-speed, 1)) !important;
+  animation-delay: var(--bubble-delay-b, -19s) !important;
+}
+
+/* Retained for old callers' markup; two pseudo layers also support asChild links
+   and legacy gradient tiles, including bare text, without covering their label. */
+html:root .vybe-liquid-button__flow {
+  display: none;
+  animation: none !important;
+}
+
+html:root :is(.vybe-liquid-button, .gradient-animated, .create-button-gradient):hover:not(:disabled) {
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / .3), 0 5px 20px hsl(var(--accent) / .28);
+}
+
+html:root :is(.vybe-liquid-button, .gradient-animated, .create-button-gradient):active:not(:disabled) {
+  transform: scale(.97);
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / .22), 0 2px 10px hsl(var(--primary) / .2);
+}
+
+.vybe-bubble-shimmer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: .28;
+}
+
+/* Matching endpoints and eased turns avoid a visible loop seam. Different
+   durations, phases and travel distances keep the two pools from marching. */
+@keyframes vybe-bubble-drift-a {
+  0%, 100% { transform: translate3d(-8%, 5%, 0) rotate(-12deg) scale(1.05); }
+  28% { transform: translate3d(var(--bubble-x, 14%), -10%, 0) rotate(16deg) scale(1.12); }
+  58% { transform: translate3d(5%, var(--bubble-y, 18%), 0) rotate(-5deg) scale(.98); }
+  79% { transform: translate3d(-12%, -4%, 0) rotate(-22deg) scale(1.08); }
+}
+
+@keyframes vybe-bubble-drift-b {
+  0%, 100% { transform: translate3d(9%, -6%, 0) rotate(14deg) scale(1.1); }
+  33% { transform: translate3d(-13%, var(--bubble-y, 18%), 0) rotate(-18deg) scale(1.02); }
+  63% { transform: translate3d(calc(-1 * var(--bubble-x, 14%)), -8%, 0) rotate(9deg) scale(1.14); }
+  84% { transform: translate3d(12%, 10%, 0) rotate(24deg) scale(1.04); }
+}
+
+/* Pausing preserves the current frame, so scrolling/disabled states don't jump
+   back to the start and don't compete with navigation for rendering time. */
+html:root.is-scrolling :is(.vybe-liquid-button, .gradient-animated, .create-button-gradient, .vybe-bubble-shimmer)::before,
+html:root.is-scrolling :is(.vybe-liquid-button, .gradient-animated, .create-button-gradient, .vybe-bubble-shimmer)::after,
+html:root :is(.vybe-liquid-button, .gradient-animated, .create-button-gradient):is(:disabled, [aria-disabled='true'])::before,
+html:root :is(.vybe-liquid-button, .gradient-animated, .create-button-gradient):is(:disabled, [aria-disabled='true'])::after {
+  animation-play-state: paused !important;
+}
+
+html:root.reduce-motion :is(.vybe-liquid-button, .gradient-animated, .create-button-gradient, .vybe-bubble-shimmer)::before,
+html:root.reduce-motion :is(.vybe-liquid-button, .gradient-animated, .create-button-gradient, .vybe-bubble-shimmer)::after,
+html:root.perf-low :is(.vybe-liquid-button, .gradient-animated, .create-button-gradient, .vybe-bubble-shimmer)::before,
+html:root.perf-low :is(.vybe-liquid-button, .gradient-animated, .create-button-gradient, .vybe-bubble-shimmer)::after {
+  animation: none !important;
+  will-change: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:root :is(.vybe-liquid-button, .gradient-animated, .create-button-gradient, .vybe-bubble-shimmer)::before,
+  html:root :is(.vybe-liquid-button, .gradient-animated, .create-button-gradient, .vybe-bubble-shimmer)::after {
+    animation: none !important;
+    will-change: auto;
+  }
+}

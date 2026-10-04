@@ -7,7 +7,7 @@
  * The store is injectable so the queue logic is unit-testable without
  * IndexedDB (jsdom has none).
  */
-import { get, set } from 'idb-keyval';
+import { get, update as updateIdb } from 'idb-keyval';
 import type { SnapMediaDraft } from '@/lib/camera/snapDraft';
 
 const KEY = 'vybe-snap-outbox-v1';
@@ -31,28 +31,33 @@ export interface QueuedSnapJob {
   /** 'pending' auto-flushes on reconnect; 'failed' waits for explicit retry. */
   status: 'pending' | 'failed';
   lastError?: string;
+  /** Changes whenever an external mutation replaces this delivery attempt. */
+  revision?: string;
+  delivery?: { token: string; expiresAt: number };
+  uploaded?: { mediaUrl: string; thumbnailUrl?: string };
+  /** Dispatch was recorded but the story acknowledgement is not yet durable. */
+  attemptedStoryDestinationIds?: string[];
 }
 
 export interface SnapQueueStore {
   read(): Promise<QueuedSnapJob[]>;
-  write(jobs: QueuedSnapJob[]): Promise<void>;
+  /** Synchronous transform executed inside one serialized storage transaction. */
+  update(transform: (jobs: QueuedSnapJob[]) => QueuedSnapJob[]): Promise<void>;
+}
+
+function decodeQueue(value: unknown): QueuedSnapJob[] {
+  if (value == null) return [];
+  if (!Array.isArray(value) || value.some(row => !row || typeof row !== 'object' || typeof row.jobId !== 'string')) throw new Error('The saved snap queue could not be read. It has not been overwritten.');
+  return value;
 }
 
 export function createIdbSnapQueueStore(): SnapQueueStore {
   return {
     async read() {
-      try {
-        return (await get<QueuedSnapJob[]>(KEY)) ?? [];
-      } catch {
-        return [];
-      }
+      return decodeQueue(await get<unknown>(KEY));
     },
-    async write(jobs) {
-      try {
-        await set(KEY, jobs);
-      } catch {
-        // Quota / private mode — queue lives in memory for this session only.
-      }
+    async update(transform) {
+      await updateIdb<unknown>(KEY, stored => transform(decodeQueue(stored)));
     },
   };
 }
@@ -65,27 +70,45 @@ export function createMemorySnapQueueStore(
     async read() {
       return [...jobs];
     },
-    async write(next) {
-      jobs = [...next];
+    async update(transform) {
+      jobs = transform([...jobs]);
     },
   };
 }
 
 export type SnapQueueSendResult = 'sent' | 'retry_later' | 'failed' | 'skip_account';
-export type SnapQueueSender = (job: QueuedSnapJob) => Promise<SnapQueueSendResult>;
+export interface SnapQueueOperation { ownerUid?: string; guard?: () => void; expectedRevision?: string }
+export interface SnapQueueDelivery {
+  /** Check/renew this delivery claim after a long async stage. */
+  check(): Promise<void>;
+  prepare(conversationIds: string[]): Promise<void>;
+  uploaded(value: NonNullable<QueuedSnapJob['uploaded']>): Promise<void>;
+  beginStory(id: string): Promise<void>;
+  acknowledge(kind: 'conversation' | 'story', id: string): Promise<void>;
+}
+export type SnapQueueSender = (job: QueuedSnapJob, delivery: SnapQueueDelivery) => Promise<SnapQueueSendResult>;
+export const SNAP_QUEUE_DELIVERY_LEASE_MS = 10 * 60_000;
+type QueuePatch = Partial<Pick<QueuedSnapJob, 'status' | 'lastError' | 'attempts' | 'remainingConversationIds' | 'remainingStoryDestinationIds'>>;
+const newRevision = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const STORY_REVIEW_MESSAGE = 'A story may already be posted. Check your story before retrying to avoid a duplicate.';
+const immutableIdentity = (row: Pick<QueuedSnapJob, 'schemaVersion' | 'ownerUid' | 'senderId' | 'draft' | 'caption' | 'mediaMimeType' | 'mediaBlob'>) => JSON.stringify([
+  row.schemaVersion, row.ownerUid, row.senderId, row.draft.mediaId, row.draft.clientMessageId, row.draft.mediaType, row.draft.viewMode,
+  row.draft.replyToMessageId, row.caption, row.mediaMimeType, row.mediaBlob?.size, row.mediaBlob?.type,
+]);
 
 export interface SnapOfflineQueue {
-  enqueue(job: Omit<QueuedSnapJob, 'queuedAt' | 'attempts' | 'status'>): Promise<void>;
+  enqueue(job: Omit<QueuedSnapJob, 'queuedAt' | 'attempts' | 'status' | 'revision' | 'delivery'>, operation?: SnapQueueOperation): Promise<void>;
   list(): Promise<QueuedSnapJob[]>;
-  remove(jobId: string): Promise<void>;
-  update(jobId: string, patch: Partial<QueuedSnapJob>): Promise<void>;
+  remove(jobId: string, operation?: SnapQueueOperation): Promise<boolean>;
+  update(jobId: string, patch: QueuePatch, operation?: SnapQueueOperation): Promise<boolean>;
   /** Retry a job that previously failed permanently. */
-  retryFailed(jobId: string): Promise<boolean>;
+  retryFailed(jobId: string, operation?: SnapQueueOperation): Promise<boolean>;
   /**
    * Deliver pending jobs in order. Stops at the first transient failure
    * (offline again); permanent failures are kept with status 'failed'.
    */
-  flush(send: SnapQueueSender): Promise<void>;
+  flush(send: SnapQueueSender, operation?: SnapQueueOperation): Promise<void>;
+  isFlushing(): boolean;
   onChange(cb: () => void): () => void;
 }
 
@@ -103,91 +126,135 @@ export function createSnapOfflineQueue(store: SnapQueueStore): SnapOfflineQueue 
     });
   };
 
-  const writeAll = async (jobs: QueuedSnapJob[]) => {
-    await store.write(jobs);
+  const mutate = async (transform: (jobs: QueuedSnapJob[]) => QueuedSnapJob[], operation?: SnapQueueOperation) => {
+    operation?.guard?.();
+    await store.update(jobs => { operation?.guard?.(); return transform(jobs); });
+    operation?.guard?.();
     emit();
   };
+  const matches = (row: QueuedSnapJob, jobId: string, operation?: SnapQueueOperation) => row.jobId === jobId
+    && (operation?.ownerUid === undefined || row.ownerUid === operation.ownerUid)
+    && (!operation || !('expectedRevision' in operation) || row.revision === operation.expectedRevision);
 
   return {
-    async enqueue(job) {
-      const jobs = await store.read();
-      // Same draft re-queued (retry while already queued) — replace, don't duplicate.
-      const without = jobs.filter((j) => j.jobId !== job.jobId);
-      without.push({ ...job, queuedAt: Date.now(), attempts: 0, status: 'pending' });
-      await writeAll(without);
+    async enqueue(job, operation) {
+      await mutate(jobs => {
+        const existing = jobs.find(row => row.jobId === job.jobId);
+        if (existing) {
+          if (immutableIdentity(existing) !== immutableIdentity(job)) throw new Error('This queued snap belongs to another account or draft. Send the changed capture as a new snap.');
+          // Retain the first immutable media/destination payload and any saved
+          // progress. Re-enqueue must not reset a newer retry or active claim.
+          return jobs;
+        }
+        if (operation?.ownerUid !== undefined && operation.ownerUid !== job.ownerUid) throw new Error('This snap belongs to another account.');
+        return [...jobs, { ...job, revision: newRevision(), queuedAt: Date.now(), attempts: 0, status: 'pending' }];
+      }, operation);
     },
 
     async list() {
       return store.read();
     },
 
-    async remove(jobId) {
-      const jobs = await store.read();
-      await writeAll(jobs.filter((j) => j.jobId !== jobId));
+    async remove(jobId, operation) {
+      let removed = false;
+      await mutate(jobs => jobs.filter(row => {
+        if (!matches(row, jobId, operation)) return true;
+        removed = true;
+        return false;
+      }), operation);
+      return removed;
     },
 
-    async update(jobId, patch) {
-      const jobs = await store.read();
-      await writeAll(jobs.map((j) => (j.jobId === jobId ? { ...j, ...patch } : j)));
+    async update(jobId, patch, operation) {
+      if (Object.keys(patch).some(key => !['status', 'lastError', 'attempts', 'remainingConversationIds', 'remainingStoryDestinationIds'].includes(key))) throw new Error('Snap ownership and capture data cannot be replaced.');
+      let changed = false;
+      await mutate(jobs => jobs.map(row => {
+        if (!matches(row, jobId, operation)) return row;
+        changed = true;
+        return { ...row, ...patch, revision: newRevision(), delivery: undefined,
+          ...(row.status === 'failed' && patch.status === 'pending' ? { attemptedStoryDestinationIds: [] } : {}),
+        };
+      }), operation);
+      return changed;
     },
 
-    async retryFailed(jobId) {
-      const jobs = await store.read();
-      const job = jobs.find((j) => j.jobId === jobId);
-      if (!job || job.status !== 'failed') return false;
-      await writeAll(
-        jobs.map((j) =>
-          j.jobId === jobId ? { ...j, status: 'pending' as const, lastError: undefined } : j,
-        ),
-      );
-      return true;
+    async retryFailed(jobId, operation) {
+      let changed = false;
+      await mutate(jobs => jobs.map(row => {
+        if (!matches(row, jobId, operation) || row.status !== 'failed') return row;
+        changed = true;
+        return { ...row, revision: newRevision(), delivery: undefined, status: 'pending', lastError: undefined, attemptedStoryDestinationIds: [] };
+      }), operation);
+      return changed;
     },
 
-    async flush(send) {
+    async flush(send, operation) {
       if (flushing) return;
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
       flushing = true;
       try {
         const jobs = await store.read();
-        for (const job of jobs) {
-          if (job.status === 'failed') continue;
+        operation?.guard?.();
+        for (const snapshot of jobs) {
+          // Unverifiable historical records are quarantined, never assigned to
+          // whichever account happens to reconnect first.
+          if (!snapshot.ownerUid && snapshot.status !== 'failed') {
+            await mutate(current => current.map(row => row.jobId === snapshot.jobId && !row.ownerUid && row.revision === snapshot.revision
+              ? { ...row, status: 'failed', revision: newRevision(), delivery: undefined, lastError: 'This older queued snap cannot be verified. Capture it again before sending.' } : row), operation);
+            continue;
+          }
+          if (snapshot.status === 'failed' || !matches(snapshot, snapshot.jobId, operation)) continue;
+          let job: QueuedSnapJob | undefined;
+          const token = newRevision();
+          await mutate(current => current.map(row => {
+            if (!matches(row, snapshot.jobId, operation) || row.revision !== snapshot.revision || row.status !== 'pending') return row;
+            if (row.delivery && row.delivery.expiresAt > Date.now()) return row;
+            if (row.attemptedStoryDestinationIds?.length || ((!row.revision || row.delivery) && row.remainingStoryDestinationIds.length)) {
+              return { ...row, delivery: undefined, status: 'failed', revision: newRevision(), lastError: STORY_REVIEW_MESSAGE };
+            }
+            const claimed = { ...row, revision: token, delivery: { token, expiresAt: Date.now() + SNAP_QUEUE_DELIVERY_LEASE_MS } };
+            job = { ...claimed };
+            return claimed;
+          }), operation);
+          if (!job) continue;
+
+          const checkpoint = async (change: (row: QueuedSnapJob) => QueuedSnapJob) => {
+            let found = false;
+            await mutate(current => current.map(row => {
+              if (!matches(row, job!.jobId, operation) || row.delivery?.token !== token) return row;
+              found = true;
+              return { ...change(row), delivery: { token, expiresAt: Date.now() + SNAP_QUEUE_DELIVERY_LEASE_MS } };
+            }), operation);
+            if (!found) throw new Error('This saved snap changed while sending. Open its current retry state.');
+          };
+          const delivery: SnapQueueDelivery = {
+            check: () => checkpoint(row => row),
+            prepare: conversationIds => checkpoint(row => ({ ...row, draft: { ...row.draft, conversationIds: [...conversationIds], recipientIds: [] }, remainingConversationIds: [...conversationIds] })),
+            uploaded: uploaded => checkpoint(row => ({ ...row, uploaded: { ...uploaded } })),
+            beginStory: id => checkpoint(row => ({ ...row, attemptedStoryDestinationIds: [...new Set([...(row.attemptedStoryDestinationIds || []), id])] })),
+            acknowledge: (kind, id) => checkpoint(row => ({ ...row,
+              remainingConversationIds: kind === 'conversation' ? row.remainingConversationIds.filter(value => value !== id) : row.remainingConversationIds,
+              remainingStoryDestinationIds: kind === 'story' ? row.remainingStoryDestinationIds.filter(value => value !== id) : row.remainingStoryDestinationIds,
+              attemptedStoryDestinationIds: kind === 'story' ? row.attemptedStoryDestinationIds?.filter(value => value !== id) : row.attemptedStoryDestinationIds,
+            })),
+          };
 
           let result: SnapQueueSendResult;
           try {
-            result = await send(job);
+            result = await send(job, delivery);
           } catch (err) {
             result = 'failed';
             job.lastError = err instanceof Error ? err.message : 'Failed to send';
           }
 
-          if (result === 'sent') {
-            const current = await store.read();
-            await writeAll(current.filter((j) => j.jobId !== job.jobId));
-            continue;
-          }
-
-          // Another account's queued media must neither send nor block this
-          // account's later jobs. Preserve its status and retry count unchanged.
-          if (result === 'skip_account') continue;
-
-          if (result === 'retry_later') {
-            // Offline / transient — keep pending, retry on next reconnect.
-            break;
-          }
-
-          const current = await store.read();
-          await writeAll(
-            current.map((j) =>
-              j.jobId === job.jobId
-                ? {
-                    ...j,
-                    status: 'failed' as const,
-                    attempts: j.attempts + 1,
-                    lastError: j.lastError || job.lastError || 'Failed to send',
-                  }
-                : j,
-            ),
-          );
+          await mutate(current => current.flatMap(row => {
+            if (!matches(row, job!.jobId, operation) || row.delivery?.token !== token) return [row];
+            if (result === 'sent') return [];
+            if (row.attemptedStoryDestinationIds?.length) return [{ ...row, delivery: undefined, revision: newRevision(), status: 'failed', attempts: row.attempts + 1, lastError: STORY_REVIEW_MESSAGE }];
+            if (result === 'skip_account' || result === 'retry_later') return [{ ...row, delivery: undefined }];
+            return [{ ...row, delivery: undefined, revision: newRevision(), status: 'failed', attempts: row.attempts + 1, lastError: job!.lastError || row.lastError || 'Failed to send' }];
+          }), operation);
+          if (result === 'retry_later') break;
         }
       } finally {
         flushing = false;
@@ -198,5 +265,6 @@ export function createSnapOfflineQueue(store: SnapQueueStore): SnapOfflineQueue 
       listeners.add(cb);
       return () => listeners.delete(cb);
     },
+    isFlushing: () => flushing,
   };
 }

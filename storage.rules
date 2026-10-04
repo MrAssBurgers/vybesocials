@@ -50,6 +50,19 @@ service firebase.storage {
       allow create, update: if isOwner(userId) && smallEnough();
       allow delete: if isOwner(userId);
     }
+    // Personal notification tones are not shared with other accounts. Firebase
+    // download URLs are bearer links; client metadata remains owner-readable.
+    match /custom-sounds/{userId}/{fileName} {
+      function validToneName() {
+        return fileName.matches('(message_tone|call_ringtone)\\.(mp3|wav|m4a)');
+      }
+      allow read, delete: if isOwner(userId) && validToneName();
+      allow create, update: if isOwner(userId) && validToneName()
+        && request.resource.size > 0 && request.resource.size <= 5 * 1024 * 1024
+        && ((fileName.matches('.*\\.mp3') && request.resource.contentType == 'audio/mpeg')
+          || (fileName.matches('.*\\.wav') && request.resource.contentType in ['audio/wav', 'audio/x-wav'])
+          || (fileName.matches('.*\\.m4a') && request.resource.contentType in ['audio/mp4', 'audio/x-m4a', 'audio/m4a']));
+    }
     match /announcements/{allPaths=**} {
       allow read: if signedIn();
       allow create, update: if isAdmin() && smallEnough();

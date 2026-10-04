@@ -24,7 +24,7 @@ await build({ entryPoints: [path.join(repo, 'sdk/game/firebase.ts')], outfile: b
 const { createFirebaseGameClient } = await import(pathToFileURL(built).href);
 const { initializeApp, deleteApp } = await import('firebase/app');
 const { getAuth, connectAuthEmulator, signInWithEmailAndPassword } = await import('firebase/auth');
-const { getFunctions, connectFunctionsEmulator } = await import('firebase/functions');
+const { getFunctions, connectFunctionsEmulator, httpsCallable } = await import('firebase/functions');
 const { getStorage, connectStorageEmulator, getBytes, ref } = await import('firebase/storage');
 const apps = [];
 const outcomes = [];
@@ -66,6 +66,9 @@ function png() {
 
 try {
   const alice = await player('alice');
+  const functions = getFunctions(alice.app, 'us-central1');
+  await assert.rejects(httpsCallable(functions, 'createGameCapture')({ expectedOwnerUid: 'preview-bob' }), error => error.code === 'functions/failed-precondition');
+  outcomes.push('account mismatch rejected before reserving a capture');
   const media = png(), key = `local-preview-${randomUUID()}`, phases = [];
   let allocated = '';
   const input = { gameId: 'preview-game', idempotencyKey: key, contentType: 'image/png', media, caption: 'Synthetic local game capture — emulator review only', tags: ['localpreview'], onCaptureReserved: id => { allocated = id; }, onPhase: phase => phases.push(phase) };
@@ -76,6 +79,8 @@ try {
   assert.deepEqual(new Uint8Array(downloaded), media); outcomes.push('owner-authenticated Storage download matches uploaded PNG');
   const replay = await alice.client.stageCapture(input);
   assert.equal(replay.captureId, ready.captureId); assert.equal(replay.status, 'ready'); outcomes.push('same-key SDK replay returns the original ready capture');
+  await assert.rejects(httpsCallable(functions, 'getGameCapture')({ captureId: ready.captureId, expectedOwnerUid: 'preview-bob' }), error => error.code === 'functions/failed-precondition');
+  outcomes.push('account mismatch rejected before private receipt lookup');
   const bob = await player('bob');
   await assert.rejects(bob.client.getCapture(ready.captureId), error => error.code === 'functions/not-found'); outcomes.push('other account cannot inspect the private capture');
   const cancel = new AbortController(); let cancelledId = '';

@@ -1,7 +1,7 @@
 // Haptic Feedback System
 // Provides haptic feedback for the Despia native shell, with a web vibration fallback.
 import despia from 'despia-native';
-import { readDevicePreference, writeDevicePreference } from './devicePreferences';
+import { readDevicePreference, subscribeDevicePreference, writeDevicePreference } from './devicePreferences';
 
 type HapticStyle = 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error';
 
@@ -52,8 +52,13 @@ const HAPTIC_PATTERNS: Record<HapticStyle, number | number[]> = {
 };
 
 // Trigger haptic feedback
+let lastHapticAt = -Infinity;
 export function triggerHaptic(style: HapticStyle = 'light'): void {
   if (!isHapticsEnabled()) return;
+  // Nested gesture/button handlers may both request feedback for one tap.
+  const now = performance.now();
+  if (now - lastHapticAt < 40) return;
+  lastHapticAt = now;
   // Despia native shell — real Taptic Engine / vibrator. Short-circuit web fallback to avoid double-buzz.
   if (nativeHaptic(style)) return;
   if (!supportsVibration()) return;
@@ -103,3 +108,9 @@ export function setHapticsEnabled(enabled: boolean): void {
 export function getHapticsEnabled(): boolean {
   return isHapticsEnabled();
 }
+
+subscribeDevicePreference('vybe-haptics-enabled', () => {
+  if (isHapticsEnabled()) return;
+  lastHapticAt = -Infinity;
+  try { if (supportsVibration()) navigator.vibrate(0); } catch { /* Unsupported device. */ }
+});

@@ -6,6 +6,7 @@ import { StrictMode } from "react";
 import "./index.css";
 import "./styles/repaint-guard.css";
 import "./styles/smooth-ui.css";
+import "./styles/liquid-buttons.css";
 import "./earlyThemeBoot";
 import App from "./App.tsx";
 import { isOneSignalBypassHost } from "./lib/lovablePreview";

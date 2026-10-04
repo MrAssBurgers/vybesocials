@@ -67,7 +67,7 @@ function JobRow({ job, reducedMotion }: { job: SnapSendJobSnapshot; reducedMotio
             {total > 1 && ` · ${sentCount}/${total}`}
           </span>
           {job.error && (
-            <span className="block truncate text-[10px] text-destructive">{job.error}</span>
+            <span className="block whitespace-normal text-[10px] text-destructive">{job.error}</span>
           )}
           {!job.error && failed.length > 0 && (
             <span className="block truncate text-[10px] text-destructive">

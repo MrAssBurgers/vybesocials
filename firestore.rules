@@ -1520,7 +1520,33 @@ service cloud.firestore {
       allow delete: if ownsUserField('user_id') || isAdmin();
     }
     match /user_custom_sounds/{id} {
-      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+      function soundFields() {
+        return ['id', 'user_id', 'sound_type', 'file_url', 'file_name', 'duration_seconds', 'created_at', 'updated_at'];
+      }
+      function validSound() {
+        let sound = request.resource.data;
+        return sound.user_id is string
+          && sound.sound_type in ['message_tone', 'call_ringtone']
+          && sound.file_url is string && sound.file_url.size() > 0 && sound.file_url.size() <= 4096
+          && sound.file_name is string && sound.file_name.size() > 0 && sound.file_name.size() <= 255
+          && sound.duration_seconds is number && sound.duration_seconds > 0
+          && (sound.sound_type == 'call_ringtone' || sound.duration_seconds <= 5)
+          && sound.get('id', id) == id
+          && (!('created_at' in sound) || (sound.created_at is string && sound.created_at.size() <= 40))
+          && (!('updated_at' in sound) || (sound.updated_at is string && sound.updated_at.size() <= 40));
+      }
+      allow read: if ownsUserField('user_id') || isAdmin();
+      // Compatibility upsert uses owner + type for new documents, but resolves
+      // an existing migrated row by an owner-filtered query before writing.
+      allow create: if willOwnUserField('user_id')
+        && id == request.resource.data.user_id + '_' + request.resource.data.sound_type
+        && request.resource.data.keys().hasOnly(soundFields()) && validSound();
+      allow update: if (ownsUserField('user_id') || isAdmin())
+        && request.resource.data.user_id == resource.data.user_id
+        && request.resource.data.sound_type == resource.data.sound_type
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(soundFields())
+        && validSound();
+      allow delete: if ownsUserField('user_id') || isAdmin();
     }
     match /screen_time_sessions/{id} {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();

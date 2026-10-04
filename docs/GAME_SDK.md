@@ -74,6 +74,10 @@ Endpoint pattern: `https://us-central1-<project-id>.cloudfunctions.net/<function
 
 Receipt fields: `captureId`, `status`, `gameId`, `gameName`, `contentType`, `byteSize`, `caption`, `tags`, `storagePath`, `expiresAt` (Unix milliseconds), `reviewUrl`, and nullable `postId`.
 
+The TypeScript Firebase adapter binds each operation to the signed-in Firebase user and sends optional `expectedOwnerUid` on every callable. The server rejects a mismatch before rate limiting or database work. The adapter stops subsequent stages, suppresses stale progress/results, and cancels an active Storage transfer if the account changes, including logout/login to the same UID. Operation listeners are removed on success or failure. A fresh explicit operation may use a new account. Mutable byte arrays and tags are copied before callbacks or network work. Custom transports can implement `beginOperation` to supply equivalent session guards; transports without it retain their own authentication responsibilities.
+
+Deploy the reviewed game callable changes before or with this SDK to enforce the account-token race check server-side. Legacy clients omitting `expectedOwnerUid` remain compatible; Unity and third-party transports do not automatically inherit the TypeScript adapter's session guard. Guards cannot retract an already accepted request or erase already transferred bytes, and do not replace server ownership rules. Keep a reserved capture ID so its original owner can later inspect or discard it after an interrupted operation.
+
 Upload the raw file using your platform's Firebase Storage client to the **exact** returned `storagePath`, setting the declared `contentType`. Storage checks owner, expiry, expected size, MIME, and the server-created session. Files are create-only; clients cannot overwrite or delete them. There is no public preview URL in the API. The review screen downloads with authenticated `getBlob` and uses a local object URL.
 
 ## Limits and lifecycle
@@ -107,7 +111,7 @@ Upload the raw file using your platform's Firebase Storage client to the **exact
 ## Local verification
 
 ```sh
-npx vitest run src/lib/gameIntegration.test.ts src/lib/gameIntegration.backend.test.ts src/lib/gameCapturePost.test.ts src/pages/GameCapture.test.tsx
+npx vitest run src/lib/gameIntegration.test.ts src/lib/gameIntegration.backend.test.ts src/lib/gameFirebaseAccount.test.ts src/lib/gameCaptureOwnerAccount.backend.test.ts src/lib/gameCapturePost.test.ts src/pages/GameCapture.test.tsx
 npm run typecheck
 npm --prefix functions run build
 ```

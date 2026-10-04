@@ -5,7 +5,7 @@ import type { QueuedSnapJob } from './snapOfflineQueue';
 import { createSnapDraft } from './snapDraft';
 
 const state = vi.hoisted(() => ({ uid: 'alice', epoch: 1, online: true, rows: [] as QueuedSnapJob[], listeners: new Set<() => void>(),
-  upload: vi.fn(), send: vi.fn(), story: vi.fn(), chat: vi.fn(), profile: vi.fn(), bump: vi.fn() }));
+  storageError: false, onlineListeners: new Set<() => void>(), upload: vi.fn(), send: vi.fn(), story: vi.fn(), chat: vi.fn(), profile: vi.fn(), bump: vi.fn() }));
 vi.mock('@/lib/reportModerationService', () => ({
   reportAccountSnapshot: () => ({ uid: state.uid || undefined, epoch: state.epoch }),
   reportAccountGuard: (expected = state.uid) => { const epoch = state.epoch; return () => {
@@ -23,7 +23,10 @@ vi.mock('@/lib/camera/createStoryRecord', () => ({ createStoryRecord: state.stor
 vi.mock('@/lib/reconnectManager', () => ({ onReconnect: vi.fn() }));
 vi.mock('@/lib/camera/snapOfflineQueue', async importOriginal => ({
   ...await importOriginal<typeof import('./snapOfflineQueue')>(),
-  createIdbSnapQueueStore: () => ({ read: async () => [...state.rows], write: async (rows: QueuedSnapJob[]) => { state.rows = rows; } }),
+  createIdbSnapQueueStore: () => ({ read: async () => [...state.rows], update: async (transform: (rows: QueuedSnapJob[]) => QueuedSnapJob[]) => {
+    if (state.storageError) throw new Error('Device storage is full. Keep this screen open and retry.');
+    state.rows = transform([...state.rows]);
+  } }),
 }));
 
 const deferred = <T,>() => { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; };
@@ -33,10 +36,10 @@ function params(id = 'draft') { return { draft: createSnapDraft({ mediaId: id, l
   file: new File(['private snap'], 'snap.jpg', { type: 'image/jpeg' }), senderId: 'alice-profile', authUserId: 'alice' }; }
 function queued(id: string, ownerUid?: string): QueuedSnapJob { return { jobId: id, draft: params(id).draft, mediaBlob: params(id).file, mediaMimeType: 'image/jpeg',
   remainingConversationIds: ['chat'], remainingStoryDestinationIds: [], senderId: `${ownerUid || 'alice'}-profile`,
-  ...(ownerUid ? { schemaVersion: 2, ownerUid } as const : {}), queuedAt: Date.now(), attempts: 0, status: 'pending' }; }
+  ...(ownerUid ? { schemaVersion: 2, ownerUid } as const : {}), revision: `fixture-${id}`, queuedAt: Date.now(), attempts: 0, status: 'pending' }; }
 
 beforeEach(() => {
-  vi.resetModules(); state.uid = 'alice'; state.epoch = 1; state.online = true; state.rows = []; state.listeners.clear();
+  vi.resetModules(); state.uid = 'alice'; state.epoch = 1; state.online = true; state.rows = []; state.storageError = false; state.listeners.clear(); state.onlineListeners.clear();
   for (const fn of [state.upload, state.send, state.story, state.chat, state.profile, state.bump]) fn.mockReset();
   state.upload.mockResolvedValue({ mediaUrl: 'https://media.invalid/alice/snap.jpg' });
   state.send.mockResolvedValue({ data: { id: 'confirmed', sender_id: 'alice-profile', conversation_id: 'chat', views: [], reactions: [] }, error: null });
@@ -44,8 +47,13 @@ beforeEach(() => {
   state.profile.mockImplementation(async (path: string) => proof(path.includes('bob-profile') ? 'bob' : 'alice'));
   vi.spyOn(navigator, 'onLine', 'get').mockImplementation(() => state.online);
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  const addEventListener = window.addEventListener.bind(window);
+  vi.spyOn(window, 'addEventListener').mockImplementation((type, listener, options) => {
+    if (type === 'online' || type === 'vybe:online') state.onlineListeners.add(listener as () => void);
+    else addEventListener(type, listener, options);
+  });
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe('snap account isolation', () => {
   it('sends verified destinations and writes confirmations only to the captured account cache', async () => {
@@ -120,5 +128,93 @@ describe('snap account isolation', () => {
     const service = await import('./snapSendService'); service.startSnapSendQueue();
     await waitFor(() => expect(state.rows[0].status).toBe('failed'));
     expect(state.upload).not.toHaveBeenCalled(); expect(state.send).not.toHaveBeenCalled();
+  });
+
+  it('does not claim offline storage succeeded after quota failure and marks pending bubbles failed', async () => {
+    state.online = false; state.storageError = true;
+    const service = await import('./snapSendService'); const client = new QueryClient(); service.registerSnapSendQueryClient(client);
+    service.startSnapSend(params());
+    await waitFor(() => expect(service.getSnapJobSnapshots()[0]).toMatchObject({ phase: 'failed', error: expect.stringContaining('storage is full') }));
+    expect(state.rows).toEqual([]);
+    expect(client.getQueryData(['messages', 'chat', 'alice', 1])).toEqual([expect.objectContaining({ _failed: true, _sending: false })]);
+    state.storageError = false;
+    service.retrySnapJob(service.getSnapJobSnapshots()[0].jobId);
+    await waitFor(() => expect(service.getSnapJobSnapshots()[0].phase).toBe('waiting_for_connection'));
+    expect(state.rows).toHaveLength(1); client.clear();
+  });
+
+  it('checkpoints a confirmed story and uploaded media before restoring only the failed DM after reload', async () => {
+    const row = queued('partial', 'alice'); row.remainingStoryDestinationIds = ['my_story']; state.rows = [row];
+    state.send.mockResolvedValueOnce({ data: null, error: { message: 'Unavailable', code: 'unavailable' } });
+    let service = await import('./snapSendService'); service.startSnapSendQueue();
+    await waitFor(() => expect(state.rows[0]).toMatchObject({ status: 'failed', remainingConversationIds: ['chat'], remainingStoryDestinationIds: [], uploaded: { mediaUrl: 'https://media.invalid/alice/snap.jpg' } }));
+    expect(state.story).toHaveBeenCalledTimes(1); expect(state.upload).toHaveBeenCalledTimes(1);
+    state.listeners.clear(); vi.resetModules(); service = await import('./snapSendService'); service.startSnapSendQueue();
+    await waitFor(() => expect(service.getSnapJobSnapshots()[0]).toMatchObject({ jobId: 'partial', phase: 'failed' }));
+    service.retrySnapJob('partial');
+    await waitFor(() => expect(state.rows).toEqual([]));
+    expect(state.story).toHaveBeenCalledTimes(1); expect(state.upload).toHaveBeenCalledTimes(1); expect(state.send).toHaveBeenCalledTimes(2);
+    expect(state.send.mock.calls[0][0].client_message_id).toBe(state.send.mock.calls[1][0].client_message_id);
+  });
+
+  it('saves resolved recipients before uploading and retry uses the saved conversations', async () => {
+    const row = queued('recipient', 'alice'); row.draft.recipientIds = ['new-recipient']; state.rows = [row];
+    state.upload.mockRejectedValueOnce(new Error('Upload unavailable'));
+    const service = await import('./snapSendService'); service.startSnapSendQueue();
+    await waitFor(() => expect(state.rows[0]).toMatchObject({ status: 'failed', draft: { recipientIds: [] }, remainingConversationIds: ['chat', 'resolved-chat'] }));
+    service.retrySnapJob('recipient');
+    await waitFor(() => expect(state.rows).toEqual([]));
+    expect(state.chat).toHaveBeenCalledTimes(1); expect(state.send).toHaveBeenCalledTimes(2);
+  });
+
+  it('removes a fully acknowledged saved job without uploading or delivering it again', async () => {
+    const row = queued('settled', 'alice'); row.remainingConversationIds = []; state.rows = [row];
+    const service = await import('./snapSendService'); service.startSnapSendQueue();
+    await waitFor(() => expect(state.rows).toEqual([]));
+    expect(state.upload).not.toHaveBeenCalled(); expect(state.send).not.toHaveBeenCalled(); expect(state.story).not.toHaveBeenCalled();
+  });
+
+  it('retains unresolved recipients on conversation failure instead of treating an empty resolved set as sent', async () => {
+    const row = queued('unresolved', 'alice'); row.remainingConversationIds = []; row.draft.conversationIds = []; row.draft.recipientIds = ['recipient']; state.rows = [row];
+    state.chat.mockRejectedValueOnce(new Error('Permission denied'));
+    const service = await import('./snapSendService'); service.startSnapSendQueue();
+    await waitFor(() => expect(state.rows[0]).toMatchObject({ status: 'failed', draft: { recipientIds: ['recipient'] }, lastError: expect.stringContaining('not been sent') }));
+    expect(state.upload).not.toHaveBeenCalled(); expect(state.send).not.toHaveBeenCalled();
+    service.retrySnapJob('unresolved'); await waitFor(() => expect(state.rows).toEqual([]));
+    expect(state.chat).toHaveBeenCalledTimes(2); expect(state.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not automatically repeat a story whose response failed as the connection went offline', async () => {
+    const row = queued('uncertain-story', 'alice'); row.remainingStoryDestinationIds = ['my_story']; state.rows = [row];
+    state.story.mockImplementationOnce(async () => { state.online = false; throw new Error('Response lost'); });
+    const service = await import('./snapSendService'); service.startSnapSendQueue();
+    await waitFor(() => expect(state.rows[0]).toMatchObject({ status: 'failed', remainingStoryDestinationIds: ['my_story'], lastError: expect.stringContaining('avoid a duplicate') }));
+    state.online = true; switchTo('bob'); switchTo('alice');
+    await waitFor(() => expect(service.getSnapJobSnapshots()[0]).toMatchObject({ phase: 'failed', error: expect.stringContaining('avoid a duplicate') }));
+    expect(state.story).toHaveBeenCalledTimes(1);
+  });
+
+  it('restores the original owner’s saved job after A→B→A with fresh guards rather than reviving the old live job', async () => {
+    state.online = false; const service = await import('./snapSendService'); service.startSnapSendQueue();
+    service.startSnapSend({ ...params('returning'), draft: { ...params('returning').draft, storyDestinationIds: [] } });
+    await waitFor(() => expect(state.rows).toHaveLength(1));
+    switchTo('bob'); state.online = true; switchTo('alice');
+    await waitFor(() => expect(state.rows).toEqual([]));
+    expect(state.upload).toHaveBeenCalledTimes(1); expect(state.send).toHaveBeenCalledTimes(1);
+    expect(state.upload.mock.calls[0][0].authUserId).toBe('alice');
+    expect(() => state.send.mock.calls[0][1].accountGuard()).not.toThrow();
+  });
+
+  it.each([false, true])('does not reschedule expired claims in a tight loop while busy/offline=%s', async offline => {
+    vi.useFakeTimers();
+    const upload = deferred<{ mediaUrl: string }>(); state.upload.mockReturnValue(upload.promise);
+    state.rows = [queued('stalled', 'alice')];
+    const service = await import('./snapSendService'); service.startSnapSendQueue();
+    await vi.advanceTimersByTimeAsync(0); expect(state.upload).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(11 * 60_000); state.online = !offline;
+    state.onlineListeners.forEach(wake => wake()); await vi.advanceTimersByTimeAsync(0);
+    expect(vi.getTimerCount()).toBe(0);
+    state.online = true; upload.resolve({ mediaUrl: 'https://media.invalid/alice/snap.jpg' }); await vi.advanceTimersByTimeAsync(0);
+    expect(state.rows).toEqual([]); vi.clearAllTimers();
   });
 });

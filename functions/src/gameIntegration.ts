@@ -22,6 +22,9 @@ function validate<T>(fn: () => T): T {
 
 async function authenticate(request: CallableRequest): Promise<string> {
   const uid = requireAuth(request);
+  if (request.data?.expectedOwnerUid !== undefined && request.data.expectedOwnerUid !== uid) {
+    throw new HttpsError('failed-precondition', 'Your account changed. Start this capture action again.');
+  }
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(uid)) throw new HttpsError('failed-precondition', 'This account cannot use game capture uploads.');
   enforceRateLimit(await rateLimit(`game_capture_call_${hash(uid)}`, 60, 60));
   return uid;

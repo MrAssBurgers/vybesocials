@@ -1,8 +1,7 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, Play, Pause, Trash2, Music, Phone, Check, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 import { 
   useCustomSounds, 
   useUploadCustomSound, 
@@ -12,6 +11,10 @@ import {
 } from '@/hooks/useCustomSounds';
 import { haptics } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
+import { useSoundPreview } from '@/hooks/useSoundPreview';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
+import { getSoundSettings } from '@/lib/premiumSounds';
+import { subscribeDevicePreference } from '@/lib/devicePreferences';
 
 interface CustomRingtoneUploaderProps {
   soundType: SoundType;
@@ -20,7 +23,12 @@ interface CustomRingtoneUploaderProps {
   maxDuration: number | null; // null = no limit
 }
 
-export function CustomRingtoneUploader({
+export function CustomRingtoneUploader(props: CustomRingtoneUploaderProps) {
+  const session = useReportAccountSession();
+  return <CustomRingtoneForSession key={`${session.uid}:${session.epoch}:${props.soundType}`} {...props} />;
+}
+
+function CustomRingtoneForSession({
   soundType,
   title,
   description,
@@ -30,25 +38,34 @@ export function CustomRingtoneUploader({
   const uploadSound = useUploadCustomSound();
   const deleteSound = useDeleteCustomSound();
   
-  const [isPlaying, setIsPlaying] = useState(false);
+  const preview = useSoundPreview();
+  const [settings, setSettings] = useState(getSoundSettings);
+  const category = soundType === 'call_ringtone' ? 'calls' : 'messages';
+  const enabled = settings.master && settings[category] && settings.volume > 0;
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [duration, setDuration] = useState<number | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const selection = useRef(0);
+  useEffect(() => () => { selection.current++; }, []);
+  useEffect(() => subscribeDevicePreference('vybe-sound-settings', () => setSettings(getSoundSettings())), []);
+  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
   
   const existingSound = sounds?.find(s => s.sound_type === soundType);
   
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+    const token = ++selection.current;
+    preview.stop();
+    setSelectedFile(null); setPreviewUrl(null); setDuration(null);
     haptics.tap();
     setValidationError(null);
     
     const validation = await validateAudioFile(file, soundType);
+    if (selection.current !== token) return;
     
     if (!validation.valid) {
       setValidationError(validation.error || 'Invalid file');
@@ -60,29 +77,34 @@ export function CustomRingtoneUploader({
     setSelectedFile(file);
     setDuration(validation.duration || null);
     setPreviewUrl(URL.createObjectURL(file));
-  }, [soundType]);
+  }, [soundType, preview.stop]);
   
   const handleUpload = useCallback(async () => {
     if (!selectedFile) return;
-    
+    const token = selection.current;
+    preview.stop();
     haptics.tap();
     
     try {
       await uploadSound.mutateAsync({ file: selectedFile, soundType });
+      if (selection.current !== token) return;
       setSelectedFile(null);
       setPreviewUrl(null);
       setDuration(null);
     } catch (error) {
       // Error handled by mutation
     }
-  }, [selectedFile, soundType, uploadSound]);
+  }, [selectedFile, soundType, uploadSound, preview.stop]);
   
   const handleDelete = useCallback(async () => {
     haptics.tap();
-    await deleteSound.mutateAsync(soundType);
-  }, [soundType, deleteSound]);
+    preview.stop();
+    try { await deleteSound.mutateAsync(soundType); } catch { /* Mutation keeps the error visible through its toast. */ }
+  }, [soundType, deleteSound, preview.stop]);
   
   const handleCancel = useCallback(() => {
+    selection.current++;
+    preview.stop();
     setSelectedFile(null);
     setPreviewUrl(null);
     setValidationError(null);
@@ -90,23 +112,10 @@ export function CustomRingtoneUploader({
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  }, []);
-  
-  const togglePlay = useCallback(() => {
-    if (!audioRef.current) return;
-    
-    haptics.tap();
-    
-    if (isPlaying) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    } else {
-      audioRef.current.play();
-    }
-    setIsPlaying(!isPlaying);
-  }, [isPlaying]);
+  }, [preview.stop]);
   
   const audioSrc = previewUrl || existingSound?.file_url;
+  useEffect(() => { preview.stop(); }, [audioSrc, preview.stop]);
   
   return (
     <div className="settings-panel rounded-xl">
@@ -136,15 +145,6 @@ export function CustomRingtoneUploader({
         className="hidden"
       />
       
-      {/* Audio element for preview */}
-      {audioSrc && (
-        <audio 
-          ref={audioRef} 
-          src={audioSrc}
-          onEnded={() => setIsPlaying(false)}
-          preload="metadata"
-        />
-      )}
       
       {/* Validation error */}
       <AnimatePresence>
@@ -170,10 +170,16 @@ export function CustomRingtoneUploader({
           <Button
             size="icon"
             variant="ghost"
-            className="h-9 w-9 rounded-full bg-primary/10 hover:bg-primary/20"
-            onClick={togglePlay}
+            className="h-11 w-11 rounded-full bg-primary/10 hover:bg-primary/20"
+            aria-label={preview.state === 'idle' ? `Preview ${title}` : `Stop ${title} preview`}
+            disabled={!enabled && preview.state === 'idle'}
+            onClick={() => {
+              haptics.tap();
+              if (preview.state !== 'idle') preview.stop();
+              else if (audioSrc) void preview.play(audioSrc, category);
+            }}
           >
-            {isPlaying ? (
+            {preview.state !== 'idle' ? (
               <Pause className="h-4 w-4 text-primary" />
             ) : (
               <Play className="h-4 w-4 text-primary ml-0.5" />
@@ -194,7 +200,8 @@ export function CustomRingtoneUploader({
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-8 w-8"
+                className="h-11 w-11"
+                aria-label="Cancel selected sound"
                 onClick={handleCancel}
                 disabled={uploadSound.isPending}
               >
@@ -203,7 +210,8 @@ export function CustomRingtoneUploader({
               <Button
                 size="icon"
                 variant="default"
-                className="h-8 w-8"
+                className="h-11 w-11"
+                aria-label="Save selected sound"
                 onClick={handleUpload}
                 disabled={uploadSound.isPending}
               >
@@ -218,7 +226,8 @@ export function CustomRingtoneUploader({
             <Button
               size="icon"
               variant="ghost"
-              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+              className="h-11 w-11 text-muted-foreground hover:text-destructive"
+              aria-label={`Remove ${title}`}
               onClick={handleDelete}
               disabled={deleteSound.isPending}
             >
@@ -231,6 +240,9 @@ export function CustomRingtoneUploader({
           )}
         </motion.div>
       )}
+      <p role="status" className="text-xs text-muted-foreground">
+        {preview.error || (preview.state === 'loading' ? 'Loading preview…' : preview.state === 'playing' ? 'Playing up to 8 seconds.' : !enabled ? 'Enable this sound category and raise the volume to preview.' : '')}
+      </p>
       
       {/* Upload button */}
       {!selectedFile && (

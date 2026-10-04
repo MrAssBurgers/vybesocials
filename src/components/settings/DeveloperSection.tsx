@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   Code2, 
@@ -8,7 +8,7 @@ import {
   Zap, 
   RefreshCw,
   ChevronRight,
-  Lock,
+  Gamepad2,
   Sparkles,
   Terminal,
   Crown,
@@ -17,7 +17,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
 import { getFeatureFlags, setFeatureFlag, resetFeatureFlags, FeatureFlags } from '@/lib/featureFlags';
 import { getEventLog, clearEventLog } from '@/lib/analytics';
 import { haptics } from '@/lib/haptics';
@@ -71,6 +70,18 @@ export function DeveloperSection() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
+      <section aria-labelledby="creator-tools-title" className="liquid-glass-card border border-primary/20 bg-gradient-to-br from-primary/10 to-accent/5 p-4 sm:p-6">
+        <h3 id="creator-tools-title" className="font-semibold">Build with VYBE</h3>
+        <p className="mt-2 text-sm text-muted-foreground">Make a mini app for your community, or bring moments from your game into VYBE.</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <Button asChild variant="outline" className="h-auto min-h-12 justify-start whitespace-normal py-3">
+            <Link to="/mini-apps"><Code2 className="mr-2 shrink-0" />Open Mini App Studio</Link>
+          </Button>
+          <Button asChild variant="outline" className="h-auto min-h-12 justify-start whitespace-normal py-3">
+            <Link to="/developers"><Gamepad2 className="mr-2 shrink-0" />Game SDK &amp; API</Link>
+          </Button>
+        </div>
+      </section>
       {/* Owner Command Center Link */}
       {isOwner && (
         <motion.div
@@ -202,6 +213,7 @@ export function DeveloperSection() {
                 </div>
               </div>
               <Switch
+                aria-label="Debug panel"
                 checked={flags.debug_panel_enabled}
                 onCheckedChange={(v) => handleFlagChange('debug_panel_enabled', v)}
               />
@@ -217,6 +229,7 @@ export function DeveloperSection() {
                 </div>
               </div>
               <Switch
+                aria-label="AI smart replies"
                 checked={flags.ai_smart_replies}
                 onCheckedChange={(v) => handleFlagChange('ai_smart_replies', v)}
               />
@@ -232,25 +245,12 @@ export function DeveloperSection() {
                 </div>
               </div>
               <Switch
+                aria-label="Analytics"
                 checked={flags.analytics_enabled}
                 onCheckedChange={(v) => handleFlagChange('analytics_enabled', v)}
               />
             </div>
 
-            {/* Minis - Always disabled, coming soon */}
-            <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-lg bg-muted/30 opacity-60">
-              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground flex-shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2">
-                    VYBE Minis
-                    <Badge variant="secondary" className="text-[10px] sm:text-xs px-1.5">Coming Soon</Badge>
-                  </p>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Mini apps platform</p>
-                </div>
-              </div>
-              <Switch disabled checked={false} />
-            </div>
           </div>
         </div>
       </motion.div>

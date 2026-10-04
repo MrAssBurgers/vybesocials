@@ -48,6 +48,7 @@ import {
   createIdbSnapQueueStore,
   createSnapOfflineQueue,
   type QueuedSnapJob,
+  type SnapQueueDelivery,
 } from '@/lib/camera/snapOfflineQueue';
 import {
   isFailedDraftExpired,
@@ -97,12 +98,15 @@ interface SnapSendJob extends StartSnapSendParams {
   uploaded?: SnapUploadResult;
   error?: string;
   createdAt: number;
+  queued?: boolean;
+  queueDelivery?: SnapQueueDelivery;
 }
 
 const jobs = new Map<string, SnapSendJob>();
 const listeners = new Set<() => void>();
 let sharedQueryClient: QueryClient | null = null;
 let queueStarted = false;
+let queueRecoveryTimer: ReturnType<typeof setTimeout> | undefined;
 
 const offlineQueue = createSnapOfflineQueue(createIdbSnapQueueStore());
 
@@ -260,6 +264,8 @@ async function deliverConversation(
   conversationId: string,
 ): Promise<{ ok: boolean; transient: boolean; error?: string }> {
   job.guard();
+  await job.queueDelivery?.check();
+  job.guard();
   const key = destinationKey('conversation', conversationId);
   updateJob(job, {
     destinations: applyDestinationState(job.destinations, key, 'sending'),
@@ -316,6 +322,8 @@ async function deliverConversation(
   updateJob(job, {
     destinations: applyDestinationState(job.destinations, key, 'sent'),
   });
+  await job.queueDelivery?.acknowledge('conversation', conversationId);
+  job.guard();
   return { ok: true, transient: false };
 }
 
@@ -324,11 +332,15 @@ async function deliverStory(
   destination: StoryDestinationId,
 ): Promise<{ ok: boolean; error?: string }> {
   job.guard();
+  await job.queueDelivery?.check();
+  job.guard();
   const key = destinationKey('story', destination);
   updateJob(job, {
     destinations: applyDestinationState(job.destinations, key, 'sending'),
   });
   try {
+    await job.queueDelivery?.beginStory(destination);
+    job.guard();
     await createStoryRecord({
       mediaUrl: job.uploaded!.mediaUrl,
       mediaType: job.draft.mediaType,
@@ -343,10 +355,15 @@ async function deliverStory(
     updateJob(job, {
       destinations: applyDestinationState(job.destinations, key, 'sent'),
     });
+    await job.queueDelivery?.acknowledge('story', destination);
+    job.guard();
     void sharedQueryClient?.invalidateQueries({ queryKey: ['stories'] });
     return { ok: true };
   } catch (err) {
     if (isReportSessionError(err)) throw err;
+    // A local receipt failure cannot turn a confirmed story into a failed
+    // destination that a same-page retry would publish again.
+    if (job.destinations.some(d => d.key === key && d.state === 'sent')) throw err;
     const message = err instanceof Error ? err.message : 'Failed to post story';
     updateJob(job, {
       destinations: applyDestinationState(job.destinations, key, 'failed', message),
@@ -362,7 +379,7 @@ async function deliverPending(job: SnapSendJob, retrying = false): Promise<void>
   });
 
   const pending = job.destinations.filter((d) => d.state === 'pending');
-  await Promise.all(
+  const deliveries = await Promise.allSettled(
     pending.map((d) =>
       d.kind === 'conversation'
         ? deliverConversation(job, d.id)
@@ -370,6 +387,8 @@ async function deliverPending(job: SnapSendJob, retrying = false): Promise<void>
     ),
   );
   job.guard();
+  const rejected = deliveries.find(result => result.status === 'rejected');
+  if (rejected?.status === 'rejected') throw rejected.reason;
 
   updateJob(job, { phase: deriveJobPhase(job.destinations) });
 
@@ -395,7 +414,7 @@ async function ensureConversations(job: SnapSendJob): Promise<void> {
       resolved.push(conversationId);
     } catch (err) {
       if (isReportSessionError(err)) throw err;
-      console.warn('[SnapSend] failed to open conversation for', profileId, err);
+      throw new Error('Could not open every selected conversation. Your snap has not been sent. Try again.');
     }
   }
   const conversationIds = [
@@ -427,9 +446,9 @@ async function enqueueOffline(job: SnapSendJob): Promise<void> {
       .map((d) => d.id),
     senderId: job.senderId,
     caption: job.caption,
-  });
+  }, { ownerUid: job.authUserId, guard: job.guard });
   job.guard();
-  updateJob(job, { phase: 'waiting_for_connection' });
+  updateJob(job, { phase: 'waiting_for_connection', queued: true });
   markBubblesWaitingForConnection(job);
 }
 
@@ -444,7 +463,11 @@ async function runJob(job: SnapSendJob): Promise<void> {
       return;
     }
     await verifySender(job);
+    await job.queueDelivery?.check();
+    job.guard();
     await ensureConversations(job);
+    job.guard();
+    await job.queueDelivery?.prepare(job.draft.conversationIds);
     job.guard();
     updateJob(job, {
       destinations: createDestinationStatuses({
@@ -454,7 +477,9 @@ async function runJob(job: SnapSendJob): Promise<void> {
     });
 
     if (!job.destinations.length) {
-      updateJob(job, { phase: 'failed', error: 'No destinations selected' });
+      // All destinations can already be acknowledged when a tab closed before
+      // removing the finished queue row. No upload or send is needed again.
+      updateJob(job, job.queued ? { phase: 'sent' } : { phase: 'failed', error: 'No destinations selected' });
       return;
     }
 
@@ -462,6 +487,11 @@ async function runJob(job: SnapSendJob): Promise<void> {
 
     if (isOffline()) {
       await enqueueOffline(job);
+      return;
+    }
+
+    if (job.uploaded) {
+      await deliverPending(job);
       return;
     }
 
@@ -493,15 +523,20 @@ async function runJob(job: SnapSendJob): Promise<void> {
     job.guard();
     job.draft = { ...job.draft, uploadState: 'uploaded' };
     job.uploaded = uploaded;
+    await job.queueDelivery?.uploaded(uploaded);
+    job.guard();
     updateJob(job, { phase: 'processing', uploadProgress: 1 });
 
     await deliverPending(job);
   } catch (err) {
     if (!isReportSessionError(err)) console.error('[SnapSend] job failed:', err);
+    if (!isMessageSessionCurrent(job.session)) return;
+    const message = err instanceof Error ? err.message : 'Failed to send';
     updateJob(job, {
       phase: 'failed',
-      error: err instanceof Error ? err.message : 'Failed to send',
+      error: message,
     });
+    job.destinations.filter(d => d.kind === 'conversation' && d.state !== 'sent').forEach(d => markBubbleFailed(job, d.id, message));
   }
 }
 
@@ -534,6 +569,12 @@ export function retrySnapJob(jobId: string): void {
   if (job.phase !== 'failed' && job.phase !== 'partially_sent') return;
   job.guard();
 
+  if (job.queued) {
+    updateJob(job, { phase: 'retrying', error: undefined });
+    void retryQueuedJob(job);
+    return;
+  }
+
   if (!job.uploaded) {
     // Upload itself failed — restart the whole job.
     updateJob(job, {
@@ -565,7 +606,7 @@ export function retrySnapJob(jobId: string): void {
 
 // ── Offline queue flush ──────────────────────────────────────────────────────
 
-async function flushQueuedJob(queued: QueuedSnapJob): Promise<'sent' | 'retry_later' | 'failed' | 'skip_account'> {
+async function flushQueuedJob(queued: QueuedSnapJob, queueDelivery: SnapQueueDelivery): Promise<'sent' | 'retry_later' | 'failed' | 'skip_account'> {
   if (isOffline()) return 'retry_later';
 
   if (queued.schemaVersion !== 2 || !queued.ownerUid || !queued.senderId) {
@@ -576,8 +617,10 @@ async function flushQueuedJob(queued: QueuedSnapJob): Promise<'sent' | 'retry_la
   if (session.uid !== queued.ownerUid) return 'skip_account';
   const guard = reportAccountGuard(queued.ownerUid);
 
-  const live = jobs.get(queued.jobId);
-  if (live && !isMessageSessionCurrent(live.session)) return 'skip_account';
+  const existing = jobs.get(queued.jobId);
+  // Durable records already bind the original owner. Restore that owner's
+  // work into a new verified session; never revive the previous live guard.
+  const live = existing && isMessageSessionCurrent(existing.session) ? existing : undefined;
   if (!queued.mediaBlob) return 'failed';
 
   const file = new File(
@@ -608,6 +651,11 @@ async function flushQueuedJob(queued: QueuedSnapJob): Promise<'sent' | 'retry_la
       createdAt: queued.queuedAt,
     } as SnapSendJob);
 
+  job.draft = { ...queued.draft, conversationIds: [...queued.remainingConversationIds], storyDestinationIds: [...queued.remainingStoryDestinationIds] };
+  job.queued = true;
+  job.queueDelivery = queueDelivery;
+  job.uploaded = queued.uploaded;
+  job.error = undefined;
   if (!live) {
     jobs.set(job.jobId, job);
     emit();
@@ -616,16 +664,66 @@ async function flushQueuedJob(queued: QueuedSnapJob): Promise<'sent' | 'retry_la
   }
 
   await runJob(job);
+  job.queueDelivery = undefined;
 
   if (!isMessageSessionCurrent(job.session)) return 'skip_account';
 
   if (job.phase === 'sent') return 'sent';
   if (job.phase === 'waiting_for_connection' || isOffline()) return 'retry_later';
+  queued.lastError = job.error || job.destinations.find(d => d.state === 'failed')?.error;
   if (job.phase === 'partially_sent') {
     // Deliverable destinations went through; don't re-send them forever.
     return 'failed';
   }
   return 'failed';
+}
+
+async function retryQueuedJob(job: SnapSendJob): Promise<void> {
+  try {
+    const row = (await offlineQueue.list()).find(row => row.jobId === job.jobId && row.ownerUid === job.authUserId);
+    job.guard();
+    if (!row) throw new Error('This saved snap is no longer available. Capture it again.');
+    if (row.delivery) throw new Error('This snap is still being recovered. Try again after its current send finishes.');
+    // Retain receipts known in this live page if the storage acknowledgement
+    // failed. A restored page can only rely on receipts actually committed.
+    const sent = new Set(job.destinations.filter(d => d.state === 'sent').map(d => d.key));
+    const changed = await offlineQueue.update(job.jobId, {
+      remainingConversationIds: row.remainingConversationIds.filter(id => !sent.has(destinationKey('conversation', id))),
+      remainingStoryDestinationIds: row.remainingStoryDestinationIds.filter(id => !sent.has(destinationKey('story', id))),
+      status: 'pending', lastError: undefined,
+    }, { ownerUid: job.authUserId, guard: job.guard, expectedRevision: row.revision });
+    job.guard();
+    if (!changed) throw new Error('This snap changed in another window. Reopen its current retry state.');
+    await offlineQueue.flush(flushQueuedJob, { ownerUid: job.authUserId, guard: job.guard });
+    job.guard();
+    await restoreFailedQueuedJobs();
+  } catch (error) {
+    if (!isMessageSessionCurrent(job.session)) return;
+    updateJob(job, { phase: 'failed', error: error instanceof Error ? error.message : 'Could not retry the saved snap.' });
+  }
+}
+
+async function restoreFailedQueuedJobs(): Promise<void> {
+  const session = reportAccountSnapshot();
+  if (!session.uid) return;
+  const queued = await offlineQueue.list();
+  if (!isMessageSessionCurrent(session)) return;
+  for (const row of queued) {
+    if (row.ownerUid !== session.uid || row.schemaVersion !== 2 || row.status !== 'failed' || !row.mediaBlob) continue;
+    const existing = jobs.get(row.jobId);
+    if (existing) {
+      if (isMessageSessionCurrent(existing.session) && !existing.queueDelivery) updateJob(existing, { phase: existing.phase === 'partially_sent' ? existing.phase : 'failed', error: row.lastError });
+      if (isMessageSessionCurrent(existing.session)) continue;
+    }
+    const draft = { ...row.draft, conversationIds: [...row.remainingConversationIds], storyDestinationIds: [...row.remainingStoryDestinationIds] };
+    jobs.set(row.jobId, {
+      jobId: row.jobId, session, guard: reportAccountGuard(session.uid), authUserId: session.uid, senderId: row.senderId,
+      draft, file: new File([row.mediaBlob], 'saved-snap', { type: row.mediaMimeType || row.mediaBlob.type }), caption: row.caption,
+      phase: 'failed', queued: true, uploaded: row.uploaded, uploadProgress: 0, createdAt: row.queuedAt, error: row.lastError,
+      destinations: createDestinationStatuses(draft).map(d => ({ ...d, state: 'failed', error: row.lastError })),
+    });
+  }
+  emit();
 }
 
 /** Wire reconnect/online listeners for the offline snap queue. Idempotent. */
@@ -634,8 +732,30 @@ export function startSnapSendQueue(): void {
   queueStarted = true;
 
   const flush = () => {
-    void offlineQueue.flush(flushQueuedJob);
-    void purgeExpiredFailedQueuedJobs();
+    clearTimeout(queueRecoveryTimer);
+    const session = reportAccountSnapshot();
+    if (!session.uid) return;
+    const guard = reportAccountGuard(session.uid);
+    void (async () => {
+      await purgeExpiredFailedQueuedJobs();
+      guard();
+      await offlineQueue.flush(flushQueuedJob, { ownerUid: session.uid, guard });
+      guard();
+      await restoreFailedQueuedJobs();
+      const rows = await offlineQueue.list();
+      guard();
+      const claims = rows.filter(row => row.ownerUid === session.uid && row.status === 'pending' && row.delivery);
+      if (claims.length && !isOffline() && !offlineQueue.isFlushing()) {
+        const nextExpiry = Math.min(...claims.map(row => row.delivery!.expiresAt));
+        // One bounded wake-up, no polling loop or bypass of an active lease.
+        queueRecoveryTimer = setTimeout(flush, Math.max(1000, Math.min(10 * 60_000, nextExpiry - Date.now() + 50)));
+      }
+    })().catch(error => {
+      if (isReportSessionError(error)) return;
+      console.error('[SnapSend] saved queue unavailable:', error);
+    }).finally(() => {
+      if (!isMessageSessionCurrent(session)) queueMicrotask(flush);
+    });
   };
 
   flush();
@@ -656,8 +776,9 @@ async function purgeExpiredFailedQueuedJobs(): Promise<void> {
     if (!isMessageSessionCurrent(session)) return;
     if (job.status !== 'failed') continue;
     if (!isFailedDraftExpired(job.draft, now)) continue;
+    const removed = await offlineQueue.remove(job.jobId, { ownerUid: session.uid, guard: reportAccountGuard(session.uid), expectedRevision: job.revision });
+    if (!removed || !isMessageSessionCurrent(session)) continue;
     revokeDraftLocalUri(job.draft);
-    await offlineQueue.remove(job.jobId);
     jobs.delete(job.jobId);
     emit();
   }

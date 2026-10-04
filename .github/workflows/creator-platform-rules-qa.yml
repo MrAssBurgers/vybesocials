@@ -11,6 +11,9 @@ on:
       - 'scripts/test-creator-platform-rules.mjs'
       - 'scripts/test-game-capture-post-rules.mjs'
       - 'scripts/test-customization-rules.mjs'
+      - 'scripts/test-custom-sound-rules.mjs'
+      - 'src/hooks/useCustomSounds*'
+      - 'src/components/settings/CustomRingtoneUploader*'
       - 'scripts/test-account-authority-rules.mjs'
       - 'scripts/test-commerce-authority-rules.mjs'
       - 'scripts/test-dm-membership-authority.mjs'
@@ -106,6 +109,9 @@ on:
       - 'scripts/test-creator-platform-rules.mjs'
       - 'scripts/test-game-capture-post-rules.mjs'
       - 'scripts/test-customization-rules.mjs'
+      - 'scripts/test-custom-sound-rules.mjs'
+      - 'src/hooks/useCustomSounds*'
+      - 'src/components/settings/CustomRingtoneUploader*'
       - 'scripts/test-account-authority-rules.mjs'
       - 'scripts/test-commerce-authority-rules.mjs'
       - 'scripts/test-dm-membership-authority.mjs'
@@ -243,6 +249,7 @@ jobs:
           node --check scripts/test-creator-platform-rules.mjs
           node --check scripts/test-game-capture-post-rules.mjs
           node --check scripts/test-customization-rules.mjs
+          node --check scripts/test-custom-sound-rules.mjs
           node --check scripts/test-account-authority-rules.mjs
           node --check scripts/test-commerce-authority-rules.mjs
           node --check scripts/test-dm-membership-authority.mjs
@@ -269,6 +276,7 @@ jobs:
           "node scripts/test-creator-platform-rules.mjs &&
           node scripts/test-game-capture-post-rules.mjs &&
           node scripts/test-customization-rules.mjs &&
+          node scripts/test-custom-sound-rules.mjs &&
           node scripts/test-account-authority-rules.mjs &&
           node scripts/test-commerce-authority-rules.mjs &&
           node scripts/test-dm-membership-authority.mjs &&

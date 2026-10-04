@@ -13,7 +13,8 @@ describe('mini app isolation', () => {
   it('keeps hostile HTML inside a nested opaque-origin frame', () => {
     const hostile = `"><script>top.location='https://attacker.invalid'</script><iframe src="https://attacker.invalid"></iframe>`;
     const outer = new DOMParser().parseFromString(buildMiniAppDocument({ ...source, html: hostile }), 'text/html');
-    expect(outer.querySelectorAll('script')).toHaveLength(0);
+    expect(outer.querySelectorAll('script')).toHaveLength(1);
+    expect(outer.querySelector('script')?.textContent).not.toContain('attacker.invalid');
     expect(outer.querySelectorAll('iframe')).toHaveLength(1);
     const frame = outer.querySelector('iframe')!;
     expect(frame.getAttribute('sandbox')).toBe('allow-scripts');

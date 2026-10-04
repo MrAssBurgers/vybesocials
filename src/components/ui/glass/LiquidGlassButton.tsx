@@ -1,4 +1,4 @@
-import { forwardRef, useState, useRef, useEffect } from 'react';
+import { forwardRef, useState, useEffect } from 'react';
 import { motion, HTMLMotionProps, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useAccessibility } from '@/providers/AccessibilityProvider';
@@ -35,7 +35,6 @@ export const LiquidGlassButton = forwardRef<HTMLButtonElement, LiquidGlassButton
     const [isPressed, setIsPressed] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
     const [isScrolling, setIsScrolling] = useState(false);
-    const shimmerPhase = useRef(0);
 
     // Detect scrolling to pause shimmer
     useEffect(() => {
@@ -136,22 +135,11 @@ export const LiquidGlassButton = forwardRef<HTMLButtonElement, LiquidGlassButton
           />
         )}
 
-        {/* Slow color shimmer (only for important buttons) */}
+        {/* Transform-only soft bubbles (only for important buttons) */}
         {shouldShimmer && (
-          <motion.div
-            className="absolute inset-0 opacity-30 pointer-events-none rounded-[inherit]"
-            animate={{
-              background: [
-                'linear-gradient(135deg, hsl(330 100% 60% / 0.15), transparent, hsl(185 100% 50% / 0.15))',
-                'linear-gradient(135deg, hsl(185 100% 50% / 0.15), transparent, hsl(280 100% 60% / 0.15))',
-                'linear-gradient(135deg, hsl(280 100% 60% / 0.15), transparent, hsl(330 100% 60% / 0.15))',
-              ],
-            }}
-            transition={{
-              duration: 10,
-              repeat: Infinity,
-              ease: 'linear',
-            }}
+          <div
+            aria-hidden="true"
+            className="vybe-bubble-shimmer absolute inset-0 opacity-30 pointer-events-none rounded-[inherit]"
           />
         )}
 

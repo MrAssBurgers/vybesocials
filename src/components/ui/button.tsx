@@ -48,7 +48,7 @@ export interface ButtonProps
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, children, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, children, style, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
     // Treat legacy `gradient-animated` className as the unified vybeLiquid look so every
     // CTA matches the login button animation.
@@ -59,7 +59,19 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         ? className.replace(/\bgradient-animated\b/g, "vybe-liquid-button")
         : className;
     const isVybeLiquid =
-      variant === "vybeLiquid" || variant === "gradient" || classHasGradientAnimated;
+      variant === "vybeLiquid" || variant === "gradient" || classHasGradientAnimated
+      || className?.includes("vybe-liquid-button");
+    // Pick a phase once: controls drift independently without timers, rerenders,
+    // or new random positions on hover/press. CSS interpolates only transforms.
+    const [bubbleSeed] = React.useState(() => Math.random());
+    const bubbleStyle = React.useMemo(() => ({
+      '--bubble-duration-a': `${18 + bubbleSeed * 9}s`,
+      '--bubble-duration-b': `${25 + ((bubbleSeed * 7) % 1) * 12}s`,
+      '--bubble-delay-a': `${-bubbleSeed * 27}s`,
+      '--bubble-delay-b': `${-((bubbleSeed * 11) % 1) * 37}s`,
+      '--bubble-x': `${8 + ((bubbleSeed * 13) % 1) * 10}%`,
+      '--bubble-y': `${10 + ((bubbleSeed * 17) % 1) * 12}%`,
+    }) as React.CSSProperties, [bubbleSeed]);
     const content =
       isVybeLiquid && !asChild ? (
         <>
@@ -75,6 +87,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <Comp
         className={cn(buttonVariants({ variant, size }), normalizedClassName)}
+        style={isVybeLiquid ? { ...bubbleStyle, ...style } : style}
         ref={ref}
         {...props}
       >

@@ -174,7 +174,7 @@ describe('mini apps studio flow', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Build a mini app' }));
       fireEvent.click(screen.getByRole('button', { name: 'Preview', exact: true }));
       expect(scroll).toHaveBeenCalledWith({ behavior: 'auto', block: 'start' });
-      expect(screen.getByText('Latest code loaded. Choose Run app to start it.').parentElement).toHaveFocus();
+      expect(screen.getByText('Preview uses the code from your last update.').parentElement).toHaveFocus();
     } finally {
       if (previous) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', previous);
       else delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;

@@ -69,6 +69,8 @@ node scripts/qa/seed-local-preview.mjs
 node scripts/qa/test-game-capture-preview.mjs
 ```
 
+The game fixture exercises seven actual client/service checks: mismatched expected-owner reservation denial, upload and server verification, authenticated byte-identical download, same-key replay, mismatched expected-owner lookup denial, another account's lookup denial, and cancellation with the reserved ID followed by idempotent discard. The Firebase SDK binds each operation to the account that started it; switching accounts requires a new explicit operation. These checks do not certify native engines or partner uploads.
+
 | Synthetic sign-in | UID | Profile document |
 |---|---|---|
 | `alice@vybe.test` | `preview-alice` | `preview-profile-alice` |

@@ -17,6 +17,7 @@ const privateKeys = [
   'messages', 'chat-search', 'message-transcript', 'message-pins', 'message-requests',
   'conversation-offers', 'scheduled-messages', 'vanish-messages', 'vanish-threads',
   'trashed-conversations', 'dm-reminders', 'word-reactions',
+  'custom-sounds', // Signed custom-tone URLs are also private per-account data.
 ];
 function snapshot(): PersistedClient {
   const client = new QueryClient();

@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Sparkles, Layers, Crown, Users, Zap, Heart, Radio, MapPin, Target, Home as HomeIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import welcomeHome from '@/assets/welcome-home.png';
@@ -65,9 +65,10 @@ const PILLARS = [
 const ROADMAP = [
   {
     icon: Layers,
-    tag: 'Coming soon',
+    tag: 'Creator preview',
     title: 'Mini Apps',
-    body: 'Tiny tools and games that live inside VYBE — playable in a tap, shareable in a swipe.',
+    body: 'Build a tiny tool, game, or artwork with HTML, CSS, and JavaScript. Try it, then publish a snapshot to the Hub.',
+    href: '/mini-apps',
   },
   {
     icon: Crown,
@@ -220,6 +221,7 @@ export default function AppWelcome() {
                     </span>
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground leading-relaxed">{r.body}</p>
+                  {r.href && <Link to={r.href} className="mt-3 inline-flex min-h-10 items-center gap-2 text-sm font-medium text-primary underline-offset-4 hover:underline">Open Mini App Studio<ArrowRight className="h-4 w-4" /></Link>}
                 </div>
               </div>
             </motion.div>

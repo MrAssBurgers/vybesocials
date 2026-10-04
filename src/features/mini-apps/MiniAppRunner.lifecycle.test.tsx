@@ -40,7 +40,9 @@ describe('mini app runtime lifecycle', () => {
       expect(container.querySelector('iframe')).toBeNull();
       fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
       expect(container.querySelector('iframe')).not.toBe(previous);
-      expect(container.querySelector('iframe')?.srcdoc).toBe(previous.srcdoc);
+      const next = new DOMParser().parseFromString(container.querySelector('iframe')!.srcdoc, 'text/html');
+      expect(next.querySelector('iframe')?.getAttribute('srcdoc')).toContain(source.html);
+      expect(container.querySelector('iframe')?.srcdoc).not.toBe(previous.srcdoc); // Fresh diagnostic run identity.
     } finally { document.removeEventListener('visibilitychange', observeAfterRunner); }
   });
 

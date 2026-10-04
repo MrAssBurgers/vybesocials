@@ -9108,17 +9108,6 @@ html[data-theme-loading="true"] [style*="-webkit-background-clip: text"]:not(.vy
   animation-duration: calc(var(--vybe-orbit-b-dur) * 0.5);
 }
 
-.vybe-liquid-button:active:not(:disabled)::after {
-  background:
-    linear-gradient(180deg, hsl(0 0% 100% / 0.32) 0%, transparent 55%),
-    repeating-linear-gradient(
-      105deg,
-      transparent 0%,
-      hsl(0 0% 100% / 0.12) 22%,
-      transparent 44%
-    );
-}
-
 .vybe-liquid-button:disabled {
   opacity: 0.55;
   animation-play-state: paused;

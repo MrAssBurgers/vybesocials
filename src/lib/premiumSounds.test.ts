@@ -3,17 +3,23 @@ import {
   getSoundSettings, updateSoundSettings, updateCustomSounds, playCustomAudio,
   startRinging, stopAllCallSounds, playPremiumSound, previewSound, playMessageReceiveSound,
 } from './premiumSounds';
-import { getUserVolumeMultiplier } from './soundMix';
+import { getUserVolumeMultiplier, resolveBundledGain } from './soundMix';
+import { callSounds } from './callSounds';
 
-const { allowed, sourceStart, sourceStop, fetchAudio } = vi.hoisted(() => ({
+const { allowed, sourceStart, sourceStop, fetchAudio, identity } = vi.hoisted(() => ({
   allowed: vi.fn(async () => true), sourceStart: vi.fn(), sourceStop: vi.fn(), fetchAudio: vi.fn(),
+  identity: { session: { uid: 'alice', epoch: 1 }, listeners: new Set<() => void>() },
 }));
 vi.mock('@/lib/deviceSilentMode', () => ({ shouldPlayNotificationSound: allowed }));
-vi.mock('@/lib/callSounds', () => ({ stopAllCallSounds: vi.fn() }));
+vi.mock('@/lib/reportModerationService', () => ({
+  reportAccountSnapshot: () => identity.session,
+  reportAccountSubscribe: (callback: () => void) => { identity.listeners.add(callback); return () => identity.listeners.delete(callback); },
+}));
 
 const param = () => ({ value: 1, setValueAtTime: vi.fn(), linearRampToValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() });
 const node = () => ({ connect: vi.fn(), disconnect: vi.fn() });
 const oscillatorStops: ReturnType<typeof vi.fn>[] = [];
+const gains: ReturnType<typeof param>[] = [];
 let soundClock = Date.now();
 class FakeAudioContext {
   state = 'running';
@@ -21,7 +27,7 @@ class FakeAudioContext {
   destination = {};
   decodeAudioData = vi.fn(async () => ({ duration: 1 }));
   createBufferSource() { return { ...node(), start: sourceStart, stop: sourceStop, onended: null, buffer: null, loop: false }; }
-  createGain() { return { ...node(), gain: param() }; }
+  createGain() { const gain = param(); gains.push(gain); return { ...node(), gain }; }
   createBiquadFilter() { return { ...node(), frequency: param(), Q: param(), type: '' }; }
   createDynamicsCompressor() { return { ...node(), threshold: param(), knee: param(), ratio: param(), attack: param(), release: param() }; }
   createOscillator() {
@@ -35,6 +41,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(Date, 'now').mockReturnValue(soundClock += 1000);
   oscillatorStops.length = 0;
+  gains.length = 0;
+  identity.session = { uid: 'alice', epoch: identity.session.epoch + 1 };
+  identity.listeners.forEach(callback => callback());
   allowed.mockResolvedValue(true);
   vi.stubGlobal('AudioContext', FakeAudioContext);
   vi.stubGlobal('fetch', fetchAudio);
@@ -82,6 +91,49 @@ describe('sound preferences', () => {
 });
 
 describe('audio lifecycle', () => {
+  it('routes legacy outgoing and end tones through the same master and call switches', async () => {
+    updateSoundSettings({ master: false });
+    await callSounds.startRingback(); callSounds.connect(); callSounds.end();
+    await Promise.resolve();
+    expect(sourceStart).not.toHaveBeenCalled(); expect(oscillatorStops).toHaveLength(0);
+    updateSoundSettings({ master: true, calls: false });
+    await callSounds.startRingback(); callSounds.end();
+    expect(sourceStart).not.toHaveBeenCalled(); expect(oscillatorStops).toHaveLength(0);
+    updateSoundSettings({ calls: true });
+    await callSounds.startRingback();
+    expect(sourceStart).toHaveBeenCalledOnce();
+    callSounds.stopAll(); expect(sourceStop).toHaveBeenCalled();
+  });
+
+  it('updates an already-playing loop when volume changes and honors explicit trims', async () => {
+    updateSoundSettings({ volume: 80 });
+    await playCustomAudio('/volume-loop.wav', true, 0.6, 'calls');
+    const gain = gains.find(item => item.linearRampToValueAtTime.mock.calls.some(([value]) => value === resolveBundledGain('/volume-loop.wav', 'calls', 0.6)))!;
+    const high = resolveBundledGain('/volume-loop.wav', 'calls', 0.6);
+    updateSoundSettings({ volume: 20 });
+    expect(gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(high / 4, 0.04);
+  });
+
+  it('never adopts another account or unowned historical custom tone', async () => {
+    localStorage.setItem('vybe-custom-sounds', JSON.stringify({ call_ringtone: '/unowned.wav' }));
+    updateCustomSounds({ call_ringtone: '/alice-ring.wav' });
+    await startRinging();
+    expect(fetchAudio).toHaveBeenCalledWith('/alice-ring.wav');
+    identity.session = { uid: 'bob', epoch: identity.session.epoch + 1 };
+    identity.listeners.forEach(callback => callback());
+    expect(sourceStop).toHaveBeenCalled();
+    fetchAudio.mockClear();
+    await startRinging();
+    expect(fetchAudio).not.toHaveBeenCalledWith('/alice-ring.wav');
+    expect(fetchAudio).not.toHaveBeenCalledWith('/unowned.wav');
+  });
+
+  it('notifies a preview only once when stopped before its natural end', async () => {
+    const ended = vi.fn();
+    const player = await playCustomAudio('/one-stop.wav', false, undefined, 'messages', () => false, ended);
+    player?.stop(); player?.stop();
+    expect(ended).toHaveBeenCalledOnce();
+  });
   it('checks device silent mode for uploaded tones as well as bundled sounds', async () => {
     allowed.mockResolvedValue(false);
     expect(await playCustomAudio('/custom-silent.wav', false, undefined, 'messages')).toBeNull();

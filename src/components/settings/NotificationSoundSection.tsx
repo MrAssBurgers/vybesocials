@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, MessageCircle, Phone, Volume2, VolumeX, Play, ChevronDown, Music } from 'lucide-react';
+import { MessageCircle, Phone, Volume2, VolumeX, Play, Square, ChevronDown, Music } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -10,18 +10,19 @@ import { haptics } from '@/lib/haptics';
 import { 
   getSoundSettings, 
   updateSoundSettings, 
-  previewSound,
-  previewBundledSound,
+  getCustomSounds,
   type SoundSettings 
 } from '@/lib/premiumSounds';
 import { VYBE_SOUNDS } from '@/lib/vybeSoundAssets';
 import { CustomRingtoneUploader } from './CustomRingtoneUploader';
 import { useSyncCustomSounds } from '@/hooks/useCustomSounds';
 import { subscribeDevicePreference } from '@/lib/devicePreferences';
+import { useSoundPreview } from '@/hooks/useSoundPreview';
 
 export function NotificationSoundSection() {
   const [settings, setSettings] = useState<SoundSettings>(getSoundSettings);
   const [customTonesOpen, setCustomTonesOpen] = useState(false);
+  const preview = useSoundPreview();
   
   // Sync custom sounds from database to local storage
   useSyncCustomSounds();
@@ -38,29 +39,26 @@ export function NotificationSoundSection() {
     setSettings(newSettings);
     updateSoundSettings({ [key]: checked });
     
-    // Play a preview when enabling
-    if (checked && key === 'master') {
-      previewSound('success');
-    }
   };
   
   const handlePreview = (type: 'messages' | 'calls' | 'ui' | 'like' | 'comment') => {
     haptics.tap();
+    const custom = getCustomSounds();
     switch (type) {
       case 'messages':
-        previewBundledSound(VYBE_SOUNDS.dmReceived, 'messages');
+        void preview.play(custom.message_tone || VYBE_SOUNDS.dmReceived, 'messages');
         break;
       case 'calls':
-        previewBundledSound(VYBE_SOUNDS.callRing, 'calls');
+        void preview.play(custom.call_ringtone || VYBE_SOUNDS.callRing, 'calls');
         break;
       case 'ui':
-        previewSound('tap');
+        void preview.play(VYBE_SOUNDS.sharePost, 'ui');
         break;
       case 'like':
-        previewBundledSound(VYBE_SOUNDS.postLiked, 'messages');
+        void preview.play(VYBE_SOUNDS.postLiked, 'messages');
         break;
       case 'comment':
-        previewBundledSound(VYBE_SOUNDS.comment, 'messages');
+        void preview.play(VYBE_SOUNDS.comment, 'messages');
         break;
     }
   };
@@ -123,10 +121,10 @@ export function NotificationSoundSection() {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-8 w-8"
+                  className="h-11 w-11"
                   onClick={() => handlePreview('messages')}
                   aria-label="Preview message sound"
-                  disabled={!settings.messages}
+                  disabled={!settings.messages || settings.volume === 0}
                 >
                   <Play className="h-3.5 w-3.5" />
                 </Button>
@@ -146,17 +144,17 @@ export function NotificationSoundSection() {
                 </div>
                 <div>
                   <p className="font-medium text-sm">Calls</p>
-                  <p className="text-xs text-muted-foreground">Incoming call ringtone</p>
+                  <p className="text-xs text-muted-foreground">Incoming and outgoing call cues</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-8 w-8"
+                  className="h-11 w-11"
                   onClick={() => handlePreview('calls')}
                   aria-label="Preview call ringtone"
-                  disabled={!settings.calls}
+                  disabled={!settings.calls || settings.volume === 0}
                 >
                   <Play className="h-3.5 w-3.5" />
                 </Button>
@@ -183,10 +181,10 @@ export function NotificationSoundSection() {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-8 w-8"
+                  className="h-11 w-11"
                   onClick={() => handlePreview('ui')}
                   aria-label="Preview interface sound"
-                  disabled={!settings.ui}
+                  disabled={!settings.ui || settings.volume === 0}
                 >
                   <Play className="h-3.5 w-3.5" />
                 </Button>
@@ -215,8 +213,13 @@ export function NotificationSoundSection() {
                 max={100}
                 step={1}
                 onValueChange={handleVolumeChange}
-                onValueCommit={() => previewSound('tap')}
+                onValueCommit={() => {
+                  if (settings.messages) handlePreview('messages');
+                  else if (settings.calls) handlePreview('calls');
+                  else if (settings.ui) handlePreview('ui');
+                }}
               />
+              {settings.volume === 0 && <p className="text-xs text-muted-foreground">Volume is muted. Raise it to hear a preview.</p>}
             </div>
 
             {/* Social previews */}
@@ -226,7 +229,7 @@ export function NotificationSoundSection() {
                 variant="outline"
                 size="sm"
                 className="text-xs"
-                disabled={!settings.messages}
+                disabled={!settings.messages || settings.volume === 0}
                 onClick={() => handlePreview('like')}
               >
                 <Play className="h-3 w-3 mr-1" /> Like sound
@@ -236,7 +239,7 @@ export function NotificationSoundSection() {
                 variant="outline"
                 size="sm"
                 className="text-xs"
-                disabled={!settings.messages}
+                disabled={!settings.messages || settings.volume === 0}
                 onClick={() => handlePreview('comment')}
               >
                 <Play className="h-3 w-3 mr-1" /> Comment sound
@@ -244,6 +247,14 @@ export function NotificationSoundSection() {
             </div>
           </motion.div>
         )}
+        {preview.state !== 'idle' && (
+          <Button type="button" variant="outline" className="mt-3" onClick={preview.stop}>
+            <Square className="h-4 w-4" /> Stop preview
+          </Button>
+        )}
+        <p className="text-xs text-muted-foreground mt-2" role="status">
+          {preview.error || (preview.state === 'loading' ? 'Loading preview…' : preview.state === 'playing' ? 'Playing a short sample at your selected volume.' : '')}
+        </p>
       </motion.div>
 
       {/* Custom Tones Section */}

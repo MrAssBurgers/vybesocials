@@ -47,7 +47,8 @@ export function resolveBundledGain(
   override?: number,
 ): number {
   if (override != null) {
-    return BASE_MASTER * CATEGORY_TRIM[category] * Math.max(0, Math.min(1, override));
+    const trim = Number.isFinite(override) ? Math.max(0, Math.min(1, override)) : 0;
+    return BASE_MASTER * CATEGORY_TRIM[category] * trim * getUserVolumeMultiplier();
   }
   const assetTrim = BUNDLED_TRIM[url] ?? 0.55;
   return BASE_MASTER * CATEGORY_TRIM[category] * assetTrim * getUserVolumeMultiplier();

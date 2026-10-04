@@ -40,6 +40,7 @@ export function MiniAppStudio({ ownerId, draft, onClose, onSaved }: {
   const [previewVersion, setPreviewVersion] = useState(0);
   const [wrapCode, setWrapCode] = useState(true);
   const previewPanel = useRef<HTMLDivElement>(null);
+  const editorPanel = useRef<HTMLDivElement>(null);
   const { reducedMotion: appReducedMotion } = useTheme();
   const systemReducedMotion = useReducedMotion();
   const reducedMotion = appReducedMotion || systemReducedMotion;
@@ -131,7 +132,7 @@ export function MiniAppStudio({ ownerId, draft, onClose, onSaved }: {
           <label className="space-y-2 text-sm font-medium">Category<select className="flex h-10 w-full rounded-xl border border-input bg-background px-3" value={source.category} onChange={event => setSource({ ...source, category: event.target.value as MiniAppSource['category'] })}>{MINI_APP_CATEGORIES.map(category => <option key={category} value={category}>{category[0].toUpperCase() + category.slice(1)}</option>)}</select></label>
           <label className="space-y-2 text-sm font-medium sm:col-span-2">Description<Textarea value={source.description} maxLength={240} rows={2} placeholder="Tell people what your app does" onChange={event => setSource({ ...source, description: event.target.value })} /></label>
         </div>
-        <div className="rounded-2xl border border-border bg-card/70 p-3 sm:p-4" onKeyDown={event => {
+        <div ref={editorPanel} className="scroll-mt-20 rounded-2xl border border-border bg-card/70 p-3 sm:p-4" onKeyDown={event => {
           if (!(event.ctrlKey || event.metaKey)) return;
           if (event.key.toLowerCase() === 's') { event.preventDefault(); void save(); }
           if (event.key === 'Enter') { event.preventDefault(); updatePreview(); }
@@ -153,7 +154,11 @@ export function MiniAppStudio({ ownerId, draft, onClose, onSaved }: {
       </fieldset>
       {failure && <div role="alert" className="rounded-2xl border border-destructive/40 bg-destructive/5 p-4 text-sm"><p>{failure.message}</p><p className="mt-1 text-muted-foreground">Your code is still in the editor.</p><Button className="mt-3" variant="outline" disabled={busy} onClick={() => void save(failure.publish)}>{failure.publish ? 'Retry publishing' : 'Retry save'}</Button></div>}
       {publishedId && <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-4"><p className="text-sm">Your published snapshot is live. New edits stay private.</p><Button asChild variant="outline"><Link to={`/mini-apps/${publishedId}`}>Open published app</Link></Button></div>}
-      {preview && <div ref={previewPanel} tabIndex={-1} className="scroll-mt-20 space-y-2 outline-none"><p className="text-sm text-muted-foreground">{JSON.stringify(source) !== JSON.stringify(preview) ? 'Your code has changed. Update preview to load the latest version.' : 'Latest code loaded. Choose Run app to start it.'}</p><MiniAppRunner key={previewVersion} source={preview} /></div>}
+      {preview && <div ref={previewPanel} tabIndex={-1} className="scroll-mt-20 space-y-2 outline-none"><p className="text-sm text-muted-foreground">{JSON.stringify(source) !== JSON.stringify(preview) ? 'Your code has changed. Update preview to load the latest version.' : 'Preview uses the code from your last update.'}</p><Button size="sm" variant="ghost" onClick={() => {
+        setPreview(null);
+        editorPanel.current?.scrollIntoView?.({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+        editorPanel.current?.querySelector<HTMLTextAreaElement>('[role="tabpanel"][data-state="active"] textarea')?.focus({ preventScroll: true });
+      }}><ArrowLeft />Close preview</Button><MiniAppRunner key={previewVersion} source={preview} /></div>}
       <div className="flex gap-3 rounded-2xl bg-primary/5 p-4 text-sm text-muted-foreground"><Code2 aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-primary" /><p>Use HTML, CSS, and plain JavaScript with inline images. External libraries and fetch requests are blocked. Your code has no VYBE account access or persistent browser storage. Public source can be read by other signed-in members. Test on a small screen before publishing.</p></div>
       <AlertDialog open={publishOpen} onOpenChange={setPublishOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Publish {source.title}?</AlertDialogTitle><AlertDialogDescription>This saves your current code and makes a public snapshot available to signed-in VYBE members. Future draft edits stay private until you publish again. Only publish content and code you have the right to share.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Keep editing</AlertDialogCancel><AlertDialogAction onClick={() => void save(true)}>Publish app</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
       <AlertDialog open={discardOpen || Boolean(pendingTemplate)} onOpenChange={open => { if (!open) { setDiscardOpen(false); setPendingTemplate(null); } }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle><AlertDialogDescription>Your saved draft and published app will stay as they are. Changes since your last save will be lost.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Keep editing</AlertDialogCancel><AlertDialogAction onClick={() => { clearMiniAppRecovery(ownerId, savedDraft?.id); if (pendingTemplate) applyTemplate(pendingTemplate); else onClose(); }}>Discard changes</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
