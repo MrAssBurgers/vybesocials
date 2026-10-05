@@ -104,11 +104,11 @@ export const claimProfileByEmail = onCall({ cors: true, timeoutSeconds: 60 }, as
 
 /** auth-2fa-request — issue a 6-digit code (email channel). */
 export const auth2faRequest = onCall(
-  { cors: true, timeoutSeconds: 60, secrets: ['RESEND_API_KEY', 'EMAIL_FROM'] },
+  { cors: true, invoker: 'public', timeoutSeconds: 60, secrets: ['RESEND_API_KEY', 'EMAIL_FROM'] },
   async request => requestEmailChallenge(db, auth, sendCodeEmail, request.auth?.uid || null, request.data || {}),
 );
 
-export const auth2faVerify = onCall({ cors: true, timeoutSeconds: 60 }, async request =>
+export const auth2faVerify = onCall({ cors: true, invoker: 'public', timeoutSeconds: 60 }, async request =>
   verifyEmailChallenge(db, auth, request.auth?.uid || null, request.data || {}),
 );
 
@@ -274,7 +274,7 @@ function challengeExpired(expiresAt: unknown): boolean {
 
 /** auth-login-approval — poll/respond to pending device login (trusted device flow). */
 export const authLoginApproval = onCall(
-  { cors: true, secrets: ['RESEND_API_KEY', 'EMAIL_FROM', ...TWILIO_SECRETS] },
+  { cors: true, invoker: 'public', secrets: ['RESEND_API_KEY', 'EMAIL_FROM', ...TWILIO_SECRETS] },
   async (request) => {
   const data = (request.data || {}) as Record<string, unknown>;
   const action = asString(data.action) || 'respond';
@@ -535,7 +535,7 @@ async function resolveLoginGeo(
  * `session_resume` / app opens never create approval challenges.
  */
 export const authLoginNotify = onCall(
-  { cors: true, secrets: ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY'] },
+  { cors: true, invoker: 'public', secrets: ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY'] },
   request => runAuthLoginNotify(request),
 );
 /** The real callable handler with provider seams for isolated gate tests. */

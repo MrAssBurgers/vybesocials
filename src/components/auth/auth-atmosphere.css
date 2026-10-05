@@ -1,0 +1,42 @@
+.auth-atmosphere {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 42%, #19233a 0%, #111a2b 55%, #0d1422 100%);
+  isolation: isolate;
+}
+.auth-light {
+  position: absolute;
+  width: min(86vw, 660px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  opacity: .34;
+  animation: auth-light-drift 19s ease-in-out infinite alternate;
+  transition: opacity .8s ease;
+  background: radial-gradient(circle, var(--auth-light) 0%, transparent 68%);
+}
+.auth-light-cyan { --auth-light: #28c8e4; top: 31%; left: 49%; animation-duration: 23s; }
+.auth-light-violet { --auth-light: #7c51f7; top: -19%; left: -26%; animation-duration: 19s; animation-delay: -11s; }
+.auth-light-rose { --auth-light: #dc579f; top: 41%; left: -24%; opacity: .16; animation-duration: 29s; animation-delay: -17s; }
+.auth-atmosphere[data-signup="true"] .auth-light-rose { opacity: .3; }
+.auth-atmosphere[data-busy="true"] .auth-light { opacity: .46; }
+.auth-orbit {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: min(94vw, 730px);
+  aspect-ratio: 1;
+  border: 1px solid #8bd8fa0c;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+.auth-orbit-two { width: min(120vw, 950px); border-color: #ab85f709; }
+.auth-submit-label { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; }
+.auth-submit-spark { width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: auth-spark-turn .9s linear infinite; }
+.auth-card-busy { box-shadow: 0 16px 48px -20px #0008, 0 0 32px -14px #36bfe866; }
+.auth-success-glow { background: radial-gradient(ellipse at 20% 50%, #8554f72b, transparent 65%), radial-gradient(ellipse at 90% 30%, #32cce02b, transparent 65%); }
+@keyframes auth-light-drift { from { transform: translate3d(-4%, -6%, 0) scale(.94); } to { transform: translate3d(8%, 6%, 0) scale(1.08); } }
+@keyframes auth-spark-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .auth-light, .auth-submit-spark { animation: none; transition: none; }
+}

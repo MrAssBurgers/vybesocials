@@ -143,7 +143,7 @@ try {
     const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
     const { doc, setDoc, getDoc, getDocs, collection } = require('firebase/firestore');
     const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
-    const env = await initializeTestEnvironment({ projectId: process.env.GCLOUD_PROJECT, firestore: { host, port: Number(port), rules: await readFile(new URL('../firestore.rules', import.meta.url), 'utf8') } });
+    const env = await initializeTestEnvironment({ projectId: process.env.GCLOUD_PROJECT, firestore: { host, port: Number(port), rules: await readFile(process.env.FIRESTORE_RULES_FILE || new URL('../firestore.rules', import.meta.url), 'utf8') } });
     try {
       await db.doc('auth_challenges/email-rules-ordinary').set({ user_id: 'email-rules-owner', challenge_type: 'login_approval', status: 'pending', metadata: {} });
       await db.doc('auth_challenges/email-rules-secret').set({ user_id: 'email-rules-owner', challenge_type: 'login_approval', code_hash: 'legacy-secret', metadata: {} });

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useLayoutEffect, useCallback, type CSSProperties } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth';
 import { PostLoginRedirect } from '@/components/auth/PostLoginRedirect';
@@ -39,6 +39,7 @@ import { normalizeLoginEmail } from '@/lib/loginEmail';
 import { getLoginCredentialErrorMessage, isInvalidLoginCredentialError } from '@/lib/loginErrors';
 import { clearObsoleteAuthStorage, hasStoredAuthSession } from '@/lib/legacyAuthStorage';
 import { SessionRestoringScreen } from '@/components/auth/SessionRestoringScreen';
+import { AuthAtmosphere } from '@/components/auth/AuthAtmosphere';
 import { VybeLiquidTouchOverlay } from '@/components/effects/VybeLiquidTouchOverlay';
 import { VybeLiquidText } from '@/components/ui/VybeLiquidText';
 import { useEmailVerificationPoll } from '@/hooks/useEmailVerificationPoll';
@@ -222,6 +223,7 @@ interface LandingProps {
 }
 
 export default function Landing({ onInviteNavigate, isInviteMode = false }: LandingProps) {
+  const reducedAuthMotion = useReducedMotion();
   const { t } = useTranslation();
   const { user, signIn, signUp, resendVerification, authReady, profile, applyOAuthSession, refreshProfile } = useAuth();
   const navigate = useNavigate();
@@ -365,6 +367,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     username: '',
   });
   const switchAuthMode = () => {
+    if (loading) return;
     setIsLogin((current) => !current);
     setFormData((current) => ({ ...current, password: '', username: '' }));
     setAgreedToTerms(false);
@@ -1077,6 +1080,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         scrollWhenTall ? 'overflow-y-auto overflow-x-hidden' : 'overflow-hidden'
       }`}
     >
+      <AuthAtmosphere busy={loading} signup={!isLogin} />
       {!user && typeof window !== 'undefined' && !isNativeAppShell() && (
         <button
           type="button"
@@ -1111,12 +1115,12 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         </p>
 
         <motion.div
-          initial={{ opacity: 0, y: 6 }}
+          initial={{ opacity: 0, y: reducedAuthMotion ? 0 : 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
           className="w-full shrink-0"
         >
-          <div className="liquid-glass-card rounded-2xl border border-white/[0.08] shadow-[0_16px_48px_-20px_rgba(0,0,0,0.5)] overflow-hidden">
+          <div className={`liquid-glass-card rounded-2xl border border-white/[0.08] shadow-[0_16px_48px_-20px_rgba(0,0,0,0.5)] overflow-hidden transition-shadow duration-500 ${loading ? 'auth-card-busy' : ''}`}>
             <div className="px-4 sm:px-5 py-3.5 border-b border-white/[0.06] bg-white/[0.02]">
               <div className="flex items-center gap-3">
                 <div className="relative shrink-0">
@@ -1193,7 +1197,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                 </div>
               ) : (
               <>
-              <form onSubmit={handleSubmit} className="space-y-2">
+              <form onSubmit={handleSubmit} className="space-y-2" aria-busy={loading}>
                 {!isLogin && (
                   <div className="space-y-1 animate-in fade-in duration-200">
                     <Label htmlFor="username" className="text-[11px] font-medium text-muted-foreground">
@@ -1201,6 +1205,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                     </Label>
                     <Input
                       id="username"
+                      autoComplete="username"
+                      disabled={loading}
                       placeholder="Choose a username"
                       value={formData.username}
                       onChange={(e) => setFormData({ ...formData, username: e.target.value })}
@@ -1215,6 +1221,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   </Label>
                   <Input
                     id="email"
+                    disabled={loading}
                     type={isLogin ? 'text' : 'email'}
                     inputMode={isLogin ? 'text' : 'email'}
                     autoComplete={isLogin ? 'username' : 'email'}
@@ -1236,6 +1243,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   <div className="relative">
                     <Input
                       id="password"
+                      autoComplete={isLogin ? 'current-password' : 'new-password'}
+                      disabled={loading}
                       type={showPassword ? 'text' : 'password'}
                       placeholder="••••••••"
                       value={formData.password}
@@ -1366,16 +1375,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.2 }}
-                        className="flex items-center justify-center gap-1.5"
+                        className="auth-submit-label"
                       >
-                        {[0, 0.15, 0.3].map((delay, i) => (
-                          <motion.span
-                            key={i}
-                            className="block h-1.5 w-1.5 rounded-full bg-white/90"
-                            animate={{ y: [0, -3, 0], opacity: [0.5, 1, 0.5] }}
-                            transition={{ duration: 0.9, repeat: Infinity, ease: 'easeInOut', delay }}
-                          />
-                        ))}
+                        <span className="auth-submit-spark" aria-hidden="true" />
+                        <span role="status">{isLogin ? 'Signing in…' : 'Creating your account…'}</span>
                       </motion.div>
                     ) : (
                       <motion.span
@@ -1469,6 +1472,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                 <button
                   type="button"
                   onClick={switchAuthMode}
+                  disabled={loading}
                   className="text-primary hover:underline font-medium"
                 >
                   {isLogin ? t('auth.signup') : t('auth.login')}

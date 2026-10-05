@@ -2,6 +2,26 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-05) - Live sign-in/email services and auth motion
+
+### Changes and deployed scope
+- User explicitly requested live vybehub.app sign-in/email repair and smooth login/signup animation. Reviewed the old auth2faRequest hold against actual live state: request had no email provider bindings; verify had no invoker policy. Released **only auth2faRequest, auth2faVerify, authLoginApproval and authLoginNotify** with their existing configured Resend/from/Twilio/OneSignal bindings. Secret values, Auth provider settings and account flags were not changed. Runtime token-signing permission was already present. Explicitly repaired auth2faVerify's missing Cloud Run public callable invocation binding; the handler retains strict private single-use code proof. See releases/sign-in-20261005/README.md for exact hashes and logs.
+- Added only the expiry-based auth_challenges index, independently READY, and one-day expireAt TTLs for the two private email collections, independently ACTIVE. Prior indexes and durable device/profile evidence retained.
+- Google Rules API continues returning HTTP 503 for both official CLI test and official createRuleset. Reviewed/tested candidate in firebase.sign-in.json changes only preferences, sign-in status/settings and private denials; it is not deployed. Independently read active baseline f421cde69d505389a1665404601e5ba32f8cc5e5815fd00b49ac7b204b544d69. The baseline already denies private email/limit/device-head proof; 77 exact-baseline/candidate checks confirm this and own settings reads, allowing the ordinary email service repair independently. Raw settings-write and legacy public challenge hardening, plus first-factor/legacy approval authority limits, remain pending. No completed Firebase MFA claim.
+- Login/signup receive soft radial drifting light and restrained entry motion, clear progress text, blocked field/mode edits while submitting, current/new-password autocomplete and reduced-motion support. No extra delay or heavy animation dependency. Restored the saved synthetic preview on 8082 after the user's dead preview.
+
+### Verification and remaining work
+- Functions build; 11 email backend/Rules groups; 17 device groups +20 Rules checks; 7 real Auth token-exchange/email-device groups; 77 exact baseline/candidate checks; prior 96 profile compatibility comparisons passed (same two setup prerequisites). App **460 files /4,370 tests passed**, six existing opt-in skips. Build, lint, typecheck and native distribution checks passed, same five lint warnings. Boot entry 1,102.9 KB raw/335.0 KB gzip within existing limits. Generated-only public files restored. Logs work/auth-release-*.
+- Six public sign-in/profile probes now reach callable handlers with expected 401/400 rejection, replacing verify's platform 403. Separate settings endpoints remain manageSignInPreferences 404/authSessionRevoke 403; they are outside this ordinary-login release.
+- Browser signup/login layout and busy state checked. Retained test account reached and consumed its synthetic code, but its restored old device head failed exact session-creation timestamp checking because emulator import assigned different metadata timestamps to head/session. Preserve that evidence; no production guard weakening or data reset. This does not demonstrate a successful full browser login. Isolated real-token device tests pass. Live designated account is barron.bakic@gmail.com as explicitly reconfirmed by the user; real code/inbox and cold phone tests remain required.
+
+### Next 3 tasks
+1. Publish the matched finished main through Lovable, independently verify vybehub.app/version.json and native manifest, then test the user's live password/code/device/profile flow using the existing masked credential entry. Record actual provider/inbox results and account errors; never change ownership or disable email confirmation to force success.
+2. Complete the narrow Rules candidate when Google's service recovers, stop/rebase/retest if actual baseline changed. No whole pending Rules/Functions release. Home first-save remains blocked until its preference rule is live.
+3. Verify physical phone force-close/reopen and later sign-in settings resources as their own matched release. New SDK/mini-app features remain deferred.
+
+---
+
 ## ACTIVE (2026-10-05) - Home customization usability and reliable saving
 
 ### Changes

@@ -1,5 +1,7 @@
 # Production sign-in recovery
 
+**Live service update (2026-10-05):** The user explicitly requested live sign-in/email repair. After reviewing the coordinated boundary, only the four sign-in services were released, including the previously held `auth2faRequest`; code verification's missing invoker binding was repaired. The required index is READY and private email TTLs ACTIVE. The existing live Rules already deny private proof access, verified by 77 baseline/candidate checks. Google HTTP 503 still blocks the narrower Rules hardening/preference candidate. See [the exact release record](../releases/sign-in-20261005/README.md). Historical hold statements below describe the earlier checkpoint; they do not undo this reviewed named release. Real delivery, matched client publication and physical-phone QA are recorded independently.
+
 This is a release inventory and read-only diagnosis from 2026-10-05. It does not record a production deployment, send a verification email, change account settings or approve a broad authentication migration. The existing enabled email-confirmation setting must remain enforced; an incomplete server response must not silently bypass it.
 
 ## Observed production state

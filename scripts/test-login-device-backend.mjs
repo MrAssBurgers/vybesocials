@@ -14,7 +14,7 @@ const { db, auth } = await import('../functions/lib/_shared/admin.js');
 const { ensureAccountProfileForUid } = await import('../functions/lib/_shared/accountProfileAuthority.js');
 const { registerLoginDevice: register, withCurrentLoginDevice, loginDeviceHeadId, loginDeviceVersion } = await import('../functions/lib/_shared/loginDeviceAuthority.js');
 const { runAuthLoginNotify } = await import('../functions/lib/auth.js');
-const env = await initializeTestEnvironment({ projectId: process.env.GCLOUD_PROJECT, firestore: { host: '127.0.0.1', port: 8387, rules: await readFile('firestore.rules', 'utf8') } });
+const env = await initializeTestEnvironment({ projectId: process.env.GCLOUD_PROJECT, firestore: { host: '127.0.0.1', port: 8387, rules: await readFile(process.env.FIRESTORE_RULES_FILE || 'firestore.rules', 'utf8') } });
 let groups = 0, rules = 0;
 const check = async (name, run) => { await run(); groups++; console.log(`PASS ${name}`); };
 async function fixture(setup = true) {

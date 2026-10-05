@@ -1,5 +1,7 @@
 # Email sign-in confirmation
 
+The reviewed 2026-10-05 live repair explicitly supersedes the earlier `auth2faRequest` hold for the four named sign-in services only. See [the live release record](../releases/sign-in-20261005/README.md) for deployed hashes, existing provider bindings, READY index/ACTIVE TTLs, tested baseline compatibility and the Google 503 Rules blocker. This remains additional email confirmation, with the authority limits below; it is not completed server-enforced Firebase MFA.
+
 The existing email confirmation flow now uses `auth2faRequest`, `auth2faVerify` and the email fallback in `authLoginApproval`. This repairs code issuance/verification; it does **not** establish server-enforced Firebase MFA. First-factor Firebase credentials still grant access to routes/rules that do not require a second-factor claim. Settings toggles, restored sessions, QR/device approvals and first-factor access need a separate coordinated authority migration before claiming MFA protection. Do not deploy this as a completed MFA rollout.
 
 ## Challenge authority

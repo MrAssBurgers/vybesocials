@@ -95,8 +95,8 @@ export const claimProfileByEmail = onCall({ cors: true, timeoutSeconds: 60 }, as
     return ensureAccountProfileForUid(db, auth, uid, request.data);
 });
 /** auth-2fa-request — issue a 6-digit code (email channel). */
-export const auth2faRequest = onCall({ cors: true, timeoutSeconds: 60, secrets: ['RESEND_API_KEY', 'EMAIL_FROM'] }, async (request) => requestEmailChallenge(db, auth, sendCodeEmail, request.auth?.uid || null, request.data || {}));
-export const auth2faVerify = onCall({ cors: true, timeoutSeconds: 60 }, async (request) => verifyEmailChallenge(db, auth, request.auth?.uid || null, request.data || {}));
+export const auth2faRequest = onCall({ cors: true, invoker: 'public', timeoutSeconds: 60, secrets: ['RESEND_API_KEY', 'EMAIL_FROM'] }, async (request) => requestEmailChallenge(db, auth, sendCodeEmail, request.auth?.uid || null, request.data || {}));
+export const auth2faVerify = onCall({ cors: true, invoker: 'public', timeoutSeconds: 60 }, async (request) => verifyEmailChallenge(db, auth, request.auth?.uid || null, request.data || {}));
 export const auth2faPreauth = onCall(async (request) => {
     const uid = requireAuth(request);
     await db.collection('auth_challenges').doc(`${uid}_preauth`).set({
@@ -235,7 +235,7 @@ function challengeExpired(expiresAt) {
     return !Number.isFinite(ms) || ms <= Date.now();
 }
 /** auth-login-approval — poll/respond to pending device login (trusted device flow). */
-export const authLoginApproval = onCall({ cors: true, secrets: ['RESEND_API_KEY', 'EMAIL_FROM', ...TWILIO_SECRETS] }, async (request) => {
+export const authLoginApproval = onCall({ cors: true, invoker: 'public', secrets: ['RESEND_API_KEY', 'EMAIL_FROM', ...TWILIO_SECRETS] }, async (request) => {
     const data = (request.data || {});
     const action = asString(data.action) || 'respond';
     if (action === 'poll') {
@@ -469,7 +469,7 @@ async function resolveLoginGeo(request) {
  * sign-in hits an account that already has active sessions elsewhere.
  * `session_resume` / app opens never create approval challenges.
  */
-export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY'] }, request => runAuthLoginNotify(request));
+export const authLoginNotify = onCall({ cors: true, invoker: 'public', secrets: ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY'] }, request => runAuthLoginNotify(request));
 /** The real callable handler with provider seams for isolated gate tests. */
 export async function runAuthLoginNotify(request, providers = { geo: resolveLoginGeo, send: dispatchOneSignalToProfile }) {
     const uid = requireAuth(request);
