@@ -31,7 +31,7 @@ function ProfileStatus() {
   return <main className="min-h-[100dvh] flex items-center justify-center px-6 bg-background">
     <section className="w-full max-w-sm rounded-3xl border border-primary/20 bg-primary/5 p-7 text-center space-y-4" role={failed ? 'alert' : 'status'} aria-label={failed ? 'Profile setup needs attention' : 'Loading your profile'}>
       {!failed && <div aria-hidden className="mx-auto h-9 w-9 rounded-full border-[3px] border-primary/25 border-t-primary animate-spin" />}
-      <h1 className="text-xl font-semibold">{failed ? 'Let’s get your profile ready' : 'Loading your profile…'}</h1>
+      <h1 className="text-xl font-semibold">{failed ? profileSetupError.title || 'Your profile couldn’t be loaded' : 'Loading your profile…'}</h1>
       <p className="text-sm text-muted-foreground">{profileSetupError?.message || 'Your account is signed in. We’re loading your profile and preferences.'}</p>
       {actionError && <p role="alert" className="text-sm text-destructive">{actionError}</p>}
       {failed && <div className="flex flex-col gap-2">

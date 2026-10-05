@@ -62,7 +62,7 @@ export async function provisionAccountProfile(uid: string, options: { action?: A
     throw error;
   }
   const row = data as Partial<AccountProfileReceipt> | null;
-  if (!row || row.ok !== true || row.ownerUid !== uid || row.accountCreatedAt !== createdAt || row.requestId !== request.requestId || row.action !== action || row.status !== 'ready' || !id(row.profileId) || !/^[a-f0-9]{48}$/.test(row.bindingRevision || '') || typeof row.created !== 'boolean' || typeof row.recovered !== 'boolean' || !row.profile || row.profile.id !== row.profileId || row.profile.user_id !== uid || (row.profile.username != null && typeof row.profile.username !== 'string') || (options.expectedProfileId && row.profileId !== options.expectedProfileId)) throw new Error('Profile setup returned an invalid confirmation. Try again.');
+  if (!row || row.ok !== true || row.ownerUid !== uid || row.accountCreatedAt !== createdAt || row.requestId !== request.requestId || row.action !== action || row.status !== 'ready' || !id(row.profileId) || !/^[a-f0-9]{48}$/.test(row.bindingRevision || '') || typeof row.created !== 'boolean' || typeof row.recovered !== 'boolean' || !row.profile || row.profile.id !== row.profileId || row.profile.user_id !== uid || (row.profile.username != null && typeof row.profile.username !== 'string') || (options.expectedProfileId && row.profileId !== options.expectedProfileId)) throw Object.assign(new Error('Profile setup returned an invalid confirmation. Try again.'), { code: 'profile-service-invalid-response' });
   attempts.delete(attemptKey(request)); persist();
   return { ...row, profile: { ...row.profile, username: row.profile.username ?? '' } } as AccountProfileReceipt;
 }

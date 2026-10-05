@@ -28,6 +28,17 @@ describe('checked account profile setup', () => {
     await second.provisionAccountProfile('alice', { defaults: { username: 'different' } });
     expect(mock.invoke.mock.calls[1][1]).toEqual(original);
   });
+  it.each(['not-found', 'unimplemented'])('keeps the signed-in account and exact retry after the profile service returns %s', async name => {
+    const user = mock.user;
+    mock.invoke.mockResolvedValueOnce({ data: null, error: { name, message: '<html>unavailable endpoint</html>' } });
+    const first = await import('./accountProfileService');
+    await expect(first.provisionAccountProfile('alice')).rejects.toMatchObject({ name });
+    const request = mock.invoke.mock.calls[0][1];
+    expect(mock.user).toBe(user); expect(mock.session.uid).toBe('alice');
+    vi.resetModules(); const second = await import('./accountProfileService');
+    expect((await second.provisionAccountProfile('alice')).profile.id).toBe('legacy-alice');
+    expect(mock.invoke.mock.calls[1][1]).toEqual(request); expect(mock.user).toBe(user);
+  });
   it.each(['already-exists', 'invalid-argument'])('allows a corrected setup after a confirmed %s rejection', async name => {
     mock.invoke.mockResolvedValueOnce({ data: null, error: { name, message: 'Rejected' } });
     const { provisionAccountProfile } = await import('./accountProfileService');
@@ -69,7 +80,7 @@ describe('checked account profile setup', () => {
     mock.invoke.mockResolvedValueOnce({ data: null, error });
     const { provisionAccountProfile, profileSetupFailure } = await import('./accountProfileService');
     await expect(provisionAccountProfile('alice')).rejects.toBe(error);
-    expect(mock.invoke).toHaveBeenCalledTimes(1); expect(profileSetupFailure(error)).toEqual({ message: expect.stringContaining('Choose Recover profile'), recoveryAvailable: true });
+    expect(mock.invoke).toHaveBeenCalledTimes(1); expect(profileSetupFailure(error)).toEqual({ title: 'Confirm your profile', message: expect.stringContaining('Choose Recover profile'), recoveryAvailable: true });
     await provisionAccountProfile('alice', { action: 'recover' });
     expect(mock.invoke.mock.calls[1][1].action).toBe('recover');
   });

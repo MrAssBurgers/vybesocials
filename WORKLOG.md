@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-05) - Stability: signed-in phone blocked on profile loading
+
+### Diagnosis and repairs
+- The phone screenshot shows the owned-profile bootstrap failing after Firebase sign-in. A fresh public empty-request probe still returns platform 404 for `ensureAccountProfile`; cold restoration requires that service before admitting the profile. The other auth endpoint results match the preceding checkpoint. No account identifier, token, email/code delivery or production mutation was used in these probes. Password retries cannot restore the missing service.
+- Firebase CLI has no selected authenticated account. Started its official remote login and opened the Google account chooser in Chrome; the user must choose the project's owning account and complete consent. That human connection remains pending. No deployed Rules/source/IAM inventory or live repair is claimed. Do not restart the pending CLI login or print the returned code, token or credential file.
+- Corrected the misleading unfinished-signup/connection guidance. Readable missing/unimplemented/incompatible profile-service responses, timeouts, explicit network errors and ownership review now have distinct titles and plain guidance. SDK internal/CORS failures remain generic. Sign-in, current-account guards, the exact uncertain setup request and explicit recovery requirements are unchanged; no fabricated profile or raw-read fallback. Updated docs/SIGN_IN_RECOVERY.md with the smaller already-signed-in profile release and its dependencies.
+
+### Verification
+- **458 app files / 4,357 tests passed**, with the existing 6 opt-in real-SDK tests skipped. Production build, typecheck, full lint, boot/distribution and bundle checks passed. Lint retains 5 existing warnings, 0 errors. Boot entry: **1,102.7 KB raw / 334.8 KB gzip**, within 1,125 / 335 limits. Logs: work/stability-fourteenth-{tests,build,typecheck,lint,boot,bundle}.log. Restored only the three generated public release files after verification. Independent review found no blocking issue and reran 34 focused tests.
+- Unchanged matched backend: **18 account groups + 34 Rules checks**, 96 historical/current Rules comparisons, 115 authority checks + 4 inherited-limit probes, 71 profile-visibility checks and 26 admin-authority tests passed; Functions build passed. The same 2 previously documented unbound staff comparisons require checked setup. Logs: work/profile-release-qa/{results,admin-tests,build}.log. All separate test emulators stopped and ports released.
+- Browser: the exact synthetic email-confirmation account survived a full reload with its profile endpoint deliberately unavailable, showed truthful guidance and retained sign-in on retry. Restoring that exact synthetic service control and choosing Try again returned directly to Home as `preview_email_confirmation`, without another login or code. No production user or provider was involved. Screenshot: outputs/stability-fourteenth-profile-recovered.png. The temporary local wrapper interception was removed after QA; control is false. Retained Auth/Firestore/Storage export: work/local-preview/stability-fourteenth-profile-export. This is local recovery proof, not physical-phone or production certification.
+
+### Remaining / next 3 tasks
+1. Finish the pending human Firebase connection. Inspect the actual deployed Rules baseline and selected Functions metadata, then review/deploy the smallest matched profile slice (`ensureAccountProfile`, strict `claimProfileByEmail`, profile/index ownership and private account namespaces). Preserve unique existing profile IDs/content; do not infer ownership or create replacement profiles. No broad Functions/Rules deploy. The live phone issue is **not yet fixed**.
+2. Complete the separately coordinated fresh email sign-in release in docs/SIGN_IN_RECOVERY.md, preserving the historical `auth2faRequest` restriction until reviewed. Test the user's real account and actual phone close/reopen. Commit/push is not Lovable Publish, and a frontend-only publish cannot solve the missing backend.
+3. Resume existing-feature loading/stability work after auth parity. New SDK/mini-app expansion stays deferred; preserve original 3D globe and all retained preview data. No overall launch-readiness claim.
+
+---
+
 ## ACTIVE (2026-10-05) - Stability: blocked live sign-in and email completion
 
 ### Diagnosis and repairs

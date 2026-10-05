@@ -25,6 +25,12 @@ The Firebase CLI's read-only Functions inventory failed authentication. Deployed
 
 ## Minimum sign-in to owned-profile release
 
+### Signed-in phone blocked on profile loading
+
+The subsequent phone screenshot, “Your account is signed in, but your profile could not be loaded,” is a different stage of the same release mismatch. Cold session restoration calls `ensureAccountProfile` before admitting the owned profile. A fresh empty-request probe still returned a platform 404 on 2026-10-05. Retrying or entering the password again cannot restore a missing endpoint. The client now distinguishes readable missing/incompatible-service responses, timeouts, explicit network failures and ownership review; SDK `internal` failures remain ambiguous because CORS and transport failures share that code. It retains the signed-in account and the exact uncertain setup request. This diagnostic change does not repair the live service.
+
+For this already-signed-in path, the smallest candidate release is `ensureAccountProfile` and the strict replacement `claimProfileByEmail`, with the matching profile/index ownership and private binding/receipt/recovery Rules applied to the actual deployed baseline. It requires no new composite index, TTL or provider secret. Review baseline compatibility before releasing; do not deploy the whole repository Rules file. A unique existing profile owned by the current Auth UID keeps its original ID and content. Conflicts require explicit review, never a replacement profile or email-based reassignment. Fresh email-confirmed sign-in still requires the complete release below.
+
 The named Function set for the existing password/email-confirmation flow is:
 
 | Function | Required behavior/dependency |
