@@ -12,6 +12,10 @@ Production web hosting is **Lovable**, with custom domain **`vybehub.app`**. Lov
 | Firebase Hosting staging frontend | https://vybe-daaab.web.app — shares the production Firebase project; not an isolated data environment |
 | Isolated local QA | `demo-vybe-preview`; follow [LOCAL_PREVIEW_QA.md](docs/LOCAL_PREVIEW_QA.md). Never deploy its configuration or fixtures. |
 
+## Login streak repair checkpoint (2026-10-05)
+
+The checked streak repair adds the exact named callable **`manageLoginStreak`**, with the existing checked account-profile binding as a prerequisite. Release its matching client and Firestore restrictions together: direct `login_streaks`, `_login_streak_state` and `_login_streak_receipts` access is denied. Old raw-reading/writing clients are incompatible. The two private namespaces retain durable state and retry evidence; there are no new indexes, TTL policies, secrets or Auth settings. Historical rows are preserved for bounded display and do not grant restoration. Existing launch-free restoration stays free on the server. See [Login streak stability](docs/LOGIN_STREAK_STABILITY.md) for exact eligibility, calendar, legacy and verification limits. This is pending rollout guidance, not a deployed change, and does not lift the `auth2faRequest` restriction.
+
 ## Who deploys what
 
 | Change type | Release path |
@@ -84,6 +88,16 @@ The map remains **Mapbox 3D by default**: Standard style, globe, pitch and terra
 For renderer resource troubleshooting, the isolated QA policy in `vite.config.ts` currently permits these Mapbox network paths: `https://api.mapbox.com/v4/`, `/raster/v1/`, `/rasterarrays/v1/`, `/styles/v1/mapbox/`, `/fonts/v1/mapbox/`, `/models/v1/mapbox/`, `/mapbox-gl-js/`, `/map-sessions/v1`, plus `https://events.mapbox.com/events/v2`. It permits `blob:` workers and images; the explicit flat fallback uses `https://tile.openstreetmap.org`. These are the observed renderer requirements, not a production policy to copy wholesale: QA also allows loopback services and development script settings that must not ship. Review the actual hosted CSP/token origin restrictions separately, including native localhost hydration. Local QA intentionally leaves unrelated geocoding/directions and AI intelligence uncalled.
 
 Verify initial load, mode changes during loading, Retry, unchanged friend/route overlays after style replacement, and paused/resumed camera follow. Verify location request/accept, separate GPS enablement, Ghost, pause/stop, approximate results, expiry and account changes using designated accounts. Already delivered coordinates cannot be recalled; current reads use a short access lease and latest samples expire independently of cleanup. Preserve the separate `auth2faRequest` deployment exclusion and all earlier pending resource requirements above.
+
+## Map check-ins, places, meetups and private research checkpoint (2026-10-05)
+
+See [Map social stability](docs/MAP_SOCIAL_STABILITY.md) for the checked API, legacy review, retry and read-lease contracts. This checkpoint changes exactly **`manageMapSocial`** (new), **`onMapMeetupCreated`** and **`researchMapLocation`**. Their matching client is incompatible with the former direct map writes/reads. This does not change the original Mapbox 3D renderer, approve a broad Functions deploy, or lift the separate `auth2faRequest` exclusion.
+
+Install and wait for these new indexes: `map_meetups(status ASC, created_at DESC)` and `map_check_ins(user_id ASC, created_at DESC)`, retaining existing place-post/comment parent/time indexes. Install `_map_social_cursors.expireAt` TTL (10-minute cursors) and `map_location_intel.expireAt` TTL (seven-day private research cache). Both are cleanup policies; current admission uses a separate 15-second checked lease. Publication, membership, mutation and notification receipts are durable and have **no TTL**. Older global research rows without `expireAt` remain private and are not automatically cleaned or reused.
+
+Build the Functions/client from the same tested commit, review the complete shared rules/index files, then coordinate the three named exports, reviewed restrictions and **Lovable → Share → Publish** in a controlled cutover. Rules deny all client access to `map_places`, `map_check_ins`, `map_place_posts`, `map_place_post_comments`, `map_meetups`, `map_meetup_members`, `map_location_intel`, and the private `_map_social_publications`, `_map_social_memberships`, `_map_social_receipts`, `_map_social_cursors`, `_map_social_notifications` namespaces. Do not reopen raw access to keep an old client working.
+
+Unproven places/meetups remain owner-only until explicit source-revision-bound review/share; counters and historical memberships are not trusted. Other old map social rows are not automatically attested. Research derives admitted place coordinates/name, uses an exact actor/request-bound private cache and rechecks permission after awaits; its 120/minute checked-read quota is separate from 12/hour actual research. Verify lost replies, cross-owner counts, join/leave/rejoin, blocks/unfriend, expiry, legacy review, loading/retry, pagination and account/route retirement on designated accounts. The isolated backend used injected research only; real providers, media and native GPS/file permissions remain separate QA. Story/post/clip pin authority and squad-map membership are explicitly outside this checkpoint. Preserve all earlier pending releases; no production deployment was performed.
 
 ## Account profile setup and recovery checkpoint (2026-10-05)
 

@@ -7,30 +7,24 @@ export interface PlaceVibe {
   emoji: string;
   label: string;
   score: number;
-  crowdEstimate: string;
+  activitySummary: string;
 }
 
-/** Client-side live vibe score from place activity signals. */
+/** Recorded activity score; check-in events cannot establish a current crowd. */
 export function computePlaceVibe(place: MapPlace): PlaceVibe {
   const checkIns = place.check_in_count ?? 0;
   const stories = place.story_count ?? 0;
   const score = Math.min(100, checkIns * 4 + stories * 8 + (place.vibe_tags?.length ?? 0) * 2);
+  const activitySummary = `${checkIns} ${checkIns === 1 ? 'check-in' : 'check-ins'} recorded`;
 
   if (score >= 70) {
-    return { level: 'busy', emoji: '🔥', label: 'Busy', score, crowdEstimate: crowdLabel(checkIns, 'high') };
+    return { level: 'busy', emoji: '🔥', label: 'High activity', score, activitySummary };
   }
   if (score >= 35) {
-    return { level: 'active', emoji: '⚡', label: 'Active', score, crowdEstimate: crowdLabel(checkIns, 'mid') };
+    return { level: 'active', emoji: '⚡', label: 'Moderate activity', score, activitySummary };
   }
   if (score >= 12) {
-    return { level: 'chill', emoji: '😊', label: 'Chill', score, crowdEstimate: crowdLabel(checkIns, 'low') };
+    return { level: 'chill', emoji: '😊', label: 'Light activity', score, activitySummary };
   }
-  return { level: 'quiet', emoji: '😴', label: 'Quiet', score, crowdEstimate: crowdLabel(checkIns, 'low') };
-}
-
-function crowdLabel(checkIns: number, band: 'low' | 'mid' | 'high'): string {
-  const est = Math.max(checkIns, band === 'high' ? 25 : band === 'mid' ? 8 : 2);
-  if (est >= 100) return '900+ people vibe here';
-  if (est >= 50) return `${est * 3}+ people nearby`;
-  return `${est} ${est === 1 ? 'person' : 'people'} checked in`;
+  return { level: 'quiet', emoji: '😴', label: 'Low activity', score, activitySummary };
 }

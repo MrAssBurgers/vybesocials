@@ -6,6 +6,7 @@ import { db } from '@/lib/firebase';
 import { invokeFunction } from './functionsService';
 import { resolveProfileIdFromAuthUid } from './profileResolve';
 import { getDocument, getDocuments, where, firestoreLimit } from './firestoreDb';
+import { profileAccountGuard } from '@/lib/profileAccountGuard';
 
 export interface BriefUpdate {
   interest: string;
@@ -84,6 +85,12 @@ async function buildClientBrief(
   latitude?: number,
   longitude?: number,
 ): Promise<BriefPayload> {
+  const guard = profileAccountGuard(authUid);
+  const readStreak = async () => {
+    const { manageLoginStreak } = await import('@/lib/loginStreakService');
+    guard();
+    return manageLoginStreak({ uid: authUid, profileId }, 'read', {}, guard);
+  };
   const oneDayAgo = new Date(Date.now() - 86_400_000).toISOString();
   const profile = await getDocument<Record<string, unknown>>('profiles', profileId);
 
@@ -101,7 +108,7 @@ async function buildClientBrief(
       where('following_id', '==', profileId),
       firestoreLimit(100),
     ]),
-    getDocument('login_streaks', profileId).catch(() => null),
+    readStreak().catch(() => null),
     getDocument('user_levels', authUid).catch(() => null),
     getDocument('ai_brief_preferences', profileId).catch(() => null),
   ]);
@@ -180,7 +187,8 @@ async function buildClientBrief(
   const realNotifCount = unreadNotifs.length;
   const pendingFriendRequests = friendReqs.length;
   const newFollowerCount = newFollowers.length;
-  const streak = Number((streakRow as Record<string, unknown> | null)?.current_streak || 0);
+  guard();
+  const streak = streakRow?.streak;
   const userLevel = Number((levelRow as Record<string, unknown> | null)?.current_level || 1);
   const userXp = Number((levelRow as Record<string, unknown> | null)?.total_xp || 0);
 

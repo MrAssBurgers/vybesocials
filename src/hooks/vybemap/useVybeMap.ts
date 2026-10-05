@@ -14,24 +14,12 @@ import {
   fetchMapStories,
   fetchMapPosts,
   fetchMapClips,
-  fetchMapMeetups,
-  fetchMapPlaces,
   fetchEventPins,
-  fetchPlacePosts,
-  createPlacePost,
-  fetchPlacePostComments,
-  createPlacePostComment,
-  fetchFriendCheckIns,
-  joinMeetup,
-  leaveMeetup,
-  fetchMyMeetupMemberships,
   logLocationAccess,
   startFinderSession,
-  createCheckIn,
-  createMapSpot,
-  createMeetup,
   fetchLocationHistory,
 } from '@/lib/vybemap/firestore';
+import { useMapSocialList, useMapSocialMutation } from './useMapSocial';
 import { useLocationSharing } from '@/hooks/useLocationSharing';
 import { isValidLatLng } from '@/lib/vybemap/geo';
 import { fetchMyGroupMaps, createGroupMap, joinGroupMap, fetchGroupMemberIds } from '@/lib/vybemap/mapSocial';
@@ -134,9 +122,7 @@ export function useMapClips(enabled: boolean) {
   return useQuery({ queryKey: ['vybemap-clips'], enabled, staleTime: 30_000, queryFn: fetchMapClips });
 }
 
-export function useMapMeetups(enabled: boolean) {
-  return useQuery({ queryKey: ['vybemap-meetups'], enabled, staleTime: 15_000, queryFn: fetchMapMeetups });
-}
+export function useMapMeetups(enabled: boolean) { return useMapSocialList('meetups', undefined, enabled); }
 
 export function useMapHeatmap(enabled: boolean) {
   const query = useLocationSharing(undefined, enabled);
@@ -153,9 +139,7 @@ export function useMapHeatmap(enabled: boolean) {
   return { ...query, data };
 }
 
-export function useMapPlaces(enabled: boolean) {
-  return useQuery({ queryKey: ['vybemap-places'], enabled, staleTime: 120_000, queryFn: fetchMapPlaces });
-}
+export function useMapPlaces(enabled: boolean) { return useMapSocialList('places', undefined, enabled); }
 
 export function useMapEventPins(enabled: boolean) {
   return useQuery({ queryKey: ['vybemap-event-pins'], enabled, staleTime: 60_000, queryFn: fetchEventPins });
@@ -178,66 +162,18 @@ export function useLocationHistory(userId?: string, mode: TimeMachineMode = 'now
 }
 
 export function useCreateMeetup() {
-  const { profile } = useAuth();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: Parameters<typeof createMeetup>[1]) => {
-      if (!profile?.id) throw new Error('Not signed in');
-      return createMeetup(profile.id, input);
-    },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['vybemap-meetups'] }),
-  });
+  const mutation = useMapSocialMutation('createMeetup');
+  return { ...mutation, mutateAsync: (input: { title: string; description?: string; dest_latitude: number; dest_longitude: number; dest_label?: string }) => mutation.mutateAsync({ action: 'createMeetup', title: input.title, description: input.description, latitude: input.dest_latitude, longitude: input.dest_longitude, destLabel: input.dest_label }) };
 }
 
 export function useCheckIn() {
-  const { profile } = useAuth();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: {
-      latitude: number;
-      longitude: number;
-      message?: string;
-      placeId?: string;
-      placeName?: string;
-    }) => {
-      if (!profile?.id) throw new Error('Not signed in');
-      return createCheckIn(
-        profile.id,
-        input.latitude,
-        input.longitude,
-        input.message,
-        input.placeId,
-        input.placeName,
-      );
-    },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['vybemap-places'] });
-      void qc.invalidateQueries({ queryKey: ['vybemap-friend-checkins'] });
-    },
-  });
+  const mutation = useMapSocialMutation('checkIn');
+  return { ...mutation, mutateAsync: (input: { placeId: string; message?: string }) => mutation.mutateAsync({ action: 'checkIn', ...input }) };
 }
 
 export function useCreateMapSpot() {
-  const { profile } = useAuth();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: {
-      name: string;
-      category: string;
-      description?: string;
-      photo_url?: string;
-      latitude: number;
-      longitude: number;
-      vibe_tags?: string[];
-    }) => {
-      if (!profile?.id) throw new Error('Not signed in');
-      return createMapSpot(profile.id, input);
-    },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['vybemap-places'] });
-      void qc.invalidateQueries({ queryKey: ['vybemap-heatmap'] });
-    },
-  });
+  const mutation = useMapSocialMutation('createPlace');
+  return { ...mutation, mutateAsync: (input: { name: string; category: string; description?: string; photo_url?: string; latitude: number; longitude: number; vibe_tags?: string[] }) => mutation.mutateAsync({ action: 'createPlace', name: input.name, category: input.category, description: input.description, photoUrl: input.photo_url, latitude: input.latitude, longitude: input.longitude }) };
 }
 
 export function useStartFindFriend() {
@@ -275,101 +211,35 @@ export function useLogLocationAccess() {
   }, [profile?.id]);
 }
 
-export function usePlacePosts(placeId?: string) {
-  return useQuery({
-    queryKey: ['vybemap-place-posts', placeId],
-    enabled: !!placeId,
-    staleTime: 15_000,
-    queryFn: () => fetchPlacePosts(placeId!),
-  });
-}
+export function usePlacePosts(placeId?: string) { return useMapSocialList('placePosts', placeId, !!placeId); }
 
 export function useCreatePlacePost() {
-  const { profile } = useAuth();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { placeId: string; content: string; mediaUrl?: string }) => {
-      if (!profile?.id) throw new Error('Not signed in');
-      return createPlacePost(profile.id, input.placeId, input.content, input.mediaUrl);
-    },
-    onSuccess: (_id, { placeId }) => {
-      void qc.invalidateQueries({ queryKey: ['vybemap-place-posts', placeId] });
-      void qc.invalidateQueries({ queryKey: ['vybemap-places'] });
-    },
-  });
+  const mutation = useMapSocialMutation('createPlacePost');
+  return { ...mutation, mutateAsync: (input: { placeId: string; content: string }) => mutation.mutateAsync({ action: 'createPlacePost', ...input }) };
 }
 
-export function useFriendCheckIns(friendIds: string[]) {
-  return useQuery({
-    queryKey: ['vybemap-friend-checkins', [...friendIds].sort().join(':')],
-    enabled: friendIds.length > 0,
-    staleTime: 20_000,
-    refetchInterval: 30_000,
-    queryFn: () => fetchFriendCheckIns(friendIds),
-  });
-}
+export function useFriendCheckIns(_friendIds: string[]) { return useMapSocialList('checkIns'); }
 
-export function useMyMeetupMemberships(profileId?: string) {
-  return useQuery({
-    queryKey: ['vybemap-meetup-memberships', profileId],
-    enabled: !!profileId,
-    staleTime: 30_000,
-    queryFn: () => fetchMyMeetupMemberships(profileId!),
-  });
+export function useMyMeetupMemberships(_profileId?: string) {
+  const query = useMapSocialList('meetups');
+  return { ...query, data: query.data ? new Set(query.data.filter(row => row.membership?.status === 'going').map(row => row.id)) : undefined };
 }
 
 export function useJoinMeetup() {
-  const { profile } = useAuth();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (meetupId: string) => {
-      if (!profile?.id) throw new Error('Not signed in');
-      return joinMeetup(profile.id, meetupId);
-    },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['vybemap-meetups'] });
-      void qc.invalidateQueries({ queryKey: ['vybemap-meetup-memberships'] });
-    },
-  });
+  const mutation = useMapSocialMutation('joinMeetup');
+  return { ...mutation, mutateAsync: (input: { meetupId: string; expectedRevision: string | null }) => mutation.mutateAsync({ action: 'joinMeetup', ...input }) };
 }
 
 export function useLeaveMeetup() {
-  const { profile } = useAuth();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (meetupId: string) => {
-      if (!profile?.id) throw new Error('Not signed in');
-      return leaveMeetup(profile.id, meetupId);
-    },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['vybemap-meetups'] });
-      void qc.invalidateQueries({ queryKey: ['vybemap-meetup-memberships'] });
-    },
-  });
+  const mutation = useMapSocialMutation('leaveMeetup');
+  return { ...mutation, mutateAsync: (input: { meetupId: string; expectedRevision: string | null }) => mutation.mutateAsync({ action: 'leaveMeetup', ...input }) };
 }
 
-export function usePlacePostComments(postId?: string) {
-  return useQuery({
-    queryKey: ['vybemap-place-comments', postId],
-    enabled: !!postId,
-    staleTime: 10_000,
-    queryFn: () => fetchPlacePostComments(postId!),
-  });
-}
+export function usePlacePostComments(postId?: string) { return useMapSocialList('comments', postId, !!postId); }
 
 export function useCreatePlacePostComment() {
-  const { profile } = useAuth();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { postId: string; content: string; placeId: string }) => {
-      if (!profile?.id) throw new Error('Not signed in');
-      return createPlacePostComment(profile.id, input.postId, input.content);
-    },
-    onSuccess: (_id, { postId, placeId }) => {
-      void qc.invalidateQueries({ queryKey: ['vybemap-place-comments', postId] });
-      void qc.invalidateQueries({ queryKey: ['vybemap-place-posts', placeId] });
-    },
-  });
+  const mutation = useMapSocialMutation('createComment');
+  return { ...mutation, mutateAsync: (input: { postId: string; content: string; placeId: string }) => mutation.mutateAsync({ action: 'createComment', postId: input.postId, content: input.content }) };
 }
 
 export function useGroupMaps(profileId?: string) {

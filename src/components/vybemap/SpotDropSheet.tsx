@@ -5,7 +5,9 @@ import { cn } from '@/lib/utils';
 import { db } from '@/lib/firebase';
 import { useLocationIntel } from '@/hooks/vybemap/useLocationIntel';
 import { LocationIntelPanel } from '@/components/vybemap/LocationIntelPanel';
+import { useMapViewGuard } from '@/hooks/vybemap/useMapSocial';
 import { MapLiquidSheet } from '@/components/vybemap/MapLiquidSheet';
+import { validPostMediaUrl } from '@/lib/postMediaUrl';
 
 const CATEGORIES = [
   { id: 'hangout', label: 'Hangout', emoji: '🔥' },
@@ -29,6 +31,10 @@ interface SpotDropSheetProps {
 }
 
 export function SpotDropSheet({ coords, onClose, onSubmit }: SpotDropSheetProps) {
+  const view = useMapViewGuard(`spot:${coords.join(':')}`);
+  const pending = useRef(false), photoSequence = useRef(0), photoPending = useRef(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [error, setError] = useState('');
   const [name, setName] = useState('');
   const [category, setCategory] = useState<string>('hangout');
   const [description, setDescription] = useState('');
@@ -45,19 +51,28 @@ export function SpotDropSheet({ coords, onClose, onSubmit }: SpotDropSheetProps)
   const needsAck = intel?.verdict === 'avoid' && !acknowledgedRisk;
 
   const handlePhoto = async (file: File) => {
+    if (pending.current || photoPending.current) return;
+    const sequence = ++photoSequence.current;
+    const guard = () => { view.guard(); if (sequence !== photoSequence.current) throw new Error('Photo selection changed.'); };
     try {
-      const ext = file.name.split('.').pop() || 'jpg';
-      const path = `map-spots/${Date.now()}.${ext}`;
-      const { error } = await db.storage.from('media').upload(path, file);
+      guard(); photoPending.current = true; setPhotoUploading(true); setError('');
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size <= 0 || file.size > 10 * 1024 * 1024) throw new Error('Choose a nonempty JPEG, PNG or WebP photo smaller than 10 MB.');
+      const ext = file.type === 'image/jpeg' ? 'jpg' : file.type.slice(6);
+      const path = `${view.account.user!.id}/map-spots/${crypto.randomUUID()}.${ext}`;
+      const bucket = db.storage.from('media');
+      const { data, error } = await bucket.upload(path, file); guard();
       if (error) throw error;
-      const { data: { publicUrl } } = db.storage.from('media').getPublicUrl(path);
-      setPhotoUrl(publicUrl);
-    } catch {
-      toast.error('Could not upload photo');
-    }
+      if (data?.path !== path) throw new Error('Photo upload could not be confirmed. Choose it again to retry.');
+      const resolved = await bucket.createSignedUrl(path); guard();
+      if (resolved.error || !resolved.data?.signedUrl || !validPostMediaUrl(resolved.data.signedUrl)) throw new Error('The photo could not be opened. Choose it again to retry.');
+      setPhotoUrl(resolved.data.signedUrl);
+    } catch (error) { try { guard(); setError(error instanceof Error ? error.message : 'Could not upload photo. Choose it again to retry.'); } catch { /* Retired selection. */ } }
+    finally { if (sequence === photoSequence.current) photoPending.current = false; try { guard(); setPhotoUploading(false); } catch { /* Retired selection. */ } }
   };
 
   const handlePublish = async () => {
+    if (pending.current || photoPending.current) return;
+    try { view.guard(); } catch { return; }
     if (!name.trim()) {
       toast.error('Give this spot a name');
       return;
@@ -66,7 +81,7 @@ export function SpotDropSheet({ coords, onClose, onSubmit }: SpotDropSheetProps)
       toast.error('This area may be private or restricted — review warnings first');
       return;
     }
-    setUploading(true);
+    pending.current = true; setUploading(true); setError('');
     try {
       await onSubmit({
         name: name.trim(),
@@ -75,12 +90,13 @@ export function SpotDropSheet({ coords, onClose, onSubmit }: SpotDropSheetProps)
         photo_url: photoUrl ?? undefined,
         vibe_tags: [category],
       });
-      toast.success('Spot dropped on VybeMap! 🔥');
+      view.guard(); toast.success('Spot shared with friends');
       onClose();
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Could not drop spot');
+      try { view.guard(); setError(e instanceof Error ? e.message : 'Could not confirm this spot. Please retry.'); } catch { /* Closed view. */ }
     } finally {
-      setUploading(false);
+      pending.current = false;
+      try { view.guard(); setUploading(false); } catch { /* Closed view. */ }
     }
   };
 
@@ -96,10 +112,12 @@ export function SpotDropSheet({ coords, onClose, onSubmit }: SpotDropSheetProps)
     >
       <p className="text-xs text-muted-foreground mb-4 flex items-center gap-1.5">
         <MapPin className="h-3.5 w-3.5" />
-        {coords[0].toFixed(4)}, {coords[1].toFixed(4)} — friends can discover your hangout
+        {coords[0].toFixed(4)}, {coords[1].toFixed(4)} — shared with friends, including this exact location
       </p>
 
+      {error && <p role="alert" className="text-sm mb-3">{error}</p>}
       <input
+        disabled={uploading}
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Spot name — e.g. Rooftop sunset spot"
@@ -112,6 +130,8 @@ export function SpotDropSheet({ coords, onClose, onSubmit }: SpotDropSheetProps)
           <button
             key={c.id}
             type="button"
+            disabled={uploading}
+            aria-pressed={category === c.id}
             onClick={() => setCategory(c.id)}
             className={cn(
               'rounded-full px-3 py-1.5 text-xs font-bold border transition-colors',
@@ -126,6 +146,7 @@ export function SpotDropSheet({ coords, onClose, onSubmit }: SpotDropSheetProps)
       </div>
 
       <textarea
+        disabled={uploading}
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         placeholder="Why is this a cool place to hang? (optional)"
@@ -137,21 +158,24 @@ export function SpotDropSheet({ coords, onClose, onSubmit }: SpotDropSheetProps)
       <input
         ref={fileRef}
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp"
+        disabled={uploading || photoUploading}
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];
+          e.currentTarget.value = '';
           if (f) void handlePhoto(f);
         }}
       />
 
       <button
         type="button"
+        disabled={uploading || photoUploading}
         onClick={() => fileRef.current?.click()}
         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-dashed border-border/50 text-muted-foreground text-sm mb-4"
       >
         <Camera className="h-4 w-4" />
-        {photoUrl ? 'Change photo' : 'Add a photo (optional)'}
+        {photoUploading ? 'Uploading photo…' : photoUrl ? 'Change photo' : 'Add a photo (optional)'}
       </button>
       {photoUrl && (
         <img src={photoUrl} alt="" className="w-full h-36 object-cover rounded-xl mb-4 ring-1 ring-border/30" />
@@ -177,7 +201,7 @@ export function SpotDropSheet({ coords, onClose, onSubmit }: SpotDropSheetProps)
 
       <button
         type="button"
-        disabled={uploading || !name.trim() || needsAck}
+        disabled={uploading || photoUploading || !name.trim() || needsAck}
         onClick={() => void handlePublish()}
         className="w-full py-3.5 rounded-xl bg-gradient-to-r from-orange-500 to-pink-500 font-bold text-white disabled:opacity-50"
       >

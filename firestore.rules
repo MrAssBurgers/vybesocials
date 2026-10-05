@@ -422,14 +422,12 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     match /login_streaks/{docId} {
-      allow read, write: if signedIn() && (
-        ownsUserField('user_id') || willOwnUserField('user_id') ||
-        ownsProfileId(docId) || docId == uid() || docId == profileId() ||
-        isCanonicalProfile(resource.data.get('profile_id', '')) ||
-        isCanonicalProfile(request.resource.data.get('profile_id', '')) ||
-        isAdmin()
-      );
+      // Historical caller-writable values are display history only. The checked
+      // endpoint preserves them without granting restore or reward authority.
+      allow read, write: if false;
     }
+    match /_login_streak_state/{docId} { allow read, write: if false; }
+    match /_login_streak_receipts/{docId} { allow read, write: if false; }
     match /streaks/{docId} {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
@@ -568,39 +566,30 @@ service cloud.firestore {
       allow read, write: if signedIn() && (ownsUserField('owner_id') || willOwnUserField('owner_id') || isAdmin());
     }
     match /map_places/{docId} {
-      allow read: if signedIn();
-      allow create: if signedIn();
-      allow update: if signedIn() && (
-        isCanonicalProfile(resource.data.created_by) ||
-        isAdmin()
-      );
-      allow delete: if isAdmin() || (signedIn() && isCanonicalProfile(resource.data.created_by));
+      // Current friendship, blocks and reviewed publication are checked by the
+      // callable; raw location documents never establish their own audience.
+      allow read, write: if false;
     }
     match /map_place_posts/{docId} {
-      allow read: if signedIn();
-      allow create: if signedIn() && willOwnUserField('user_id');
-      allow update, delete: if ownsUserField('user_id') || isAdmin();
+      allow read, write: if false;
     }
     match /map_place_post_comments/{docId} {
-      allow read: if signedIn();
-      allow create: if signedIn() && willOwnUserField('user_id');
-      allow update, delete: if ownsUserField('user_id') || isAdmin();
+      allow read, write: if false;
     }
     match /map_check_ins/{docId} {
-      allow read: if signedIn();
-      allow create: if signedIn() && willOwnUserField('user_id');
-      allow update, delete: if ownsUserField('user_id') || isAdmin();
+      allow read, write: if false;
     }
     match /map_meetups/{docId} {
-      allow read: if signedIn();
-      allow create: if signedIn() && willOwnUserField('host_id');
-      allow update, delete: if ownsUserField('host_id') || isAdmin();
+      allow read, write: if false;
     }
     match /map_meetup_members/{docId} {
-      allow read: if signedIn();
-      allow create: if signedIn() && willOwnUserField('user_id');
-      allow update, delete: if ownsUserField('user_id') || isAdmin();
+      allow read, write: if false;
     }
+    match /_map_social_publications/{docId} { allow read, write: if false; }
+    match /_map_social_memberships/{docId} { allow read, write: if false; }
+    match /_map_social_receipts/{docId} { allow read, write: if false; }
+    match /_map_social_cursors/{docId} { allow read, write: if false; }
+    match /_map_social_notifications/{docId} { allow read, write: if false; }
     match /map_story_pins/{docId} {
       allow read: if signedIn();
       allow create: if signedIn() && willOwnUserField('user_id');
@@ -631,8 +620,8 @@ service cloud.firestore {
       allow update, delete: if ownsUserField('user_id') || isAdmin();
     }
     match /map_location_intel/{docId} {
-      allow read: if signedIn();
-      allow write: if false;
+      // Auth-scoped research can contain a private draft's coordinates/name.
+      allow read, write: if false;
     }
     match /friend_finder_sessions/{docId} {
       allow read: if signedIn() && (ownsUserField('seeker_id') || ownsUserField('target_id'));

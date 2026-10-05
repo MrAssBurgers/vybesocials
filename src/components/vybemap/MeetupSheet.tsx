@@ -1,22 +1,21 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Navigation, Users, MapPin, Plus, LogOut, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MapMeetup } from '@/lib/vybemap/types';
 import { useLocationIntel } from '@/hooks/vybemap/useLocationIntel';
 import { LocationIntelPanel } from '@/components/vybemap/LocationIntelPanel';
 import { MapLiquidSheet } from '@/components/vybemap/MapLiquidSheet';
+import { useMapSocialItem, useMapSocialMutation, useMapViewGuard } from '@/hooks/vybemap/useMapSocial';
+import { MapReadNotice } from './MapReadNotice';
+import { MapLegacyReview } from './MapLegacyReview';
 import { cn } from '@/lib/utils';
+import type { MapSocialRouteLease } from '@/lib/vybemap/mapSocialRouteLease';
 
 interface MeetupSheetProps {
   meetup: MapMeetup;
   myCoords: [number, number] | null;
-  profileId?: string;
-  isMember: boolean;
-  isHost: boolean;
   onClose: () => void;
-  onJoin: () => Promise<void>;
-  onLeave: () => Promise<void>;
-  onNavigate: () => void;
+  onNavigate: (meetup: MapMeetup, lease: MapSocialRouteLease) => void;
 }
 
 function formatWhen(iso: string): string {
@@ -27,44 +26,26 @@ function formatWhen(iso: string): string {
   return d.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
 }
 
-export function MeetupSheet({
-  meetup,
-  myCoords,
-  profileId,
-  isMember,
-  isHost,
-  onClose,
-  onJoin,
-  onLeave,
-  onNavigate,
-}: MeetupSheetProps) {
-  const [busy, setBusy] = useState(false);
-  const going = meetup.member_count ?? meetup.members?.length ?? 1;
-  const { data: intel, isLoading: intelLoading } = useLocationIntel({
-    latitude: meetup.dest_latitude,
-    longitude: meetup.dest_longitude,
-    placeName: meetup.dest_label || meetup.title,
-  });
-
+export function MeetupSheet({ meetup: initial, myCoords, onClose, onNavigate }: MeetupSheetProps) {
+  const query = useMapSocialItem('meetup', initial.id);
+  const view = useMapViewGuard(initial.id);
+  const mutation = useMapSocialMutation(initial.id);
+  const last = useRef(initial);
+  if (query.data) last.current = query.data;
+  const meetup = query.data || last.current;
+  const [error, setError] = useState('');
+  const busy = mutation.isPending;
+  const isMember = meetup.membership?.status === 'going';
+  const isHost = meetup.host_id === view.account.profile?.id;
+  const going = meetup.member_count ?? 0;
+  const { data: intel, isLoading: intelLoading } = useLocationIntel({ latitude: meetup.dest_latitude, longitude: meetup.dest_longitude, placeName: meetup.dest_label || meetup.title, enabled: !!query.data });
   const handleJoinLeave = async () => {
-    if (!profileId) {
-      toast.error('Sign in to join meetups');
-      return;
-    }
-    setBusy(true);
     try {
-      if (isMember && !isHost) {
-        await onLeave();
-        toast.success('Left meetup');
-      } else if (!isMember) {
-        await onJoin();
-        toast.success("You're going!");
-      }
-    } catch {
-      toast.error('Could not update RSVP');
-    } finally {
-      setBusy(false);
-    }
+      view.guard(); if (!query.data || busy || meetup.legacy) return;
+      setError('');
+      await mutation.mutateAsync({ action: isMember ? 'leaveMeetup' : 'joinMeetup', meetupId: meetup.id, expectedRevision: meetup.membership?.revision || null });
+      view.guard(); toast.success(isMember ? 'Left meetup' : "You're going!");
+    } catch { try { view.guard(); setError('Could not confirm your RSVP. Your selection has not changed. Please retry.'); } catch { /* Retired view. */ } }
   };
 
   const distanceLabel = (() => {
@@ -80,7 +61,7 @@ export function MeetupSheet({
   return (
     <MapLiquidSheet
       onClose={onClose}
-      title={
+      title={query.data ? (
         <div className="min-w-0">
           <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 mb-2">
             <Users className="h-3 w-3" /> Meetup
@@ -93,8 +74,13 @@ export function MeetupSheet({
             <p className="text-xs text-primary mt-1">{distanceLabel}</p>
           )}
         </div>
-      }
+      ) : <h2 className="font-bold">Meetup</h2>}
     >
+      <MapReadNotice label="Meetup" loading={query.isLoading} failed={query.isError} onRetry={() => void query.refetch()} />
+      {query.data === null && <p role="status">This meetup is no longer available.</p>}
+      {query.data && <>
+      {meetup.legacy && meetup.revision && <MapLegacyReview kind="meetup" id={meetup.id} revision={meetup.revision} />}
+      {error && <p role="alert" className="text-sm mb-3">{error}</p>}
       {meetup.description && (
         <p className="text-sm text-foreground/80 leading-relaxed mb-4">{meetup.description}</p>
       )}
@@ -114,12 +100,12 @@ export function MeetupSheet({
       <div className="flex gap-2">
         <button
           type="button"
-          onClick={onNavigate}
+          onClick={() => { try { view.guard(); if (query.data) onNavigate(query.data, query.captureRouteLease()); } catch { setError('Refresh this meetup before starting directions.'); } }}
           className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-primary font-bold text-primary-foreground"
         >
           <Navigation className="h-4 w-4" /> Live route
         </button>
-        {!isHost && (
+        {!isHost && !meetup.legacy && (
           <button
             type="button"
             disabled={busy}
@@ -139,6 +125,7 @@ export function MeetupSheet({
           </button>
         )}
       </div>
+      </>}
     </MapLiquidSheet>
   );
 }
@@ -153,6 +140,9 @@ export function MeetupCreateSheet({ coords, onClose, onSubmit }: MeetupCreateShe
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [busy, setBusy] = useState(false);
+  const pending = useRef(false);
+  const view = useMapViewGuard(`create:${coords.join(':')}`);
+  const [error, setError] = useState('');
   const [acknowledgedRisk, setAcknowledgedRisk] = useState(false);
   const { data: intel, isLoading: intelLoading } = useLocationIntel({
     latitude: coords[0],
@@ -162,6 +152,8 @@ export function MeetupCreateSheet({ coords, onClose, onSubmit }: MeetupCreateShe
   const needsAck = intel?.verdict === 'avoid' && !acknowledgedRisk;
 
   const submit = async () => {
+    if (pending.current) return;
+    view.guard();
     const t = title.trim();
     if (!t) {
       toast.error('Add a meetup title');
@@ -171,15 +163,16 @@ export function MeetupCreateSheet({ coords, onClose, onSubmit }: MeetupCreateShe
       toast.error('Review area warnings before creating this meetup');
       return;
     }
-    setBusy(true);
+    pending.current = true; setBusy(true); setError('');
     try {
       await onSubmit({ title: t, description: description.trim() || undefined });
-      toast.success('Meetup created!');
+      view.guard(); toast.success('Meetup created!');
       onClose();
     } catch {
-      toast.error('Could not create meetup');
+      try { view.guard(); setError('Could not confirm this meetup. Your draft is saved here; please retry.'); } catch { /* Closed view. */ }
     } finally {
-      setBusy(false);
+      pending.current = false;
+      try { view.guard(); setBusy(false); } catch { /* Closed view. */ }
     }
   };
 
@@ -193,7 +186,10 @@ export function MeetupCreateSheet({ coords, onClose, onSubmit }: MeetupCreateShe
         </div>
       }
     >
+      <p className="text-xs text-muted-foreground mb-3">Friends can see this meetup and its exact map location.</p>
+      {error && <p role="alert" className="text-sm mb-3">{error}</p>}
       <input
+        disabled={busy}
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="What's the plan?"
@@ -201,6 +197,7 @@ export function MeetupCreateSheet({ coords, onClose, onSubmit }: MeetupCreateShe
         className="w-full h-11 rounded-xl bg-card/50 border border-border/50 px-3 text-sm text-foreground placeholder:text-muted-foreground outline-none mb-2"
       />
       <textarea
+        disabled={busy}
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         placeholder="Optional details…"
@@ -234,7 +231,7 @@ export function MeetupCreateSheet({ coords, onClose, onSubmit }: MeetupCreateShe
         onClick={() => void submit()}
         className="w-full py-3 rounded-xl bg-primary font-bold text-primary-foreground disabled:opacity-50"
       >
-        Create meetup
+        {busy ? 'Creating…' : 'Create meetup'}
       </button>
     </MapLiquidSheet>
   );

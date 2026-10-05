@@ -1,11 +1,12 @@
 import { motion } from 'framer-motion';
 import { Flame, Zap, ChevronRight } from 'lucide-react';
-import { useStreakCount } from '@/hooks/useLoginStreak';
+import { useLoginStreakStatus } from '@/hooks/useLoginStreak';
 import { useNextLevelProgress, useUserLevel } from '@/hooks/useVybePass';
 import { useNavigate } from 'react-router-dom';
 
 export function XPStreakWidget() {
-  const streakCount = useStreakCount();
+  const streakQuery = useLoginStreakStatus();
+  const streakCount = streakQuery.data?.streak ?? 0;
   const { data: userLevel, isLoading: levelLoading } = useUserLevel();
   const { currentLevel, progressPercent, xpToNextLevel, isReady: levelReady } = useNextLevelProgress();
   const navigate = useNavigate();
@@ -26,6 +27,7 @@ export function XPStreakWidget() {
           onClick={() => navigate('/challenges')}
         >
           <div className="flex items-center gap-3">
+            {streakQuery.isError && <button type="button" className="text-xs text-muted-foreground" disabled={streakQuery.isFetching} onClick={event => { event.stopPropagation(); void streakQuery.refetch(); }}>Streak unavailable · Retry</button>}
             {streakCount > 0 && (
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent/10 border border-accent/20">
                 <motion.div

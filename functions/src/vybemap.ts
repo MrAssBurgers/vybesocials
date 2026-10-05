@@ -7,6 +7,7 @@ import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import { getOrResearchLocationIntel } from './_shared/mapLocationIntel.js';
 import { runLocationSharing } from './_shared/locationSharingAuthority.js';
+import { mapSocialHash, notifyMapMeetup, resolveMapIntelTarget } from './_shared/mapSocialAuthority.js';
 
 const INTEL_SECRETS = ['GEMINI_API_KEY'] as const;
 
@@ -52,48 +53,21 @@ export const researchMapLocation = onCall(
   { secrets: [...INTEL_SECRETS], region: 'us-central1' },
   async (request) => {
     const uid = requireAuth(request);
-    enforceRateLimit(await rateLimit(`map_intel:${uid}`, 12, 3600));
-
-    const { latitude, longitude, placeName, placeId, forceRefresh } = (request.data || {}) as {
-      latitude?: number;
-      longitude?: number;
-      placeName?: string;
-      placeId?: string;
-      forceRefresh?: boolean;
-    };
-
-    if (latitude == null || longitude == null) {
-      throw new HttpsError('invalid-argument', 'latitude & longitude required');
-    }
-
+    enforceRateLimit(await rateLimit(`map_intel_read:${uid}`, 120, 60));
+    const target = await resolveMapIntelTarget(db, uid, request.data);
     const intel = await getOrResearchLocationIntel({
-      lat: latitude,
-      lng: longitude,
-      placeName,
-      placeId,
-      forceRefresh: !!forceRefresh,
+      ownerUid: uid, profileId: target.profileId, lat: target.latitude, lng: target.longitude,
+      placeName: target.placeName ?? undefined, placeId: target.placeId ?? undefined, forceRefresh: request.data?.forceRefresh === true,
+      beforeResearch: async () => { enforceRateLimit(await rateLimit(`map_intel:${uid}`, 12, 3600)); },
+      beforeReturn: async () => {
+        const current = await resolveMapIntelTarget(db, uid, request.data);
+        if (mapSocialHash(current) !== mapSocialHash(target)) throw new HttpsError('aborted', 'This place changed while researching. Refresh and retry.');
+      },
     });
-
-    return { intel };
+    const serverTime = Date.now();
+    return { ok: true, ownerUid: uid, profileId: target.profileId, placeId: target.placeId, serverTime, validUntil: serverTime + 15000, intel };
   },
 );
-
-async function fetchFriendIdsForProfile(profileId: string): Promise<string[]> {
-  const [sent, recv] = await Promise.all([
-    db.collection('friend_requests').where('sender_id', '==', profileId).where('status', '==', 'accepted').limit(80).get(),
-    db.collection('friend_requests').where('receiver_id', '==', profileId).where('status', '==', 'accepted').limit(80).get(),
-  ]);
-  const ids = new Set<string>();
-  sent.docs.forEach((d) => {
-    const rid = d.data().receiver_id as string | undefined;
-    if (rid) ids.add(rid);
-  });
-  recv.docs.forEach((d) => {
-    const sid = d.data().sender_id as string | undefined;
-    if (sid) ids.add(sid);
-  });
-  return Array.from(ids);
-}
 
 /** Notify friends when someone starts a meetup on VybeMap. */
 export const onMapMeetupCreated = onDocumentCreated(
@@ -101,38 +75,6 @@ export const onMapMeetupCreated = onDocumentCreated(
   async (event) => {
     const snap = event.data;
     if (!snap) return;
-    const meetup = snap.data() as {
-      host_id?: string;
-      title?: string;
-      dest_label?: string;
-    };
-    const hostId = meetup.host_id;
-    if (!hostId) return;
-
-    const hostSnap = await db.collection('profiles').doc(hostId).get();
-    const host = hostSnap.data() || {};
-    const hostName = (host.display_name as string) || (host.username as string) || 'A friend';
-    const meetupTitle = meetup.title || meetup.dest_label || 'a meetup';
-
-    const friendIds = (await fetchFriendIdsForProfile(hostId)).slice(0, 40);
-    if (!friendIds.length) return;
-
-    const batch = db.batch();
-    const now = new Date().toISOString();
-    for (const friendId of friendIds) {
-      const ref = db.collection('notifications').doc();
-      batch.set(ref, {
-        user_id: friendId,
-        actor_id: hostId,
-        type: 'map_meetup',
-        title: hostName,
-        body: `started a meetup: ${meetupTitle}`,
-        deep_link: '/map',
-        meetup_id: snap.id,
-        read: false,
-        created_at: now,
-      });
-    }
-    await batch.commit();
+    await notifyMapMeetup(db, snap.id);
   },
 );

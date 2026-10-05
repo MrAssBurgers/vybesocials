@@ -229,6 +229,11 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "starts_at", "order": "ASCENDING" }
       ] },
+    { "collectionGroup": "map_meetups", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ] },
     { "collectionGroup": "location_history", "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "user_id", "order": "ASCENDING" },
@@ -248,6 +253,11 @@
       "fields": [
         { "fieldPath": "meetup_id", "order": "ASCENDING" },
         { "fieldPath": "user_id", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "map_check_ins", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "user_id", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
       ] },
     { "collectionGroup": "map_group_maps", "queryScope": "COLLECTION",
       "fields": [
@@ -492,6 +502,8 @@
       ] }
   ],
   "fieldOverrides": [
+    {"collectionGroup":"_map_social_cursors","fieldPath":"expireAt","ttl":true,"indexes":[]},
+    {"collectionGroup":"map_location_intel","fieldPath":"expireAt","ttl":true,"indexes":[]},
     {"collectionGroup":"_post_view_receipts","fieldPath":"expireAt","ttl":true,"indexes":[]},
     {"collectionGroup":"_post_view_limits","fieldPath":"expireAt","ttl":true,"indexes":[]},
     {"collectionGroup":"_notification_preference_requests","fieldPath":"expireAt","ttl":true,"indexes":[]},

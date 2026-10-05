@@ -74,6 +74,8 @@ export interface LiveFriend {
 }
 
 export interface MapPlace {
+  revision?: string;
+  legacy?: boolean;
   id: string;
   name: string;
   category: string;
@@ -192,6 +194,9 @@ export interface MapPlacePostComment {
 }
 
 export interface MapMeetup {
+  revision?: string;
+  legacy?: boolean;
+  membership?: { status: 'going' | 'left'; revision: string } | null;
   id: string;
   host_id: string;
   title: string;

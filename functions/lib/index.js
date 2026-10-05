@@ -104,4 +104,6 @@ export { saveMiniAppDraft, deleteMiniAppDraft } from './miniAppDrafts.js';
 export { clearDnaAdaptationData } from './dnaAdaptation.js';
 export { getFriendsNotes, manageUserNote } from './userNotes.js';
 export { manageSharedTheme, generateThemeCode, useThemeCode } from './sharedThemes.js';
+export { manageLoginStreak } from './loginStreak.js';
+export { manageMapSocial } from './mapSocial.js';
 //# sourceMappingURL=index.js.map

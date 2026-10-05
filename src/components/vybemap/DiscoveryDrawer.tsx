@@ -8,9 +8,15 @@ import {
 } from 'framer-motion';
 import { ChevronUp, Flame, MapPin, Users, Video, Calendar, Radio } from 'lucide-react';
 import type { LiveFriend, MapStoryPin, MapClipPin, MapMeetup, MapPlace, FriendCheckIn } from '@/lib/vybemap/types';
+import { MapReadNotice } from './MapReadNotice';
 import { cn } from '@/lib/utils';
 
+type LoadState = { nextGroup: boolean; windowed: boolean; restart: () => Promise<unknown>; isLoading: boolean; isError: boolean; hasNextPage: boolean; isFetchingNextPage: boolean; refetch: () => Promise<unknown>; fetchNextPage: () => Promise<unknown> };
+const loadNotice = (label: string, state?: LoadState) => state ? <MapReadNotice nextGroup={state.nextGroup} windowed={state.windowed} onRestart={() => void state.restart()} label={label} loading={state.isLoading} failed={state.isError} onRetry={() => void state.refetch()} more={state.hasNextPage} loadingMore={state.isFetchingNextPage} onMore={() => void state.fetchNextPage()} /> : null;
 interface DiscoveryDrawerProps {
+  meetupsState?: LoadState;
+  placesState?: LoadState;
+  checkInsState?: LoadState;
   open: boolean;
   onToggle: () => void;
   friends: LiveFriend[];
@@ -34,7 +40,7 @@ interface DiscoveryDrawerProps {
 const PEEK_PX = 84;
 
 export function DiscoveryDrawer({
-  open, onToggle, friends, stories, clips, meetups, places, radarLabel, friendCheckIns = [],
+  meetupsState, placesState, checkInsState, open, onToggle, friends, stories, clips, meetups, places, radarLabel, friendCheckIns = [],
   onFriendTap, onMeetupTap, onPlaceTap, onCreateMeetup, friendsLoading, friendsError, onRetryFriends, mapAttribution,
 }: DiscoveryDrawerProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -209,9 +215,10 @@ export function DiscoveryDrawer({
         )}
         aria-hidden={!open}
       >
-        {friendCheckIns.length > 0 && (
+        {(friendCheckIns.length > 0 || checkInsState) && (
           <Section icon={MapPin} title="Recent activity" count={friendCheckIns.length}>
-            {friendCheckIns.slice(0, 6).map((c) => {
+            {loadNotice('Check-ins', checkInsState)}
+            {friendCheckIns.map((c) => {
               const name = c.profile?.display_name || c.profile?.username || 'Friend';
               return (
                 <button
@@ -264,6 +271,7 @@ export function DiscoveryDrawer({
 
         {(meetups.length > 0 || onCreateMeetup) && (
           <Section icon={Calendar} title="Meetups" count={meetups.length}>
+            {loadNotice('Meetups', meetupsState)}
             {onCreateMeetup && (
               <button
                 type="button"
@@ -289,9 +297,10 @@ export function DiscoveryDrawer({
           </Section>
         )}
 
-        {places.length > 0 && (
+        {(places.length > 0 || placesState) && (
           <Section icon={Flame} title="Hot spots" count={places.length}>
-            {places.slice(0, 6).map((p) => (
+            {loadNotice('Spots', placesState)}
+            {places.map((p) => (
               <button key={p.id} type="button" onClick={() => onPlaceTap(p)} className="w-full flex items-center gap-3 py-2.5 text-left rounded-xl hover:bg-white/5 px-2 -mx-2 transition-colors">
                 <MapPin className="h-4 w-4 text-amber-400 shrink-0" />
                 <div className="min-w-0">
@@ -311,7 +320,6 @@ export function DiscoveryDrawer({
 }
 
 function Section({ icon: Icon, title, count, children }: { icon: typeof Users; title: string; count: number; children: React.ReactNode }) {
-  if (count === 0 && title !== 'Meetups') return null;
   return (
     <div>
       <div className="flex items-center gap-2 mb-2">

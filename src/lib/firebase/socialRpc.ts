@@ -265,206 +265,29 @@ async function rpcTrackDailyLogin() {
   return rpcUpdateLoginStreak({});
 }
 
-function localTodayIso(timezone: string): string {
-  try {
-    return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date());
-  } catch {
-    return new Intl.DateTimeFormat('en-CA').format(new Date());
-  }
-}
-
-function streakExpiryIso(dateIso: string): string {
-  const d = new Date(`${dateIso}T23:59:59`);
-  d.setDate(d.getDate() + 1);
-  return d.toISOString();
-}
-
-async function streakActor() {
+async function checkedStreakRpc(action: 'read' | 'track' | 'restore', params: Record<string, unknown>) {
   const authUid = reportAccountSnapshot().uid;
-  const guard = reportAccountGuard(authUid);
+  const guard = reportAccountGuard(authUid || '');
   guard();
   const profile = await getProfileByAuthUid(authUid!, guard);
   guard();
   if (!profile?.id || profile.user_id !== authUid) throw new Error('Load your profile before updating your streak.');
-  return { authUid: authUid!, profileId: profile.id, guard };
-}
-
-async function readLoginStreak(profileId: string, authUid: string, guard: () => void) {
-  const owned = (row: Record<string, unknown> | null) => {
-    guard();
-    if (row && row.user_id !== authUid && row.user_id !== profileId) throw new Error('Streak ownership could not be confirmed.');
-    return row;
-  };
-  if (authUid) {
-    const byAuth = await getDocuments<Record<string, unknown>>('login_streaks', [
-      where('user_id', '==', authUid),
-      firestoreLimit(1),
-    ]);
-    guard();
-    if (byAuth[0]) return owned(byAuth[0]);
-    const byAuthDoc = await getDocument<Record<string, unknown>>('login_streaks', authUid);
-    guard();
-    if (byAuthDoc) return owned(byAuthDoc);
-  }
-
-  const byProfile = await getDocuments<Record<string, unknown>>('login_streaks', [
-    where('user_id', '==', profileId),
-    firestoreLimit(1),
-  ]);
+  const { manageLoginStreak } = await import('@/lib/loginStreakService');
   guard();
-  if (byProfile[0]) return owned(byProfile[0]);
-  return owned(await getDocument<Record<string, unknown>>('login_streaks', profileId));
-}
-
-async function rpcGetLoginStreakStatus(params: Record<string, unknown>) {
-  const { profileId, authUid, guard } = await streakActor();
+  const result = await manageLoginStreak({ uid: authUid!, profileId: profile.id }, action, {
+    timezone: typeof params.p_timezone === 'string' ? params.p_timezone : undefined,
+    expectedRevision: typeof params.expected_revision === 'string' ? params.expected_revision : undefined,
+  }, guard);
   guard();
-  if (!profileId) {
-    return { success: false, streak: 0, longest_streak: 0, needs_login_today: false };
-  }
-
-  const timezone = String(params.p_timezone || 'UTC');
-  const today = localTodayIso(timezone);
-  const streak = await readLoginStreak(profileId, authUid, guard);
-  guard();
-
-  if (!streak) {
-    return {
-      success: true,
-      streak: 0,
-      longest_streak: 0,
-      needs_login_today: true,
-      hours_remaining: null,
-    };
-  }
-
-  const current = Number(streak.current_streak || 0);
-  const longest = Number(streak.longest_streak || 0);
-  const lastLogin = streak.last_login_date ? String(streak.last_login_date).slice(0, 10) : null;
-  const expiresAt = streak.streak_expires_at ? String(streak.streak_expires_at) : null;
-  const hoursRemaining = expiresAt
-    ? Math.max(0, (Date.parse(expiresAt) - Date.now()) / (1000 * 60 * 60))
-    : null;
-
-  return {
-    success: true,
-    streak: current,
-    longest_streak: longest,
-    needs_login_today: lastLogin !== today,
-    hours_remaining: hoursRemaining,
-    expires_at: expiresAt,
+  return { ...result, success: true, longest_streak: result.longestStreak,
+    is_new_day: result.isNewDay, streak_extended: result.streakExtended,
+    needs_login_today: result.needsLoginToday, expires_at: result.expiresAt,
+    hours_remaining: result.expiresAt ? Math.max(0, (Date.parse(result.expiresAt) - result.serverTime) / 3_600_000) : null,
   };
 }
-
-async function rpcUpdateLoginStreak(params: Record<string, unknown>) {
-  const { profileId, authUid, guard } = await streakActor();
-  guard();
-  if (!profileId || !authUid) {
-    return { success: false, error: 'Not authenticated', streak: 0, longest_streak: 0 };
-  }
-
-  const timezone = String(params.p_timezone || 'UTC');
-  const today = localTodayIso(timezone);
-  const yesterday = (() => {
-    const d = new Date(`${today}T12:00:00`);
-    d.setDate(d.getDate() - 1);
-    return d.toISOString().slice(0, 10);
-  })();
-
-  const existing = await readLoginStreak(profileId, authUid, guard);
-  guard();
-  const now = new Date().toISOString();
-  const streakOwnerId = authUid;
-  const streakDocId = String(existing?.id || authUid);
-
-  if (!existing) {
-    const row = {
-      id: streakDocId,
-      user_id: streakOwnerId,
-      profile_id: profileId,
-      current_streak: 1,
-      longest_streak: 1,
-      last_login_date: today,
-      streak_expires_at: streakExpiryIso(today),
-      created_at: now,
-      updated_at: now,
-    };
-    guard();
-    await setDocument('login_streaks', streakDocId, row);
-    guard();
-    return {
-      success: true,
-      streak: 1,
-      longest_streak: 1,
-      is_new_day: true,
-      streak_extended: true,
-    };
-  }
-
-  const lastLogin = existing.last_login_date ? String(existing.last_login_date).slice(0, 10) : null;
-  if (lastLogin === today) {
-    return {
-      success: true,
-      streak: Number(existing.current_streak || 0),
-      longest_streak: Number(existing.longest_streak || 0),
-      is_new_day: false,
-      streak_extended: false,
-    };
-  }
-
-  let nextStreak = 1;
-  if (lastLogin === yesterday) {
-    nextStreak = Number(existing.current_streak || 0) + 1;
-  }
-  const longest = Math.max(Number(existing.longest_streak || 0), nextStreak);
-
-  guard();
-  await setDocument('login_streaks', streakDocId, {
-    user_id: streakOwnerId,
-    profile_id: profileId,
-    current_streak: nextStreak,
-    longest_streak: longest,
-    last_login_date: today,
-    streak_expires_at: streakExpiryIso(today),
-    updated_at: now,
-  });
-
-  guard();
-  return {
-    success: true,
-    streak: nextStreak,
-    longest_streak: longest,
-    is_new_day: true,
-    streak_extended: nextStreak > 1,
-  };
-}
-
-async function rpcRestoreLoginStreak(params: Record<string, unknown>) {
-  const { profileId, authUid, guard } = await streakActor();
-  guard();
-  if (!profileId || !authUid) return { success: false, restored: false, streak: 0 };
-
-  const timezone = String(params.p_timezone || 'UTC');
-  const today = localTodayIso(timezone);
-  const existing = await readLoginStreak(profileId, authUid, guard);
-  guard();
-  if (!existing) return { success: false, restored: false, streak: 0 };
-
-  const restored = Math.max(Number(existing.current_streak || 0), 1);
-  guard();
-  await setDocument('login_streaks', String(existing.id || authUid), {
-    user_id: authUid,
-    profile_id: profileId,
-    current_streak: restored,
-    last_login_date: today,
-    streak_expires_at: streakExpiryIso(today),
-    updated_at: new Date().toISOString(),
-  });
-
-  guard();
-  return { success: true, restored: true, streak: restored };
-}
-
+const rpcGetLoginStreakStatus = (params: Record<string, unknown>) => checkedStreakRpc('read', params);
+const rpcUpdateLoginStreak = (params: Record<string, unknown>) => checkedStreakRpc('track', params);
+const rpcRestoreLoginStreak = (params: Record<string, unknown>) => checkedStreakRpc('restore', params);
 const HANDLERS: Record<string, (p: Record<string, unknown>) => Promise<unknown>> = {
   get_profile_by_username: rpcGetProfileByUsername,
   increment_view_count: rpcIncrementViewCount,
@@ -493,6 +316,7 @@ export async function runSocialRpc(
   try {
     return await fn(params);
   } catch (err) {
+    if (['track_daily_login', 'get_login_streak_status', 'update_login_streak', 'restore_login_streak'].includes(name)) throw err;
     console.warn(`[Social RPC] ${name} client fallback failed:`, err);
     return null;
   }

@@ -18,8 +18,8 @@ import { type LiveFriend, type MapPlace, type MapMeetup } from '@/lib/vybemap/ty
 import {
   useMapLayers, useMapViewMode, useMapFollowHeading, useFriendIds, useLiveFriends, useMapStories, useMapPosts,
   useMapClips, useMapMeetups, useMapHeatmap, useMapPlaces, useMapEventPins,
-  useFriendRadar, useStartFindFriend, useCheckIn, useCreateMapSpot, useLogLocationAccess,
-  useFriendCheckIns, useCreateMeetup, useJoinMeetup, useLeaveMeetup, useMyMeetupMemberships,
+  useFriendRadar, useStartFindFriend, useCreateMapSpot, useLogLocationAccess,
+  useFriendCheckIns, useCreateMeetup,
   useGroupMaps, useCreateGroupMap, useGroupMemberIds,
 } from '@/hooks/vybemap/useVybeMap';
 import { FindFriendOverlay } from '@/components/vybemap/FindFriendOverlay';
@@ -46,6 +46,9 @@ import { MapSnapTopBar } from '@/components/vybemap/hud/MapSnapTopBar';
 import { MapSettingsSheet } from '@/components/vybemap/hud/MapSettingsSheet';
 import { MapFloatingActions } from '@/components/vybemap/hud/MapFloatingActions';
 import { MapViewport } from '@/components/vybemap/MapViewport';
+import { useQueryClient } from '@tanstack/react-query';
+import { useMapSocialRouteAdmission } from '@/hooks/vybemap/useMapSocial';
+import { currentMapSocialRoute, mapRouteAccountScope, type MapSocialRouteLease } from '@/lib/vybemap/mapSocialRouteLease';
 
 // Use the existing 3D renderer by default in both preview and production.
 const mapboxCanvasImport = hasMapbox() ? import('@/components/vybemap/map/VybeMapboxCanvas') : null;
@@ -93,6 +96,8 @@ class MapErrorBoundary extends Component<{ children: ReactNode }, { hasError: bo
 function VybeMapInner() {
   const navigate = useNavigate();
   const locationAccount = useProfileAccount();
+  const routeQueryClient = useQueryClient();
+  const routeAccountScope = mapRouteAccountScope(locationAccount.user?.id, locationAccount.profile?.id, locationAccount.session.epoch);
   const sharingView = useRef(true);
   useEffect(() => { sharingView.current = true; return () => { sharingView.current = false; }; }, []);
   const { profile } = useAuth();
@@ -120,23 +125,22 @@ function VybeMapInner() {
   const locationView = useRef({ scope: locationScope, friends });
   locationView.current = { scope: locationScope, friends };
   const routeWork = useRef(0);
-  const { data: friendCheckIns = [] } = useFriendCheckIns(friendIds);
+  const checkInsQuery = useFriendCheckIns(friendIds);
+  const friendCheckIns = checkInsQuery.data || [];
   const { data: stories = [] } = useMapStories(layers.stories);
   const { data: posts = [] } = useMapPosts(layers.posts);
   const { data: clips = [] } = useMapClips(layers.clips);
-  const { data: meetups = [] } = useMapMeetups(layers.meetups);
+  const meetupsQuery = useMapMeetups(layers.meetups);
+  const meetups = meetupsQuery.data || [];
   const { data: heatmap = [] } = useMapHeatmap(layers.heatmap);
-  const { data: places = [] } = useMapPlaces(layers.trending || layers.hotspots);
+  const placesQuery = useMapPlaces(layers.trending || layers.hotspots);
+  const places = placesQuery.data || [];
   const { data: eventPins = [] } = useMapEventPins(layers.events);
 
   const radar = useFriendRadar(friends, myCoords);
   const startFind = useStartFindFriend();
-  const checkIn = useCheckIn();
   const createSpot = useCreateMapSpot();
   const createMeetup = useCreateMeetup();
-  const joinMeetup = useJoinMeetup();
-  const leaveMeetup = useLeaveMeetup();
-  const { data: meetupMemberships } = useMyMeetupMemberships(profileId ?? profile?.id);
   const effectiveId = profileId ?? profile?.id;
   const { data: groupMaps = [] } = useGroupMaps(effectiveId);
   const createGroupMap = useCreateGroupMap();
@@ -161,7 +165,7 @@ function VybeMapInner() {
   const [activeSquad, setActiveSquad] = useState<MapGroupMap | null>(null);
   const { data: squadMemberIds = [] } = useGroupMemberIds(activeSquad?.id);
   const [routeState, setRoute] = useState<{
-    scope: string; friendLease?: MapLocationLease;
+    scope: string; friendLease?: MapLocationLease; socialLease?: MapSocialRouteLease;
     label: string;
     dest: [number, number];
     origin: [number, number];
@@ -174,9 +178,11 @@ function VybeMapInner() {
   /** false = card minimized; route polyline stays on the map until End. */
   const [routeBarExpanded, setRouteBarExpanded] = useState(true);
   const [routeLoading, setRouteLoading] = useState(false);
-  const [pendingRouteState, setPendingRoute] = useState<{ label: string; dest: [number, number]; scope: string; friendLease?: MapLocationLease } | null>(null);
-  const route = routeState?.scope === locationScope && (!routeState.friendLease || currentMapLocation(routeState.friendLease, locationScope, friends)) ? routeState : null;
-  const pendingRoute = pendingRouteState?.scope === locationScope && (!pendingRouteState.friendLease || currentMapLocation(pendingRouteState.friendLease, locationScope, friends)) ? pendingRouteState : null;
+  const [pendingRouteState, setPendingRoute] = useState<{ label: string; dest: [number, number]; scope: string; friendLease?: MapLocationLease; socialLease?: MapSocialRouteLease } | null>(null);
+  const routeAdmission = useMapSocialRouteAdmission(routeState?.socialLease);
+  const pendingAdmission = useMapSocialRouteAdmission(pendingRouteState?.socialLease);
+  const route = routeState?.scope === locationScope && (!routeState.friendLease || currentMapLocation(routeState.friendLease, locationScope, friends)) && (!routeState.socialLease || routeAdmission) ? routeState : null;
+  const pendingRoute = pendingRouteState?.scope === locationScope && (!pendingRouteState.friendLease || currentMapLocation(pendingRouteState.friendLease, locationScope, friends)) && (!pendingRouteState.socialLease || pendingAdmission) ? pendingRouteState : null;
   useEffect(() => {
     if (routeState && !route) { routeWork.current++; setRoute(null); setRouteLoading(false); }
     if (pendingRouteState && !pendingRoute) setPendingRoute(null);
@@ -230,11 +236,11 @@ function VybeMapInner() {
     dest: [number, number],
     origin: [number, number],
     originKind: RouteOriginChoice,
-    options?: { dismissSheets?: boolean; friendLease?: MapLocationLease },
+    options?: { dismissSheets?: boolean; friendLease?: MapLocationLease; socialLease?: MapSocialRouteLease },
   ) => {
     const lease = options?.friendLease, scope = locationScope, operation = ++routeWork.current;
     const accountGuard = locationAccount.guard;
-    const guard = () => { accountGuard(); if (!sharingView.current || operation !== routeWork.current || scope !== locationView.current.scope || (lease && !currentMapLocation(lease, scope, locationView.current.friends))) throw new Error('Location route expired.'); };
+    const guard = () => { accountGuard(); if (!sharingView.current || operation !== routeWork.current || scope !== locationView.current.scope || (lease && !currentMapLocation(lease, scope, locationView.current.friends)) || (options?.socialLease && !currentMapSocialRoute(routeQueryClient, options.socialLease, routeAccountScope))) throw new Error('Location route expired.'); };
     try { guard(); } catch { return; }
     const externalUrl = externalDirectionsUrl(dest[0], dest[1]);
     if (options?.dismissSheets !== false) {
@@ -251,7 +257,7 @@ function VybeMapInner() {
       guard();
       if (result) {
         setRoute({
-          scope, friendLease: lease,
+          scope, friendLease: lease, socialLease: options?.socialLease,
           label,
           dest,
           origin,
@@ -275,7 +281,7 @@ function VybeMapInner() {
     } finally {
       if (sharingView.current && operation === routeWork.current && scope === locationView.current.scope) setRouteLoading(false);
     }
-  }, [locationScope, locationAccount.guard]);
+  }, [locationScope, locationAccount.guard, routeQueryClient, routeAccountScope]);
 
   const endLiveRoute = useCallback(() => {
     routeWork.current++; setRouteLoading(false);
@@ -289,9 +295,9 @@ function VybeMapInner() {
   const startLiveRoute = useCallback(async (
     label: string,
     dest: [number, number],
-    options?: { dismissSheets?: boolean; friendLease?: MapLocationLease },
+    options?: { dismissSheets?: boolean; friendLease?: MapLocationLease; socialLease?: MapSocialRouteLease },
   ) => {
-    try { locationAccount.guard(); if (options?.friendLease && !currentMapLocation(options.friendLease, locationScope, friends)) return; } catch { return; }
+    try { locationAccount.guard(); if (options?.friendLease && !currentMapLocation(options.friendLease, locationScope, friends)) return; if (options?.socialLease && !currentMapSocialRoute(routeQueryClient, options.socialLease, routeAccountScope)) return; } catch { return; }
     const externalUrl = externalDirectionsUrl(dest[0], dest[1]);
     const mapCoords = readMapCameraCoords();
     const cameraOffLive =
@@ -308,7 +314,7 @@ function VybeMapInner() {
         setDiscoveryOpen(false);
         setSettingsOpen(false);
       }
-      setPendingRoute({ label, dest, scope: locationScope, friendLease: options?.friendLease });
+      setPendingRoute({ label, dest, scope: locationScope, friendLease: options?.friendLease, socialLease: options?.socialLease });
       return;
     }
 
@@ -322,7 +328,7 @@ function VybeMapInner() {
     }
 
     await runLiveRoute(label, dest, safeMyCoords, 'live', options);
-  }, [readMapCameraCoords, safeMyCoords, route, runLiveRoute, locationScope, locationAccount.guard, friends]);
+  }, [readMapCameraCoords, safeMyCoords, route, runLiveRoute, locationScope, locationAccount.guard, friends, routeQueryClient, routeAccountScope]);
 
   const confirmRouteOrigin = useCallback((originKind: RouteOriginChoice) => {
     if (!pendingRoute) return;
@@ -332,7 +338,7 @@ function VybeMapInner() {
       toast.error(originKind === 'live' ? 'Live location unavailable' : 'Map position unavailable');
       return;
     }
-    void runLiveRoute(pendingRoute.label, pendingRoute.dest, origin, originKind, { friendLease: pendingRoute.friendLease });
+    void runLiveRoute(pendingRoute.label, pendingRoute.dest, origin, originKind, { friendLease: pendingRoute.friendLease, socialLease: pendingRoute.socialLease, ...(pendingRoute.socialLease ? { dismissSheets: false } : {}) });
   }, [pendingRoute, safeMyCoords, readMapCameraCoords, runLiveRoute]);
 
   const onFriendTap = useCallback((f: LiveFriend) => {
@@ -548,6 +554,7 @@ function VybeMapInner() {
               try {
                 locationAccount.guard();
                 if (route.scope !== locationView.current.scope || (route.friendLease && !currentMapLocation(route.friendLease, route.scope, locationView.current.friends))) return;
+                if (route.socialLease && !currentMapSocialRoute(routeQueryClient, route.socialLease, routeAccountScope)) return;
                 window.open(route.externalUrl, '_blank');
               } catch { /* Retired routes cannot disclose the old destination. */ }
             }}
@@ -671,6 +678,7 @@ function VybeMapInner() {
       <AnimatePresence>
         {spotDropOpen && safeMyCoords && (
           <SpotDropSheet
+            key={`${locationScope}:spot`}
             coords={safeMyCoords}
             onClose={() => setSpotDropOpen(false)}
             onSubmit={async (input) => {
@@ -684,22 +692,11 @@ function VybeMapInner() {
       <AnimatePresence>
         {selPlace && (
           <PlacePageSheet
+            key={`${locationScope}:${selPlace.id}`}
             place={selPlace}
             onClose={() => setSelPlace(null)}
-            onNavigate={() => {
-              void startLiveRoute(selPlace.name, [selPlace.latitude, selPlace.longitude], { dismissSheets: false });
-            }}
-            onCheckIn={() => {
-              checkIn.mutate(
-                {
-                  latitude: selPlace.latitude,
-                  longitude: selPlace.longitude,
-                  message: `At ${selPlace.name}`,
-                  placeId: selPlace.id,
-                  placeName: selPlace.name,
-                },
-                { onSuccess: () => toast.success('Checked in!') },
-              );
+            onNavigate={(place, socialLease) => {
+              void startLiveRoute(place.name, [place.latitude, place.longitude], { dismissSheets: false, socialLease });
             }}
           />
         )}
@@ -708,24 +705,12 @@ function VybeMapInner() {
       <AnimatePresence>
         {selMeetup && (
           <MeetupSheet
+            key={`${locationScope}:${selMeetup.id}`}
             meetup={selMeetup}
             myCoords={safeMyCoords}
-            profileId={profileId ?? profile?.id}
-            isMember={meetupMemberships?.has(selMeetup.id) ?? selMeetup.host_id === profile?.id}
-            isHost={selMeetup.host_id === profile?.id}
             onClose={() => setSelMeetup(null)}
-            onJoin={async () => {
-              await joinMeetup.mutateAsync(selMeetup.id);
-              trackMapEvent('meetup_join', { meetupId: selMeetup.id });
-            }}
-            onLeave={async () => leaveMeetup.mutateAsync(selMeetup.id)}
-            onNavigate={() => {
-              void startLiveRoute(
-                selMeetup.title,
-                [selMeetup.dest_latitude, selMeetup.dest_longitude],
-                { dismissSheets: false },
-              );
-              trackMapEvent('meetup_tap', { meetupId: selMeetup.id, action: 'directions' });
+            onNavigate={(meetup, socialLease) => {
+              void startLiveRoute(meetup.title, [meetup.dest_latitude, meetup.dest_longitude], { dismissSheets: false, socialLease });
             }}
           />
         )}
@@ -734,6 +719,7 @@ function VybeMapInner() {
       <AnimatePresence>
         {meetupCreateOpen && safeMyCoords && (
           <MeetupCreateSheet
+            key={`${locationScope}:meetup`}
             coords={safeMyCoords}
             onClose={() => setMeetupCreateOpen(false)}
             onSubmit={async ({ title, description }) => {
@@ -775,6 +761,9 @@ function VybeMapInner() {
         open={discoveryOpen}
         onToggle={() => { setDiscoveryOpen((v) => !v); trackMapEvent('discovery_open'); }}
         friends={friends}
+        meetupsState={layers.meetups ? meetupsQuery : undefined}
+        placesState={layers.trending || layers.hotspots ? placesQuery : undefined}
+        checkInsState={checkInsQuery}
         friendsLoading={friendQuery.isLoading || liveQuery.isLoading}
         mapAttribution={<>{useMapbox && <><a href="https://www.mapbox.com/about/maps/" target="_blank" rel="noopener" className="underline">© Mapbox</a>{' · '}</>}<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" className="underline">© OpenStreetMap contributors</a>{useMapbox && <>{' · '}<a href="https://apps.mapbox.com/feedback/" target="_blank" rel="noopener" className="underline">Improve this map</a></>}</>}
         friendsError={friendQuery.isError || liveQuery.isError}
@@ -804,10 +793,11 @@ function VybeMapInner() {
 const VybeMapInnerMemo = memo(VybeMapInner);
 
 export default function VybeMap() {
+  const account = useProfileAccount();
   return (
     <MapViewport>
       <MapErrorBoundary>
-        <VybeMapInnerMemo />
+        <VybeMapInnerMemo key={`${account.session.uid}:${account.session.epoch}`} />
       </MapErrorBoundary>
     </MapViewport>
   );

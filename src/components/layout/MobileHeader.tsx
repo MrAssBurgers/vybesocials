@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Bell, Flame, QrCode, Target } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useUnreadCount } from '@/hooks/useNotifications';
-import { useStreakCount } from '@/hooks/useLoginStreak';
+import { useLoginStreakStatus } from '@/hooks/useLoginStreak';
 import { cn } from '@/lib/utils';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { HeaderSearch } from './HeaderSearch';
@@ -24,7 +24,8 @@ const iconButtonClass = (active: boolean) =>
 
 export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWithoutRef<'header'>>(function MobileHeader(_props, ref) {
   const { data: unreadCount = 0 } = useUnreadCount();
-  const streakCount = useStreakCount();
+  const streakQuery = useLoginStreakStatus();
+  const streakCount = streakQuery.data?.streak ?? 0;
   const prevUnreadRef = useRef(unreadCount);
   const [bellBounce, setBellBounce] = useState(false);
   const location = useLocation();
@@ -132,6 +133,7 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
             </button>
 
             <span className="h-4 w-px bg-foreground/[0.08]" aria-hidden />
+            {streakQuery.isError && <button type="button" className="text-[10px] text-muted-foreground" aria-label="Streak unavailable. Retry loading streak" disabled={streakQuery.isFetching} onClick={() => { void streakQuery.refetch(); }}>Retry streak</button>}
 
             <Link
               to="/notifications"

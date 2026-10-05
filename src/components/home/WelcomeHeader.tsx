@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/lib/auth';
 import { haptics } from '@/lib/haptics';
 import { AIBriefSheet } from './AIBriefSheet';
-import { useStreakCount } from '@/hooks/useLoginStreak';
+import { useLoginStreakStatus } from '@/hooks/useLoginStreak';
 import { useNextLevelProgress } from '@/hooks/useVybePass';
 import { LiveActivityTicker } from './LiveActivityTicker';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -17,7 +17,8 @@ export function WelcomeHeader() {
   const { profile } = useAuth();
   const [showBrief, setShowBrief] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
-  const streakCount = useStreakCount();
+  const streakQuery = useLoginStreakStatus();
+  const streakCount = streakQuery.data?.streak ?? 0;
   const { currentLevel, progressPercent, xpToNextLevel, isReady: levelReady } = useNextLevelProgress();
   const navigate = useNavigate();
 
@@ -88,6 +89,7 @@ export function WelcomeHeader() {
           >
             <div className="flex items-center gap-3">
               {/* Streak pill */}
+              {streakQuery.isError && <button type="button" className="text-xs text-muted-foreground" disabled={streakQuery.isFetching} onClick={event => { event.stopPropagation(); void streakQuery.refetch(); }}>Streak unavailable · Retry</button>}
               {streakCount > 0 && (
                 <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent/10 border border-accent/20">
                   <Flame className="h-3.5 w-3.5 text-accent" />

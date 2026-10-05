@@ -2,7 +2,6 @@ import { ReactNode, useState, useEffect } from 'react';
 import { useLoginStreak } from '@/hooks/useLoginStreak';
 import { StreakPopup } from './StreakPopup';
 import { useAuth } from '@/lib/auth';
-import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 import { useProfileAccount } from '@/hooks/useProfileAccount';
 import LocalErrorBoundary from '@/components/error/LocalErrorBoundary';
 
@@ -20,10 +19,10 @@ function StreakPopupMount() {
     dismissStreakPopup,
     restoreStreak,
     isRestoring,
+    popupError, retryStreak, isUpdating,
   } = useLoginStreak();
 
   const { profile } = useAuth();
-  const { isPremium } = usePremiumStatus();
   const [canShowPopup, setCanShowPopup] = useState(false);
 
   // Delay popup display until onboarding is complete
@@ -43,9 +42,11 @@ function StreakPopupMount() {
       open={showStreakPopup && canShowPopup}
       streak={streakData?.streak ?? streak}
       longestStreak={streakData?.longest_streak ?? longestStreak}
-      isNewStreak={streakData?.streak === 1 && !streakData?.streak_extended}
       onClose={dismissStreakPopup}
-      isPremium={isPremium}
+      receipt={streakData}
+      error={popupError}
+      onRetry={retryStreak}
+      isUpdating={isUpdating}
       onRestore={() => restoreStreak()}
       isRestoring={isRestoring}
     />
