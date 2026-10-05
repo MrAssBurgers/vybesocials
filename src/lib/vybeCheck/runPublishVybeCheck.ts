@@ -100,14 +100,16 @@ function resultFromVybe(
 async function checkSingleFile(
   file: File,
   text: { caption?: string; hashtags?: string[] },
-  contentType: string,
+  guard: () => void,
 ): Promise<PublishVybeCheckResult> {
+  guard();
   const isVideo = file.type.startsWith('video/');
   const nsfw = await withTimeout(
     isVideo ? nsfwScanVideo(file) : nsfwScanImage(file),
     90_000,
     'Vybe Check pre-scan timed out.',
   );
+  guard();
   if (nsfw.result === 'blocked') {
     return {
       allowed: false,
@@ -123,6 +125,7 @@ async function checkSingleFile(
     120_000,
     'Vybe Check frame prep timed out.',
   );
+  guard();
 
   const { result, unavailable } = await withTimeout(
     invokeVybeCheck({
@@ -133,6 +136,7 @@ async function checkSingleFile(
     CHECK_TIMEOUT_MS,
     'Vybe Check timed out. Try again on a stronger connection.',
   );
+  guard();
 
   if (!result) {
     return resultFromVybe({} as VybeCheckInvokeResult, true);
@@ -143,13 +147,16 @@ async function checkSingleFile(
 /** Run full Vybe Check before any publish/upload. Fail-closed when server unavailable. */
 export async function runPublishVybeCheck(
   input: PublishVybeCheckInput,
+  guard: () => void = () => {},
 ): Promise<PublishVybeCheckResult> {
+  guard();
   const caption = input.caption?.trim() || '';
-  const tags = input.tags || [];
+  const tags = [...(input.tags || [])];
   const text = { caption, hashtags: tags };
-  const contentType = input.contentType || 'post';
-
-  if (await shouldBypassSafety()) {
+  const files = input.mediaFiles?.length ? [...input.mediaFiles] : input.mediaFile ? [input.mediaFile] : [];
+  const bypass = await shouldBypassSafety();
+  guard();
+  if (bypass) {
     return {
       allowed: true,
       blocked: false,
@@ -170,25 +177,21 @@ export async function runPublishVybeCheck(
     };
   }
 
-  const files = input.mediaFiles?.length
-    ? input.mediaFiles
-    : input.mediaFile
-      ? [input.mediaFile]
-      : [];
-
   if (!files.length) {
     const { result, unavailable } = await withTimeout(
       invokeVybeCheck({ content_type: 'text', text }),
       CHECK_TIMEOUT_MS,
       'Vybe Check timed out.',
     );
+    guard();
     if (!result) return resultFromVybe({} as VybeCheckInvokeResult, true);
     return resultFromVybe(result, unavailable);
   }
 
   let merged: PublishVybeCheckResult | null = null;
   for (const file of files) {
-    const row = await checkSingleFile(file, text, contentType);
+    const row = await checkSingleFile(file, text, guard);
+    guard();
     merged = mergeWorst(merged, row);
     if (merged.blocked) return merged;
   }

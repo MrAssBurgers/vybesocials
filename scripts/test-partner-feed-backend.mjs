@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { seedPostPublication } from './helpers/post-publication-fixture.mjs';
 const projectId = process.env.GCLOUD_PROJECT;
 assert.match(projectId || '', /^demo-[a-z0-9-]+$/);
 assert.notEqual(projectId, 'demo-vybe-preview');
@@ -56,9 +57,9 @@ try {
   });
   const access = await exchange(device);
   const base = { author_id: profileId, type: 'post', caption: 'Public synthetic moment', visibility: 'public', age_rating: 'safe', created_at: '2026-10-04T12:00:00.000Z' };
-  await Promise.all(Array.from({ length: 22 }, (_, i) => db.doc(`posts/partner-feed-${i}`).set(base)));
-  await db.doc('posts/partner-private').set({ ...base, visibility: 'only_me' });
-  await db.doc('posts/partner-unrated').set({ ...base, age_rating: 'unrated' });
+  await Promise.all(Array.from({ length: 22 }, (_, i) => seedPostPublication(db, `partner-feed-${i}`, base, { uid, profileId })));
+  await seedPostPublication(db, 'partner-private', { ...base, visibility: 'only_me' }, { uid, profileId });
+  await seedPostPublication(db, 'partner-unrated', { ...base, age_rating: 'unrated' }, { uid, profileId });
   let first;
   await check('HTTP feed returns only public safe posts and strips viewer identifiers/signals', async () => {
     first = await http(access); assert.equal(first.status, 200); assert.ok(first.data.posts.length > 0); assert.ok(first.data.nextCursor);

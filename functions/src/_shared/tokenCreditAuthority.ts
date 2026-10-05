@@ -1,6 +1,8 @@
 import type { Firestore, Transaction } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { createHash } from 'node:crypto';
+import { resolveIdentity } from './profileAudienceAuthority.js';
+import { validPostPublication } from './postPublicationProof.js';
 
 type Row = Record<string, unknown>;
 export type TokenActor = { authUid: string; profileId: string };
@@ -72,6 +74,8 @@ async function verifiedTarget(tx: Transaction, db: Firestore, postId: unknown, a
   const profile = direct.exists ? direct : byUid.docs[0]; const data = profile?.data();
   if (!data || !liveProfile(data) || typeof data.user_id !== 'string' || !data.user_id || [actor.authUid, actor.profileId].includes(data.user_id)
     || (target.user_id != null && ![profile.id, data.user_id].includes(target.user_id))) throw new HttpsError('failed-precondition', 'Comment target owner is unavailable');
+  const canonical = await resolveIdentity(db, tx, owner), proof = (await tx.get(db.collection('_post_publications').doc(id(postId)))).data();
+  if (!canonical || !validPostPublication(target, proof, canonical, id(postId))) throw new HttpsError('failed-precondition', 'A confirmed publication is required.');
 }
 
 async function verifySource(tx: Transaction, db: Firestore, actor: TokenActor, type: CreditType, referenceId: string, start: number, now: number) {
@@ -94,6 +98,10 @@ async function verifySource(tx: Transaction, db: Firestore, actor: TokenActor, t
   const ownerField = type === 'comment_added' && row && Object.hasOwn(row, 'user_id') ? 'user_id' : 'author_id';
   if (!row || !ownsSource(row, actor, ownerField)) throw new HttpsError('permission-denied', 'Activity must belong to your account');
   if (!live(row) || !content(row) || created == null || !Number.isFinite(created) || created < start || created > now) throw new HttpsError('failed-precondition', 'A current, published activity is required');
+  if (type === 'post_created') {
+    const owner = await resolveIdentity(db, tx, actor.authUid), proof = (await tx.get(db.collection('_post_publications').doc(referenceId))).data();
+    if (!owner || owner.profileId !== actor.profileId || !validPostPublication(row, proof, owner, referenceId)) throw new HttpsError('failed-precondition', 'Review and share this post before claiming its reward.');
+  }
   if (type === 'comment_added') await verifiedTarget(tx, db, row.post_id, actor);
 }
 

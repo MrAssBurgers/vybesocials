@@ -43,11 +43,12 @@ import { GhostModeSheet } from '@/components/vybemap/hud/GhostModeSheet';
 import { MapSnapTopBar } from '@/components/vybemap/hud/MapSnapTopBar';
 import { MapSettingsSheet } from '@/components/vybemap/hud/MapSettingsSheet';
 import { MapFloatingActions } from '@/components/vybemap/hud/MapFloatingActions';
+import { MapViewport } from '@/components/vybemap/MapViewport';
 
-// Prefetch Mapbox chunk as soon as this module evaluates so Follow can engage faster.
-const mapboxCanvasImport = import('@/components/vybemap/map/VybeMapboxCanvas');
+// Use the existing 3D renderer by default in both preview and production.
+const mapboxCanvasImport = hasMapbox() ? import('@/components/vybemap/map/VybeMapboxCanvas') : null;
 const VybeMapboxCanvas = lazy(() =>
-  mapboxCanvasImport.then((m) => ({
+  (mapboxCanvasImport || import('@/components/vybemap/map/VybeMapboxCanvas')).then((m) => ({
     default: m.VybeMapboxCanvas,
   })),
 );
@@ -100,12 +101,16 @@ function VybeMapInner() {
     heading: myHeading,
     enableTemporaryGhost,
     exitGhost,
+    requestLocation,
   } = useLocationContext();
-  const useMapbox = hasMapbox();
+  const [flatFallback, setFlatFallback] = useState(false);
+  const useMapbox = !flatFallback;
 
   const { layers, toggleLayer } = useMapLayers();
-  const { data: friendIds = [] } = useFriendIds(profileId ?? profile?.id);
-  const { data: friends = [] } = useLiveFriends(friendIds);
+  const friendQuery = useFriendIds(profileId ?? profile?.id);
+  const friendIds = friendQuery.data;
+  const liveQuery = useLiveFriends(friendIds);
+  const friends = liveQuery.data;
   const { data: friendCheckIns = [] } = useFriendCheckIns(friendIds);
   const { data: stories = [] } = useMapStories(layers.stories);
   const { data: posts = [] } = useMapPosts(layers.posts);
@@ -349,7 +354,8 @@ function VybeMapInner() {
 
   const recenter = () => {
     if (!safeMyCoords) {
-      toast.error('Enable location to center the map on you');
+      requestLocation();
+      toast.message('Checking location permission…');
       return;
     }
     // Only this button re-engages GPS follow after the user pans away.
@@ -365,7 +371,8 @@ function VybeMapInner() {
       toast.success("Ghost Mode — you're hidden");
     } else {
       if (!locationAvailable || !safeMyCoords || locationDenied) {
-        toast.error('Enable location permission before going live on VybeMap');
+        requestLocation();
+        toast.message('Check location permission, then choose Go live again.');
         return;
       }
       exitGhost();
@@ -384,7 +391,8 @@ function VybeMapInner() {
 
   const handleStatusChip = () => {
     if (!locationAvailable || !safeMyCoords || locationDenied) {
-      toast.error('Location is off — enable permission in your browser or device settings');
+      requestLocation();
+      toast.message('Checking location permission…');
       return;
     }
     if (effectiveLiveSharing) {
@@ -451,6 +459,7 @@ function VybeMapInner() {
         <Suspense fallback={<MapCanvasLoading />}>
           <VybeMapboxCanvas
             {...mapProps}
+            onUseFlatFallback={() => setFlatFallback(true)}
             mapMode={mapViewMode}
             followHeading={followHeading}
             userHeading={myHeading}
@@ -735,6 +744,10 @@ function VybeMapInner() {
         open={discoveryOpen}
         onToggle={() => { setDiscoveryOpen((v) => !v); trackMapEvent('discovery_open'); }}
         friends={friends}
+        friendsLoading={friendQuery.isLoading || liveQuery.isLoading}
+        mapAttribution={<>{useMapbox && <><a href="https://www.mapbox.com/about/maps/" target="_blank" rel="noopener" className="underline">© Mapbox</a>{' · '}</>}<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" className="underline">© OpenStreetMap contributors</a>{useMapbox && <>{' · '}<a href="https://apps.mapbox.com/feedback/" target="_blank" rel="noopener" className="underline">Improve this map</a></>}</>}
+        friendsError={friendQuery.isError || liveQuery.isError}
+        onRetryFriends={() => { void friendQuery.refetch(); void liveQuery.refetch(); }}
         stories={stories}
         clips={clips}
         meetups={meetups}
@@ -761,8 +774,10 @@ const VybeMapInnerMemo = memo(VybeMapInner);
 
 export default function VybeMap() {
   return (
-    <MapErrorBoundary>
-      <VybeMapInnerMemo />
-    </MapErrorBoundary>
+    <MapViewport>
+      <MapErrorBoundary>
+        <VybeMapInnerMemo />
+      </MapErrorBoundary>
+    </MapViewport>
   );
 }

@@ -9,7 +9,7 @@ import {
   resolveProfileIdFromAuth,
 } from './_shared/aiQuota.js';
 import { runVybeCheckScan } from './_shared/contentSafety.js';
-import { postBelongsToCaller, resolvePostOwnerId } from './_shared/postOwnership.js';
+import { detectOwnedPostAiContent } from './_shared/aiDetectionAuthority.js';
 
 const SECRETS = ['GEMINI_API_KEY'];
 
@@ -860,72 +860,16 @@ export const generateCaption = onCall({ secrets: SECRETS }, async (request) => {
 /** detect-ai-content — VYBE Check: is this post AI-generated? */
 export const detectAiContent = onCall({ secrets: SECRETS }, async (request) => {
   const uid = requireAuth(request);
-  const { post_id, caption, image_base64, mime_type, content_type } =
-    (request.data || {}) as {
-      post_id?: string;
-      caption?: string;
-      image_base64?: string;
-      mime_type?: string;
-      content_type?: string;
-    };
-
-  if (!image_base64 && !caption) {
-    return { is_ai: false, confidence: 0, reason: 'No content to analyze' };
-  }
-
-  if (post_id) {
-    const postSnap = await db.collection('posts').doc(post_id).get();
-    if (postSnap.exists) {
-      const post = postSnap.data() as { author_id?: string; user_id?: string };
-      const profileId = await resolveProfileIdFromAuth(uid);
-      if (!postBelongsToCaller(post, uid, profileId)) {
-        if (!resolvePostOwnerId(post)) {
-          throw new HttpsError('failed-precondition', 'Post owner missing');
-        }
-        throw new HttpsError('permission-denied', 'not your post');
-      }
-    }
-  }
-
-  const parts: Array<{ type: string; [k: string]: unknown }> = [
-    {
-      type: 'text',
-      text: `Analyze if this ${content_type || 'content'} is AI-generated. Caption: "${caption || ''}". Return JSON only: {"is_ai":boolean,"confidence":0-1,"reason":"short"}`,
-    },
-  ];
-  if (image_base64) {
-    parts.push({
-      type: 'image_url',
-      image_url: { url: `data:${mime_type || 'image/jpeg'};base64,${image_base64}` },
+  return detectOwnedPostAiContent(db, uid, request.data, async ({ caption, contentType, imageBase64, mimeType }) => {
+    const parts: Array<{ type: string; [k: string]: unknown }> = [{ type: 'text',
+      text: `Analyze if this ${contentType} is AI-generated. Caption: ${JSON.stringify(caption)}. Return JSON only: {"is_ai":boolean,"confidence":0-1,"reason":"short"}` }];
+    if (imageBase64) parts.push({ type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } });
+    const { content } = await chatCompletion({
+      messages: [{ role: 'user', content: parts }], response_format: { type: 'json_object' },
+      model: modelForTier('standard'), max_tokens: TOKEN_BUDGET.short, temperature: 0.2,
     });
-  }
-
-  const { content } = await chatCompletion({
-    messages: [{ role: 'user', content: parts }],
-    response_format: { type: 'json_object' },
-    model: modelForTier('standard'),
-    max_tokens: TOKEN_BUDGET.short,
-    temperature: 0.2,
+    return content;
   });
-
-  let result = { is_ai: false, confidence: 0, reason: 'Analysis inconclusive' };
-  try {
-    result = { ...result, ...JSON.parse(content) };
-  } catch { /* keep default */ }
-
-  if (post_id) {
-    await db.collection('posts').doc(post_id).set(
-      {
-        is_ai_generated: !!result.is_ai,
-        ai_detection_confidence: result.confidence,
-        ai_detection_reason: result.reason,
-        ai_checked_at: new Date().toISOString(),
-      },
-      { merge: true },
-    );
-  }
-
-  return result;
 });
 
 /** dna-chat — short DNA-aware AI thread. */

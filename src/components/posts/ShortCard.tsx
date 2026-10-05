@@ -1,3 +1,5 @@
+import { applyConfirmedPostView } from '@/lib/postViewService';
+import { usePostMutations } from '@/hooks/usePostMutations';
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { ProfileLink } from '@/components/profile/ProfileLink';
@@ -44,6 +46,8 @@ import { DeleteContentDialog } from '@/components/posts/DeleteContentDialog';
 
 interface ShortCardProps {
   post: {
+    publication_revision?: string;
+    needs_owner_confirmation?: boolean;
     id: string;
     media_url: string;
     caption: string;
@@ -71,6 +75,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const { profile } = useAuth();
   const submitSafetyReport = useSafetyReport();
   const queryClient = useQueryClient();
+  const postActions = usePostMutations(post.id);
   const { data: userRole } = useUserRole();
   const { data: authorRole } = useUserRoleById(post.author?.id);
   const isModOrAdmin = useIsModOrAdmin();
@@ -109,7 +114,10 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const [showCommentSheet, setShowCommentSheet] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteRevision, setDeleteRevision] = useState<string | undefined>();
   const [isDeleting, setIsDeleting] = useState(false);
+  useEffect(() => { setDeleteDialogOpen(false); setIsDeleting(false); setDeleteRevision(undefined); }, [postActions.contextKey]);
+
   const [showShareSheet, setShowShareSheet] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const hasCountedInitialView = useRef(false);
@@ -190,16 +198,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   }, [isActive, signedMediaUrl, globalMuted, profile]);
 
   const incrementViewCount = async () => {
-    try {
-      const { error } = await db.rpc('increment_view_count', { post_id_param: post.id });
-      if (error) {
-        console.error('RPC error:', error);
-        setViewCount(prev => prev + 1);
-      }
-    } catch (error) {
-      console.error('Failed to increment view count:', error);
-      setViewCount(prev => prev + 1);
-    }
+    await applyConfirmedPostView(postActions.actor, post.id, postActions.guard, setViewCount);
   };
 
   const handleVideoEnded = useCallback(() => {
@@ -330,34 +329,12 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     setTimeout(() => setShowHeart(false), 800);
   };
 
+
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      const { data: deletedRows, error } = await db
-        .from('posts')
-        .delete()
-        .eq('id', post.id)
-        .select('id');
-
-      if (error) throw error;
-
-      if (!deletedRows || deletedRows.length === 0) {
-        toast.error("You don't have permission to delete this clip");
-        return;
-      }
-
-      if (profile?.id) {
-        db.from('post_deletion_log').insert({
-          post_id: post.id,
-          author_id: (post as any).author?.id ?? null,
-          deleted_by: profile.id,
-          post_type: (post as any).type ?? 'short',
-          caption: post.caption ?? null,
-          reason: 'user_self_delete',
-        }).then(({ error: logErr }) => {
-          if (logErr) console.warn('[DeletionLog] insert failed', logErr);
-        });
-      }
+      await postActions.remove(post.id, deleteRevision);
+      postActions.guard();
 
       toast.success('Clip deleted');
       setDeleteDialogOpen(false);
@@ -368,10 +345,11 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       queryClient.invalidateQueries({ queryKey: ['profile'] });
       queryClient.invalidateQueries({ queryKey: ['profile-by-id'] });
     } catch (error) {
+      try { postActions.guard(); } catch { return; }
       console.error('Failed to delete clip:', error);
       toast.error('Failed to delete clip');
     } finally {
-      setIsDeleting(false);
+      try { postActions.guard(); setIsDeleting(false); } catch { /* Retired view. */ }
     }
   };
 
@@ -615,7 +593,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
               </DropdownMenuItem>
             )}
             {canDelete && (
-              <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-destructive">
+              <DropdownMenuItem onClick={() => { setDeleteRevision(post.publication_revision); setDeleteDialogOpen(true); }} className="text-destructive">
                 <Trash2 className="mr-2 h-4 w-4" />
                 Delete
               </DropdownMenuItem>
@@ -708,6 +686,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       />
 
       {/* Edit Dialog */}
+      {isOwnPost && post.needs_owner_confirmation && <div className="absolute bottom-24 left-4 right-20 z-20 rounded-2xl bg-background/90 p-3 text-sm"><p>Only you can see this older clip.</p><Button variant="link" className="h-auto p-0" onClick={() => setEditDialogOpen(true)}>Review and share</Button></div>}
       {isOwnPost && (
         <EditPostDialog
           post={post}

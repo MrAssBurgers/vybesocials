@@ -912,30 +912,18 @@ service cloud.firestore {
           && profile != null && profile.data.user_id == uid()
           && (uidProfile == null || canonical == uid());
       }
-      function reservedGamePost() { return postId.matches('game_.*'); }
-      function validGameCaptureCreate() {
-        let captureId = request.resource.data.get('game_capture_id', '');
-        let capture = get(/databases/$(database)/documents/game_captures/$(captureId)).data;
-        return captureId is string && captureId.matches('^[a-f0-9]{48}$')
-          && postId == 'game_' + captureId && request.resource.data.get('id', '') == postId
-          && capture.owner_uid == uid() && capture.status == 'ready'
-          && capture.expires_at_ms > request.time.toMillis();
-      }
-      function preservesGameCaptureIdentity() {
-        return request.resource.data.author_id == resource.data.author_id
-          && request.resource.data.get('game_capture_id', '') == resource.data.get('game_capture_id', '')
-          && request.resource.data.get('id', '') == resource.data.get('id', '');
-      }
       // Other viewers receive current audience/block/deletion checked DTOs
       // from readSocialFeed/readSocialPostPreviews/readSocialPostList.
       allow read: if ownsPostRead() || isStaffModerator();
-      allow create: if willOwnProfile('author_id')
-        && (reservedGamePost() ? validGameCaptureCreate() : !request.resource.data.keys().hasAny(['game_capture_id']));
-      allow update: if (isOwnerProfile('author_id') || isStaffModerator())
-        && request.resource.data.author_id == resource.data.author_id
-        && (reservedGamePost() ? preservesGameCaptureIdentity() : !request.resource.data.diff(resource.data).affectedKeys().hasAny(['game_capture_id']));
-      allow delete: if isOwnerProfile('author_id') || isStaffModerator();
+      // Publication ownership, revision checks and retry tombstones are server-owned.
+      // Staff post removal also uses managePost rather than bypassing its receipt.
+      allow create, update, delete: if false;
     }
+    match /_post_publications/{postId} { allow read, write: if false; }
+    match /_post_publication_receipts/{receiptId} { allow read, write: if false; }
+    match /_post_pin_state/{ownerUid} { allow read, write: if false; }
+    match /_post_view_receipts/{receiptId} { allow read, write: if false; }
+    match /_post_view_limits/{limitId} { allow read, write: if false; }
     match /comments/{commentId} {
       function ownAlias(value) {
         let canonical = profileId();

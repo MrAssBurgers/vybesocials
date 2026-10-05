@@ -92,4 +92,14 @@ describe('desktop upload truthfulness and media lifecycle', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close Create Studio' }));
     expect(onClose).toHaveBeenCalledOnce();
   });
+  it('keeps the media draft editable if the account-bound queue cannot start', () => {
+    enqueue.mockImplementationOnce(() => { throw new Error('Your account changed.'); });
+    const view = mount();
+    fireEvent.change(view.container.querySelector('input[type="file"]')!, { target: { files: [new File(['photo'], 'photo.png', { type: 'image/png' })] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }));
+    expect(screen.getByRole('button', { name: 'Post' })).not.toBeDisabled();
+    expect(view.container.querySelector('img[src="blob:studio-1"]')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Publishing…' })).toBeNull();
+  });
+
 });

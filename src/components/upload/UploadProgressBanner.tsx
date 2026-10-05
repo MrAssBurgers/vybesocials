@@ -18,7 +18,7 @@ const STAGE_LABEL: Record<UploadJob['stage'], string> = {
   vybe_check: 'Checking safety…',
   publishing: 'Publishing…',
   done: 'Published!',
-  failed: 'Couldn’t publish',
+  failed: 'Publication not confirmed',
 };
 
 function JobRow({ job }: { job: UploadJob }) {
@@ -101,13 +101,13 @@ function JobRow({ job }: { job: UploadJob }) {
           )}
           <button
             type="button"
+            title="Start a separate draft. Retry checks the original publication."
             onClick={() => {
-              dismissUploadJob(job.id);
               navigate('/upload');
             }}
             className="inline-flex items-center gap-1.5 rounded-full border border-border/60 px-3 py-1.5 text-[11px] font-semibold text-foreground"
           >
-            Edit post
+            New draft
           </button>
         </div>
       )}

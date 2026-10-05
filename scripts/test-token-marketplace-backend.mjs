@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { seedPostPublication } from './helpers/post-publication-fixture.mjs';
 // Refuse production before any Firebase module initializes. Every identity and
 // purchase below is synthetic, and Admin writes are only emulator fixtures.
 const projectId = process.env.GCLOUD_PROJECT;
@@ -24,7 +25,7 @@ const actor = async name => {
   return value;
 };
 const purchase = (owner, itemId, requestId, expectedCost) => purchaseTokenItem(db, owner, { itemId, requestId, expectedCost });
-const post = async (id, owner, extra = {}) => { const ref = db.doc(`posts/${id}`); await ref.set({ author_id: owner.profileId, caption: 'Synthetic retained post', type: 'post', created_at: new Date().toISOString(), ...extra }); return ref; };
+const post = async (id, owner, extra = {}) => { const ref = db.doc(`posts/${id}`); await seedPostPublication(db, id, { author_id: owner.profileId, caption: 'Synthetic retained post', type: 'post', created_at: new Date().toISOString(), ...extra }, { uid: owner.authUid, profileId: owner.profileId }); return ref; };
 const sourceNow = async ref => Math.max(Date.now(), (await ref.get()).createTime.toMillis());
 try {
   const reset = await fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST}/emulator/v1/projects/${projectId}/databases/(default)/documents`, { method: 'DELETE' });

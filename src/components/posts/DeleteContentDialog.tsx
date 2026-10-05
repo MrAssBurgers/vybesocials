@@ -38,7 +38,7 @@ export function DeleteContentDialog({
           </div>
           <AlertDialogTitle className="text-center">Delete this {kind}?</AlertDialogTitle>
           <AlertDialogDescription className="text-center">
-            {description || 'This removes it from VYBE permanently, including reactions and comments.'}
+            {description || `This removes the ${kind} from VYBE. This action cannot be undone.`}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

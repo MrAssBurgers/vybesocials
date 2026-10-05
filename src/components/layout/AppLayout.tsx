@@ -29,6 +29,8 @@ interface AppLayoutProps {
   fullWidth?: boolean;
   hideNav?: boolean;
   noPadding?: boolean;
+  /** The page paints its own bottom navigation and safe-area space. */
+  contentOwnsBottomPadding?: boolean;
   /** Force swipe-back when hideNav+noPadding would otherwise disable it (e.g. open DM). */
   enableSwipeBack?: boolean;
 }
@@ -40,6 +42,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   fullWidth = false,
   hideNav = false,
   noPadding = false,
+  contentOwnsBottomPadding = false,
   enableSwipeBack,
 }, ref) {
   const { loading, user, profile } = useAuth();
@@ -119,7 +122,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
               marginTop: hideNav || !noPadding ? undefined : 'var(--app-header-height)',
               // noPadding shells (DMs) contain their own scroller.
               touchAction: noPadding ? 'manipulation' : undefined,
-              paddingBottom: reserveBottomNavSpace
+              paddingBottom: reserveBottomNavSpace && !contentOwnsBottomPadding
                 ? navEffectiveVisible
                   ? 'calc(6rem + var(--sab, env(safe-area-inset-bottom, 0px)))'
                   : 'calc(1.25rem + var(--sab, env(safe-area-inset-bottom, 0px)))'
@@ -131,7 +134,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
               transition: swipeProgress === 0 ? 'transform 0.2s ease-out' : undefined,
             }}
           >
-            <div className={isDesktop ? cn('mx-auto w-full', noPadding ? 'h-full' : 'px-2 lg:px-3 py-3', fullWidth ? '' : 'max-w-full') : 'contents'}>
+            <div className={isDesktop ? cn('mx-auto w-full', noPadding ? 'h-full' : contentOwnsBottomPadding ? 'px-2 lg:px-3 pt-3' : 'px-2 lg:px-3 py-3', fullWidth ? '' : 'max-w-full') : 'contents'}>
               {children}
             </div>
           </main>

@@ -37,12 +37,41 @@ This follow-up also repairs existing sound uploads (`uploadSound`, `readSoundLib
 
 No production deployment was performed for this checkpoint. Review these exact changed exports and their matching client before any rollout:
 
-- Checked post reads: `readSocialPostList`, `readSocialFeed`, `readSocialPostPreviews`, `getRankedFeed`, `getRecommendations`, `calculateFeedRanking`, `sharePreview`, `mcp`, and `sitemapDynamic`. Broad signed-in raw post reads are now denied; only canonical owners and staff retain raw read access. Deploy the checked readers and required indexes before activating the matching rules/client. Older raw-reader clients are incompatible. Current audience/block/deletion checks do not prove historical authorship; the old caller-writable author fields require a separate migration.
+- Checked post reads: `readSocialPostList`, `readSocialFeed`, `readSocialPostPreviews`, `getRankedFeed`, `getRecommendations`, `calculateFeedRanking`, `sharePreview`, `mcp`, and `sitemapDynamic`. Broad signed-in raw post reads are now denied; only canonical owners and staff retain raw read access. The publication repair below additionally requires protected publication evidence for cross-user and public reads. Older unproven posts stay available to their currently claimed canonical owner for deliberate review; there is no bulk historical attestation. Older raw-reader clients are incompatible.
 - Saved original audio: `manageSavedSounds` plus the changed `readSoundLibrary`/`uploadSound` module. Deploy the `_saved_sound_refs` owner/active/name index and matching private rules; old direct `user_saved_sounds` access is denied. See [sound contracts](docs/SOUND_UPLOADS.md).
 - Account controls: `manageSignInPreferences`, `authSessionRevoke`, `manageNotificationPreferences`, and `muteSmartPings`. Matching rules, session/history indexes, and receipt/limit TTLs are required. See [account contracts](docs/ACCOUNT_SETTINGS_STABILITY.md). This does not lift the `auth2faRequest` deployment restriction or establish server-enforced MFA.
 - Notification delivery dependencies: `sendPushNotification`, `sendBriefNotification`, `onDmMessageCreated`, `onConversationMessageCreated`, `onCallCreated`, `onSocialNotificationCreated`, `smartBriefPings`, and `smartPingDispatcher`. Each uses the shared checked preference authority; deploy together with the canonical settings endpoint. No real push/provider delivery was exercised during local QA.
 
 Review the named indexes in `firestore.indexes.json`, including profile/sound/filter post ordering, bookmarks, tagged posts, pins, saved sounds, sessions and login history. New TTL fields are `_social_post_list_cursors.expires_at` and `expireAt` on `_notification_preference_requests`, `_sign_in_preference_receipts`, `_sign_in_preference_limits`, `_auth_session_revocations`, and `_auth_session_revoke_limits`. Expiration is checked before managed cleanup. Preserve earlier pending resources and private namespaces. Do not deploy the local wrapper, fixtures, or emulator configuration. Do not use a broad Functions deploy.
+
+## Post publication and playback checkpoint (2026-10-04)
+
+This is a coordinated compatibility change, not a standalone client release. See [Post publication stability](docs/POST_PUBLICATION_STABILITY.md) for the authority, historical review and retry contracts. No production deployment, Auth configuration change or real AI-provider call was performed for this checkpoint.
+
+Review these exact exported function names. Shared helpers are compiled into their callers; deploying only `managePost` leaves older readers, game acknowledgement and reward paths on their previous authority.
+
+| Changed boundary | Named Functions targets |
+|---|---|
+| Publication and observed playback | `managePost`, `recordPostView` |
+| Feed, list, known-ID and public reads | `readSocialPostList`, `readSocialFeed`, `readSocialPostPreviews`, `getRankedFeed`, `getRecommendations`, `calculateFeedRanking`, `sharePreview`, `mcp`, `sitemapDynamic` |
+| Comment parent admission | `readPostComments`, `readPostCommentCounts`, `readCommentContext`, `managePostComment` |
+| Existing post AI metadata | `detectAiContent` — exact export casing; delayed results now require the same post/proof versions |
+| Game acknowledgement, discard recovery and partner feed/gallery | `getGameCapture`, `completeGameCapture`, `discardGameCapture`, `gamePartnerApi` |
+| Post-dependent rewards | `tokenMarketplace`, `incrementChallengeProgress`, `syncMyChallengeProgress`, `claimChallengeReward` |
+
+The existing `createGameCapture`, `finishGameCapture` and `cleanupGameCaptures` endpoints, game registration/consent and Storage rules remain prerequisites for game uploads; this publication change does not replace their rollout checklist. Sound admission, protected following, filters and optional Vybe Check records must also have their matching existing authority deployed. Do not deploy unrelated exports just because they share a source module. In particular, **`auth2faRequest` remains excluded**; the separate email-confirmation release restriction above still applies to the combined client.
+
+Release order for an explicitly reviewed publication rollout:
+
+1. Build the Functions and matching client from the same tested commit. Review the complete Firestore rules/index files, inspect the currently deployed reader/game/reward versions, and arrange a controlled cutover: old raw writers and new strict reader DTOs are incompatible. Record that older unproven posts will disappear from other accounts until their owner deliberately reviews and republishes them. Do not seed proofs from mutable historical authorship fields.
+2. Install required indexes and wait for readiness. The pin transaction uses `posts(author_id ASC, is_pinned ASC)`; retain the profile/sound/filter/type/time, bookmark and tagged-post ordering indexes used by checked readers. Install the new TTL policies `_post_view_receipts.expireAt` and `_post_view_limits.expireAt`, preserving the existing reader cursor TTLs. Review the full index target before applying it.
+3. Deploy the reviewed named Functions in the table with explicit `functions:<export>` targets, then activate the reviewed Firestore restrictions before reopening the compatible client to users. These source rules deny every direct post create/update/delete, retain canonical-owner/staff raw reads, and deny client access to `_post_publications`, `_post_publication_receipts`, `_post_pin_state`, `_post_view_receipts` and `_post_view_limits`. Verify all named endpoints together; partial deployment is not completion of this boundary.
+4. Publish the matching `origin/main` client through **Lovable → Share → Publish**, subject to the other pending prerequisites above. Confirm assets and native hydration as described below. Missing endpoints, stale DTOs or unavailable indexes must remain visible failures; do not add a raw-write/read fallback to keep an old client working.
+5. Use designated test accounts to verify create/edit/pin/delete, an intentionally lost reply, stale revision rejection, staff removal, owner-only legacy review, conservative legacy audience, cross-account denial, current follower/block revocation, game acknowledgement, reward admission and playback counts. Verify both the client receipt and current server state. Local fixtures and successful builds do not certify deployed rules, provider behavior or native uploads.
+
+Publication proofs, tombstones and mutation receipts have **no TTL**. Do not expire or delete them as cursor cleanup or rollback: they prevent reused post identities and stale requests from resurrecting content. Their storage and retention policy needs separate operational review. Playback receipts are different: they deduplicate one authenticated account/post per UTC hour; they are eligible for cleanup at the second hour boundary. View-limit records expire roughly two hours after their minute bucket. These are observed playback counters, not verified people or watch time.
+
+Publication evidence binds account intent and fields, **not actual media bytes**. Optional Vybe Check and AI samples do not bind an immutable caption/media digest. Historical private or conflicting audience settings require explicit review and conservative recovery; do not turn them public as a migration shortcut. Previously delivered media URLs/bytes cannot be recalled by a new post rule. Retain these limitations in the release record.
 
 ## Offline strategy (Despia Native default)
 
@@ -261,6 +290,7 @@ The release order is feature-specific; do not apply one blanket ordering:
 
 - [Mini-app drafts and publication](docs/MINI_APPS.md): deploy tested draft callables, publish the compatible client, then install reviewed Firestore restrictions. Include `publishMiniApp` only when that implementation is part of the reviewed release; verify source conflicts, deletion/retry, publication receipts and quotas.
 - [Reporting and moderation](docs/REPORT_AUTHORITY.md): coordinate callable, indexes, client and rules. Resolve evidence/audit retention requirements before production rollout. Historical `content_flags` records are not the verified report queue; unavailable or rejected callable submissions must remain visibly unconfirmed.
+- [Post publication and reads](docs/POST_PUBLICATION_STABILITY.md): follow the named dependency table and coordinated cutover above. Preserve publication receipts/tombstones, deploy the matching checked reader DTOs and view TTLs, and leave historical recovery explicit and owner-scoped.
 - [First-party game SDK](docs/GAME_SDK.md) and [partner API](docs/PARTNER_GAME_API.md): include matching Firestore/Storage authority and cleanup functions before enabling integrations. Registration, CORS, scoped consent, expiry/revocation, cleanup capacity and actual upload/download tests remain separate prerequisites. A built SDK is not a deployed integration.
 
 Record actual CLI results, project, targets, date/time and the tested commit. A local source change, emulator pass or unauthenticated HTTP response does not prove the deployed function version matches that commit.

@@ -6,6 +6,7 @@ import { followAuthorityId, hasApprovedFollow, hasCurrentFollow } from './follow
 import { isLocalArea, nearbyLocalArea, sameLocalArea } from './localArea.js';
 import { validPostLocalProof } from './postLocalAreaAuthority.js';
 import { rankSocialPosts } from './socialFeedRanking.js';
+import { postPublicationAdmission, validPublicationMediaUrl } from './postPublicationProof.js';
 export const validPostDocumentId = (value) => typeof value === 'string' && value.length > 0 && !value.includes('/') && Buffer.byteLength(value) <= 1500;
 const PAGE_SIZE = 20;
 const CURSOR_TTL = 10 * 60 * 1000;
@@ -41,15 +42,7 @@ export function normalizeSocialFeedInput(raw, uid) {
 const text = (value, max) => typeof value === 'string' && value.length <= max ? value : null;
 const counter = (value) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
 function httpsUrl(value) {
-    if (typeof value !== 'string' || value.length > 8192)
-        return null;
-    try {
-        const url = new URL(value);
-        return url.protocol === 'https:' && !url.username && !url.password ? url.href : null;
-    }
-    catch {
-        return null;
-    }
+    return validPublicationMediaUrl(value) ? new URL(value).href : null;
 }
 function dateText(value) {
     if (value instanceof Timestamp)
@@ -82,12 +75,15 @@ export async function authorAdmission(db, tx, viewer, alias) {
         friend = !outgoing.empty || !incoming.empty;
         close = friend && hasCloseFriendAuthority(proof.data(), author, viewer);
     }
-    const allows = (level) => typeof level === 'string' && ['public', 'everyone', 'friends', 'close_friends', 'only_me', 'private'].includes(level)
-        && (self || level === 'public' || level === 'everyone' || (level === 'friends' && friend) || (level === 'close_friends' && close));
+    const allows = (level) => typeof level === 'string' && ['public', 'everyone', 'followers', 'friends', 'close_friends', 'only_me', 'private'].includes(level)
+        && (self || level === 'public' || level === 'everyone' || (level === 'followers' && hasCurrentFollow(follow, author, viewer)) || (level === 'friends' && friend) || (level === 'close_friends' && close));
     return { author, settings, allows, connected: !self && (friend || hasCurrentFollow(follow, author, viewer)) };
 }
-export function projectPost(id, row, admission) {
+export function projectPost(id, row, admission, proof, viewerUid) {
     const { author, allows, settings } = admission;
+    const publication = postPublicationAdmission(row, proof, author, id, viewerUid);
+    if (!publication)
+        return null;
     if (typeof row.type !== 'string' || !['post', 'short', 'video'].includes(row.type) || !allows(settings[row.type === 'short' ? 'clips' : 'posts']))
         return null;
     // Apply every explicit restriction; unknown legacy values never widen access.
@@ -117,7 +113,7 @@ export function projectPost(id, row, admission) {
     if (typeof ageRating !== 'string' || !['safe', '13+', '18+', 'unrated'].includes(ageRating))
         return null;
     return {
-        id, type: row.type, caption, createdAt,
+        id, type: row.type, caption, createdAt, ...publication,
         mediaUrl, mediaUrls: mediaUrls.map(url => httpsUrl(url)), thumbnailUrl: httpsUrl(row.thumbnail_url), ageRating,
         // Presentation snapshots only; these counters never establish permission or reward eligibility.
         likeCount: counter(row.like_count), commentCount: counter(row.comment_count), viewCount: counter(row.view_count), isPinned: row.is_pinned === true,
@@ -128,7 +124,7 @@ export function projectPost(id, row, admission) {
     };
 }
 /** Anonymous metadata never inherits an authenticated viewer's relationships.
- * Historical authorship is not attested here; this is a current audience gate. */
+ * Public content also requires a current protected publication proof. */
 export async function readPublicSocialPost(db, postId) {
     if (!validPostDocumentId(postId))
         return null;
@@ -143,7 +139,8 @@ export async function readPublicSocialPost(db, postId) {
         const allows = (level) => level === 'public' || level === 'everyone';
         if (!(allows(row.visibility) || allows(row.audience)))
             return null;
-        return projectPost(postId, row, { author, settings, allows, connected: false });
+        const proof = (await tx.get(db.collection('_post_publications').doc(postId))).data();
+        return projectPost(postId, row, { author, settings, allows, connected: false }, proof);
     });
 }
 /** Known-ID previews use exactly the feed's current audience/author projection.
@@ -168,7 +165,8 @@ export async function readSocialPostPreviewsPage(db, uid, raw) {
             const admission = await admissions.get(row.author_id);
             if (!admission || (row.user_id !== undefined && (typeof row.user_id !== 'string' || !admission.author.aliases.includes(row.user_id))))
                 continue;
-            const projected = projectPost(candidate.id, row, admission);
+            const proof = (await tx.get(db.collection('_post_publications').doc(candidate.id))).data();
+            const projected = projectPost(candidate.id, row, admission, proof, viewer.uid);
             if (projected)
                 posts.push(projected);
         }
@@ -184,7 +182,8 @@ export async function admitSocialPost(db, tx, viewer, postId) {
     const admission = await authorAdmission(db, tx, viewer, row.author_id);
     if (!admission || (row.user_id !== undefined && (typeof row.user_id !== 'string' || !admission.author.aliases.includes(row.user_id))))
         return null;
-    return projectPost(postId, row, admission);
+    const proof = (await tx.get(db.collection('_post_publications').doc(postId))).data();
+    return projectPost(postId, row, admission, proof, viewer.uid);
 }
 /** Account-bound reader with a separately authorized external public-feed boundary. */
 export async function readSocialFeedPage(db, uid, raw, nowMs = Date.now(), external) {
@@ -257,7 +256,8 @@ export async function readSocialFeedPage(db, uid, raw, nowMs = Date.now(), exter
                     || (row.is_private !== undefined && row.is_private !== false))
                     continue;
             }
-            const projected = projectPost(post.id, row, admission);
+            const publicationProof = (await tx.get(db.collection('_post_publications').doc(post.id))).data();
+            const projected = projectPost(post.id, row, admission, publicationProof, external ? undefined : viewer.uid);
             if (!projected)
                 continue;
             if (input.feed === 'local') {

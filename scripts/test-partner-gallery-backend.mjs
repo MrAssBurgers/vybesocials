@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { seedPostPublication } from './helpers/post-publication-fixture.mjs';
 const projectId = process.env.GCLOUD_PROJECT;
 assert.match(projectId || '', /^demo-[a-z0-9-]+$/);
 assert.notEqual(projectId, 'demo-vybe-preview', 'Do not run destructive QA in the retained interactive preview');
@@ -36,6 +37,7 @@ async function http(access, path, method = 'GET', query = {}) {
 }
 try {
   const reset = await fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST}/emulator/v1/projects/${projectId}/databases/(default)/documents`, { method: 'DELETE' }); assert.ok(reset.ok);
+  await db.doc(`profiles/${uid}`).set({ user_id: uid, username: uid });
   await db.doc(`game_integrations/${clientId}`).set({ enabled: true, partner_enabled: true, publisher_verified: true, display_name: 'Gallery QA Mod', publisher_name: 'Local QA' });
   await check('media scope is visible and cannot be approved by an old consent client', async () => {
     const device = await startPartnerDevice(clientId, 'fixture', scopes);
@@ -84,7 +86,7 @@ try {
     for (const patch of [{ status: 'cancelled' }, { expires_at_ms: Date.now() - 1 }, { owner_uid: 'other' }, { storage_path: 'foreign/path' }]) {
       await ref.set({ ...stored, ...patch }); await assert.rejects(checkPartnerCapturePreview(access.accessToken, capture.captureId), { code: 'not_found' });
     }
-    await ref.set(stored); await db.doc(`posts/game_${capture.captureId}`).set({ game_capture_id: capture.captureId, author_id: uid });
+    await ref.set(stored); await seedPostPublication(db, `game_${capture.captureId}`, { game_capture_id: capture.captureId, author_id: uid }, { uid, profileId: uid });
     await assert.rejects(readPartnerCapturePreview(access.accessToken, capture.captureId), { code: 'not_found' });
     assert.equal((await listPartnerCaptures(access.accessToken, '0'.repeat(47) + 'f')).captures.find(item => item.captureId === capture.captureId).status, 'imported');
     await db.doc(`posts/game_${capture.captureId}`).delete();

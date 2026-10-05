@@ -67,12 +67,33 @@ export async function readSocialPostListPage(db, uid, raw, nowMs = Date.now()) {
         // are admitted independently and deduplicated against ordinary pages.
         const pins = input.scope === 'profile' && !input.cursor
             ? (await tx.get(db.collection('posts').where('author_id', 'in', target.aliases).where('is_pinned', '==', true).limit(3))).docs : [];
+        const selected = [...pins, ...rawCandidates];
+        const rows = new Map();
+        for (const candidate of selected) {
+            const reference = candidate.data(), postId = collection === 'posts' ? candidate.id : reference.post_id;
+            if (validPostDocumentId(postId) && !rows.has(postId))
+                rows.set(postId, collection === 'posts' ? reference : undefined);
+        }
+        // A list page has at most 20 references plus three profile pins. Fetch its
+        // dependent documents in bounded transaction-local batches, preserving the
+        // candidate ordering and current snapshot while avoiding one RPC per post.
+        if (collection !== 'posts' && rows.size) {
+            for (const snapshot of await tx.getAll(...[...rows.keys()].map(id => db.collection('posts').doc(id))))
+                rows.set(snapshot.id, snapshot.data());
+        }
+        const proofs = new Map();
+        if (input.scope !== 'search') {
+            const proofIds = [...rows].filter(([, row]) => row && validAudienceId(row.author_id) && (!input.contentType || row.type === input.contentType)).map(([id]) => id);
+            if (proofIds.length)
+                for (const snapshot of await tx.getAll(...proofIds.map(id => db.collection('_post_publications').doc(id))))
+                    proofs.set(snapshot.id, snapshot.data());
+        }
         const admissions = new Map();
         const posts = [];
         const unavailableSavedPostIds = [];
         const seen = new Set();
         let last;
-        for (const candidate of [...pins, ...rawCandidates]) {
+        for (const candidate of selected) {
             if (rawCandidates.includes(candidate))
                 last = candidate;
             const reference = candidate.data();
@@ -80,7 +101,7 @@ export async function readSocialPostListPage(db, uid, raw, nowMs = Date.now()) {
             if (!validPostDocumentId(postId) || seen.has(postId))
                 continue;
             seen.add(postId);
-            const row = collection === 'posts' ? reference : (await tx.get(db.collection('posts').doc(postId))).data();
+            const row = rows.get(postId);
             let projected = null;
             if (row && validAudienceId(row.author_id) && (!input.contentType || row.type === input.contentType)) {
                 const search = input.search?.toLowerCase();
@@ -90,8 +111,12 @@ export async function readSocialPostListPage(db, uid, raw, nowMs = Date.now()) {
                 if (!admissions.has(row.author_id))
                     admissions.set(row.author_id, authorAdmission(db, tx, viewer, row.author_id));
                 const admission = await admissions.get(row.author_id);
-                if (admission && (row.user_id === undefined || admission.author.aliases.includes(row.user_id)))
-                    projected = projectPost(postId, row, admission);
+                if (admission && (row.user_id === undefined || (typeof row.user_id === 'string' && admission.author.aliases.includes(row.user_id)))) {
+                    // Search stops after 20 admitted matches inside a 100-candidate scan;
+                    // keep it incremental so a short result does not fetch 100 proofs.
+                    const proof = input.scope === 'search' ? (await tx.get(db.collection('_post_publications').doc(postId))).data() : proofs.get(postId);
+                    projected = projectPost(postId, row, admission, proof, viewer.uid);
+                }
             }
             if (projected)
                 posts.push(projected);

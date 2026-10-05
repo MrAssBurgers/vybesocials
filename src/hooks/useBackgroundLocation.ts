@@ -32,6 +32,8 @@ export interface LocationState {
   /** Epoch ms when temporary ghost ends; null if live or permanent ghost. */
   ghostUntil: number | null;
   setSharing: (v: boolean) => void;
+  /** Existing map controls may ask for position; mounting the map never prompts. */
+  requestLocation: () => void;
   /** Hide for `ms` then auto-restore. Survives leaving /map. */
   enableTemporaryGhost: (ms: number) => void;
   exitGhost: () => void;
@@ -42,6 +44,20 @@ export function useBackgroundLocation(
   options?: { watchOnMap?: boolean },
 ): LocationState {
   const watchOnMap = options?.watchOnMap ?? false;
+  const [request, setRequest] = useState<{ userId?: string; allowed: boolean }>({ userId, allowed: false });
+  const locationRequested = request.userId === userId && request.allowed;
+  const requestLocation = useCallback(() => { setRequest({ userId, allowed: true }); }, [userId]);
+  useEffect(() => {
+    let active = true;
+    // Reading the permission state does not request GPS or prompt the user.
+    // Preserve already-granted map watchers, but require a gesture for prompt.
+    if (watchOnMap && userId && navigator.permissions?.query) {
+      void navigator.permissions.query({ name: 'geolocation' }).then(permission => {
+        if (active && permission.state === 'granted') setRequest({ userId, allowed: true });
+      }).catch(() => {});
+    }
+    return () => { active = false; };
+  }, [watchOnMap, userId]);
   const [coords, setCoords] = useState<[number, number] | null>(null);
   const [accuracy, setAccuracy] = useState<number | null>(null);
   const [speed, setSpeed] = useState<number | null>(null);
@@ -166,10 +182,11 @@ export function useBackgroundLocation(
 
   // Request GPS only while the user is on VybeMap (location feature), never on cold start /
   // Home / Feed. Sharing still controls whether we upsert live location while watching.
-  const shouldWatch = Boolean(userId) && watchOnMap;
+  const shouldWatch = Boolean(userId) && watchOnMap && locationRequested;
 
   useEffect(() => {
     if (!shouldWatch || !('geolocation' in navigator)) return;
+    let active = true;
     let watchId: number | undefined;
     let fallbackWatchId: number | undefined;
     let fellBack = false;
@@ -181,6 +198,7 @@ export function useBackgroundLocation(
     });
 
     const onSuccess = (pos: GeolocationPosition) => {
+      if (!active) return;
       const c: [number, number] = [pos.coords.latitude, pos.coords.longitude];
       setCoords(c);
       setLocationDenied(false);
@@ -194,6 +212,7 @@ export function useBackgroundLocation(
     };
 
     const onError = (err: GeolocationPositionError) => {
+      if (!active) return;
       console.warn('[Geolocation] error:', err.code, err.message);
       if (err.code === 1) {
         // Permission denied — toast once. Do NOT flip Ghost Mode / sharing pref.
@@ -246,6 +265,7 @@ export function useBackgroundLocation(
     document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
+      active = false;
       document.removeEventListener('visibilitychange', onVisibility);
       if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
       if (fallbackWatchId !== undefined) navigator.geolocation.clearWatch(fallbackWatchId);
@@ -275,6 +295,7 @@ export function useBackgroundLocation(
     locationDenied,
     ghostUntil,
     setSharing,
+    requestLocation,
     enableTemporaryGhost,
     exitGhost,
   };

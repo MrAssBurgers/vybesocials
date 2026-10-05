@@ -8,6 +8,8 @@ import {
   setDocument,
   getDocument,
   getDocuments,
+  getDocumentFromServer,
+  getDocumentsFromServer,
   newDocumentId,
   onSnapshot,
   query,
@@ -84,11 +86,11 @@ export async function appendLocationHistory(profileId: string, row: Record<strin
 
 export async function fetchFriendIds(profileId: string): Promise<string[]> {
   const [sent, recv] = await Promise.all([
-    getDocuments<{ receiver_id: string }>(COLLECTIONS.friendRequests, [
+    getDocumentsFromServer<{ receiver_id: string }>(COLLECTIONS.friendRequests, [
       where('sender_id', '==', profileId),
       where('status', '==', 'accepted'),
     ]),
-    getDocuments<{ sender_id: string }>(COLLECTIONS.friendRequests, [
+    getDocumentsFromServer<{ sender_id: string }>(COLLECTIONS.friendRequests, [
       where('receiver_id', '==', profileId),
       where('status', '==', 'accepted'),
     ]),
@@ -139,38 +141,56 @@ async function enrichFriends(rows: LiveLocationPayload[]): Promise<LiveFriend[]>
   });
 }
 
-export async function fetchLiveFriends(friendIds: string[]): Promise<LiveFriend[]> {
-  if (!friendIds.length) return [];
-  const friendSet = new Set(friendIds);
-  const nowIso = new Date().toISOString();
-  const rows = await getDocuments<LiveLocationPayload & { id: string }>(COLLECTIONS.live, [
-    where('sharing_enabled', '==', true),
-    where('is_ghost', '==', false),
-  ]);
-  const filtered = rows.filter(
-    (r) => friendSet.has(r.user_id) && isValidLatLng(r.latitude, r.longitude) && (!r.expires_at || r.expires_at > nowIso),
-  );
-  return enrichFriends(filtered);
+interface LocationShare {
+  id: string;
+  viewer_id: string;
+  sharer_id: string;
+  active: boolean;
+  paused?: boolean;
+  precision?: string;
+  expires_at?: string | null;
 }
 
-/** Realtime: listen to all shared live locations, filter to friends client-side. */
-export function subscribeLiveFriends(friendIdSet: Set<string>, onUpdate: () => void): Unsubscribe {
-  const q = query(
-    collectionRef(COLLECTIONS.live),
-    where('sharing_enabled', '==', true),
-    where('is_ghost', '==', false),
-  );
-  return onSnapshot(
-    q,
-    (snap) => {
-      const relevant = snap.docChanges().some((c) => {
-        const uid = (c.doc.data() as { user_id?: string }).user_id;
-        return uid && friendIdSet.has(uid);
-      });
-      if (relevant || snap.docChanges().length === 0) onUpdate();
-    },
-    (err) => console.warn('[VybeMap] live location listener:', err.message),
-  );
+/** Only explicit shares addressed to this viewer can authorize location reads.
+ * Never scan all users' live coordinates then filter them in the browser. */
+export async function fetchLiveFriends(viewerId: string, friendIds: string[], guard: () => void): Promise<LiveFriend[]> {
+  guard();
+  if (!viewerId || !friendIds.length) return [];
+  const shares = await getDocumentsFromServer<LocationShare>('location_shares', [
+    where('viewer_id', '==', viewerId), firestoreLimit(201),
+  ]);
+  guard();
+  if (shares.length > 200) throw new Error('Too many location shares to load at once. Manage your existing shares first.');
+  const friendSet = new Set(friendIds);
+  const now = Date.now();
+  const admitted = shares.filter(share => share.viewer_id === viewerId && friendSet.has(share.sharer_id)
+    && share.active === true && share.paused !== true
+    && (!share.expires_at || Date.parse(share.expires_at) > now));
+  const rows: LiveLocationPayload[] = [];
+  // Keep requests bounded even with a large friend list; each read is checked by
+  // the current rules and a revocation failure hides this refresh's entire list.
+  for (let offset = 0; offset < admitted.length; offset += 8) {
+    const batch = await Promise.all(admitted.slice(offset, offset + 8).map(async share => {
+      guard();
+      const row = await getDocumentFromServer<LiveLocationPayload>(COLLECTIONS.live, share.sharer_id);
+      guard();
+      if (!row || row.user_id !== share.sharer_id || row.sharing_enabled !== true || row.is_ghost !== false
+        || !isValidLatLng(row.latitude, row.longitude) || !row.expires_at || !(Date.parse(row.expires_at) > Date.now())) return null;
+      return share.precision === 'precise' ? row : { ...row, sharing_mode: 'approximate' };
+    }));
+    guard();
+    rows.push(...batch.filter((row): row is LiveLocationPayload => row !== null));
+  }
+  const result = await enrichFriends(rows);
+  guard();
+  return result;
+}
+
+/** Share changes invalidate the list. Coordinates are refreshed by the bounded
+ * polling query, rather than an unauthorized collection-wide listener. */
+export function subscribeLiveFriends(viewerId: string, onUpdate: () => void, onError: (error: Error) => void): Unsubscribe {
+  return onSnapshot(query(collectionRef('location_shares'), where('viewer_id', '==', viewerId), firestoreLimit(201)),
+    () => onUpdate(), onError);
 }
 
 export async function logLocationAccess(viewerId: string, targetId: string, action: string): Promise<void> {

@@ -1,6 +1,6 @@
 # Post reader stability — 2026-10-04
 
-This pass moves existing cross-user post views behind current server admission. It does not establish historical publication ownership, and does not certify every feature of the app.
+The reader migration moves existing cross-user post views behind current server admission. The subsequent publication repair also requires protected publication evidence for cross-user reads. Neither repair proves who originally authored a historical document or certifies every feature of the app.
 
 ## Current read boundary
 
@@ -20,21 +20,23 @@ Visible profile and activity summaries scan at most three pages per refresh. A r
 
 List post cards refresh comment counts through the existing batched comment authority. A newer parent denial from that authority suppresses the post immediately. Summary reads do not fetch comment counts. Historical post IDs longer than 128 characters remain pageable, but the older comment API still accepts only IDs up to 128 characters; those unusual IDs retain their presentation count and need a separate comment-contract migration. Like counters and existing feed counters remain presentation snapshots, not independently certified totals.
 
-## Remaining publication gap
+Normal list pages batch their dependent post and publication records inside the same Firestore transaction. A measured 20-post profile page uses one publication batch instead of 20 individual reads; saved/tagged pages use one referenced-post batch and one publication batch instead of 40 individual reads. This reduces sequential transport round trips, not the number of documents billed or the required identity/audience queries. Candidate order, missing saved references, current denial, cursors and client leases are unchanged. Search keeps its bounded incremental proof reads so a short result does not fetch all 100 candidate proofs. No cross-view content cache or instant-load guarantee is introduced.
 
-Historical posts were writable under older rules that permitted author reassignment. Current audience checks evaluate the current claimed author; they do not prove who originally published a legacy document. This pass deliberately does not auto-attest historical rows. A protected publication proof, migration of every publishing entry point, and deliberate owner recovery/replacement for old rows remain necessary before claiming historical authorship protection.
+## Publication evidence and historical recovery
 
-Owner AI-detection metadata writes also retain an older asynchronous merge-after-read path; deletion during that operation needs a separate mutation audit. No AI provider was called in this pass.
+Historical posts were writable under older rules that permitted author reassignment. Checked readers now require a matching server-written publication proof before sharing a post with another account or an anonymous reader. An unproven row is available only to its currently claimed canonical owner for deliberate review and replacement; a read never certifies that older authorship. Invalid existing proof cannot fall back to legacy admission. See [Post publication stability](POST_PUBLICATION_STABILITY.md) for the mutation contract, recovery behavior, verification and remaining limits.
+
+Owner AI-detection metadata writes now capture and recheck the exact post and publication version, then update only an existing row. A delayed result cannot recreate a deleted post or overwrite analysis after the post changes. No AI provider was called in these local checks.
 
 ## Rollout requirements
 
-The client requires the `readSocialPostList` export, its compiled authority helper, and the checked legacy/public-return handlers. The `_social_post_list_cursors` collection is server-only, with TTL on `expires_at`. Deploy the new callable and required post/bookmark/tag query indexes before switching traffic to the matching client and narrowed post-read rules. Verify indexes are ready; a missing index must remain a retryable read failure, not a raw fallback. An old client still using broad raw post queries will fail against the new rules.
+The client requires the `readSocialPostList` export, its compiled authority helper, and the checked legacy/public-return handlers. The `_social_post_list_cursors` collection is server-only, with TTL on `expires_at`. The publication repair also requires the matching `managePost` function, checked reader DTO fields and protected proof rules. Deploy compatible named functions and required post/bookmark/tag query indexes before switching traffic to the matching client and narrowed post rules. Verify indexes are ready; a missing index must remain a retryable read failure, not a raw fallback. An old client still using broad raw post queries or direct publication writes will fail against the new rules.
 
 All verification in this pass used local source, isolated demo-project emulators, and the retained local preview. No production Firebase deployment or provider operation is implied.
 
 ## Verification
 
-- New post-list emulator suite: 7 grouped checks covering every list scope, current revocation, saved recovery, aliases/collisions, protected cursors, legacy public-return handlers, strict raw owner rules, and long document IDs.
+- Post-list emulator suite: 8 grouped checks covering every list scope, current revocation, saved recovery, aliases/collisions, protected cursors, legacy public-return handlers, strict raw owner rules, long document IDs and measured bounded document batches.
 - Existing feed emulator regression: 25 grouped checks, including current privacy, friendships, blocks, deletion, pagination, Local consent, external access, and known-ID previews.
 - Client contract/lifecycle coverage includes malformed receipts, delayed account/view results, visibility expiry, saved-page rejection winning over older payload, explicit four-page groups, production keep-previous cache defaults, and unavailable saved removal.
 - Parent integration owns the final app build, full test/lint suite, and manual route verification.

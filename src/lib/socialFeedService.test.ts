@@ -5,7 +5,7 @@ vi.mock('@/lib/firebase/feedRpc', () => ({ runFeedRpc: (...args: unknown[]) => s
 import { readSocialFeed, readSocialPostPreviews } from './socialFeedService';
 
 const input = { expectedOwnerUid: 'alice', expectedProfileId: 'profile-alice', contentType: 'post' as const };
-const post = { id: 'post-one', type: 'post', caption: 'Hello', createdAt: '2026-10-04T12:00:00.000Z',
+const post = { id: 'post-one', type: 'post', caption: 'Hello', createdAt: '2026-10-04T12:00:00.000Z', publicationRevision: 'a'.repeat(48), needsOwnerConfirmation: false,
   mediaUrl: null, mediaUrls: [], thumbnailUrl: null, ageRating: 'unrated', tags: ['gaming'],
   likeCount: 7, commentCount: 2, viewCount: 30, isPinned: false, isBookmarked: true, reactionType: 'love',
   author: { id: 'profile-bob', username: 'bob', displayName: 'Bob', avatarUrl: null } };
@@ -27,6 +27,9 @@ describe('known-ID social preview transport', () => {
     { posts: [{ ...preview(), id: 'unsolicited' }] }, { posts: [preview(), preview()] },
     { posts: [{ ...preview(), mediaUrl: 'javascript:alert(1)' }] }, { privateNotes: 'unexpected' },
     { posts: [{ ...preview(), type: 'video', mediaUrl: null }] },
+    { posts: [{ ...preview(), publicationRevision: undefined }] },
+    { posts: [{ ...preview(), publicationRevision: 'old-raw-post' }] },
+    { posts: [{ ...preview(), needsOwnerConfirmation: true }] },
   ])('rejects mismatched or malformed preview receipt %#', async patch => {
     state.invoke.mockResolvedValue({ data: { ...receipt(), ...patch } });
     await expect(readSocialPostPreviews(selection, () => {})).rejects.toThrow(/verified/);
@@ -75,9 +78,17 @@ describe('current account social feed transport', () => {
     (page: ReturnType<typeof response>) => { Object.assign(page.posts[0], { mediaUrl: 'not a URL' }); },
     (page: ReturnType<typeof response>) => { Object.assign(page.posts[0], { mediaUrl: 'https://secret:pass@example.test/x' }); },
     (page: ReturnType<typeof response>) => { Object.assign(page.posts[0], { privateNotes: 'unexpected' }); },
+    (page: ReturnType<typeof response>) => { Object.assign(page.posts[0], { publicationRevision: undefined }); },
+    (page: ReturnType<typeof response>) => { page.posts[0].publicationRevision = 'invalid'; },
+    (page: ReturnType<typeof response>) => { page.posts[0].needsOwnerConfirmation = true; },
   ])('rejects mismatched or malformed server receipts', async mutate => {
     const page = response(); mutate(page); state.invoke.mockResolvedValue({ data: page });
     await expect(readSocialFeed(input, () => {})).rejects.toThrow(/verified/);
+  });
+  it('preserves an explicitly owner-only legacy recovery receipt and captured revision', async () => {
+    const value = response(); value.posts[0].author.id = input.expectedProfileId; value.posts[0].needsOwnerConfirmation = true;
+    state.invoke.mockResolvedValue({ data: value });
+    expect((await readSocialFeed(input, () => {})).posts[0]).toMatchObject({ needs_owner_confirmation: true, publication_revision: post.publicationRevision });
   });
   it('retains continuation through a filtered empty page and rejects repeated cursor', async () => {
     const cursor = 'a'.repeat(48); state.invoke.mockResolvedValue({ data: { ...response(), posts: [], nextCursor: cursor } });

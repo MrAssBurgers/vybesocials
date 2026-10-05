@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { AppLayout } from './AppLayout';
 
-const state = vi.hoisted(() => ({ desktop: true, unmounted: vi.fn() }));
+const state = vi.hoisted(() => ({ desktop: true, unmounted: vi.fn(), navChanged: null as ((visible: boolean) => void) | null }));
 vi.mock('@/hooks/usePlatform', () => ({ useBreakpoint: () => ({ isDesktop: state.desktop }) }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ loading: false, user: { id: 'alice' } }) }));
 vi.mock('@/lib/legacyAuthStorage', () => ({ hasStoredAuthSession: () => true }));
@@ -15,7 +15,7 @@ vi.mock('@/hooks/useSwipeBack', () => ({ useSwipeBack: () => ({ swipeBackHandler
 vi.mock('@/lib/nativePerfMode', () => ({ isNativePerfMode: () => false }));
 vi.mock('@/lib/scrollHideSync', () => ({ bindAppScrollHideContainer: () => () => {} }));
 vi.mock('@/lib/keyboardFocusScroll', () => ({ installKeyboardFocusScroll: () => () => {} }));
-vi.mock('@/lib/navVisibility', () => ({ navVisibility: { subscribeEffective: () => () => {}, setInDesigner: () => {} } }));
+vi.mock('@/lib/navVisibility', () => ({ navVisibility: { subscribeEffective: (callback: (visible: boolean) => void) => { state.navChanged = callback; return () => {}; }, setInDesigner: () => {} } }));
 vi.mock('@/hooks/useCustomTheme', () => ({ setThemePreviewLock: () => {} }));
 vi.mock('@/hooks/useBottomNavMount', () => ({ useBottomNavMount: () => true }));
 vi.mock('@/hooks/useNativeDocumentScrollLock', () => ({ useNativeDocumentScrollLock: () => {} }));
@@ -32,6 +32,7 @@ function Editor() {
   return <textarea aria-label="Draft" value={text} onChange={event => setText(event.target.value)} />;
 }
 const page = (noPadding = false) => <MemoryRouter><AppLayout noPadding={noPadding}><Editor /></AppLayout></MemoryRouter>;
+afterEach(cleanup);
 
 describe('responsive app content lifetime', () => {
   beforeEach(() => { state.desktop = true; state.unmounted.mockClear(); });
@@ -68,5 +69,21 @@ describe('responsive app content lifetime', () => {
     expect(main.style.touchAction).toBe('');
     expect(main.firstElementChild).toHaveClass('h-full');
     expect(main.firstElementChild).not.toHaveClass('contents');
+  });
+  it('lets a full profile surface own bottom clearance without external blank space in either nav state or breakpoint', () => {
+    state.desktop = false;
+    const profilePage = (ownsBottom: boolean) => <MemoryRouter><AppLayout contentOwnsBottomPadding={ownsBottom}><Editor /></AppLayout></MemoryRouter>;
+    const view = render(profilePage(false));
+    const main = screen.getByRole('main'), editor = screen.getByRole('textbox');
+    expect(main.style.paddingBottom).toBe('calc(6rem + var(--sab, env(safe-area-inset-bottom, 0px)))');
+    act(() => state.navChanged?.(false));
+    expect(main.style.paddingBottom).toBe('calc(1.25rem + var(--sab, env(safe-area-inset-bottom, 0px)))');
+    view.rerender(profilePage(true)); expect(main.style.paddingBottom).toBe('');
+    act(() => state.navChanged?.(true)); expect(main.style.paddingBottom).toBe('');
+    expect(main).toHaveClass('content-with-header', 'overflow-y-auto');
+    state.desktop = true; view.rerender(profilePage(true));
+    expect(main.firstElementChild).toHaveClass('pt-3', 'px-2'); expect(main.firstElementChild).not.toHaveClass('py-3');
+    expect(screen.getByRole('textbox')).toBe(editor);
+    view.rerender(profilePage(false)); expect(main.firstElementChild).toHaveClass('py-3');
   });
 });

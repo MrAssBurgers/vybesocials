@@ -181,6 +181,7 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
 
     submitting.current = true;
     setIsSubmitting(true);
+    try {
     enqueuePostUpload(
       {
         profile: { id: profile.id, user_id: profile.user_id },
@@ -192,6 +193,11 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
       },
       fc.trim().slice(0, 48) || 'New post',
     );
+    } catch (error) {
+      submitting.current = false; setIsSubmitting(false);
+      toast.error(error instanceof Error ? error.message : 'Could not start publishing. Your draft is still here.');
+      return;
+    }
     toast.message('Publishing…', {
       description: 'Vybe Check runs while we upload. Watch the banner below.',
     });

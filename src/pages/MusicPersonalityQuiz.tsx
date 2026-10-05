@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Music, ArrowRight, Share2, Sparkles, RefreshCcw, ChevronRight, ArrowLeft, Heart, Headphones, Radio, Mic2 } from 'lucide-react';
@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { useAuth } from '@/lib/auth';
+import { useProfileAccount } from '@/hooks/useProfileAccount';
 import { publishMusicPost, saveMusicPersonality } from '@/lib/musicWriteResults';
 import { toast } from 'sonner';
 
@@ -161,7 +161,11 @@ const PERSONALITIES: Record<string, {
 };
 
 export default function MusicPersonalityQuiz() {
-  const { profile } = useAuth();
+  const account = useProfileAccount();
+  const { profile } = account;
+  const lifetime = useMemo(() => ({ active: true }), [account.user?.id, account.session.epoch]);
+  useEffect(() => { lifetime.active = true; return () => { lifetime.active = false; }; }, [lifetime]);
+  const guard = () => { account.guard(); if (!lifetime.active) throw new Error('This quiz closed.'); };
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [scores, setScores] = useState<Record<string, number>>({
@@ -199,22 +203,25 @@ export default function MusicPersonalityQuiz() {
 
   const saveResult = async (personality: string) => {
     if (!profile) return;
+    try { guard(); } catch { return; }
     setIsSaving(true);
     setSaveError(null);
     try {
-      await saveMusicPersonality(profile.id, personality);
+      await saveMusicPersonality(profile.id, personality); guard();
       toast.success('Music personality saved.');
     } catch (e) {
+      try { guard(); } catch { return; }
       const message = e instanceof Error ? e.message : 'Your music result could not be saved. Try again.';
       setSaveError(message);
       toast.error(message);
     } finally {
-      setIsSaving(false);
+      try { guard(); setIsSaving(false); } catch { /* Retired view. */ }
     }
   };
 
   const handleShareToFeed = async () => {
-    if (!profile || !result) return;
+    if (!profile || !result || isSharing) return;
+    try { guard(); } catch { return; }
     setIsSharing(true);
     
     try {
@@ -224,15 +231,16 @@ export default function MusicPersonalityQuiz() {
         author_id: profile.id,
         type: 'post',
         caption: `${personality.emoji} I just discovered my Music DNA — I'm **${personality.title}**!\n\n"${personality.description}"\n\n🎵 My strengths: ${personality.strengths.join(', ')}\n\nDiscover your sound identity on VYBE! #MusicDNA #VybeQuiz`,
-      });
-
+      }, guard);
+      guard();
       toast.success('Shared to your feed.');
       navigate('/');
     } catch (error) {
+      try { guard(); } catch { return; }
       console.error('Error sharing quiz:', error);
       toast.error('Failed to share results');
     } finally {
-      setIsSharing(false);
+      try { guard(); setIsSharing(false); } catch { /* Retired view. */ }
     }
   };
 

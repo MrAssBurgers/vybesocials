@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { seedPostPublication } from './helpers/post-publication-fixture.mjs';
 
 // Admin SDK bypasses rules: refuse all non-demo projects and non-loopback hosts
 // before importing anything that initializes Firebase. No credentials needed.
@@ -40,7 +41,7 @@ try {
   // after commit so a slow setup never makes this real source appear future-dated.
   const sourceCreated = (await sourceRef.get()).createTime.toMillis();
   now = Math.max(Date.now(), sourceCreated) + 1;
-  await sourceRef.update({ created_at: new Date(sourceCreated).toISOString() });
+  await seedPostPublication(db, sourceRef.id, { ...(await sourceRef.get()).data(), created_at: new Date(sourceCreated).toISOString() }, { uid: actor.authUid, profileId: actor.profileId });
   await db.collection('challenges').doc('backend-daily').update({ active_date: new Date(sourceCreated).toISOString().slice(0, 10) });
   await check('real Firestore createTime and concurrent issuance create one proof', async () => {
     const results = await Promise.all([reconcileChallenge(db, actor, 'backend-daily', now), reconcileChallenge(db, actor, 'backend-daily', now)]);

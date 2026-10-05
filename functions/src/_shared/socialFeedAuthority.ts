@@ -6,6 +6,7 @@ import { followAuthorityId, hasApprovedFollow, hasCurrentFollow } from './follow
 import { isLocalArea, nearbyLocalArea, sameLocalArea, type LocalArea } from './localArea.js';
 import { validPostLocalProof } from './postLocalAreaAuthority.js';
 import { rankSocialPosts } from './socialFeedRanking.js';
+import { postPublicationAdmission, validPublicationMediaUrl } from './postPublicationProof.js';
 
 export const validPostDocumentId = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && !value.includes('/') && Buffer.byteLength(value) <= 1500;
 const PAGE_SIZE = 20;
@@ -40,11 +41,7 @@ export function normalizeSocialFeedInput(raw: unknown, uid: string): SocialFeedI
 const text = (value: unknown, max: number) => typeof value === 'string' && value.length <= max ? value : null;
 const counter = (value: unknown) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
 function httpsUrl(value: unknown): string | null {
-  if (typeof value !== 'string' || value.length > 8192) return null;
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' && !url.username && !url.password ? url.href : null;
-  } catch { return null; }
+  return validPublicationMediaUrl(value) ? new URL(value).href : null;
 }
 function dateText(value: unknown): string | null {
   if (value instanceof Timestamp) return value.toDate().toISOString();
@@ -72,13 +69,15 @@ export async function authorAdmission(db: Firestore, tx: Transaction, viewer: Au
     friend = !outgoing.empty || !incoming.empty;
     close = friend && hasCloseFriendAuthority(proof.data(), author, viewer);
   }
-  const allows = (level: unknown) => typeof level === 'string' && ['public', 'everyone', 'friends', 'close_friends', 'only_me', 'private'].includes(level)
-    && (self || level === 'public' || level === 'everyone' || (level === 'friends' && friend) || (level === 'close_friends' && close));
+  const allows = (level: unknown) => typeof level === 'string' && ['public', 'everyone', 'followers', 'friends', 'close_friends', 'only_me', 'private'].includes(level)
+    && (self || level === 'public' || level === 'everyone' || (level === 'followers' && hasCurrentFollow(follow, author, viewer)) || (level === 'friends' && friend) || (level === 'close_friends' && close));
   return { author, settings, allows, connected: !self && (friend || hasCurrentFollow(follow, author, viewer)) };
 }
 
-export function projectPost(id: string, row: AudienceRow, admission: NonNullable<Awaited<ReturnType<typeof authorAdmission>>>) {
+export function projectPost(id: string, row: AudienceRow, admission: NonNullable<Awaited<ReturnType<typeof authorAdmission>>>, proof: AudienceRow | undefined, viewerUid?: string) {
   const { author, allows, settings } = admission;
+  const publication = postPublicationAdmission(row, proof, author, id, viewerUid);
+  if (!publication) return null;
   if (typeof row.type !== 'string' || !['post', 'short', 'video'].includes(row.type) || !allows(settings[row.type === 'short' ? 'clips' : 'posts'])) return null;
   // Apply every explicit restriction; unknown legacy values never widen access.
   for (const key of ['visibility', 'audience']) if (Object.hasOwn(row, key) && !allows(row[key])) return null;
@@ -98,7 +97,7 @@ export function projectPost(id: string, row: AudienceRow, admission: NonNullable
   const ageRating = row.age_rating ?? 'unrated';
   if (typeof ageRating !== 'string' || !['safe', '13+', '18+', 'unrated'].includes(ageRating)) return null;
   return {
-    id, type: row.type as 'post' | 'short' | 'video', caption, createdAt,
+    id, type: row.type as 'post' | 'short' | 'video', caption, createdAt, ...publication,
     mediaUrl, mediaUrls: mediaUrls.map(url => httpsUrl(url)!), thumbnailUrl: httpsUrl(row.thumbnail_url), ageRating,
     // Presentation snapshots only; these counters never establish permission or reward eligibility.
     likeCount: counter(row.like_count), commentCount: counter(row.comment_count), viewCount: counter(row.view_count), isPinned: row.is_pinned === true,
@@ -110,7 +109,7 @@ export function projectPost(id: string, row: AudienceRow, admission: NonNullable
 }
 
 /** Anonymous metadata never inherits an authenticated viewer's relationships.
- * Historical authorship is not attested here; this is a current audience gate. */
+ * Public content also requires a current protected publication proof. */
 export async function readPublicSocialPost(db: Firestore, postId: string) {
   if (!validPostDocumentId(postId)) return null;
   return db.runTransaction(async tx => {
@@ -121,7 +120,8 @@ export async function readPublicSocialPost(db: Firestore, postId: string) {
     const settings = normalizedProfileSettings((await tx.get(db.collection('profile_visibility').doc(author.profileId))).data(), author.profileId);
     const allows = (level: unknown) => level === 'public' || level === 'everyone';
     if (!(allows(row.visibility) || allows(row.audience))) return null;
-    return projectPost(postId, row, { author, settings, allows, connected: false });
+    const proof = (await tx.get(db.collection('_post_publications').doc(postId))).data();
+    return projectPost(postId, row, { author, settings, allows, connected: false }, proof);
   });
 }
 
@@ -143,7 +143,8 @@ export async function readSocialPostPreviewsPage(db: Firestore, uid: string, raw
       if (!admissions.has(row.author_id)) admissions.set(row.author_id, authorAdmission(db, tx, viewer, row.author_id));
       const admission = await admissions.get(row.author_id)!;
       if (!admission || (row.user_id !== undefined && (typeof row.user_id !== 'string' || !admission.author.aliases.includes(row.user_id)))) continue;
-      const projected = projectPost(candidate.id, row, admission);
+      const proof = (await tx.get(db.collection('_post_publications').doc(candidate.id))).data();
+      const projected = projectPost(candidate.id, row, admission, proof, viewer.uid);
       if (projected) posts.push(projected);
     }
     return { ownerUid: uid, viewerProfileId: viewer.profileId, requestedPostIds: input.postIds, posts };
@@ -157,7 +158,8 @@ export async function admitSocialPost(db: Firestore, tx: Transaction, viewer: Au
   if (!row || !validAudienceId(row.author_id)) return null;
   const admission = await authorAdmission(db, tx, viewer, row.author_id);
   if (!admission || (row.user_id !== undefined && (typeof row.user_id !== 'string' || !admission.author.aliases.includes(row.user_id)))) return null;
-  return projectPost(postId, row, admission);
+  const proof = (await tx.get(db.collection('_post_publications').doc(postId))).data();
+  return projectPost(postId, row, admission, proof, viewer.uid);
 }
 
 // Server-only boundary. Never derive this object from callable input. The
@@ -224,7 +226,8 @@ export async function readSocialFeedPage(db: Firestore, uid: string, raw: unknow
           || ['visibility', 'audience'].some(key => Object.hasOwn(row, key) && !publicLevel(row[key]))
           || (row.is_private !== undefined && row.is_private !== false)) continue;
       }
-      const projected = projectPost(post.id, row, admission);
+      const publicationProof = (await tx.get(db.collection('_post_publications').doc(post.id))).data();
+      const projected = projectPost(post.id, row, admission, publicationProof, external ? undefined : viewer.uid);
       if (!projected) continue;
       if (input.feed === 'local') {
         const proof = (await tx.get(db.collection('_post_local_areas').doc(post.id))).data();

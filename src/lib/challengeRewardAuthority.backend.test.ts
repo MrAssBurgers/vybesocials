@@ -3,6 +3,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { consumeChallengeReward, reconcileChallenge, rewardAuthorityId } from '../../functions/src/_shared/challengeRewardAuthority';
 import { tokenAuthorityId } from '../../functions/src/_shared/tokenCreditAuthority';
+import { postSourceFingerprint } from '../../functions/src/_shared/postPublicationProof';
 
 type Row = Record<string, unknown>;
 const now = Date.parse('2026-10-03T12:00:00Z');
@@ -98,6 +99,11 @@ const levelPath = 'user_levels/legacy-player';
 function activity(path = 'posts/post-one', overrides: Row = {}, createdAt = now) {
   rows.set(path, { author_id: actor.profileId, type: 'post', created_at: new Date(now).toISOString(), ...overrides });
   created.set(path, createdAt);
+  if (path.startsWith('posts/')) publication(path.slice(6), actor.authUid, actor.profileId);
+}
+function publication(key: string, uid: string, profileId: string) {
+  rows.set(`_post_publications/${key}`, { version: 1, status: 'published', post_id: key, owner_uid: uid, profile_id: profileId,
+    revision: 'a'.repeat(48), source_fingerprint: postSourceFingerprint(rows.get(`posts/${key}`)!) });
 }
 const sync = () => reconcileChallenge(database, actor, 'daily-post', now);
 const claim = (id = 'auth-player_daily-post') => consumeChallengeReward(database, actor, id, now);
@@ -111,6 +117,17 @@ beforeEach(() => {
   rows.set('battle_pass_tiers/two', { level: 2, xp_required: 100 });
   rows.set('profiles/other-profile', { user_id: 'other-auth' });
   rows.set('posts/same-target', { author_id: 'other-profile' });
+  publication('same-target', 'other-auth', 'other-profile');
+});
+
+describe('post publication challenge provenance', () => {
+  it.each(['missing', 'tampered', 'deleted'])('does not complete a post challenge from %s proof', async mode => {
+    activity();
+    if (mode === 'missing') rows.delete('_post_publications/post-one');
+    if (mode === 'tampered') rows.get('posts/post-one')!.caption = 'Forged after publication';
+    if (mode === 'deleted') rows.get('_post_publications/post-one')!.status = 'deleted';
+    expect((await sync()).is_completed).toBe(false); expect(rows.has(proofPath)).toBe(false);
+  });
 });
 
 describe('protected challenge XP boosts and verified XP balance', () => {

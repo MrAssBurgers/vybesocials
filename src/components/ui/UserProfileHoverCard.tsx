@@ -178,7 +178,7 @@ export function UserProfileHoverCard({
         {children}
       </HoverCardTrigger>
       <HoverCardContent 
-        className="w-auto min-w-64 max-w-80 p-4" 
+        className="w-80 min-w-0 p-4"
         side="top" 
         align="start"
         sideOffset={8}

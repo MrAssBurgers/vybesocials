@@ -12,7 +12,7 @@ const state = vi.hoisted(() => ({
 vi.mock('../../functions/src/_shared/admin.js', () => {
   const reference = (path: string) => ({
     path, id: path.split('/').at(-1),
-    get: async () => { const data = structuredClone(state.rows.get(path)); return { data: () => data }; },
+    get: async () => { const data = structuredClone(state.rows.get(path)); return { id: path.split('/').at(-1)!, exists: data !== undefined, data: () => data }; },
     update: async (value: Row) => { state.rows.set(path, { ...state.rows.get(path), ...value }); },
     delete: async () => { state.rows.delete(path); },
   });
@@ -30,7 +30,7 @@ vi.mock('../../functions/src/_shared/admin.js', () => {
     where: (field: string, operator: string, value: unknown) => ({ limit: (max: number) => ({ get: async () => {
       const docs = [...state.rows.entries()].filter(([path, row]) => path.startsWith(`${name}/`) && (operator === '==' ? row[field] === value : Number(row[field]) <= Number(value)))
         .slice(0, max).map(([path, row]) => ({ id: path.split('/').at(-1)!, ref: reference(path), data: () => structuredClone(row) }));
-      return { docs, empty: docs.length === 0 };
+      return { docs, size: docs.length, empty: docs.length === 0 };
     } }) }),
   });
   return {
@@ -43,16 +43,27 @@ vi.mock('../../functions/src/_shared/admin.js', () => {
       runTransaction: async (fn: (tx: unknown) => unknown) => {
         for (let attempt = 0; attempt < 8; attempt++) {
           const reads = new Map<string, string | undefined>(); const writes: Array<() => void> = [];
+          const queryReads: Array<() => Promise<boolean>> = [];
           const result = await fn({
-            get: async (ref: ReturnType<typeof reference>) => {
+            get: async (ref: { path?: string; get: () => Promise<unknown> }) => {
               if (writes.length) throw new Error('Firestore transaction read after write');
-              const snapshot = await ref.get(); reads.set(ref.path, JSON.stringify(snapshot.data())); state.afterRead?.(ref.path); return snapshot;
+              const snapshot = await ref.get();
+              if ('data' in (snapshot as object)) {
+                reads.set(ref.path!, JSON.stringify((snapshot as { data: () => unknown }).data()));
+                state.afterRead?.(ref.path!);
+              } else {
+                const serialize = (value: unknown) => JSON.stringify((value as { docs: Array<{ id: string; data: () => unknown }> }).docs.map(doc => [doc.id, doc.data()]));
+                const before = serialize(snapshot);
+                queryReads.push(async () => serialize(await ref.get()) === before);
+              }
+              return snapshot;
             },
             create: (ref: ReturnType<typeof reference>, value: Row) => writes.push(() => { if (state.rows.has(ref.path)) throw new Error('exists'); state.rows.set(ref.path, structuredClone(value)); }),
             set: (ref: ReturnType<typeof reference>, value: Row) => writes.push(() => state.rows.set(ref.path, structuredClone(value))),
             update: (ref: ReturnType<typeof reference>, value: Row) => writes.push(() => update(ref.path, value)),
           });
-          if ([...reads].some(([path, value]) => JSON.stringify(state.rows.get(path)) !== value)) continue;
+          const queriesValid = (await Promise.all(queryReads.map(check => check()))).every(Boolean);
+          if (!queriesValid || [...reads].some(([path, value]) => JSON.stringify(state.rows.get(path)) !== value)) continue;
           writes.forEach(write => write()); return result;
         }
         throw new Error('Transaction contention');
@@ -98,6 +109,15 @@ import { createGameCapture } from '../../functions/src/gameIntegration';
 import { db } from '../../functions/src/_shared/admin';
 import { handleGamePartnerRequest } from '../../functions/src/gamePartnerApi';
 import { readPartnerCapturePreview, checkPartnerCapturePreview } from '../../functions/src/_shared/gamePartnerPreview';
+import { postSourceFingerprint } from '../../functions/src/_shared/postPublicationProof';
+
+function publish(captureId: string, profileId = 'player') {
+  const id = `game_${captureId}`, row = { author_id: profileId, game_capture_id: captureId };
+  state.rows.set(`profiles/${profileId}`, { user_id: 'player' });
+  state.rows.set(`posts/${id}`, row);
+  state.rows.set(`_post_publications/${id}`, { version: 1, post_id: id, owner_uid: 'player', profile_id: profileId,
+    status: 'published', revision: 'a'.repeat(48), source_fingerprint: postSourceFingerprint(row) });
+}
 
 const sha = (value: Buffer | string) => createHash('sha256').update(value).digest('hex');
 const request = (data: unknown, uid = 'player') => ({ data, auth: { uid, token: {} }, rawRequest: {} });
@@ -177,7 +197,7 @@ describe('partner capture preview authority', () => {
     const stored = state.objects.get(String(capture.storage_path))!; stored.bytes[11] ^= 1;
     await expect(readPartnerCapturePreview(a.accessToken, a.capture.captureId)).rejects.toMatchObject({ code: 'not_found' });
     stored.bytes[11] ^= 1;
-    state.rows.set(`posts/game_${a.capture.captureId}`, { game_capture_id: a.capture.captureId, author_id: 'player' });
+    publish(a.capture.captureId);
     await expect(checkPartnerCapturePreview(a.accessToken, a.capture.captureId)).rejects.toMatchObject({ code: 'not_found' });
   });
 });
@@ -387,7 +407,7 @@ describe('partner immutable private upload lifecycle', () => {
   });
   it('refuses discard after a post committed and cancels an unpublished capture', async () => {
     const access = await uploaded();
-    state.rows.set(`posts/game_${access.capture.captureId}`, { game_capture_id: access.capture.captureId, author_id: 'player' });
+    publish(access.capture.captureId);
     await expect(discardPartnerCapture(access.accessToken, access.capture.captureId)).rejects.toMatchObject({ code: 'conflict' });
     expect(state.rows.get(`game_captures/${access.capture.captureId}`)!.status).toBe('imported');
     const another = await createPartnerCapture(access.accessToken, input(png, 'discard-other-key'));
@@ -397,8 +417,7 @@ describe('partner immutable private upload lifecycle', () => {
   });
   it('recovers imported status through the partner API after the VYBE acknowledgement was lost', async () => {
     const access = await uploaded(); await finishPartnerCapture(access.accessToken, access.capture.captureId);
-    state.rows.set(`posts/game_${access.capture.captureId}`, { game_capture_id: access.capture.captureId, author_id: 'migrated-profile' });
-    state.rows.set('profiles/migrated-profile', { user_id: 'player' });
+    publish(access.capture.captureId, 'migrated-profile');
     const result = await getPartnerCapture(access.accessToken, access.capture.captureId);
     expect(result).toMatchObject({ status: 'imported', postId: `game_${access.capture.captureId}` });
     expect(result).not.toHaveProperty('storagePath');
@@ -409,7 +428,7 @@ describe('partner immutable private upload lifecycle', () => {
     state.afterRead = path => {
       if (path !== postPath) return;
       state.afterRead = null;
-      state.rows.set(path, { game_capture_id: access.capture.captureId, author_id: 'player' });
+      publish(access.capture.captureId);
     };
     await expect(discardPartnerCapture(access.accessToken, access.capture.captureId)).rejects.toMatchObject({ code: 'conflict' });
     expect(state.rows.get(`game_captures/${access.capture.captureId}`)!.status).toBe('imported');
@@ -418,6 +437,13 @@ describe('partner immutable private upload lifecycle', () => {
     const access = await uploaded(); await finishPartnerCapture(access.accessToken, access.capture.captureId);
     state.rows.set(`posts/game_${access.capture.captureId}`, { game_capture_id: access.capture.captureId, author_id: 'stranger' });
     expect((await getPartnerCapture(access.accessToken, access.capture.captureId)).status).toBe('ready');
+  });
+  it('does not reconcile an unproven canonical post even when its claimed owner matches', async () => {
+    const access = await uploaded(); await finishPartnerCapture(access.accessToken, access.capture.captureId);
+    state.rows.set('profiles/player', { user_id: 'player' });
+    state.rows.set(`posts/game_${access.capture.captureId}`, { game_capture_id: access.capture.captureId, author_id: 'player' });
+    expect((await getPartnerCapture(access.accessToken, access.capture.captureId)).status).toBe('ready');
+    expect(state.rows.has(`_post_publications/game_${access.capture.captureId}`)).toBe(false);
   });
   it('cleans unacknowledged chunk objects and retains a tombstone for late writes', async () => {
     const access = await uploaded(); vi.setSystemTime(access.expiresAt + 120001);

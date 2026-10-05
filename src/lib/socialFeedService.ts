@@ -2,17 +2,17 @@ import { validLocalArea, type LocalArea } from './localArea';
 import { z } from 'zod';
 import { invokeFunction } from '@/lib/firebase/functionsService';
 import type { Post } from '@/hooks/useInfinitePosts';
+import { validPostMediaUrl } from './postMediaUrl';
 
 const id = z.string().min(1).max(1500).refine(value => !value.includes('/'));
 const type = z.enum(['post', 'short', 'video']);
 const feed = z.enum(['discover', 'personalized', 'following', 'local']);
 const cursor = z.string().regex(/^[a-f0-9]{48}$/);
-const url = z.string().max(8192).url().refine(value => {
-  try { const parsed = new URL(value); return parsed.protocol === 'https:' && !parsed.username && !parsed.password; } catch { return false; }
-});
+const url = z.string().max(8192).url().refine(validPostMediaUrl);
 const count = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 export const socialPostSchema = z.object({
   id, type, caption: z.string().max(10000), createdAt: z.string().datetime(),
+  publicationRevision: z.string().regex(/^[a-f0-9]{48}$/), needsOwnerConfirmation: z.boolean(),
   mediaUrl: url.nullable(), mediaUrls: z.array(url).max(20), thumbnailUrl: url.nullable(),
   ageRating: z.enum(['safe', '13+', '18+', 'unrated']), tags: z.array(z.string().max(100)).max(30),
   likeCount: count, commentCount: count, viewCount: count, isPinned: z.boolean(), isBookmarked: z.boolean(),
@@ -43,7 +43,8 @@ export async function readSocialPostPreviews(input: SocialPostPreviewsInput, gua
   if (result.ownerUid !== input.expectedOwnerUid || result.viewerProfileId !== input.expectedProfileId
     || JSON.stringify(result.requestedPostIds) !== JSON.stringify(input.postIds)
     || new Set(result.posts.map(row => row.id)).size !== result.posts.length
-    || result.posts.some(row => !input.postIds.includes(row.id) || (!row.mediaUrl && (row.type !== 'post' || !row.caption.trim())))) {
+    || result.posts.some(row => !input.postIds.includes(row.id) || (row.needsOwnerConfirmation && row.author.id !== input.expectedProfileId)
+      || (!row.mediaUrl && (row.type !== 'post' || !row.caption.trim())))) {
     throw new Error('Shared post access could not be verified.');
   }
   return result.posts;
@@ -67,6 +68,7 @@ export async function readSocialFeed(input: SocialFeedInput, guard: () => void):
     || (input.feed === 'local' ? !validLocalArea(input.area) || !result.area || result.area.lat !== input.area.lat || result.area.lng !== input.area.lng : result.area !== undefined)
     || new Set(result.posts.map(row => row.id)).size !== result.posts.length
     || result.posts.some(row => (input.contentType && row.type !== input.contentType)
+      || (row.needsOwnerConfirmation && row.author.id !== input.expectedProfileId)
       || (!row.mediaUrl && (row.type !== 'post' || !row.caption.trim())))) {
     throw new Error('Your feed access could not be verified. Refresh and retry.');
   }
@@ -76,6 +78,7 @@ export async function readSocialFeed(input: SocialFeedInput, guard: () => void):
 export function socialPostToPost(row: z.infer<typeof socialPostSchema>): Post {
   return {
     id: row.id, type: row.type, caption: row.caption, created_at: row.createdAt, tags: row.tags,
+    publication_revision: row.publicationRevision, needs_owner_confirmation: row.needsOwnerConfirmation,
     media_url: row.mediaUrl ?? '', media_urls: row.mediaUrls, thumbnail_url: row.thumbnailUrl, age_rating: row.ageRating,
     is_pinned: row.isPinned, like_count: row.likeCount, comment_count: row.commentCount, view_count: row.viewCount,
     is_ai_generated: row.isAiGenerated, ai_confidence: row.aiConfidence ?? undefined, ai_override: row.aiOverride,

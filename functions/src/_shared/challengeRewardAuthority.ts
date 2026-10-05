@@ -2,6 +2,8 @@ import type { Firestore, Transaction, QueryDocumentSnapshot } from 'firebase-adm
 import { HttpsError } from 'firebase-functions/v2/https';
 import { createHash } from 'node:crypto';
 import { assertTokenActor, tokenAuthorityId, validatedTokenBoostMultiplier } from './tokenCreditAuthority.js';
+import { resolveIdentity } from './profileAudienceAuthority.js';
+import { validPostPublication } from './postPublicationProof.js';
 
 type Row = Record<string, unknown>;
 export type ChallengeActor = { authUid: string; profileId: string };
@@ -80,6 +82,7 @@ async function activityCount(tx: Transaction, db: Firestore, actor: ChallengeAct
     .where('created_at', '>=', new Date(challenge.start).toISOString())
     .limit(MAX_ACTIVITY));
   const unique = new Set<string>();
+  const publicationOwner = kind === 'post' || kind === 'clip' ? await resolveIdentity(db, tx, actor.authUid) : null;
   const profileCache = new Map<string, Promise<boolean>>();
   const postCache = new Map<string, Promise<boolean>>();
   const liveRow = (row: Row) => !row.deleted_at && row.is_deleted !== true && row.status !== 'draft';
@@ -106,7 +109,9 @@ async function activityCount(tx: Transaction, db: Firestore, actor: ChallengeAct
     if (!result) {
       result = (async () => {
         const target = (await tx.get(db.collection('posts').doc(id))).data();
-        return !!target && liveRow(target) && typeof target.author_id === 'string' && await targetProfileExists(target.author_id);
+        if (!target || !liveRow(target) || typeof target.author_id !== 'string' || !await targetProfileExists(target.author_id)) return false;
+        const owner = await resolveIdentity(db, tx, target.author_id), proof = (await tx.get(db.collection('_post_publications').doc(id))).data();
+        return !!owner && validPostPublication(target, proof, owner, id);
       })();
       postCache.set(id, result);
     }
@@ -116,6 +121,10 @@ async function activityCount(tx: Transaction, db: Firestore, actor: ChallengeAct
     const row = doc.data();
     if (!ownerIds.includes(String(row[source[1]])) || !createdInWindow(doc, challenge.start, challenge.end, now)) continue;
     if (row.deleted_at || row.is_deleted === true || row.status === 'draft') continue;
+    if (kind === 'post' || kind === 'clip') {
+      const proof = (await tx.get(db.collection('_post_publications').doc(doc.id))).data();
+      if (!publicationOwner || publicationOwner.profileId !== actor.profileId || !validPostPublication(row, proof, publicationOwner, doc.id)) continue;
+    }
     const postType = String(row.post_type || row.type || row.media_type || 'post');
     if (kind === 'clip' && !['short', 'video', 'clip'].includes(postType)) continue;
     if (kind === 'post' && ['short', 'video', 'clip', 'story'].includes(postType)) continue;

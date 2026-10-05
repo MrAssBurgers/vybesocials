@@ -5,12 +5,12 @@
  * Authors can toggle the label if it's incorrect.
  */
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bot, X, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
+import { usePostMutations } from '@/hooks/usePostMutations';
 import { toast } from 'sonner';
 
 interface AIBadgeProps {
@@ -24,8 +24,17 @@ interface AIBadgeProps {
 
 export function AIBadge({ postId, authorId, isAiGenerated, aiConfidence, aiOverride, className }: AIBadgeProps) {
   const { profile } = useAuth();
-  const [override, setOverride] = useState<boolean | null>(aiOverride);
-  const [showDispute, setShowDispute] = useState(false);
+  const actions = usePostMutations(postId);
+  const context = useMemo(() => ({ active: true, pending: false, attempt: null as { value: boolean | null; revision: string } | null }), [actions.guard, authorId, aiOverride]);
+  useEffect(() => { context.active = true; return () => { context.active = false; }; }, [context]);
+  const [local, setLocal] = useState({ context, sourceOverride: aiOverride, override: aiOverride, open: false, pending: false, error: '' });
+  const current = local.context === context;
+  const override = current && local.sourceOverride === aiOverride ? local.override : aiOverride;
+  const showDispute = current && local.open;
+  const pending = current && local.pending;
+  const error = current ? local.error : '';
+  const setShowDispute = (open: boolean) => setLocal({ context, sourceOverride: aiOverride, override, open, pending: false, error: '' });
+  const guard = () => { actions.guard(); if (!context.active) throw new Error('This post view changed.'); };
 
   // Determine if badge should show
   const showAi = override === true || (override === null && isAiGenerated);
@@ -35,19 +44,30 @@ export function AIBadge({ postId, authorId, isAiGenerated, aiConfidence, aiOverr
   if (!showAi && isAuthor && !isAiGenerated) return null;
 
   const handleToggle = async (newValue: boolean | null) => {
+    if (context.pending || !isAuthor || !actions.ready) return;
+    context.pending = true;
+    setLocal({ context, sourceOverride: aiOverride, override, open: true, pending: true, error: '' });
     try {
-      const { error } = await db
-        .from('posts')
-        .update({ ai_override: newValue } as any)
-        .eq('id', postId);
-
-      if (error) throw error;
-
-      setOverride(newValue);
-      setShowDispute(false);
+      guard();
+      if (!context.attempt || context.attempt.value !== newValue) {
+        const state = await actions.read(postId); guard();
+        if (state.status !== 'published' || !state.revision || !state.post) throw new Error(state.needsOwnerConfirmation
+          ? 'Review and share this older post before changing its AI label.' : 'This post is no longer available.');
+        context.attempt = { value: newValue, revision: state.revision };
+      }
+      const receipt = await actions.mutate({ action: 'update', postId, expectedRevision: context.attempt.revision, payload: { aiOverride: newValue } });
+      guard();
+      if (receipt.status !== 'published' || receipt.post?.aiOverride !== newValue) throw new Error('The AI label change was not confirmed. Please retry.');
+      context.attempt = null;
+      setLocal({ context, sourceOverride: aiOverride, override: receipt.post.aiOverride, open: false, pending: false, error: '' });
       toast.success(newValue === false ? 'AI label removed' : newValue === true ? 'Marked as AI' : 'Reset to auto-detect');
-    } catch {
-      toast.error('Failed to update');
+    } catch (cause) {
+      try { guard(); } catch { return; }
+      const message = cause instanceof Error ? cause.message : 'The AI label change could not be confirmed. Please retry.';
+      setLocal({ context, sourceOverride: aiOverride, override, open: true, pending: false, error: message });
+      toast.error(message);
+    } finally {
+      context.pending = false;
     }
   };
 
@@ -70,6 +90,7 @@ export function AIBadge({ postId, authorId, isAiGenerated, aiConfidence, aiOverr
             <span className="text-[10px] font-medium text-muted-foreground mr-1">AI?</span>
             <button
               onClick={() => handleToggle(false)}
+              disabled={pending || actions.isPending || !actions.ready}
               className="h-6 w-6 rounded-full flex items-center justify-center bg-emerald-500/20 hover:bg-emerald-500/30 transition-colors"
               title="Not AI"
             >
@@ -77,6 +98,7 @@ export function AIBadge({ postId, authorId, isAiGenerated, aiConfidence, aiOverr
             </button>
             <button
               onClick={() => handleToggle(true)}
+              disabled={pending || actions.isPending || !actions.ready}
               className="h-6 w-6 rounded-full flex items-center justify-center bg-primary/20 hover:bg-primary/30 transition-colors"
               title="Confirm AI"
             >
@@ -84,10 +106,14 @@ export function AIBadge({ postId, authorId, isAiGenerated, aiConfidence, aiOverr
             </button>
             <button
               onClick={() => setShowDispute(false)}
+              disabled={pending}
+              aria-label="Close AI label options"
               className="h-6 w-6 rounded-full flex items-center justify-center hover:bg-muted/50 transition-colors"
             >
               <X className="h-3 w-3 text-muted-foreground" />
             </button>
+            {pending && <span role="status" className="text-xs">Saving…</span>}
+            {error && <span role="alert" className="max-w-48 text-xs text-destructive">{error}</span>}
           </motion.div>
         ) : showAi ? (
           <motion.button

@@ -1,9 +1,6 @@
 import {
   getDocument,
   getDocuments,
-  setDocument,
-  updateDocument,
-  deleteDocument,
   where,
   orderBy,
   firestoreLimit,
@@ -203,28 +200,18 @@ export async function listPosts(opts?: {
 }
 
 export async function createPost(
-  authorId: string,
-  payload: Omit<PostDocument, 'id' | 'author_id' | 'created_at'>,
+  _authorId: string,
+  _payload: Omit<PostDocument, 'id' | 'author_id' | 'created_at'>,
 ): Promise<PostDocument> {
-  const id = crypto.randomUUID();
-  const post: PostDocument = {
-    ...payload,
-    id,
-    author_id: authorId,
-    created_at: new Date().toISOString(),
-    view_count: payload.view_count ?? 0,
-    is_pinned: payload.is_pinned ?? false,
-  };
-  await setDocument('posts', id, post);
-  return post;
+  throw new Error('Use the checked publisher with a retained publication request.');
 }
 
-export async function updatePost(postId: string, updates: Partial<PostDocument>): Promise<void> {
-  await updateDocument('posts', postId, updates);
+export async function updatePost(_postId: string, _updates: Partial<PostDocument>): Promise<void> {
+  throw new Error('Open this post in the checked editor before changing it.');
 }
 
-export async function deletePost(postId: string): Promise<void> {
-  await deleteDocument('posts', postId);
+export async function deletePost(_postId: string): Promise<void> {
+  throw new Error('Open this post in the checked removal dialog before deleting it.');
 }
 
 export async function uploadPostMedia(

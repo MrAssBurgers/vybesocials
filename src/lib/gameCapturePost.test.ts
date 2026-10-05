@@ -1,52 +1,38 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const state = vi.hoisted(() => ({ rows: new Map<string, Record<string, unknown>>(), writes: 0, pending: Promise.resolve() as Promise<unknown> }));
-vi.mock('@/lib/firebase/firestoreDb', () => ({ getFirestoreDb: () => ({}) }));
-vi.mock('firebase/firestore', () => {
-  const snapshot = (id: string) => ({ exists: () => state.rows.has(id), data: () => state.rows.get(id) });
-  return {
-    doc: (_db: unknown, _collection: string, id: string) => ({ id }),
-    getDocFromServer: async (ref: { id: string }) => snapshot(ref.id),
-    runTransaction: (_db: unknown, callback: (tx: unknown) => unknown) => {
-      // Model Firestore's serializable successful transaction attempts.
-      const result = state.pending.then(() => callback({
-        get: async (ref: { id: string }) => snapshot(ref.id),
-        set: (ref: { id: string }, data: Record<string, unknown>) => { state.rows.set(ref.id, data); state.writes++; },
-      }));
-      state.pending = result.catch(() => undefined);
-      return result;
-    },
-  };
-});
+const state = vi.hoisted(() => ({ manage: vi.fn(), uid: 'player', epoch: 1 }));
+vi.mock('./postMutationService', () => ({ managePost: state.manage }));
+vi.mock('./reportModerationService', () => ({ reportAccountSnapshot: () => ({ uid: state.uid, epoch: state.epoch }), reportAccountGuard: (uid: string) => { const epoch = state.epoch; return () => { if (state.uid !== uid || epoch !== state.epoch) throw new Error('Account changed'); }; } }));
 import { findGameCapturePost, saveGameCapturePost } from './gameCapturePost';
-const captureId = 'a'.repeat(48);
-beforeEach(() => { state.rows.clear(); state.writes = 0; state.pending = Promise.resolve(); });
-describe('transactional game capture import', () => {
-  it('makes simultaneous tabs resolve to one post and preserves the first caption', async () => {
-    const [first, second] = await Promise.all([
-      saveGameCapturePost(captureId, 'author', { caption: 'First', media_url: 'media:first' }),
-      saveGameCapturePost(captureId, 'author', { caption: 'Second', media_url: 'media:second' }),
-    ]);
-    expect(first.created).toBe(true); expect(second.created).toBe(false);
-    expect(second.post).toEqual(first.post); expect(second.post.caption).toBe('First'); expect(state.writes).toBe(1);
+const captureId = 'a'.repeat(48), postId = 'game_' + captureId;
+beforeEach(() => { vi.clearAllMocks(); sessionStorage.clear(); state.uid = 'player'; state.epoch = 1; });
+describe('protected game capture publication adapter', () => {
+  it('uses a checked missing-read instead of a raw denied document lookup', async () => {
+    state.manage.mockResolvedValue({ status: 'missing', post: null });
+    expect(await findGameCapturePost(captureId, 'profile')).toBeNull();
+    expect(state.manage).toHaveBeenCalledWith({ uid: 'player', profileId: 'profile' }, { action: 'read', postId }, expect.any(Function));
   });
-  it('recovers an existing post on a retry before uploading media again', async () => {
-    const { post } = await saveGameCapturePost(captureId, 'author', { caption: 'First' });
-    expect(await findGameCapturePost(captureId, 'author')).toEqual(post);
-    expect(state.writes).toBe(1);
+  it('recovers only a current protected publication matching this capture', async () => {
+    state.manage.mockResolvedValue({ status: 'published', post: { id: postId, authorId: 'profile', caption: 'Original', gameCaptureId: captureId } });
+    expect(await findGameCapturePost(captureId, 'profile')).toMatchObject({ id: postId, caption: 'Original' });
   });
-  it('refuses another author’s existing document without overwriting it', async () => {
-    const { post } = await saveGameCapturePost(captureId, 'author', { caption: 'Original' });
-    await expect(saveGameCapturePost(captureId, 'stranger', { caption: 'Hijack' })).rejects.toThrow('another author');
-    await expect(findGameCapturePost(captureId, 'stranger')).rejects.toThrow('another author');
-    expect(state.rows.get(post.id)?.caption).toBe('Original'); expect(state.writes).toBe(1);
+  it.each(['legacy', 'deleted'])('never silently re-adopts or resurrects %s captures', async status => {
+    state.manage.mockResolvedValue({ status, post: { gameCaptureId: captureId } });
+    await expect(findGameCapturePost(captureId, 'profile')).rejects.toThrow();
   });
-  it('refuses a document with a mismatched capture reference', async () => {
-    state.rows.set(`game_${captureId}`, { author_id: 'author', game_capture_id: 'b'.repeat(48) });
-    await expect(saveGameCapturePost(captureId, 'author', {})).rejects.toThrow();
-    expect(state.writes).toBe(0);
+  it('does not accept a different capture relation', async () => {
+    state.manage.mockResolvedValue({ status: 'published', post: { gameCaptureId: 'b'.repeat(48) } });
+    await expect(findGameCapturePost(captureId, 'profile')).rejects.toThrow('owner review');
   });
-  it('cannot accept an arbitrary post ID or traversal path', async () => {
-    await expect(saveGameCapturePost('../other-post', 'author', {})).rejects.toThrow('Invalid');
-    expect(state.writes).toBe(0);
+  it('passes deterministic post and capture identity to the server without browser transaction writes', async () => {
+    state.manage.mockImplementation(async (actor, request) => ({ status: 'published', created: false, post: { ...request.payload, id: request.postId, authorId: actor.profileId } }));
+    const result = await saveGameCapturePost(captureId, 'profile', { caption: 'First', author_id: 'forged', view_count: 100 });
+    expect(result.created).toBe(false);
+    expect(state.manage.mock.calls[0][1]).toMatchObject({ action: 'create', postId, payload: { gameCaptureId: captureId, caption: 'First' } });
+    expect(state.manage.mock.calls[0][1].payload).not.toHaveProperty('author_id');
+  });
+  it('rejects stale read completions and arbitrary IDs', async () => {
+    state.manage.mockImplementation(async () => { state.epoch += 2; return { status: 'missing' }; });
+    await expect(findGameCapturePost(captureId, 'profile')).rejects.toThrow('Account changed');
+    state.manage.mockClear(); await expect(findGameCapturePost('../arbitrary', 'profile')).rejects.toThrow('Invalid'); expect(state.manage).not.toHaveBeenCalled();
   });
 });

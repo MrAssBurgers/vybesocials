@@ -48,7 +48,8 @@ export interface VybeMapboxCanvasProps {
   onFriendTap: (f: LiveFriend) => void;
   onPlaceTap: (p: MapPlace) => void;
   onMeetupTap?: (m: MapMeetup) => void;
-  onMapReady?: (map: mapboxgl.Map) => void;
+  onMapReady?: (map: mapboxgl.Map | null) => void;
+  onUseFlatFallback?: () => void;
   routeGeometry?: GeoJSON.LineString | null;
   squadMemberIds?: Set<string>;
   /** Device/GPS heading in degrees (0 = north). */
@@ -154,6 +155,7 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   onPlaceTap,
   onMeetupTap,
   onMapReady,
+  onUseFlatFallback,
   routeGeometry,
   squadMemberIds,
   userHeading = null,
@@ -166,9 +168,15 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   const meetupMarkers = useRef(new Map<string, mapboxgl.Marker>());
   const selfMarker = useRef<mapboxgl.Marker | null>(null);
   const styleLoaded = useRef(false);
+  const styleGeneration = useRef(0);
+  const styleController = useRef<{ setMode: (mode: MapViewMode) => void } | null>(null);
+  const readyCallback = useRef(onMapReady);
+  readyCallback.current = onMapReady;
+  const [readyGeneration, setReadyGeneration] = useState(0);
   const [mapZoom, setMapZoom] = useState(14);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [mapBearing, setMapBearing] = useState(0);
   const [deviceHeading, setDeviceHeading] = useState<number | null>(null);
   const myCoordsRef = useRef(center);
@@ -218,154 +226,124 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
 
   useEffect(() => {
     const el = containerRef.current;
-    if (!el || mapRef.current || !MAPBOX_TOKEN) return;
-
-    const initial = center ? [center[1], center[0]] as [number, number] : DEFAULT_MAP_CENTER;
+    if (!el || mapRef.current) return;
+    setMapError(null);
+    setMapReady(false);
+    readyCallback.current?.(null);
+    if (!MAPBOX_TOKEN) { setMapError('The 3D map is not configured.'); return; }
     let cancelled = false;
-
-    const map = new mapboxgl.Map({
-      container: el,
-      style: MAPBOX_STYLE_URL[mapMode],
-      center: initial,
-      zoom: center ? 14 : 3.5,
-      pitch: pitchForMode(mapMode),
-      bearing: 0,
-      antialias: false,
-      attributionControl: false,
+    let activeMode = mapMode;
+    let disposeStyle = () => {};
+    const initial = center ? [center[1], center[0]] as [number, number] : DEFAULT_MAP_CENTER;
+    let map: mapboxgl.Map;
+    try { map = new mapboxgl.Map({
+      container: el, style: MAPBOX_STYLE_URL[mapMode], center: initial,
+      zoom: center ? 14 : 3.5, pitch: pitchForMode(mapMode),
+      projection: { name: mapMode === '3d' ? 'globe' : 'mercator' },
+      bearing: 0, antialias: false, attributionControl: false,
       failIfMajorPerformanceCaveat: false,
-    });
-
+    }); } catch {
+      setMapError('The 3D map could not start on this device.');
+      return;
+    }
     mapRef.current = map;
-
-    const finishLoad = () => {
-      if (cancelled) return;
-      styleLoaded.current = true;
-      setMapZoom(map.getZoom());
-      setMapReady(true);
-      setMapError(null);
-      requestAnimationFrame(() => {
-        try { map.resize(); } catch { /* ignore */ }
-      });
+    const clearMarkers = () => {
+      for (const markers of [friendMarkers, spotMarkers, meetupMarkers]) {
+        markers.current.forEach(marker => marker.remove());
+        markers.current.clear();
+      }
+      selfMarker.current?.remove(); selfMarker.current = null;
     };
-
-    const addOverlays = () => {
-      // Defer DEM until 3D/terrain — keeps first paint + Follow fast on Android.
-      if (mapMode === 'terrain' || mapMode === '3d') {
-        try {
-          if (!map.getSource('mapbox-dem')) {
-            map.addSource('mapbox-dem', {
-              type: 'raster-dem',
-              url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
-              tileSize: 512,
-              maxzoom: 14,
-            });
-          }
-          map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.4 });
-        } catch { /* optional */ }
-      }
-
-      if (!map.getSource('vybe-heatmap')) {
-        map.addSource('vybe-heatmap', {
-          type: 'geojson',
-          data: { type: 'FeatureCollection', features: [] },
-        });
-        map.addLayer({
-          id: 'vybe-heatmap-glow',
-          type: 'circle',
-          source: 'vybe-heatmap',
-          paint: {
-            'circle-radius': ['interpolate', ['linear'], ['get', 'intensity'], 0, 30, 100, 120],
-            'circle-color': ['get', 'color'],
-            'circle-opacity': ['get', 'opacity'],
-            'circle-blur': 0.6,
-          },
-        });
-      }
-
-      onMapReady?.(map);
-    };
-
-    // style.load fires as soon as the basemap is usable — don't wait for idle tiles.
-    map.once('style.load', () => {
-      finishLoad();
-      addOverlays();
-    });
-    map.on('load', () => {
-      if (!styleLoaded.current) {
-        finishLoad();
-        addOverlays();
-      }
-    });
-
-    map.on('error', (e) => {
-      if (cancelled) return;
-      const msg = e?.error?.message || 'Map failed to load';
-      console.warn('[VybeMapboxCanvas]', msg);
-      if (!styleLoaded.current && mapMode !== '2d') {
-        map.setStyle(MAPBOX_STYLE_URL['2d']);
-        map.once('style.load', () => {
-          finishLoad();
-          addOverlays();
-        });
-        return;
-      }
-      setMapError(msg);
-    });
-
-    map.on('zoomend', () => setMapZoom(map.getZoom()));
-
-    const ro = new ResizeObserver(() => {
-      try { map.resize(); } catch { /* ignore */ }
-    });
-    ro.observe(el);
-
-    return () => {
-      cancelled = true;
-      ro.disconnect();
-      friendMarkers.current.forEach((m) => m.remove());
-      friendMarkers.current.clear();
-      spotMarkers.current.forEach((m) => m.remove());
-      spotMarkers.current.clear();
-      meetupMarkers.current.forEach((m) => m.remove());
-      meetupMarkers.current.clear();
-      selfMarker.current?.remove();
-      selfMarker.current = null;
-      map.remove();
-      mapRef.current = null;
+    const beginStyle = (mode: MapViewMode, replace: boolean) => {
+      disposeStyle();
+      activeMode = mode;
+      const generation = ++styleGeneration.current;
+      const current = () => !cancelled && mapRef.current === map && styleGeneration.current === generation;
+      let complete = false;
       styleLoaded.current = false;
       setMapReady(false);
-    };
-  }, []);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    const applyStyle = () => {
-      map.setStyle(MAPBOX_STYLE_URL[mapMode]);
-      map.once('style.load', () => {
-        map.setPitch(pitchForMode(mapMode));
-        if (mapMode === 'terrain' || mapMode === '3d') {
-          try {
-            if (!map.getSource('mapbox-dem')) {
-              map.addSource('mapbox-dem', {
-                type: 'raster-dem',
-                url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
-                tileSize: 512,
-                maxzoom: 14,
-              });
-            }
+      setMapError(null);
+      readyCallback.current?.(null);
+      clearMarkers();
+      const timer = setTimeout(() => {
+        if (current() && !complete) setMapError('The 3D map is taking too long to load.');
+      }, 20_000);
+      const finish = () => {
+        if (!current() || complete) return;
+        complete = true;
+        clearTimeout(timer);
+        map.setProjection({ name: mode === '3d' ? 'globe' : 'mercator' });
+        map.setPitch(pitchForMode(mode));
+        // setStyle discards custom sources. Rebuild the base overlays before
+        // advancing readiness; all current data effects then hydrate this style.
+        try {
+          if (mode === 'terrain' || mode === '3d') {
+            if (!map.getSource('mapbox-dem')) map.addSource('mapbox-dem', {
+              type: 'raster-dem', url: 'mapbox://mapbox.mapbox-terrain-dem-v1', tileSize: 512, maxzoom: 14,
+            });
             map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.4 });
-          } catch { /* optional */ }
-        } else {
-          try { map.setTerrain(null); } catch { /* ignore */ }
-        }
-      });
+          } else map.setTerrain(null);
+        } catch { /* Terrain is optional; keep the working basemap. */ }
+        if (!map.getSource('vybe-heatmap')) map.addSource('vybe-heatmap', {
+          type: 'geojson', data: { type: 'FeatureCollection', features: [] },
+        });
+        if (!map.getLayer('vybe-heatmap-glow')) map.addLayer({
+          id: 'vybe-heatmap-glow', type: 'circle', source: 'vybe-heatmap',
+          paint: {
+            'circle-radius': ['interpolate', ['linear'], ['get', 'intensity'], 0, 30, 100, 120],
+            'circle-color': ['get', 'color'], 'circle-opacity': ['get', 'opacity'], 'circle-blur': 0.6,
+          },
+        });
+        styleLoaded.current = true;
+        setMapZoom(map.getZoom());
+        setMapError(null);
+        setMapReady(true);
+        setReadyGeneration(generation);
+        readyCallback.current?.(map);
+        requestAnimationFrame(() => { if (current()) { try { map.resize(); } catch { /* disposed */ } } });
+      };
+      const fail = () => {
+        if (!current() || complete) return;
+        // A late optional terrain/tile warning must not cover a usable basemap.
+        clearTimeout(timer);
+        setMapError('The 3D map could not load. Check your connection and retry.');
+      };
+      map.on('style.load', finish);
+      map.on('error', fail);
+      disposeStyle = () => { clearTimeout(timer); map.off('style.load', finish); map.off('error', fail); };
+      if (replace) { try { map.setStyle(MAPBOX_STYLE_URL[mode]); } catch { fail(); } }
     };
-    if (styleLoaded.current) applyStyle();
-  }, [mapMode]);
+    const controller = { setMode: (mode: MapViewMode) => {
+      if (!cancelled && mapRef.current === map && mode !== activeMode) beginStyle(mode, true);
+    } };
+    styleController.current = controller;
+    beginStyle(mapMode, false);
+    const updateZoom = () => { if (!cancelled && mapRef.current === map) setMapZoom(map.getZoom()); };
+    map.on('zoomend', updateZoom);
+    const ro = new ResizeObserver(() => {
+      if (!cancelled && mapRef.current === map) { try { map.resize(); } catch { /* disposed */ } }
+    });
+    ro.observe(el);
+    return () => {
+      cancelled = true;
+      disposeStyle();
+      ro.disconnect();
+      map.off('zoomend', updateZoom);
+      clearMarkers();
+      if (styleController.current === controller) styleController.current = null;
+      if (mapRef.current === map) {
+        readyCallback.current?.(null);
+        mapRef.current = null;
+        styleLoaded.current = false;
+      }
+      map.remove();
+    };
+  }, [attempt]);
+
+  useEffect(() => { styleController.current?.setMode(mapMode); }, [mapMode]);
 
   useEffect(() => {
-    if (!center || !mapRef.current) return;
+    if (!center || !mapRef.current || !styleLoaded.current) return;
     if (!followSelfRef.current || userInteractingRef.current) return;
     // [Android-only] jumpTo — easeTo(650ms) made Follow feel frozen on Fold/mid-range GPUs.
     if (isAndroidMap()) {
@@ -377,7 +355,7 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
       duration: 280,
       essential: true,
     });
-  }, [center?.[0], center?.[1]]);
+  }, [center?.[0], center?.[1], readyGeneration]);
 
   // Prefer compass (phone facing) over GPS course-over-ground — GPS heading is often
   // null/stale when standing still and points travel direction while walking.
@@ -416,7 +394,7 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
     }
     const lngLat: [number, number] = [center[1], center[0]];
     refreshSelfMarker(lngLat, mapBearing, resolvedHeading, followHeading);
-  }, [center?.[0], center?.[1], mapBearing, resolvedHeading, followHeading, refreshSelfMarker]);
+  }, [center?.[0], center?.[1], mapBearing, resolvedHeading, followHeading, refreshSelfMarker, readyGeneration]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -441,7 +419,7 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
       map.off('rotate', onRotate);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [mapReady, followHeading]);
+  }, [mapReady, followHeading, readyGeneration]);
 
   useEffect(() => {
     return subscribeDeviceHeading((sample) => {
@@ -507,7 +485,7 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
         headingRafRef.current = null;
       }
     };
-  }, [followHeading, mapReady]);
+  }, [followHeading, mapReady, readyGeneration]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -569,7 +547,7 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
         existing.delete(id);
       }
     });
-  }, [friends, layers.friends, mapZoom, squadMemberIds, onFriendTap]);
+  }, [friends, layers.friends, mapZoom, squadMemberIds, onFriendTap, readyGeneration]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -616,7 +594,7 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
     } catch {
       /* ignore bounds fit errors */
     }
-  }, [routeGeometry]);
+  }, [routeGeometry, readyGeneration]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -656,7 +634,7 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
         existing.delete(id);
       }
     });
-  }, [places, layers.trending, layers.hotspots, onPlaceTap]);
+  }, [places, layers.trending, layers.hotspots, onPlaceTap, readyGeneration]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -696,11 +674,11 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
         existing.delete(id);
       }
     });
-  }, [meetups, layers.meetups, onMeetupTap]);
+  }, [meetups, layers.meetups, onMeetupTap, readyGeneration]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !map.getSource('vybe-heatmap')) return;
+    if (!map || !styleLoaded.current || !map.getSource('vybe-heatmap')) return;
     const src = map.getSource('vybe-heatmap') as mapboxgl.GeoJSONSource;
     if (!layers.heatmap) {
       src.setData({ type: 'FeatureCollection', features: [] });
@@ -721,7 +699,7 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
         },
       })),
     });
-  }, [heatmap, layers.heatmap]);
+  }, [heatmap, layers.heatmap, readyGeneration]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -784,14 +762,19 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
       '#f59e0b',
       layers.events,
     );
-  }, [stories, posts, clips, eventPins, layers]);
+  }, [stories, posts, clips, eventPins, layers, readyGeneration]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
     const resumeFollow = () => {
       followSelfRef.current = true;
+      userInteractingRef.current = false;
+      if (interactPauseRef.current) clearTimeout(interactPauseRef.current);
+      interactPauseRef.current = undefined;
       headingInteractPauseRef.current = false;
+      if (headingInteractTimerRef.current) clearTimeout(headingInteractTimerRef.current);
+      headingInteractTimerRef.current = undefined;
       smoothedBearingRef.current = null;
     };
     const pauseFollow = () => {
@@ -814,8 +797,12 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
       map.off('vybe:pause-follow' as 'load', pauseFollow);
       if (interactPauseRef.current) clearTimeout(interactPauseRef.current);
       if (headingInteractTimerRef.current) clearTimeout(headingInteractTimerRef.current);
+      interactPauseRef.current = undefined;
+      headingInteractTimerRef.current = undefined;
+      userInteractingRef.current = false;
+      headingInteractPauseRef.current = false;
     };
-  }, [mapReady, pauseFollowWhileInteracting, pauseHeadingFollowGesture]);
+  }, [mapReady, pauseFollowWhileInteracting, pauseHeadingFollowGesture, readyGeneration]);
 
   return (
     <>
@@ -823,11 +810,16 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
       {!mapReady && !mapError && (
         <div className="pointer-events-none absolute inset-0 z-[1] flex items-center justify-center vybe-map-loading">
           <div className="vybe-map-loading-pulse" aria-hidden />
+          <span role="status" className="sr-only">{mapMode === '3d' ? 'Loading 3D world map…' : 'Loading map…'}</span>
         </div>
       )}
       {mapError && (
-        <div className="pointer-events-none absolute inset-0 z-[1] flex items-center justify-center px-8">
-          <p className="text-center text-sm text-white/50 max-w-xs">{mapError}</p>
+        <div className="pointer-events-none absolute inset-0 z-[1100] flex items-center justify-center px-8">
+          <div className="pointer-events-auto rounded-2xl border border-border bg-background/95 p-5 text-center shadow-lg max-w-xs" role="alert">
+            <p className="text-sm">{mapMode === '3d' ? mapError : mapError.replace('3D map', 'map')}</p>
+            <button type="button" onClick={() => setAttempt(value => value + 1)} className="mt-3 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">{mapMode === '3d' ? 'Retry 3D map' : 'Retry map'}</button>
+            {onUseFlatFallback && <button type="button" onClick={onUseFlatFallback} className="mt-3 block mx-auto text-xs text-muted-foreground underline">Use flat map instead</button>}
+          </div>
         </div>
       )}
     </>

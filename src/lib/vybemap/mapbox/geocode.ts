@@ -1,3 +1,4 @@
+import { isLocalPreview } from '@/lib/firebase/localPreview';
 /**
  * Place search for VybeMap Teleport — prefer Mapbox Geocoding (fast), fall back to Nominatim.
  */
@@ -24,7 +25,7 @@ type NominatimHit = {
 
 export async function resolveTeleportQuery(query: string): Promise<TeleportResult | null> {
   const q = query.trim();
-  if (!q) return null;
+  if (!q || isLocalPreview()) return null;
 
   if (hasMapbox()) {
     try {

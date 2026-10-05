@@ -32,7 +32,7 @@ describe('honest music catalog and sharing', () => {
   });
   it('confirms only durable post writes, without audio or XP promises', async () => {
     render(<MusicGallery onClose={() => {}} />); fireEvent.click(await screen.findByTitle('Share to feed'));
-    await waitFor(() => expect(state.success).toHaveBeenCalledWith('Track shared to your feed.')); expect(state.publish).toHaveBeenCalledWith({ author_id: 'profile-a', type: 'post', caption: expect.stringContaining('Synthetic tone') }); expect(state.success.mock.calls.flat().join(' ')).not.toMatch(/XP/);
+    await waitFor(() => expect(state.success).toHaveBeenCalledWith('Track shared to your feed.')); expect(state.publish).toHaveBeenCalledWith({ author_id: 'profile-a', type: 'post', caption: expect.stringContaining('Synthetic tone') }, expect.any(Function)); expect(state.success.mock.calls.flat().join(' ')).not.toMatch(/XP/);
   });
   it('does not claim failed publication succeeded', async () => {
     state.publish.mockRejectedValueOnce(new Error('Denied')); render(<MusicGallery onClose={() => {}} />); fireEvent.click(await screen.findByTitle('Share to feed'));

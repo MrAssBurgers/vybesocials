@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
+import { useProfileAccount } from '@/hooks/useProfileAccount';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import {
   type LiveFriend,
@@ -94,68 +95,59 @@ export function useMapFollowHeading() {
   return { followHeading, setFollowHeading, toggleFollowHeading };
 }
 
+const EMPTY_FRIEND_IDS: string[] = [];
+const EMPTY_LIVE_FRIENDS: LiveFriend[] = [];
 export function useFriendIds(profileId?: string) {
-  return useQuery({
-    queryKey: ['vybemap-friend-ids', profileId],
-    enabled: !!profileId,
-    staleTime: 60_000,
-    queryFn: () => fetchFriendIds(profileId!),
+  const account = useProfileAccount();
+  const enabled = account.ready && !!profileId && account.profile?.id === profileId;
+  const result = useQuery({
+    queryKey: ['vybemap-friend-ids', profileId, account.session.uid, account.session.epoch],
+    enabled, staleTime: 0, gcTime: 0, refetchOnMount: 'always', placeholderData: undefined,
+    queryFn: async () => { account.guard(); const rows = await fetchFriendIds(profileId!); account.guard(); return rows; },
   });
+  return { ...result, data: enabled && result.isFetchedAfterMount && !result.isError && !result.isPlaceholderData ? result.data ?? EMPTY_FRIEND_IDS : EMPTY_FRIEND_IDS };
 }
 
 export function useLiveFriends(friendIds: string[]) {
+  const account = useProfileAccount();
   const qc = useQueryClient();
-  const smoothRef = useRef(1);
-  const [smoothT, setSmoothT] = useState(1);
-  const [smoothTick, setSmoothTick] = useState(0);
-  const friendSet = useMemo(() => new Set(friendIds), [friendIds]);
-
-  const runSmoothing = useCallback(() => {
-    let raf = 0;
-    let active = true;
-    const tick = () => {
-      if (!active) return;
-      smoothRef.current = Math.min(1, smoothRef.current + 0.08);
-      setSmoothT(smoothRef.current);
-      if (smoothRef.current < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => {
-      active = false;
-      cancelAnimationFrame(raf);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!friendIds.length) return;
-    const unsub = subscribeLiveFriends(friendSet, () => {
-      smoothRef.current = 0;
-      setSmoothTick((t) => t + 1);
-      void qc.invalidateQueries({ queryKey: ['vybemap-live-friends'] });
-    });
-    return unsub;
-  }, [friendIds, friendSet, qc]);
-
+  const profileId = account.profile?.id;
+  const key = useMemo(() => ['vybemap-live-friends', profileId, account.session.uid, account.session.epoch, [...friendIds].sort().join(':')],
+    [profileId, account.session.uid, account.session.epoch, friendIds]);
+  const enabled = account.ready && !!profileId && friendIds.length > 0;
+  const [listenerError, setListenerError] = useState<{ key: string; error: Error } | null>(null);
+  const keyText = JSON.stringify(key);
   const query = useQuery({
-    queryKey: ['vybemap-live-friends', [...friendIds].sort().join(':')],
-    enabled: friendIds.length > 0,
-    staleTime: 5_000,
-    refetchInterval: 12_000,
-    queryFn: () => fetchLiveFriends(friendIds),
+    queryKey: key, enabled, staleTime: 0, gcTime: 0, refetchOnMount: 'always', placeholderData: undefined,
+    refetchInterval: 12_000, refetchOnWindowFocus: 'always', retry: false,
+    queryFn: async () => {
+      account.guard();
+      const result = await fetchLiveFriends(profileId!, friendIds, account.guard);
+      account.guard();
+      setListenerError(null);
+      return result;
+    },
   });
-
   useEffect(() => {
-    if (!query.data?.length) return;
-    smoothRef.current = 0;
-    return runSmoothing();
-  }, [query.data, smoothTick, runSmoothing]);
-
-  const smoothed = useMemo(
-    () => applyDisplayPositions(query.data || [], smoothT),
-    [query.data, smoothT],
-  );
-
-  return { ...query, data: smoothed };
+    if (!enabled) return;
+    const guard = account.guard;
+    let active = true;
+    const stop = subscribeLiveFriends(profileId!, () => {
+      try { guard(); } catch { return; }
+      if (!active) return;
+      void qc.invalidateQueries({ queryKey: key });
+    }, error => {
+      try { guard(); } catch { return; }
+      if (active) setListenerError({ key: keyText, error });
+    });
+    return () => { active = false; stop(); };
+  // A subscription belongs to this exact immutable account/friend scope.
+  }, [enabled, keyText, qc]);
+  const error = listenerError?.key === keyText ? listenerError.error : query.error;
+  const smoothed = useMemo(() => enabled && query.isFetchedAfterMount && !error && !query.isPlaceholderData
+    ? applyDisplayPositions(query.data ?? EMPTY_LIVE_FRIENDS, 1) : EMPTY_LIVE_FRIENDS,
+  [enabled, query.isFetchedAfterMount, error, query.isPlaceholderData, query.data]);
+  return { ...query, data: smoothed, error, isError: !!error, isLoading: enabled && query.isPending };
 }
 
 export function useMapStories(enabled: boolean) {

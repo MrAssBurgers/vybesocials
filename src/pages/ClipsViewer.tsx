@@ -66,6 +66,7 @@ function ClipsViewerContent() {
     id: checked.id, type: checked.type, caption: checked.caption, media_url: checked.mediaUrl || '',
     thumbnail_url: checked.thumbnailUrl, age_rating: checked.ageRating,
     tags: checked.tags, created_at: checked.createdAt, is_pinned: checked.isPinned,
+    publication_revision: checked.publicationRevision, needs_owner_confirmation: checked.needsOwnerConfirmation,
     view_count: checked.viewCount, like_count: checked.likeCount, comment_count: checked.commentCount,
     is_liked: interaction?.reaction.is_liked || false, reaction_type: interaction?.reaction.reaction_type || null,
     is_bookmarked: interaction?.bookmarked || false,

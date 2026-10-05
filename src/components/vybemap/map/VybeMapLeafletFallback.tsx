@@ -1,15 +1,14 @@
 /**
  * Leaflet fallback when VITE_MAPBOX_ACCESS_TOKEN is not configured.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import 'leaflet-rotate';
 import type { LiveFriend, MapStoryPin, MapPostPin, MapClipPin, MapMeetup, MapPlace, MapEventPin, HeatmapCell, MapLayer } from '@/lib/vybemap/types';
 import { activityMeta } from '@/lib/vybemap/activity';
 
 const DEFAULT_CENTER: [number, number] = [39.8283, -98.5795];
-const DARK_TILES = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+export const FALLBACK_TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
 export interface VybeMapLeafletProps {
   center: [number, number] | null;
@@ -35,26 +34,38 @@ export function VybeMapLeafletFallback({
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
   const heatLayerRef = useRef<L.LayerGroup | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
 
   useEffect(() => {
     const el = mapElRef.current;
     if (!el || mapRef.current) return;
-    const map = L.map(el, { zoomControl: false, attributionControl: false, rotate: true, bearing: 0 } as L.MapOptions)
+    let cancelled = false, hasTile = false;
+    setStatus('loading');
+    // The 2D fallback deliberately has no rotation plugin/global L dependency.
+    const map = L.map(el, { zoomControl: false, attributionControl: false })
       .setView(center || DEFAULT_CENTER, center ? 14 : 4);
-    L.tileLayer(DARK_TILES, { maxZoom: 19 }).addTo(map);
+    const timer = setTimeout(() => { if (!cancelled && !hasTile) setStatus('error'); }, 15000);
+    // Attribution is above DiscoveryDrawer, outside its collapsed content.
+    // Keep normal browser caching/referrers; no prefetch or offline tile pack.
+    const tiles = L.tileLayer(FALLBACK_TILES, {
+      maxZoom: 19, keepBuffer: 0, updateWhenIdle: true, updateWhenZooming: false,
+      detectRetina: false, referrerPolicy: 'strict-origin-when-cross-origin',
+    });
+    tiles.on('tileload', () => { if (!cancelled) { hasTile = true; clearTimeout(timer); setStatus('ready'); } });
+    tiles.on('load', () => { if (!cancelled && !hasTile) { clearTimeout(timer); setStatus('error'); } });
+    tiles.addTo(map);
     markersRef.current = L.layerGroup().addTo(map);
     heatLayerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
     onMapReady?.(map);
-    requestAnimationFrame(() => map.invalidateSize());
+    requestAnimationFrame(() => { if (!cancelled) map.invalidateSize(); });
     const ro = new ResizeObserver(() => {
-      requestAnimationFrame(() => {
-        try { map.invalidateSize(); } catch { /* ignore */ }
-      });
+      requestAnimationFrame(() => { if (!cancelled) { try { map.invalidateSize(); } catch { /* disposed */ } } });
     });
     ro.observe(el);
-    return () => { ro.disconnect(); map.remove(); mapRef.current = null; };
-  }, []);
+    return () => { cancelled = true; clearTimeout(timer); ro.disconnect(); tiles.off(); map.remove(); mapRef.current = null; markersRef.current = null; heatLayerRef.current = null; };
+  }, [attempt]);
 
   useEffect(() => {
     const layer = markersRef.current;
@@ -66,11 +77,11 @@ export function VybeMapLeafletFallback({
         const lat = f.displayLat ?? f.latitude;
         const lng = f.displayLng ?? f.longitude;
         const act = activityMeta(f.activity_type || 'stationary');
-        const html = `<div class="vybe-live-marker" style="--ring:${(f.speed || 0) > 0.5 ? '#22c55e' : '#6366f1'}">
-          <img src="${f.profile?.avatar_url || ''}" onerror="this.style.display='none'" class="vybe-live-avatar"/>
-          <span class="vybe-live-emoji">${act.icon}</span>
-        </div>`;
-        const icon = L.divIcon({ html, className: '', iconSize: [48, 48], iconAnchor: [24, 24] });
+        const element = document.createElement('div'); element.className = 'vybe-live-marker';
+        element.style.setProperty('--ring', (f.speed || 0) > 0.5 ? '#22c55e' : '#6366f1');
+        if (f.profile?.avatar_url) { const image = document.createElement('img'); image.src = f.profile.avatar_url; image.className = 'vybe-live-avatar'; image.referrerPolicy = 'no-referrer'; image.onerror = () => { image.hidden = true; }; element.append(image); }
+        const emoji = document.createElement('span'); emoji.className = 'vybe-live-emoji'; emoji.textContent = act.icon; element.append(emoji);
+        const icon = L.divIcon({ html: element, className: '', iconSize: [48, 48], iconAnchor: [24, 24] });
         L.marker([lat, lng], { icon }).addTo(layer).on('click', () => onFriendTap(f));
       });
     }
@@ -81,15 +92,16 @@ export function VybeMapLeafletFallback({
       places.slice(0, 40).forEach((p) => {
         const size = 36 + Math.min(p.check_in_count, 24);
         const emoji = p.category === 'food' ? '🍕' : '🔥';
-        const html = `<div class="vybe-spot-marker" style="width:${size}px;height:${size}px">${p.photo_url ? `<img src="${p.photo_url}" class="vybe-spot-photo"/>` : emoji}</div>`;
-        const icon = L.divIcon({ html, className: '', iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
+        const element = document.createElement('div'); element.className = 'vybe-spot-marker'; element.style.width = size + 'px'; element.style.height = size + 'px';
+        if (p.photo_url) { const image = document.createElement('img'); image.src = p.photo_url; image.className = 'vybe-spot-photo'; image.referrerPolicy = 'no-referrer'; element.append(image); } else element.textContent = emoji;
+        const icon = L.divIcon({ html: element, className: '', iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
         L.marker([p.latitude, p.longitude], { icon }).addTo(layer).on('click', (e) => {
           L.DomEvent.stopPropagation(e);
           onPlaceTap(p);
         });
       });
     }
-  }, [friends, stories, places, layers, onFriendTap, onPlaceTap]);
+  }, [friends, stories, places, layers, onFriendTap, onPlaceTap, attempt]);
 
   useEffect(() => {
     const hLayer = heatLayerRef.current;
@@ -105,9 +117,15 @@ export function VybeMapLeafletFallback({
         weight: 0,
       }).addTo(hLayer);
     });
-  }, [heatmap, layers.heatmap]);
+  }, [heatmap, layers.heatmap, attempt]);
 
-  return null;
+  if (status === 'ready') return null;
+  return <div className="absolute inset-0 z-[1100] flex items-center justify-center pointer-events-none p-6">
+    <div className="rounded-2xl bg-background/95 border border-border p-5 text-center shadow-lg pointer-events-auto max-w-xs" role={status === 'error' ? 'alert' : 'status'}>
+      <p className="text-sm">{status === 'error' ? 'Map tiles could not load. Check your connection and retry.' : 'Loading map…'}</p>
+      {status === 'error' && <button type="button" onClick={() => setAttempt(value => value + 1)} className="mt-3 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Retry map</button>}
+    </div>
+  </div>;
 }
 
 export function leafletFlyTo(map: L.Map | null, lat: number, lng: number, zoom = 15) {

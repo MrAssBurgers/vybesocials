@@ -22,6 +22,7 @@ export async function readSocialPostList(input: SocialPostListInput, guard: () =
     || (input.scope !== 'saved' && data.unavailableSavedPostIds.length > 0)
     || new Set(data.unavailableSavedPostIds).size !== data.unavailableSavedPostIds.length
     || data.posts.some(row => data.unavailableSavedPostIds.includes(row.id) || (input.contentType && row.type !== input.contentType)
+      || (row.needsOwnerConfirmation && row.author.id !== input.expectedProfileId)
       || (!row.mediaUrl && (row.type !== 'post' || !row.caption.trim())))) throw new Error('Post access could not be verified. Retry.');
   let posts = data.posts.map(socialPostToPost);
   if (includeCommentCounts && posts.length) {

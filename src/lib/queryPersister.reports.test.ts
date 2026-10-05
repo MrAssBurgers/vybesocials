@@ -12,7 +12,7 @@ vi.mock('@tanstack/query-async-storage-persister', () => ({
 vi.mock('idb-keyval', () => ({ get: vi.fn(), set: vi.fn(), del: vi.fn() }));
 import { shouldPersistQueryKey } from './queryPersister';
 
-const privateKeys = ['sounds', 'sound', 'saved-sounds', 'admin-reports', 'content-flags', 'report-inspection', 'pending-moderation-count', 'post-deletion-log', 'feed-mutes', 'shared-theme', 'public-themes', 'my-shared-themes', 'saved-themes', 'theme-likes', 'dna-agent-settings', 'dna-content-preferences', 'dna-actions'];
+const privateKeys = ['vybemap-friend-ids', 'vybemap-live-friends', 'sounds', 'sound', 'saved-sounds', 'admin-reports', 'content-flags', 'report-inspection', 'pending-moderation-count', 'post-deletion-log', 'feed-mutes', 'shared-theme', 'public-themes', 'my-shared-themes', 'saved-themes', 'theme-likes', 'dna-agent-settings', 'dna-content-preferences', 'dna-actions'];
 function cachedClient(): PersistedClient {
   const client = new QueryClient();
   for (const key of privateKeys) client.setQueryData([key, 'staff-uid', 1], { note: 'private review', source: 'private inspected source' });

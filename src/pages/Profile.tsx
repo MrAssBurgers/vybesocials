@@ -250,7 +250,7 @@ export default function ProfilePage() {
   ];
 
   return (
-    <AppLayout>
+    <AppLayout contentOwnsBottomPadding>
       <div className="relative isolate min-h-screen min-h-[100dvh] profile-effect-surface">
       {(themeImage || themeGradient) && (
         // AppLayout promotes its scroller with a transform. A fixed child would
@@ -265,7 +265,11 @@ export default function ProfilePage() {
         </div>
       )}
 
-      <div className="max-w-lg mx-auto px-3 sm:px-4 py-4 pb-[calc(7rem+env(safe-area-inset-bottom))] relative min-h-screen min-h-[100dvh] space-y-4 profile-page-shell" style={{ zIndex: 1 }}>
+      <div className="max-w-lg mx-auto px-3 sm:px-4 py-4 relative min-h-screen min-h-[100dvh] space-y-4 profile-page-shell" style={{ zIndex: 1,
+        // Keep navigation/safe-area clearance inside the colored surface.
+        // Padding on AppLayout would leave an unpainted strip after any tab.
+        paddingBottom: 'calc(7rem + var(--sab, env(safe-area-inset-bottom, 0px)))',
+      }}>
         {/* Hero Identity Card */}
         <ProfileHeroCard
           profile={profile}

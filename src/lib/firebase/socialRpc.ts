@@ -1,5 +1,4 @@
-import { readSocialPostPreviews } from '@/lib/socialFeedService';
-import { tokenAccountGuard } from '@/lib/tokenMarketplaceService';
+import { reportAccountGuard, reportAccountSnapshot } from '@/lib/reportModerationService';
 import {
   getDocument,
   getDocuments,
@@ -57,19 +56,13 @@ async function rpcGetProfileByUsername(params: Record<string, unknown>) {
 async function rpcIncrementViewCount(params: Record<string, unknown>) {
   const postId = String(params.post_id_param || params.p_post_id || params.post_id || '');
   if (!postId) return null;
-  const uid = await currentAuthUid(), profileId = await currentProfileId();
-  if (!uid || !profileId) return null;
-  const guard = tokenAccountGuard(uid);
-  const post = (await readSocialPostPreviews({ expectedOwnerUid: uid, expectedProfileId: profileId, postIds: [postId] }, guard))[0];
-  if (!post) return null;
-  // Clients can increment their own presentation counter only. An admitted
-  // preview is sufficient for non-owner reads; never fetch its raw document.
-  if (post.author.id !== profileId) return post.viewCount;
+  const guard = reportAccountGuard(reportAccountSnapshot().uid || '');
   guard();
-  const next = post.viewCount + 1;
-  await updateDocument('posts', postId, { view_count: next });
+  const { recordCurrentPostView } = await import('@/lib/postViewService');
   guard();
-  return next;
+  const result = await recordCurrentPostView(postId);
+  guard();
+  return result.viewCount;
 }
 
 async function rpcBumpPostImpression(params: Record<string, unknown>) {

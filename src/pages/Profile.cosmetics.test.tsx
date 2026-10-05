@@ -16,7 +16,7 @@ vi.mock('@/hooks/useBadges', () => ({ useUserBadges: () => ({ data: [] }), useUs
 vi.mock('@/hooks/useLockerItems', () => ({ useLockerItems: () => ({ data: { equippedProfileTheme: mock.theme, equippedFrame: mock.frame } }) }));
 vi.mock('@/hooks/usePremiumStatus', () => ({ usePremiumStatus: () => ({ isPremium: false }) }));
 vi.mock('@/hooks/useLiveMusicPresence', () => ({ useLiveMusicPresence: () => ({ presence: null }) }));
-vi.mock('@/components/layout/AppLayout', () => ({ AppLayout: ({ children }: { children: ReactNode }) => <main style={{ transform: 'translateZ(0)', overflowY: 'auto', height: '720px' }}>{children}</main> }));
+vi.mock('@/components/layout/AppLayout', () => ({ AppLayout: ({ children, contentOwnsBottomPadding }: { children: ReactNode; contentOwnsBottomPadding?: boolean }) => <main style={{ transform: 'translateZ(0)', overflowY: 'auto', height: '720px', paddingBottom: contentOwnsBottomPadding ? undefined : '34px' }}>{children}</main> }));
 vi.mock('@/components/layout/AppBackground', () => ({ useAppBackground: () => ({ setBackgroundImage: mock.setBackground, refreshBackground: mock.refreshBackground, hasUserWallpaper: mock.hasWallpaper }) }));
 vi.mock('@/components/profile/ProfileHeroCard', () => ({ ProfileHeroCard: ({ frameClass }: { frameClass: string }) => <div data-testid="profile-avatar" className={frameClass} /> }));
 vi.mock('@/components/profile/ProfileLocker', () => ({ ProfileLocker: () => <section aria-label="Purchased profile items" style={{ minHeight: '1500px' }}>Owned profile effects</section> }));
@@ -76,6 +76,8 @@ describe('profile renders purchased cosmetics', () => {
     expect(surface.querySelector('[aria-hidden="true"].pointer-events-none')).toBe(background);
     expect(background).toHaveStyle({ zIndex: '0' });
     expect(surface.querySelector('.profile-page-shell')).toHaveStyle({ zIndex: '1' });
+    expect(container.querySelector('main')!.style.paddingBottom).toBe('');
+    expect((surface.querySelector('.profile-page-shell') as HTMLElement).style.paddingBottom).toBe('calc(7rem + var(--sab, env(safe-area-inset-bottom, 0px)))');
     expect(mock.setBackground).not.toHaveBeenCalled();
   });
 });

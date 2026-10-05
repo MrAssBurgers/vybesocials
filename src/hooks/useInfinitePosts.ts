@@ -10,6 +10,8 @@ export interface Post {
   is_ai_generated?: boolean;
   ai_confidence?: number;
   ai_override?: boolean | null;
+  publication_revision?: string;
+  needs_owner_confirmation?: boolean;
   thumbnail_url: string | null;
   caption: string;
   tags: string[];

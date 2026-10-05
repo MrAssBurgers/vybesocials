@@ -56,4 +56,20 @@ describe('publish safety service failures', () => {
     expect(await runPublishVybeCheck({ caption: '', mediaFile: new File(['x'], 'x.png', { type: 'image/png' }) })).toMatchObject({ allowed: false, blocked: true, message: 'Media cannot be shared.', categories: ['media'] });
     expect(mocks.edge).not.toHaveBeenCalled();
   });
+  it.each(['bypass', 'scan', 'frames'])('does not dispatch a safety request after the account changes during %s', async phase => {
+    let current = true; const guard = () => { if (!current) throw new Error('Account changed'); };
+    if (phase === 'bypass') mocks.bypass.mockImplementation(async () => { current = false; return false; });
+    if (phase === 'scan') mocks.scan.mockImplementation(async () => { current = false; return { result: 'safe' }; });
+    if (phase === 'frames') mocks.frames.mockImplementation(async () => { current = false; return []; });
+    await expect(runPublishVybeCheck({ caption: 'Draft', mediaFile: new File(['x'], 'x.png', { type: 'image/png' }) }, guard)).rejects.toThrow('Account changed');
+    expect(mocks.edge).not.toHaveBeenCalled();
+  });
+  it('rejects an old response and does not scan the next file after account retirement', async () => {
+    let current = true; const guard = () => { if (!current) throw new Error('Account changed'); };
+    mocks.edge.mockImplementation(async () => { current = false; return { data: approved, unavailable: false }; });
+    const file = new File(['x'], 'x.png', { type: 'image/png' });
+    await expect(runPublishVybeCheck({ caption: 'Draft', mediaFiles: [file, file] }, guard)).rejects.toThrow('Account changed');
+    expect(mocks.scan).toHaveBeenCalledTimes(1); expect(mocks.edge).toHaveBeenCalledTimes(1);
+  });
+
 });

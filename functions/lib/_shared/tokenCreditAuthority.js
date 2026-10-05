@@ -1,5 +1,7 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 import { createHash } from 'node:crypto';
+import { resolveIdentity } from './profileAudienceAuthority.js';
+import { validPostPublication } from './postPublicationProof.js';
 export const tokenAuthorityId = (parts) => createHash('sha256').update(JSON.stringify(parts)).digest('hex');
 const DAY = 86_400_000;
 const rates = {
@@ -83,6 +85,9 @@ async function verifiedTarget(tx, db, postId, actor) {
     if (!data || !liveProfile(data) || typeof data.user_id !== 'string' || !data.user_id || [actor.authUid, actor.profileId].includes(data.user_id)
         || (target.user_id != null && ![profile.id, data.user_id].includes(target.user_id)))
         throw new HttpsError('failed-precondition', 'Comment target owner is unavailable');
+    const canonical = await resolveIdentity(db, tx, owner), proof = (await tx.get(db.collection('_post_publications').doc(id(postId)))).data();
+    if (!canonical || !validPostPublication(target, proof, canonical, id(postId)))
+        throw new HttpsError('failed-precondition', 'A confirmed publication is required.');
 }
 async function verifySource(tx, db, actor, type, referenceId, start, now) {
     if (type === 'daily_login')
@@ -108,6 +113,11 @@ async function verifySource(tx, db, actor, type, referenceId, start, now) {
         throw new HttpsError('permission-denied', 'Activity must belong to your account');
     if (!live(row) || !content(row) || created == null || !Number.isFinite(created) || created < start || created > now)
         throw new HttpsError('failed-precondition', 'A current, published activity is required');
+    if (type === 'post_created') {
+        const owner = await resolveIdentity(db, tx, actor.authUid), proof = (await tx.get(db.collection('_post_publications').doc(referenceId))).data();
+        if (!owner || owner.profileId !== actor.profileId || !validPostPublication(row, proof, owner, referenceId))
+            throw new HttpsError('failed-precondition', 'Review and share this post before claiming its reward.');
+    }
     if (type === 'comment_added')
         await verifiedTarget(tx, db, row.post_id, actor);
 }

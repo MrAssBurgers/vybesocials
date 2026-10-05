@@ -19,20 +19,25 @@ interface AIDetectionResult {
 export async function detectAIContent(
   postId: string,
   file?: File,
-  caption?: string
+  caption?: string,
+  guard: () => void = () => {},
 ): Promise<AIDetectionResult> {
+  guard();
   try {
     let image_base64: string | undefined;
     let mime_type: string | undefined;
 
     if (file && file.type.startsWith('image/')) {
       image_base64 = await fileToBase64Resized(file, 512);
+      guard();
       mime_type = file.type;
     } else if (file && file.type.startsWith('video/')) {
       // Extract a frame from the video for analysis
       const frameBlob = await extractVideoFrameForDetection(file);
+      guard();
       if (frameBlob) {
         image_base64 = await blobToBase64(frameBlob);
+        guard();
         mime_type = 'image/jpeg';
       }
     }
@@ -41,6 +46,7 @@ export async function detectAIContent(
       return { is_ai: false, confidence: 0, reason: 'No content to analyze' };
     }
 
+    guard();
     const { data, error } = await db.functions.invoke('detect-ai-content', {
       body: {
         image_base64,
@@ -50,6 +56,7 @@ export async function detectAIContent(
         content_type: file?.type.startsWith('video/') ? 'video' : 'image',
       },
     });
+    guard();
 
     if (error) {
       console.warn('AI detection failed:', error);
@@ -58,6 +65,7 @@ export async function detectAIContent(
 
     return data as AIDetectionResult;
   } catch (err) {
+    guard();
     console.warn('AI detection error:', err);
     return { is_ai: false, confidence: 0, reason: 'Detection failed' };
   }

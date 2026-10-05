@@ -21,7 +21,7 @@ import { canPublishCreatePost, resolvePublishContentType } from '@/lib/createPub
 const visibilityOptions = [
   { id: 'public' as const, label: 'Everyone', icon: Globe },
   { id: 'followers' as const, label: 'Followers', icon: Users },
-  { id: 'private' as const, label: 'Only me', icon: Lock },
+  { id: 'only_me' as const, label: 'Only me', icon: Lock },
 ];
 
 interface MobilePostComposerProps {
@@ -55,7 +55,8 @@ export function MobilePostComposer({
   const [caption, setCaption] = useState(initialCaption.slice(0, 2200));
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
-  const [visibility, setVisibility] = useState<'public' | 'followers' | 'private'>('public');
+  const [visibility, setVisibility] = useState<'public' | 'followers' | 'only_me'>('public');
+  const submitting = useRef(false);
   const [showVisibility, setShowVisibility] = useState(false);
   const [showTags, setShowTags] = useState(true);
   const [taggedUserIds, setTaggedUserIds] = useState<string[]>([]);
@@ -72,7 +73,7 @@ export function MobilePostComposer({
     if (!d) return;
     if (d.caption) setCaption(d.caption);
     if (d.tags) setTags(d.tags);
-    if (d.visibility) setVisibility(d.visibility as 'public' | 'followers' | 'private');
+    if (d.visibility) setVisibility(d.visibility === 'private' || d.visibility === 'only_me' ? 'only_me' : d.visibility === 'followers' ? 'followers' : 'public');
     draft.dismissExisting();
     triggerHaptic('light');
   }, [draft]);
@@ -142,6 +143,7 @@ export function MobilePostComposer({
   const currentVisibility = visibilityOptions.find((v) => v.id === visibility)!;
 
   const handleSubmit = () => {
+    if (submitting.current) return;
     if (!user) {
       toast.error('Please sign in to post');
       return;
@@ -157,6 +159,8 @@ export function MobilePostComposer({
       return;
     }
 
+    submitting.current = true;
+    try {
     enqueuePostUpload(
       {
         profile: { id: profile.id, user_id: profile.user_id },
@@ -165,9 +169,15 @@ export function MobilePostComposer({
         caption,
         tags,
         type: publishType,
+        visibility,
       },
       caption.trim().slice(0, 48) || 'New post',
     );
+    } catch (error) {
+      submitting.current = false;
+      toast.error(error instanceof Error ? error.message : 'Could not start publishing. Your draft is still here.');
+      return;
+    }
     draft.clear();
     triggerHaptic('success');
     toast.message('Publishing…', {

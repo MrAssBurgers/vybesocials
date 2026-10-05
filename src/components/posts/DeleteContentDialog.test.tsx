@@ -17,7 +17,7 @@ describe('DeleteContentDialog', () => {
 
     expect(screen.getByRole('alertdialog')).toBeInTheDocument();
     expect(screen.getByText('Delete this clip?')).toBeInTheDocument();
-    expect(screen.getByText(/reactions and comments/i)).toBeInTheDocument();
+    expect(screen.getByText('This removes the clip from VYBE. This action cannot be undone.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete clip' }));
     expect(onConfirm).toHaveBeenCalledTimes(1);

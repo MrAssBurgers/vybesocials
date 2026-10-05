@@ -2,6 +2,7 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { claimTokenCredit, tokenAuthorityId, validatedTokenBoostMultiplier } from '../../functions/src/_shared/tokenCreditAuthority';
+import { postSourceFingerprint } from '../../functions/src/_shared/postPublicationProof';
 
 type Row = Record<string, unknown>;
 const now = Date.parse('2026-10-03T12:00:00Z');
@@ -99,7 +100,12 @@ const boost = (type: 'tokens_2x' | 'xp_2x' = 'tokens_2x', extra: Row = {}) => ({
 const claim = (type = 'daily_login', referenceId?: string, at = now) => claimTokenCredit(database, actor, { type, referenceId }, at);
 function post(key = 'post-one', extra: Row = {}, at = now) {
   rows.set(`posts/${key}`, { author_id: actor.profileId, caption: 'A real retained post', ...extra }); created.set(`posts/${key}`, at);
+  publication(key, actor.authUid, actor.profileId);
   return key;
+}
+function publication(key: string, uid: string, profileId: string) {
+  rows.set(`_post_publications/${key}`, { version: 1, status: 'published', post_id: key, owner_uid: uid, profile_id: profileId,
+    revision: 'a'.repeat(48), source_fingerprint: postSourceFingerprint(rows.get(`posts/${key}`)!) });
 }
 function comment(key = 'comment-one', extra: Row = {}, at = now) {
   rows.set(`comments/${key}`, { user_id: actor.profileId, text: 'A retained comment', post_id: 'target', ...extra }); created.set(`comments/${key}`, at);
@@ -118,6 +124,23 @@ beforeEach(() => {
   rows.set(`user_auth_index/${actor.authUid}`, { profile_id: actor.profileId });
   rows.set('profiles/other-profile', { user_id: 'other-auth' });
   rows.set('posts/target', { author_id: 'other-profile', caption: 'Another person’s post' });
+  publication('target', 'other-auth', 'other-profile');
+});
+
+describe('post publication reward provenance', () => {
+  it.each(['missing', 'tampered', 'deleted'])('rejects %s publication proof without crediting the wallet', async mode => {
+    const source = post();
+    if (mode === 'missing') rows.delete(`_post_publications/${source}`);
+    if (mode === 'tampered') rows.get(`posts/${source}`)!.caption = 'Changed after publication';
+    if (mode === 'deleted') rows.get(`_post_publications/${source}`)!.status = 'deleted';
+    await expect(claim('post_created', source)).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(rows.has(walletPath)).toBe(false); expect(rows.has(receiptPath('post_created', source))).toBe(false);
+  });
+  it('does not credit a comment on a historically unproven post', async () => {
+    rows.delete('_post_publications/target');
+    await expect(claim('comment_added', comment())).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(rows.has(walletPath)).toBe(false);
+  });
 });
 
 describe('server verified token credits', () => {

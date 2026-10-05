@@ -1,3 +1,4 @@
+import { usePostMutations } from '@/hooks/usePostMutations';
 import { useState, useRef, memo, lazy, Suspense, useCallback, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ProfileLink } from '@/components/profile/ProfileLink';
@@ -368,6 +369,8 @@ const PostLocalAreaDialog = lazy(() => import('./PostLocalAreaDialog').then(modu
 
 interface PostCardProps {
   post: {
+    publication_revision?: string;
+    needs_owner_confirmation?: boolean;
     id: string;
     type: string;
     media_url: string;
@@ -407,6 +410,7 @@ export const PostCard = memo(function PostCard({
   const submitSafetyReport = useSafetyReport();
   const { isGuest } = useIsGuest();
   const queryClient = useQueryClient();
+  const postActions = usePostMutations(post.id);
   const togglePin = useTogglePin();
   const bumpStreak = useInteractionStreakBump();
   const viewRef = useViewTracking(post.id);
@@ -449,6 +453,7 @@ export const PostCard = memo(function PostCard({
   const [showCommentSheet, setShowCommentSheet] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteRevision, setDeleteRevision] = useState<string | undefined>();
   const [isDeleting, setIsDeleting] = useState(false);
   const [whyOpen, setWhyOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -495,8 +500,8 @@ export const PostCard = memo(function PostCard({
   }, [post.id, submitSafetyReport]);
 
   const handleTogglePin = useCallback(() => {
-    togglePin.mutate({ postId: post.id, isPinned: !post.is_pinned });
-  }, [togglePin, post.id, post.is_pinned]);
+    togglePin.mutate({ postId: post.id, isPinned: !post.is_pinned, expectedRevision: post.publication_revision });
+  }, [togglePin, post.id, post.is_pinned, post.publication_revision]);
 
   const handleReaction = useCallback(async (reactionType: ReactionType | null) => {
     if (isGuest) {
@@ -575,38 +580,15 @@ export const PostCard = memo(function PostCard({
     }
   }, [post.id]);
 
+  useEffect(() => { setDeleteDialogOpen(false); setIsDeleting(false); setDeleteRevision(undefined); }, [postActions.contextKey]);
+
   const handleDelete = useCallback(async () => {
     setIsDeleting(true);
     try {
       // Use .select() so we can verify a row was actually removed (RLS may
       // silently filter out the delete if the user isn't the author/admin).
-      const { data: deletedRows, error } = await db
-        .from('posts')
-        .delete()
-        .eq('id', post.id)
-        .select('id');
-
-      if (error) throw error;
-
-      if (!deletedRows || deletedRows.length === 0) {
-        // RLS prevented the delete — post still exists in the database.
-        toast.error("You don't have permission to delete this post");
-        return;
-      }
-
-      // Log deletion for admin audit (best effort)
-      if (profile?.id) {
-        db.from('post_deletion_log').insert({
-          post_id: post.id,
-          author_id: post.author?.id ?? null,
-          deleted_by: profile.id,
-          post_type: (post as any).type ?? null,
-          caption: post.caption ?? null,
-          reason: 'user_self_delete',
-        }).then(({ error: logErr }) => {
-          if (logErr) console.warn('[DeletionLog] insert failed', logErr);
-        });
-      }
+      await postActions.remove(post.id, deleteRevision);
+      postActions.guard();
 
       toast.success('Post deleted');
       setDeleteDialogOpen(false);
@@ -617,12 +599,13 @@ export const PostCard = memo(function PostCard({
       queryClient.invalidateQueries({ queryKey: ['profile'] });
       queryClient.invalidateQueries({ queryKey: ['profile-by-id'] });
     } catch (error) {
+      try { postActions.guard(); } catch { return; }
       console.error('Failed to delete post:', error);
       toast.error('Failed to delete post');
     } finally {
-      setIsDeleting(false);
+      try { postActions.guard(); setIsDeleting(false); } catch { /* Retired view. */ }
     }
-  }, [post.id, post.author?.id, post.caption, profile?.id, queryClient]);
+  }, [post.id, post.author?.id, post.caption, deleteRevision, profile?.id, queryClient, postActions]);
 
   if (isHidden) return null;
 
@@ -711,15 +694,8 @@ export const PostCard = memo(function PostCard({
               {isOwnPost && (
                 <>
                   <DropdownMenuItem
-                    onClick={(e) => {
-                      if (atPinCap) {
-                        e.preventDefault();
-                        toast.info(`You can pin up to ${PIN_LIMIT} posts to your profile`);
-                        return;
-                      }
-                      handleTogglePin();
-                    }}
-                    className={atPinCap ? 'opacity-60' : ''}
+                    onClick={handleTogglePin}
+                    disabled={togglePin.isPending || post.needs_owner_confirmation}
                   >
                     {post.is_pinned ? (
                       <>
@@ -729,7 +705,7 @@ export const PostCard = memo(function PostCard({
                     ) : (
                       <>
                         <Pin className="h-4 w-4 mr-2" />
-                        Pin to Profile
+                        {atPinCap ? 'Pin and replace oldest pin' : 'Pin to Profile'}
                         {atPinCap && <span className="ml-auto text-xs text-muted-foreground">{pinnedCount}/{PIN_LIMIT}</span>}
                       </>
                     )}
@@ -742,7 +718,7 @@ export const PostCard = memo(function PostCard({
                 </>
               )}
               {canDelete && (
-                <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-destructive">
+                <DropdownMenuItem onClick={() => { setDeleteRevision(post.publication_revision); setDeleteDialogOpen(true); }} className="text-destructive">
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete Post
                 </DropdownMenuItem>
@@ -808,6 +784,7 @@ export const PostCard = memo(function PostCard({
       </div>
 
       {/* Media - carousel, single image, video, or text-only */}
+      {isOwnPost && post.needs_owner_confirmation && <div className="mx-4 mb-3 rounded-2xl bg-muted/60 p-3 text-sm"><p>Only you can see this older post.</p><Button variant="link" className="h-auto p-0" onClick={() => setIsEditOpen(true)}>Review and share</Button></div>}
       {(() => {
         const allUrls = post.media_urls && post.media_urls.length > 0
           ? post.media_urls

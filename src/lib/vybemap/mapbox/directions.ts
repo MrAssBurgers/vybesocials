@@ -1,4 +1,5 @@
 import { MAPBOX_TOKEN } from './config';
+import { isLocalPreview } from '@/lib/firebase/localPreview';
 
 export interface MapRouteResult {
   geometry: GeoJSON.LineString;
@@ -12,7 +13,7 @@ export async function fetchMapboxRoute(
   to: [number, number],
   profile: 'walking' | 'driving' = 'walking',
 ): Promise<MapRouteResult | null> {
-  if (!MAPBOX_TOKEN) return null;
+  if (!MAPBOX_TOKEN || isLocalPreview()) return null;
   const [fromLat, fromLng] = from;
   const [toLat, toLng] = to;
   const url =

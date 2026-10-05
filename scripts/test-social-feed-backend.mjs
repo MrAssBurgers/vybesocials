@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { seedPostPublication } from './helpers/post-publication-fixture.mjs';
 
 const projectId = process.env.GCLOUD_PROJECT;
 assert.match(projectId || '', /^demo-[a-z0-9-]+$/);
@@ -30,7 +31,10 @@ const relationship = db.doc('friend_requests/feed-friendship');
 const block = db.doc('blocked_users/feed-block');
 const proof = db.doc(`_close_friend_authority/${closeFriendAuthorityId(author.uid, viewer.uid)}`);
 const sample = (patch = {}) => ({ author_id: author.profile, type: 'post', caption: 'A moment from Vybe', created_at: '2026-10-04T12:00:00.000Z', media_url: '', age_rating: 'safe', ...patch });
-const seed = (id = 'one', patch = {}) => db.doc(`posts/${id}`).set(sample(patch));
+const seed = (id = 'one', patch = {}) => {
+  const row = sample(patch), owner = [viewer.uid, viewer.profile].includes(row.author_id) ? viewer : author;
+  return seedPostPublication(db, id, row, { uid: owner.uid, profileId: owner.profile });
+};
 const clearPosts = () => db.recursiveDelete(db.collection('posts'));
 const resetPolicy = async () => { await Promise.all([preference.delete(), relationship.delete(), block.delete(), proof.delete()]); };
 let checks = 0;

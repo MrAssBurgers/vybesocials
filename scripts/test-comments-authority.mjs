@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { seedPostPublication } from './helpers/post-publication-fixture.mjs';
 const projectId = process.env.GCLOUD_PROJECT;
 assert.match(projectId || '', /^demo-[a-z0-9-]+$/); assert.notEqual(projectId, 'demo-vybe-preview');
 assert.match(process.env.FIRESTORE_EMULATOR_HOST || '', /^(127\.0\.0\.1|localhost):(8386|8387)$/);
@@ -27,7 +28,7 @@ const seedProfile = async who => {
   await db.doc(`user_auth_index/${who.uid}`).set({ profile_id: who.profile });
 };
 const postRef = db.doc('posts/comment-post'), blockRef = db.doc('blocked_users/comment-block');
-const seedPost = (fields = {}, id = 'comment-post') => db.doc(`posts/${id}`).set({ author_id: bob.profile, type: 'post', caption: 'Visible parent', created_at: new Date(now - 10000).toISOString(), visibility: 'public', ...fields });
+const seedPost = (fields = {}, id = 'comment-post') => seedPostPublication(db, id, { author_id: bob.profile, type: 'post', caption: 'Visible parent', created_at: new Date(now - 10000).toISOString(), visibility: 'public', ...fields }, { uid: bob.uid, profileId: bob.profile });
 let checks = 0;
 const check = async (name, run) => { await run(); checks++; console.log(`PASS ${name}`); };
 try {
@@ -49,7 +50,7 @@ try {
     const proof = (await db.doc(`_comment_authority/${first.commentId}`).get()).data(); assert.equal(proof.owner_uid, charlie.uid); assert.match(proof.source_fingerprint, /^[a-f0-9]{64}$/);
   });
   await check('parent privacy, section visibility and current friendship are checked for every read', async () => {
-    await postRef.update({ visibility: 'friends' }); await assert.rejects(read(), { code: 'permission-denied' });
+    await seedPost({ visibility: 'friends' }); await assert.rejects(read(), { code: 'permission-denied' });
     const friend = db.doc('friend_requests/comment-friend'); await friend.set({ sender_id: alice.uid, receiver_id: bob.profile, status: 'accepted' });
     assert.equal((await read()).comments.length, 1); await friend.delete(); await assert.rejects(read(), { code: 'permission-denied' });
     await seedPost(); await db.doc(`profile_visibility/${bob.profile}`).set({ fields: { posts: 'only_me' } });
@@ -106,7 +107,7 @@ try {
     const fields = { action: 'create', requestId: randomUUID(), text: 'Current permissions', imageUrl: null };
     const own = await change(alice, fields);
     await assert.rejects(change(bob, { action: 'edit', commentId: own.commentId, expectedRevision: own.revision, text: 'Not mine' }), { code: 'permission-denied' });
-    await postRef.update({ visibility: 'only_me' });
+    await seedPost({ visibility: 'only_me' });
     for (const mutation of [fields, { action: 'create', text: 'New hidden parent', imageUrl: null },
       { action: 'edit', commentId: own.commentId, expectedRevision: own.revision, text: 'Hidden edit' }, { action: 'delete', commentId: own.commentId, expectedRevision: own.revision },
       { action: 'like', commentId: first.commentId, liked: true }]) await assert.rejects(change(alice, mutation), { code: 'permission-denied' });

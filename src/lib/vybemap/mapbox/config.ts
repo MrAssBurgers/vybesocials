@@ -59,7 +59,7 @@ export function readStoredMapViewMode(): MapViewMode {
     const raw = localStorage.getItem(MAP_VIEW_MODE_STORAGE_KEY);
     if (isMapViewMode(raw)) return raw;
   } catch { /* ignore */ }
-  return '2d';
+  return '3d';
 }
 
 export function persistMapViewMode(mode: MapViewMode): void {

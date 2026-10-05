@@ -9,22 +9,37 @@ const state = vi.hoisted(() => ({
 vi.mock('../../functions/src/_shared/admin.js', () => {
   const reference = (path: string) => ({
     path,
-    get: async () => { const value = structuredClone(state.rows.get(path)); return { data: () => value }; },
+    get: async () => { const value = structuredClone(state.rows.get(path)); return { id: path.split('/').at(-1)!, exists: value !== undefined, data: () => value }; },
     update: async (data: Record<string, unknown>) => { state.rows.set(path, { ...state.rows.get(path), ...data }); },
   });
+  const collection = (name: string) => ({
+    doc: (id: string) => reference(`${name}/${id}`),
+    where: (field: string, _operator: string, value: unknown) => ({ limit: (max: number) => ({ get: async () => {
+      const docs = await Promise.all([...state.rows.entries()].filter(([path, row]) => path.startsWith(`${name}/`) && row[field] === value)
+        .slice(0, max).map(([path]) => reference(path).get()));
+      return { docs, size: docs.length, empty: docs.length === 0 };
+    } }) }),
+  });
   const db = {
-    collection: (name: string) => ({ doc: (id: string) => reference(`${name}/${id}`) }),
+    collection,
     runTransaction: async (fn: (tx: unknown) => unknown) => {
       // Model atomic writes and optimistic read conflicts, including missing docs.
       // A callback that throws must not commit its reconciliation writes.
       for (let attempt = 0; attempt < 5; attempt++) {
         const reads = new Map<string, string | undefined>();
+        const queryReads: Array<() => Promise<boolean>> = [];
         const writes: Array<() => void> = [];
         const result = await fn({
-          get: async (ref: ReturnType<typeof reference>) => {
+          get: async (ref: { path?: string; get: () => Promise<unknown> }) => {
             const snapshot = await ref.get();
-            reads.set(ref.path, JSON.stringify(snapshot.data()));
-            state.afterRead?.(ref.path);
+            if ('data' in (snapshot as object)) {
+              reads.set(ref.path!, JSON.stringify((snapshot as { data: () => unknown }).data()));
+              state.afterRead?.(ref.path!);
+            } else {
+              const serialize = (value: unknown) => JSON.stringify((value as { docs: Array<{ id: string; data: () => unknown }> }).docs.map(doc => [doc.id, doc.data()]));
+              const before = serialize(snapshot);
+              queryReads.push(async () => serialize(await ref.get()) === before);
+            }
             return snapshot;
           },
           create: (ref: ReturnType<typeof reference>, data: Record<string, unknown>) => {
@@ -35,7 +50,8 @@ vi.mock('../../functions/src/_shared/admin.js', () => {
             writes.push(() => { state.rows.set(ref.path, { ...state.rows.get(ref.path), ...data }); });
           },
         });
-        if ([...reads].some(([path, before]) => JSON.stringify(state.rows.get(path)) !== before)) continue;
+        const queriesValid = (await Promise.all(queryReads.map(check => check()))).every(Boolean);
+        if (!queriesValid || [...reads].some(([path, before]) => JSON.stringify(state.rows.get(path)) !== before)) continue;
         writes.forEach(write => write());
         return result;
       }
@@ -54,6 +70,15 @@ vi.mock('../../functions/node_modules/firebase-admin/lib/esm/storage/index.js', 
 }));
 
 import { completeGameCapture, createGameCapture, discardGameCapture, finishGameCapture, getGameCapture } from '../../functions/src/gameIntegration';
+import { postSourceFingerprint } from '../../functions/src/_shared/postPublicationProof';
+
+function publish(captureId: string, profileId = 'player') {
+  const id = `game_${captureId}`, row = { author_id: profileId, game_capture_id: captureId };
+  state.rows.set(`profiles/${profileId}`, { user_id: 'player' });
+  state.rows.set(`posts/${id}`, row);
+  state.rows.set(`_post_publications/${id}`, { version: 1, post_id: id, owner_uid: 'player', profile_id: profileId,
+    status: 'published', revision: 'a'.repeat(48), source_fingerprint: postSourceFingerprint(row) });
+}
 
 const input = { gameId: 'neon-rally', idempotencyKey: 'unique-capture-key', contentType: 'image/png', byteSize: 100 };
 const request = (data: unknown, uid = 'player') => ({ data, auth: { uid, token: {} }, rawRequest: {} });
@@ -125,17 +150,25 @@ describe('game capture callable security', () => {
   it('recovers a published post after a lost completion acknowledgement', async () => {
     const capture = await create(); state.rows.get(`game_captures/${capture.captureId}`)!.status = 'ready';
     const postId = `game_${capture.captureId}`;
-    state.rows.set(`posts/${postId}`, { author_id: 'my-profile', game_capture_id: capture.captureId });
-    state.rows.set('profiles/my-profile', { user_id: 'player' });
+    publish(capture.captureId, 'my-profile');
     const recovered = await getGameCapture.run(request({ captureId: capture.captureId }) as Parameters<typeof getGameCapture.run>[0]);
     expect(recovered.status).toBe('imported'); expect(recovered.postId).toBe(postId);
+  });
+  it('does not attest a legacy row that merely claims the capture owner', async () => {
+    const capture = await create();
+    state.rows.get(`game_captures/${capture.captureId}`)!.status = 'ready';
+    state.rows.set('profiles/player', { user_id: 'player' });
+    state.rows.set(`posts/game_${capture.captureId}`, { author_id: 'player', game_capture_id: capture.captureId });
+    const current = await getGameCapture.run(request({ captureId: capture.captureId }) as Parameters<typeof getGameCapture.run>[0]);
+    expect(current.status).toBe('ready');
+    expect(current.postId).toBeNull();
+    expect(state.rows.has(`_post_publications/game_${capture.captureId}`)).toBe(false);
   });
   it('commits the imported receipt before refusing to discard an unacknowledged live post', async () => {
     const capture = await create(); const capturePath = `game_captures/${capture.captureId}`;
     state.rows.get(capturePath)!.status = 'ready';
     const postId = `game_${capture.captureId}`;
-    state.rows.set(`posts/${postId}`, { author_id: 'my-profile', game_capture_id: capture.captureId });
-    state.rows.set('profiles/my-profile', { user_id: 'player' });
+    publish(capture.captureId, 'my-profile');
     await expect(discardGameCapture.run(request({ captureId: capture.captureId }) as Parameters<typeof discardGameCapture.run>[0])).rejects.toThrow('already published');
     expect(state.rows.get(capturePath)).toMatchObject({ status: 'imported', post_id: postId });
     const acknowledged = await completeGameCapture.run(request({ captureId: capture.captureId, postId }) as Parameters<typeof completeGameCapture.run>[0]);
@@ -148,7 +181,7 @@ describe('game capture callable security', () => {
     state.afterRead = path => {
       if (path !== `posts/${postId}`) return;
       state.afterRead = null;
-      state.rows.set(path, { author_id: 'player', game_capture_id: capture.captureId });
+      publish(capture.captureId);
     };
     await expect(discardGameCapture.run(request({ captureId: capture.captureId }) as Parameters<typeof discardGameCapture.run>[0])).rejects.toThrow('already published');
     expect(state.rows.get(capturePath)).toMatchObject({ status: 'imported', post_id: postId });
@@ -168,7 +201,7 @@ describe('game capture callable security', () => {
     const capture = await create(); const capturePath = `game_captures/${capture.captureId}`;
     state.rows.get(capturePath)!.status = 'ready';
     const postId = `game_${capture.captureId}`;
-    state.rows.set(`posts/${postId}`, { author_id: 'player', game_capture_id: capture.captureId });
+    publish(capture.captureId);
     state.afterRead = path => {
       if (path !== `posts/${postId}`) return;
       state.afterRead = null;

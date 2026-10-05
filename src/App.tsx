@@ -61,8 +61,14 @@ import { useExternalPresence } from "@/hooks/useExternalPresence";
 const UploadQueueSync = () => {
   const queryClient = useQueryClient();
   useEffect(() => {
-    const onComplete = () => {
+    const onComplete = (event: Event) => {
+      const detail = (event as CustomEvent<{ ownerUid?: string; accountEpoch?: number }>).detail;
+      const session = reportAccountSnapshot();
+      if (!session.uid || detail?.ownerUid !== session.uid || detail.accountEpoch !== session.epoch) return;
       queryClient.invalidateQueries({ queryKey: ['posts'] });
+      void queryClient.invalidateQueries({ queryKey: ['social-feed'] });
+      void queryClient.invalidateQueries({ queryKey: ['social-post-list'] });
+      void queryClient.invalidateQueries({ queryKey: ['profile-visible-post-count'] });
       queryClient.invalidateQueries({
         predicate: (q) => {
           const key = JSON.stringify(q.queryKey).toLowerCase();
@@ -76,7 +82,10 @@ const UploadQueueSync = () => {
       toast.success('Your post is live');
     };
     const onFailed = (e: Event) => {
-      const reason = (e as CustomEvent<{ reason?: string }>).detail?.reason;
+      const detail = (e as CustomEvent<{ reason?: string; ownerUid?: string; accountEpoch?: number }>).detail;
+      const session = reportAccountSnapshot();
+      if (!session.uid || detail?.ownerUid !== session.uid || detail.accountEpoch !== session.epoch) return;
+      const reason = detail.reason;
       if (reason) toast.error(reason);
     };
     window.addEventListener('vybe:upload-complete', onComplete);

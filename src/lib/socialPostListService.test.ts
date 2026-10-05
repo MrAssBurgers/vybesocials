@@ -4,7 +4,7 @@ vi.mock('@/lib/firebase/functionsService', () => ({ invokeFunction: state.invoke
 vi.mock('./commentService', () => ({ readCommentCounts: (...args: unknown[]) => state.counts(...args) }));
 import { readSocialPostList, readSocialPostSummary } from './socialPostListService';
 const input = { expectedOwnerUid: 'alice', expectedProfileId: 'profile-alice', scope: 'saved' as const };
-const row = { id: 'one', type: 'post', caption: 'Visible caption', createdAt: '2026-10-04T12:00:00.000Z', mediaUrl: null, mediaUrls: [], thumbnailUrl: null,
+const row = { id: 'one', type: 'post', caption: 'Visible caption', createdAt: '2026-10-04T12:00:00.000Z', publicationRevision: 'a'.repeat(48), needsOwnerConfirmation: false, mediaUrl: null, mediaUrls: [], thumbnailUrl: null,
   ageRating: 'safe', tags: ['music'], likeCount: 1, commentCount: 0, viewCount: 2, isPinned: false, isBookmarked: true, reactionType: null,
   author: { id: 'profile-bob', username: 'bob', displayName: 'Bob', avatarUrl: null } };
 const receipt = () => ({ ownerUid: 'alice', viewerProfileId: 'profile-alice', selection: { scope: 'saved', targetId: null, search: null, since: null, contentType: null },
@@ -29,6 +29,8 @@ describe('checked post list transport', () => {
     { posts: [row, row] }, { posts: [{ ...row, mediaUrl: 'https://password:secret@example.test/a.png' }] },
     { posts: [{ ...row, caption: '', mediaUrl: null }] }, { unavailableSavedPostIds: ['one'] }, { unavailableSavedPostIds: ['gone', 'gone'] },
     { extraPrivateNotes: 'never render' }, { posts: [{ ...row, privateField: 'never render' }] },
+    { posts: [{ ...row, publicationRevision: undefined }] }, { posts: [{ ...row, publicationRevision: 'unproven' }] },
+    { posts: [{ ...row, needsOwnerConfirmation: true }] },
   ])('rejects malformed or foreign receipt %#', async patch => {
     state.invoke.mockResolvedValue({ data: { ...receipt(), ...patch } });
     await expect(readSocialPostList(input, () => {})).rejects.toThrow(/verified/);

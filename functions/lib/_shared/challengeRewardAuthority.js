@@ -1,6 +1,8 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 import { createHash } from 'node:crypto';
 import { assertTokenActor, tokenAuthorityId, validatedTokenBoostMultiplier } from './tokenCreditAuthority.js';
+import { resolveIdentity } from './profileAudienceAuthority.js';
+import { validPostPublication } from './postPublicationProof.js';
 const MAX_ACTIVITY = 200;
 const MAX_REWARD_XP = 100_000;
 const AUTHORITY = '_challenge_reward_authority';
@@ -77,6 +79,7 @@ async function activityCount(tx, db, actor, challenge, now) {
         .where('created_at', '>=', new Date(challenge.start).toISOString())
         .limit(MAX_ACTIVITY));
     const unique = new Set();
+    const publicationOwner = kind === 'post' || kind === 'clip' ? await resolveIdentity(db, tx, actor.authUid) : null;
     const profileCache = new Map();
     const postCache = new Map();
     const liveRow = (row) => !row.deleted_at && row.is_deleted !== true && row.status !== 'draft';
@@ -106,7 +109,10 @@ async function activityCount(tx, db, actor, challenge, now) {
         if (!result) {
             result = (async () => {
                 const target = (await tx.get(db.collection('posts').doc(id))).data();
-                return !!target && liveRow(target) && typeof target.author_id === 'string' && await targetProfileExists(target.author_id);
+                if (!target || !liveRow(target) || typeof target.author_id !== 'string' || !await targetProfileExists(target.author_id))
+                    return false;
+                const owner = await resolveIdentity(db, tx, target.author_id), proof = (await tx.get(db.collection('_post_publications').doc(id))).data();
+                return !!owner && validPostPublication(target, proof, owner, id);
             })();
             postCache.set(id, result);
         }
@@ -118,6 +124,11 @@ async function activityCount(tx, db, actor, challenge, now) {
             continue;
         if (row.deleted_at || row.is_deleted === true || row.status === 'draft')
             continue;
+        if (kind === 'post' || kind === 'clip') {
+            const proof = (await tx.get(db.collection('_post_publications').doc(doc.id))).data();
+            if (!publicationOwner || publicationOwner.profileId !== actor.profileId || !validPostPublication(row, proof, publicationOwner, doc.id))
+                continue;
+        }
         const postType = String(row.post_type || row.type || row.media_type || 'post');
         if (kind === 'clip' && !['short', 'video', 'clip'].includes(postType))
             continue;

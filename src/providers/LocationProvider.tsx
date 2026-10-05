@@ -15,6 +15,7 @@ const LocationContext = createContext<LocationState>({
   locationDenied: false,
   ghostUntil: null,
   setSharing: () => {},
+  requestLocation: () => {},
   enableTemporaryGhost: () => {},
   exitGhost: () => {},
 });

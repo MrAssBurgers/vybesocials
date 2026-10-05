@@ -67,7 +67,7 @@ function MusicCatalogView({ uid, profileId, onClose }: { uid: string; profileId:
     const account = reportAccountGuard(uid), guard = () => { account(); if (!mounted.current) throw new Error('Gallery closed.'); };
     try {
       guard(); setSharing(track.track_id);
-      await publishMusicPost({ author_id: profileId, type: 'post', caption: `Listening to "${track.title}" by ${track.artist} 🎵\n#music`, ...(track.artwork_url ? { media_url: track.artwork_url } : {}) });
+      await publishMusicPost({ author_id: profileId, type: 'post', caption: `Listening to "${track.title}" by ${track.artist} 🎵\n#music`, ...(track.artwork_url ? { media_url: track.artwork_url } : {}) }, guard);
       guard(); toast.success('Track shared to your feed.');
     } catch { try { guard(); toast.error('Failed to share track'); } catch { /* Retired view. */ } }
     finally { try { guard(); setSharing(null); } catch { /* Retired view. */ } }

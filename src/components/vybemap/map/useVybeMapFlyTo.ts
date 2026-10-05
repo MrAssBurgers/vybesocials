@@ -6,7 +6,7 @@ import { pitchForMode } from '@/lib/vybemap/mapbox/config';
 
 export function useVybeMapFlyTo() {
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const setMap = useCallback((map: mapboxgl.Map) => { mapRef.current = map; }, []);
+  const setMap = useCallback((map: mapboxgl.Map | null) => { mapRef.current = map; }, []);
   /** Instant jump to a point of interest — no slow fly animation (Teleport / search). */
   const flyTo = useCallback((lat: number, lng: number, zoom = 15) => {
     const map = mapRef.current;

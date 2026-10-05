@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import {
   animate,
   motion,
@@ -14,6 +14,10 @@ interface DiscoveryDrawerProps {
   open: boolean;
   onToggle: () => void;
   friends: LiveFriend[];
+  friendsLoading?: boolean;
+  friendsError?: boolean;
+  onRetryFriends?: () => void;
+  mapAttribution?: ReactNode;
   stories: MapStoryPin[];
   clips: MapClipPin[];
   meetups: MapMeetup[];
@@ -31,7 +35,7 @@ const PEEK_PX = 84;
 
 export function DiscoveryDrawer({
   open, onToggle, friends, stories, clips, meetups, places, radarLabel, friendCheckIns = [],
-  onFriendTap, onMeetupTap, onPlaceTap, onCreateMeetup,
+  onFriendTap, onMeetupTap, onPlaceTap, onCreateMeetup, friendsLoading, friendsError, onRetryFriends, mapAttribution,
 }: DiscoveryDrawerProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
@@ -113,6 +117,7 @@ export function DiscoveryDrawer({
         }}
         onDragEnd={snapFromDrag}
       >
+      {mapAttribution && <div data-map-attribution className="absolute -top-7 right-2 rounded bg-white px-2 py-1 text-[11px] leading-4 text-slate-900 shadow pointer-events-auto">{mapAttribution}</div>}
       <button
         type="button"
         onPointerDown={(e) => {
@@ -152,8 +157,9 @@ export function DiscoveryDrawer({
                 <Radio className="h-4 w-4 text-white/40" />
               </div>
               <div className="min-w-0 text-left">
-                <p className="text-xs font-semibold text-white/80">No friends live yet</p>
-                <p className="text-[10px] text-white/40 mt-0.5">Friends sharing location show up here</p>
+                <p role={friendsError ? 'alert' : 'status'} className="text-xs font-semibold text-white/80">{friendsError ? 'Friend locations could not load' : friendsLoading ? 'Loading shared locations…' : 'No active location shares'}</p>
+                <p className="text-[10px] text-white/40 mt-0.5">{friendsError ? 'Check your connection and retry.' : 'Friends who share with you appear here.'}</p>
+                {friendsError && onRetryFriends && <button type="button" className="text-xs text-sky-300 underline mt-1" onClick={onRetryFriends}>Retry friend locations</button>}
               </div>
             </div>
           ) : (

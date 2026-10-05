@@ -1,3 +1,4 @@
+import { usePostMutations } from '@/hooks/usePostMutations';
 import { useDraftContinuationGuard } from '@/hooks/useDraftContinuationGuard';
 import { CommentLoadError } from '@/components/comments/CommentLoadError';
 import { useParams, Link, useNavigate } from 'react-router-dom';
@@ -284,8 +285,10 @@ function PostDetailContent() {
   const [premiumMemeBanOpen, setPremiumMemeBanOpen] = useState(false);
   const [deleteContentDialog, setDeleteContentDialog] = useState<{ type: 'post' | 'comment' | 'listing'; id: string } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteRevision, setDeleteRevision] = useState<string | undefined>();
   const [isDeleting, setIsDeleting] = useState(false);
   const queryClient = useQueryClient();
+  const postActions = usePostMutations(id || "");
   const { data: userRole } = useUserRole();
   const isModOrAdmin = useIsModOrAdmin();
   const commentInputRef = useRef<HTMLInputElement>(null);
@@ -315,6 +318,7 @@ function PostDetailContent() {
   const post = checked ? {
     id: checked.id, type: checked.type, caption: checked.caption, tags: checked.tags,
     created_at: checked.createdAt, media_url: checked.mediaUrl || '',
+    publication_revision: checked.publicationRevision, needs_owner_confirmation: checked.needsOwnerConfirmation,
     like_count: checked.likeCount, comment_count: checked.commentCount,
     is_liked: interaction?.reaction.is_liked || false,
     reaction_type: interaction?.reaction.reaction_type || null,
@@ -345,7 +349,7 @@ function PostDetailContent() {
 
   const isOwnPost = profile?.id === post?.author?.id;
   const isAdmin = isModOrAdminRole(userRole);
-  const canDelete = isOwnPost || isAdmin;
+  const canDelete = isOwnPost;
 
   const captionText = (post?.caption || '').trim();
   const headline = captionText ? captionText.slice(0, 80) : `Post by @${post?.author?.username ?? 'creator'}`;
@@ -369,20 +373,15 @@ function PostDetailContent() {
     } : undefined,
   });
 
+  useEffect(() => { setDeleteDialogOpen(false); setIsDeleting(false); setDeleteRevision(undefined); }, [postActions.contextKey]);
+
   const handleDelete = async () => {
     if (!post) return;
     setIsDeleting(true);
     try {
-      const { data: deletedRows, error } = await db
-        .from('posts')
-        .delete()
-        .eq('id', post.id)
-        .select('id');
-      if (error) throw error;
-      if (!deletedRows || deletedRows.length === 0) {
-        toast.error("You don't have permission to delete this post");
-        return;
-      }
+      await postActions.remove(post.id, deleteRevision);
+      postActions.guard();
+
       toast.success('Post deleted');
       setDeleteDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ['posts'] });
@@ -392,10 +391,11 @@ function PostDetailContent() {
       queryClient.invalidateQueries({ queryKey: ['profile-by-id'] });
       navigate(-1);
     } catch (error) {
+      try { postActions.guard(); } catch { return; }
       console.error('Failed to delete post:', error);
       toast.error('Failed to delete post');
     } finally {
-      setIsDeleting(false);
+      try { postActions.guard(); setIsDeleting(false); } catch { /* Retired view. */ }
     }
   };
 
@@ -582,7 +582,7 @@ function PostDetailContent() {
                   </DropdownMenuItem>
                 )}
                 {canDelete && (
-                  <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-destructive">
+                  <DropdownMenuItem onClick={() => { setDeleteRevision(post.publication_revision); setDeleteDialogOpen(true); }} className="text-destructive">
                     <Trash2 className="h-4 w-4 mr-2" />
                     Delete Post
                   </DropdownMenuItem>
@@ -676,6 +676,7 @@ function PostDetailContent() {
         </div>
 
         {/* Post card */}
+        {isOwnPost && post.needs_owner_confirmation && <div className="mx-3 mt-3 rounded-2xl bg-muted/60 p-3 text-sm"><p>Only you can see this older post.</p><Button variant="link" className="h-auto p-0" onClick={() => setIsEditOpen(true)}>Review and share</Button></div>}
         <div className="mx-3 mt-3 overflow-hidden rounded-3xl liquid-glass-card shadow-xl">
           {post.media_url && <PostDetailMedia
             key={`${post.id}:${post.media_url}`}

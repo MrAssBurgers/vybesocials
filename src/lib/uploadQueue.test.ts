@@ -1,77 +1,43 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-
-vi.mock('@/lib/postUploadPipeline', () => ({
-  runPostUpload: vi.fn(),
-}));
-
-import { runPostUpload } from '@/lib/postUploadPipeline';
-import {
-  enqueuePostUpload,
-  getUploadJobs,
-  retryUploadJob,
-  dismissUploadJob,
-} from '@/lib/uploadQueue';
-
-describe('uploadQueue', () => {
-  beforeEach(() => {
-    getUploadJobs().forEach((j) => dismissUploadJob(j.id));
-    vi.mocked(runPostUpload).mockReset();
-  });
-
-  it('enqueues with optimizing stage and retains input for retry', async () => {
-    let resolveUpload!: (v: { postId: string }) => void;
-    vi.mocked(runPostUpload).mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveUpload = resolve;
-        }),
-    );
-
-    const input = {
-      profile: { id: 'p1', user_id: 'u1' },
-      caption: 'hello',
-      tags: [] as string[],
-      type: 'post' as const,
-    };
-    const id = enqueuePostUpload(input, 'Test post');
-    const job = getUploadJobs().find((j) => j.id === id);
-    expect(job?.stage).toBe('optimizing');
-    expect(job?.input).toMatchObject(input);
-    expect(job?.input?.clientPostId).toEqual(expect.any(String));
-
-    resolveUpload({ postId: 'post-1' });
-    await vi.waitFor(() => {
-      expect(getUploadJobs().find((j) => j.id === id)?.stage).toBe('done');
-    });
-  });
-
-  it('retryUploadJob re-runs failed jobs', async () => {
-    vi.mocked(runPostUpload)
-      .mockResolvedValueOnce({ failed: true, reason: 'Vybe Check blocked' })
-      .mockResolvedValueOnce({ postId: 'post-2' });
-
-    const id = enqueuePostUpload(
-      {
-        profile: { id: 'p1', user_id: 'u1' },
-        caption: 'x',
-        tags: [],
-        type: 'text',
-      },
-      'Retry me',
-    );
-
-    await vi.waitFor(() => {
-      expect(getUploadJobs().find((j) => j.id === id)?.stage).toBe('failed');
-    });
-
+const state = vi.hoisted(() => ({ uid: 'alice', epoch: 1, run: vi.fn(), pending: [] as unknown[] }));
+vi.mock('@/lib/postUploadPipeline', () => ({ runPostUpload: state.run }));
+vi.mock('./postCreateAttempts', () => ({ listPreparedPosts: () => state.pending }));
+vi.mock('./reportModerationService', () => ({ reportAccountSubscribe: () => () => {}, reportAccountSnapshot: () => ({ uid: state.uid, epoch: state.epoch }), reportAccountGuard: (uid: string) => { const epoch = state.epoch; return () => { if (!uid || state.uid !== uid || state.epoch !== epoch) throw new Error('Account changed'); }; } }));
+import { enqueuePostUpload, getUploadJobs, retryUploadJob, dismissUploadJob } from './uploadQueue';
+const input = () => ({ profile: { id: 'profile-a', user_id: 'alice' }, caption: 'Original', tags: [] as string[], type: 'post' as const });
+const success = { postId: 'post-a', post: {}, created: true };
+function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; }
+beforeEach(() => { state.uid = 'alice'; state.epoch++; state.pending = []; getUploadJobs().forEach(row => dismissUploadJob(row.id)); state.run.mockReset(); });
+describe('owner-bound background publishing', () => {
+  it('snapshots input and retains the same publication ID on explicit retry', async () => {
+    state.run.mockResolvedValueOnce({ failed: true, reason: 'Response lost' }).mockResolvedValueOnce(success);
+    const draft = input(), id = enqueuePostUpload(draft); draft.tags.push('edited');
+    await vi.waitFor(() => expect(getUploadJobs()[0]?.stage).toBe('failed'));
     expect(retryUploadJob(id)).toBe(true);
-    await vi.waitFor(() => {
-      expect(getUploadJobs().find((j) => j.id === id)?.stage).toBe('done');
-    });
-    expect(runPostUpload).toHaveBeenCalledTimes(2);
-    const firstInput = vi.mocked(runPostUpload).mock.calls[0]?.[0];
-    const retryInput = vi.mocked(runPostUpload).mock.calls[1]?.[0];
-    expect(firstInput.clientPostId).toBeTruthy();
-    expect(retryInput.clientPostId).toBe(firstInput.clientPostId);
+    await vi.waitFor(() => expect(getUploadJobs()[0]?.stage).toBe('done'));
+    expect(state.run.mock.calls[0][0].clientPostId).toBe(state.run.mock.calls[1][0].clientPostId);
+    expect(state.run.mock.calls[0][0].tags).toEqual([]);
   });
+  it('hides Alice uploads from Bob and rejects cross-account enqueue and retry', () => {
+    state.run.mockImplementation(() => new Promise(() => {})); const id = enqueuePostUpload(input());
+    state.uid = 'bob'; state.epoch++; expect(getUploadJobs()).toEqual([]); expect(retryUploadJob(id)).toBe(false);
+    expect(() => enqueuePostUpload(input())).toThrow('Account changed');
+  });
+  it('an old ABA completion cannot clobber a newer explicit retry', async () => {
+    const old = deferred<typeof success>(), current = deferred<typeof success>();
+    state.run.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise);
+    const id = enqueuePostUpload(input());
+    await vi.waitFor(() => expect(state.run).toHaveBeenCalledTimes(1));
+    state.uid = 'bob'; state.epoch++; getUploadJobs(); state.uid = 'alice'; state.epoch++;
+    expect(getUploadJobs()[0]?.stage).toBe('failed'); expect(retryUploadJob(id)).toBe(true);
+    await vi.waitFor(() => expect(state.run).toHaveBeenCalledTimes(2));
+    old.resolve(success); await new Promise(resolve => setTimeout(resolve, 0));
+    expect(getUploadJobs()[0]?.stage).toBe('optimizing');
+    current.resolve(success); await vi.waitFor(() => expect(getUploadJobs()[0]?.stage).toBe('done'));
+  });
+  it('recovers exact prepared publications for their owner after reload without auto-submitting', () => {
+    state.pending = [{ actor: { uid: 'alice', profileId: 'profile-a' }, postId: crypto.randomUUID(), preparedAt: 1, payload: { caption: 'Retained', tags: [], type: 'post' } }]; state.epoch++;
+    const jobs = getUploadJobs(); expect(jobs).toHaveLength(1); expect(jobs[0]).toMatchObject({ stage: 'failed', input: { caption: 'Retained' } }); expect(state.run).not.toHaveBeenCalled();
+  });
+  it('returns a stable snapshot while nothing changes', () => { const first = getUploadJobs(); expect(getUploadJobs()).toBe(first); });
 });

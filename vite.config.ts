@@ -46,9 +46,10 @@ export default defineConfig(({ mode }) => {
       // Keep browser callable transport on the QA origin; the real emulator
       // still handles authentication, validation and all data operations.
       proxy: localQa ? { ...localPreviewFunctionsProxy(true), ...localPreviewStorageProxy(true) } : undefined,
-      // Block ordinary HTTP/resource/WebSocket calls to live providers in QA.
+      // Keep Firebase and other live APIs blocked in QA. Mapbox is the explicit
+      // map renderer exception, restricted to its documented resource paths.
       // This is not a general network sandbox for arbitrary user-authored code.
-      ...(localQa ? { headers: { 'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; img-src 'self' data: blob: http://127.0.0.1:*; media-src 'self' blob: http://127.0.0.1:*; font-src 'self' data:; frame-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'" } } : {}),
+      ...(localQa ? { headers: { 'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:* https://api.mapbox.com/v4/ https://api.mapbox.com/raster/v1/ https://api.mapbox.com/rasterarrays/v1/ https://api.mapbox.com/styles/v1/mapbox/ https://api.mapbox.com/fonts/v1/mapbox/ https://api.mapbox.com/models/v1/mapbox/ https://api.mapbox.com/mapbox-gl-js/ https://api.mapbox.com/map-sessions/v1 https://events.mapbox.com/events/v2; img-src 'self' data: blob: http://127.0.0.1:* https://tile.openstreetmap.org; media-src 'self' blob: http://127.0.0.1:*; font-src 'self' data:; frame-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'" } } : {}),
       // Local QA profiles and scratch artifacts can contain OS-locked files.
       watch: { ignored: [normalizePath(path.resolve(__dirname, 'work')) + '/**', '**/.godot/**', '**/bin/**', '**/obj/**', '**/*.test.ts', '**/*.test.tsx'] },
     },

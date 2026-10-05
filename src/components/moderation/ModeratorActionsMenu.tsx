@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Trash2, AlertTriangle, Ban, Laugh, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,6 +33,7 @@ import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { GiphySearchPicker } from './GiphySearchPicker';
+import { usePostMutations } from '@/hooks/usePostMutations';
 
 interface ModeratorActionsMenuProps {
   userId: string;
@@ -72,24 +73,20 @@ export function ModeratorMenuItems({
   onWarnClick: () => void;
   onBanClick: () => void;
   onMemeBanClick: () => void;
-  /** @deprecated kept for backward compat — delete now happens inline */
+  /** Post removal opens the checked confirmation flow. */
   onDeleteContentClick?: (type: 'post' | 'comment', id: string) => void;
 }) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
 
-  // Instant mod delete — no confirmation dialog. Optimistically yanks the row
-  // from local UI, fires the destructive query in the background, and pings
-  // the author with a default removal notice.
-  const instantDelete = async (type: 'post' | 'comment', id: string) => {
+  // Legacy comment behavior is independent of checked post removal below.
+  const instantDelete = async (type: 'comment', id: string) => {
     // Fire UI removal immediately
-    if (type === 'post') onPostDelete?.();
-    else onCommentDelete?.();
-    toast.success(`${type === 'post' ? 'Post' : 'Comment'} deleted`);
+    onCommentDelete?.();
+    toast.success('Comment deleted');
 
     try {
-      const table = type === 'post' ? 'posts' : 'comments';
-      const { error } = await db.from(table).delete().eq('id', id);
+      const { error } = await db.from('comments').delete().eq('id', id);
       if (error) throw error;
 
       // Background: notify the author so they know it was removed by a mod.
@@ -99,11 +96,10 @@ export function ModeratorMenuItems({
           type: 'content_removed',
           actor_id: profile.id,
           reason: 'Removed by moderator',
-          ...(type === 'post' ? { post_id: id } : {}),
         }).then(() => {});
       }
 
-      queryClient.invalidateQueries({ queryKey: [type === 'post' ? 'posts' : 'comments'] });
+      queryClient.invalidateQueries({ queryKey: ['comments'] });
       queryClient.invalidateQueries({ queryKey: ['feed'] });
       queryClient.invalidateQueries({ queryKey: ['shorts'] });
     } catch {
@@ -119,7 +115,7 @@ export function ModeratorMenuItems({
       </div>
 
       {postId && (
-        <DropdownMenuItem onClick={() => instantDelete('post', postId)} className="text-destructive">
+        <DropdownMenuItem disabled={!onDeleteContentClick} onClick={() => onDeleteContentClick?.('post', postId)} className="text-destructive">
           <Trash2 className="h-4 w-4 mr-2" />
           Delete Post (Mod)
         </DropdownMenuItem>
@@ -200,6 +196,47 @@ export function ModeratorDialogs({
   const [banUnit, setBanUnit] = useState<TimeUnit>('days');
   const [customGifUrl, setCustomGifUrl] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const postId = deleteContentDialog?.type === 'post' ? deleteContentDialog.id : '';
+  const postActions = usePostMutations(`moderator-delete:${postId}`, { allowStaffRead: true });
+  const postContext = useMemo(() => ({ active: true, pending: false }), [postActions.guard]);
+  useEffect(() => { postContext.active = true; return () => { postContext.active = false; }; }, [postContext]);
+  const [postState, setPostState] = useState({ context: postContext, revision: '', loading: false, deleting: false, error: '' });
+  const currentPostState = postState.context === postContext ? postState : { revision: '', loading: true, deleting: false, error: '' };
+  const [postReadVersion, retryPostRead] = useState(0);
+  useEffect(() => {
+    if (!postId) return;
+    let active = true;
+    setPostState({ context: postContext, revision: '', loading: true, deleting: false, error: '' });
+    void postActions.read(postId).then(state => {
+      postActions.guard();
+      if (!active || !postContext.active) return;
+      if (!state.revision || !state.post || !['published', 'legacy'].includes(state.status)) throw new Error('This post is no longer available.');
+      setPostState({ context: postContext, revision: state.revision, loading: false, deleting: false, error: '' });
+    }).catch(error => {
+      try { postActions.guard(); } catch { return; }
+      if (active && postContext.active) setPostState({ context: postContext, revision: '', loading: false, deleting: false,
+        error: error instanceof Error ? error.message : 'This post could not be checked. Please retry.' });
+    });
+    return () => { active = false; };
+  }, [postId, postActions.read, postActions.guard, postContext, postReadVersion]);
+
+  const deleteCheckedPost = async () => {
+    if (!postId || !currentPostState.revision || postContext.pending) return;
+    postContext.pending = true;
+    const revision = currentPostState.revision;
+    setPostState({ context: postContext, revision, loading: false, deleting: true, error: '' });
+    try {
+      await postActions.remove(postId, revision);
+      postActions.guard(); if (!postContext.active) return;
+      toast.success('Post deleted');
+      setDeleteContentDialog?.(null); setDeleteReason('');
+      onPostDelete?.();
+    } catch (error) {
+      try { postActions.guard(); } catch { return; }
+      if (postContext.active) setPostState({ context: postContext, revision, loading: false, deleting: false,
+        error: error instanceof Error ? error.message : 'Post removal was not confirmed. Please retry.' });
+    } finally { postContext.pending = false; }
+  };
 
   const handleWarn = async () => {
     if (!reason.trim()) {
@@ -258,6 +295,7 @@ export function ModeratorDialogs({
   };
 
   const handleDeleteContent = async () => {
+    if (deleteContentDialog?.type === 'post') { await deleteCheckedPost(); return; }
     if (!deleteContentDialog || !deleteReason.trim()) {
       toast.error('Please provide a reason for deletion');
       return;
@@ -265,7 +303,7 @@ export function ModeratorDialogs({
     setIsDeleting(true);
     try {
       const { type, id } = deleteContentDialog;
-      const table = type === 'post' ? 'posts' : type === 'comment' ? 'comments' : 'listings';
+      const table = type === 'comment' ? 'comments' : 'listings';
       
       const { error } = await db.from(table).delete().eq('id', id);
       if (error) throw error;
@@ -277,13 +315,11 @@ export function ModeratorDialogs({
           type: 'content_removed',
           actor_id: profile.id,
           reason: deleteReason.trim(),
-          ...(type === 'post' ? { post_id: id } : {}),
         });
       }
 
       toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted`);
-      queryClient.invalidateQueries({ queryKey: [table === 'posts' ? 'posts' : table === 'comments' ? 'comments' : 'listings'] });
-      if (type === 'post') onPostDelete?.();
+      queryClient.invalidateQueries({ queryKey: [table] });
       if (type === 'comment') onCommentDelete?.();
       setDeleteContentDialog?.(null);
       setDeleteReason('');
@@ -305,10 +341,14 @@ export function ModeratorDialogs({
               Delete {deleteContentDialog?.type === 'post' ? 'Post' : deleteContentDialog?.type === 'comment' ? 'Comment' : 'Listing'}
             </DialogTitle>
             <DialogDescription>
-              You must provide a reason. The user will be notified about why their content was removed.
+              {postId ? 'Remove this post from Vybe? Removal is confirmed only after the server accepts it.' : 'You must provide a reason. The user will be notified about why their content was removed.'}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          {postId ? <div className="space-y-3">
+            {currentPostState.loading && <p role="status">Checking the current post…</p>}
+            {currentPostState.error && <p role="alert" className="text-sm text-destructive">{currentPostState.error}</p>}
+            {!currentPostState.loading && !currentPostState.revision && <Button onClick={() => retryPostRead(value => value + 1)}>Retry post check</Button>}
+          </div> : <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="delete-reason">Reason for removal</Label>
               <Textarea
@@ -319,7 +359,7 @@ export function ModeratorDialogs({
                 className="min-h-[100px]"
               />
             </div>
-          </div>
+          </div>}
           <DialogFooter>
             <Button variant="outline" onClick={() => { setDeleteContentDialog?.(null); setDeleteReason(''); }}>
               Cancel
@@ -327,9 +367,9 @@ export function ModeratorDialogs({
             <Button 
               variant="destructive" 
               onClick={handleDeleteContent} 
-              disabled={isDeleting || !deleteReason.trim()}
+              disabled={postId ? currentPostState.loading || currentPostState.deleting || !currentPostState.revision || !postActions.ready : isDeleting || !deleteReason.trim()}
             >
-              {isDeleting ? 'Deleting...' : 'Delete & Notify User'}
+              {postId ? currentPostState.deleting ? 'Deleting...' : 'Delete post' : isDeleting ? 'Deleting...' : 'Delete & Notify User'}
             </Button>
           </DialogFooter>
         </DialogContent>

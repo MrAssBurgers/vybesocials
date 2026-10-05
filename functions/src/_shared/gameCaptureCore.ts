@@ -3,6 +3,8 @@ import type { Transaction } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { db } from './admin.js';
 import { GAME_CAPTURE_TTL_MS, MAX_GAME_CAPTURE_BYTES, type GameCaptureInput } from '../gameIntegrationValidation.js';
+import { resolveIdentity } from './profileAudienceAuthority.js';
+import { validPostPublication } from './postPublicationProof.js';
 
 export interface Capture {
   owner_uid: string; game_id: string; game_name: string; content_type: string; byte_size: number;
@@ -36,9 +38,9 @@ export async function committedCapturePost(tx: Transaction, id: string, uid: str
   const post = (await tx.get(db.collection('posts').doc(postId))).data();
   const authorId = typeof post?.author_id === 'string' ? post.author_id : '';
   if (post?.game_capture_id !== id || !authorId || authorId.includes('/')) return null;
-  if (authorId === uid) return postId;
-  const profile = (await tx.get(db.collection('profiles').doc(authorId))).data();
-  return profile?.user_id === uid ? postId : null;
+  const owner = await resolveIdentity(db, tx, uid);
+  const proof = (await tx.get(db.collection('_post_publications').doc(postId))).data();
+  return owner?.uid === uid && post && validPostPublication(post, proof, owner, postId) ? postId : null;
 }
 export function reconcileImportedCapture(tx: Transaction, id: string, capture: Capture, postId: string): Capture {
   const cleanupAt = Date.now();

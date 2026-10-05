@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { db } from './admin.js';
 import { GAME_CAPTURE_TTL_MS, MAX_GAME_CAPTURE_BYTES } from '../gameIntegrationValidation.js';
+import { resolveIdentity } from './profileAudienceAuthority.js';
+import { validPostPublication } from './postPublicationProof.js';
 export const hashGameValue = (value) => createHash('sha256').update(value).digest('hex');
 const quotaRetryAfter = (resetAt, now) => Math.max(1, Math.min(86400, Math.ceil((Number(resetAt) - now) / 1000) || 86400));
 export function captureReceipt(id, capture) {
@@ -28,10 +30,9 @@ export async function committedCapturePost(tx, id, uid) {
     const authorId = typeof post?.author_id === 'string' ? post.author_id : '';
     if (post?.game_capture_id !== id || !authorId || authorId.includes('/'))
         return null;
-    if (authorId === uid)
-        return postId;
-    const profile = (await tx.get(db.collection('profiles').doc(authorId))).data();
-    return profile?.user_id === uid ? postId : null;
+    const owner = await resolveIdentity(db, tx, uid);
+    const proof = (await tx.get(db.collection('_post_publications').doc(postId))).data();
+    return owner?.uid === uid && post && validPostPublication(post, proof, owner, postId) ? postId : null;
 }
 export function reconcileImportedCapture(tx, id, capture, postId) {
     const cleanupAt = Date.now();

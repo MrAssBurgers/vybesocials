@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { seedPostPublication } from './helpers/post-publication-fixture.mjs';
 const projectId = process.env.GCLOUD_PROJECT;
 assert.match(projectId || '', /^demo-[a-z0-9-]+$/); assert.notEqual(projectId, 'demo-vybe-preview');
 assert.match(process.env.FIRESTORE_EMULATOR_HOST || '', /^(127\.0\.0\.1|localhost):8387$/);
@@ -20,7 +21,7 @@ const alice = { uid: 'alice', profile: 'profile-alice' }, bob = { uid: 'bob', pr
 const input = (patch = {}, owner = alice) => ({ expectedOwnerUid: owner.uid, expectedProfileId: owner.profile, scope: 'profile', targetId: bob.profile, ...patch });
 const read = (patch = {}, owner = alice, now) => readSocialPostListPage(db, owner.uid, input(patch, owner), now);
 const sample = (patch = {}) => ({ author_id: bob.profile, type: 'post', caption: 'Visible music', tags: ['music'], age_rating: 'safe', media_url: '', created_at: '2026-10-04T12:00:00.000Z', visibility: 'public', ...patch });
-const seed = (id, patch = {}) => db.doc(`posts/${id}`).set(sample(patch));
+const seed = (id, patch = {}) => seedPostPublication(db, id, sample(patch), { uid: bob.uid, profileId: bob.profile });
 const clear = () => db.recursiveDelete(db.collection('posts'));
 let checks = 0; const check = async (name, run) => { await run(); console.log(`PASS ${name}`); checks++; };
 try {
@@ -73,6 +74,48 @@ try {
     const request = { expectedOwnerUid: alice.uid, expectedProfileId: alice.profile, scope: 'search', search: 'needle' };
     const first = await readSocialPostListPage(db, alice.uid, request); assert.deepEqual(first.posts, []); assert.ok(first.nextCursor); assert.ok(!JSON.stringify(first).includes('search-99'));
     const second = await readSocialPostListPage(db, alice.uid, { ...request, cursor: first.nextCursor }); assert.deepEqual(second.posts.map(row => row.id), ['search-101']); assert.equal(second.nextCursor, null); await clear();
+  });
+  await check('profile, saved and tagged pages batch dependent reads without changing order or current denial', async () => {
+    await db.recursiveDelete(db.collection('bookmarks')); await db.recursiveDelete(db.collection('post_user_tags'));
+    const ids = Array.from({ length: 20 }, (_, i) => `batch-${String(i).padStart(2, '0')}`);
+    for (const [i, id] of ids.entries()) {
+      const created_at = new Date(Date.parse('2026-10-04T12:00:00.000Z') - i * 1000).toISOString();
+      await seed(id, { created_at });
+      await db.doc(`bookmarks/${id}`).set({ user_id: alice.uid, post_id: id, created_at });
+      await db.doc(`post_user_tags/${id}`).set({ tagged_user_id: bob.profile, post_id: id, created_at });
+    }
+    const measured = async scope => {
+      const calls = { individual: 0, postBatches: [], proofBatches: [] };
+      const instrumented = new Proxy(db, { get(target, key) {
+        if (key !== 'runTransaction') { const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value; }
+        return action => target.runTransaction(tx => action(new Proxy(tx, { get(transaction, member) {
+          if (member === 'get') return ref => { if (/^(posts|_post_publications)\//.test(ref.path ?? '')) calls.individual++; return transaction.get(ref); };
+          if (member === 'getAll') return (...refs) => {
+            const postRefs = refs.filter(ref => ref.path?.startsWith('posts/')), proofRefs = refs.filter(ref => ref.path?.startsWith('_post_publications/'));
+            if (postRefs.length) calls.postBatches.push(postRefs.length); if (proofRefs.length) calls.proofBatches.push(proofRefs.length);
+            return transaction.getAll(...refs);
+          };
+          const value = Reflect.get(transaction, member); return typeof value === 'function' ? value.bind(transaction) : value;
+        } })));
+      } });
+      const request = { expectedOwnerUid: alice.uid, expectedProfileId: alice.profile, scope, ...(scope === 'saved' ? {} : { targetId: bob.profile }) };
+      return { result: await readSocialPostListPage(instrumented, alice.uid, request), calls };
+    };
+    for (const scope of ['profile', 'saved', 'tagged']) {
+      const { result, calls } = await measured(scope);
+      assert.deepEqual(result.posts.map(row => row.id), ids); assert.equal(result.nextCursor, null); assert.equal(calls.individual, 0);
+      assert.deepEqual(calls.proofBatches, [20]); assert.deepEqual(calls.postBatches, scope === 'profile' ? [] : [20]);
+      console.log(`MEASURE ${scope}: 20 posts, ${calls.postBatches.length + calls.proofBatches.length} dependent document batches, 0 individual document reads`);
+    }
+    await db.doc(`posts/${ids[0]}`).update({ is_deleted: true }); await db.doc(`posts/${ids[1]}`).delete();
+    await db.doc(`_post_publications/${ids[2]}`).delete();
+    for (const scope of ['profile', 'saved', 'tagged']) {
+      const { result, calls } = await measured(scope); assert.deepEqual(result.posts.map(row => row.id), ids.slice(3));
+      assert.equal(calls.individual, 0); assert.deepEqual(result.unavailableSavedPostIds, scope === 'saved' ? ids.slice(0, 3) : []);
+    }
+    await db.doc('blocked_users/batch').set({ blocker_id: bob.uid, blocked_id: alice.uid });
+    const denied = await measured('saved'); assert.deepEqual(denied.result.posts, []); assert.deepEqual(denied.result.unavailableSavedPostIds, ids);
+    await db.doc('blocked_users/batch').delete(); await clear(); await db.recursiveDelete(db.collection('bookmarks')); await db.recursiveDelete(db.collection('post_user_tags'));
   });
   await check('raw compatibility callables and anonymous previews cannot bypass audience', async () => {
     await seed('public'); await seed('private', { visibility: 'only_me' });

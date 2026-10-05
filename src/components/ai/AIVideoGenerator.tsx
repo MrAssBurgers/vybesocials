@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, X, Wand2, RefreshCw, Type, Upload, Bot, Image, Video } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
+import { useProfileAccount } from '@/hooks/useProfileAccount';
 import { useCreatePost } from '@/hooks/usePosts';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -23,6 +24,9 @@ type ContentMode = 'image' | 'video';
 export function AIVideoGenerator({ onVideoGenerated, onClose }: AIVideoGeneratorProps) {
   const navigate = useNavigate();
   const createPost = useCreatePost();
+  const account = useProfileAccount();
+  const lifetime = useMemo(() => ({ active: true }), [account.user?.id, account.session.epoch]);
+  useEffect(() => { lifetime.active = true; return () => { lifetime.active = false; }; }, [lifetime]);
   
   const [prompt, setPrompt] = useState('');
   const [status, setStatus] = useState<GenerationStatus>('idle');
@@ -173,13 +177,15 @@ export function AIVideoGenerator({ onVideoGenerated, onClose }: AIVideoGenerator
   }, []);
 
   const handlePost = async () => {
-    if (!generatedUrl) return;
-
+    if (!generatedUrl || status === 'posting') return;
+    const guard = () => { account.guard(); if (!lifetime.active) throw new Error('This publisher closed.'); };
+    try { guard(); } catch { return; }
     setStatus('posting');
 
     try {
-      const response = await fetch(generatedUrl);
-      const blob = await response.blob();
+      const response = await fetch(generatedUrl); guard();
+      if (!response.ok) throw new Error('Generated media could not be loaded.');
+      const blob = await response.blob(); guard();
       const ext = mode === 'video' ? 'mp4' : 'png';
       const mimeType = mode === 'video' ? 'video/mp4' : 'image/png';
       const file = new File([blob], `ai-${mode}-${Date.now()}.${ext}`, { type: mimeType });
@@ -187,16 +193,19 @@ export function AIVideoGenerator({ onVideoGenerated, onClose }: AIVideoGenerator
       const caption = title ? `✨ ${title}\n\n🤖 Created with AI` : '🤖 Created with AI';
 
       await createPost.mutateAsync({
+        publicationKey: generatedUrl,
         mediaFile: file,
         caption,
         type: mode === 'video' ? 'short' : 'post',
         tags: tags.includes('ai') ? tags : [...tags, 'ai']
       });
 
+      guard();
       toast.success('AI content posted successfully!');
       navigate('/home');
       onClose();
     } catch (err) {
+      try { guard(); } catch { return; }
       console.error('Post error:', err);
       toast.error('Failed to post. Please try again.');
       setStatus('details');
