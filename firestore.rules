@@ -924,20 +924,28 @@ service cloud.firestore {
       allow delete: if isOwnerProfile('author_id') || isStaffModerator();
     }
     match /comments/{commentId} {
-      allow read: if signedIn();
-      allow create: if signedIn()
-        && (willOwnUserField('user_id') || willOwnUserField('author_id'))
-        && (!('user_id' in request.resource.data) || willOwnUserField('user_id'))
-        && (!('author_id' in request.resource.data) || willOwnUserField('author_id'));
-      allow update: if (ownsUserField('user_id') || ownsUserField('author_id') || isStaffModerator())
+      function ownAlias(value) {
+        let canonical = profileId();
+        let profile = get(/databases/$(database)/documents/profiles/$(canonical));
+        let uidProfile = get(/databases/$(database)/documents/profiles/$(uid()));
+        return signedIn() && value in [uid(), canonical] && profile != null && profile.data.user_id == uid()
+          && (uidProfile == null || canonical == uid());
+      }
+      // Other-user content is projected by readPostComments under fresh parent
+      // audience/block authority. Own learning history and staff tools remain.
+      allow read: if ownAlias(resource.data.get('user_id', '')) || ownAlias(resource.data.get('author_id', '')) || isStaffModerator();
+      allow create: if false;
+      allow update: if isStaffModerator()
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['user_id', 'author_id', 'post_id']);
-      allow delete: if ownsUserField('user_id') || ownsUserField('author_id') || isStaffModerator();
+      allow delete: if isStaffModerator();
     }
     match /comment_likes/{docId} {
-      allow read: if signedIn();
-      allow create: if willOwnProfile('user_id');
-      allow delete: if isOwnerProfile('user_id');
+      allow read: if isOwnerProfile('user_id') || isStaffModerator();
+      allow write: if false;
     }
+    match /_comment_authority/{docId} { allow read, write: if false; }
+    match /_comment_receipts/{docId} { allow read, write: if false; }
+    match /_comment_cursors/{docId} { allow read, write: if false; }
     match /bookmarks/{docId} {
       allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
     }
@@ -1560,11 +1568,13 @@ service cloud.firestore {
     match /_verified_xp_authority/{id} { allow read, write: if false; }
     match /_badge_grant_authority/{id} { allow read, write: if false; }
     match /sounds/{id} {
-      allow read: if signedIn();
-      allow create: if signedIn();
-      allow update, delete: if isAdmin() ||
-        isOwnerProfile('uploader_id') || isOwnerProfile('original_creator_id');
+      // The checked library binds these rows to protected decoded-media proof.
+      // Historical caller-writable approval/owner flags are not authority.
+      allow read, write: if false;
     }
+    match /_sound_uploads/{id} { allow read, write: if false; }
+    match /_sound_upload_limits/{id} { allow read, write: if false; }
+    match /_sound_library_cursors/{id} { allow read, write: if false; }
     match /vybe_dna/{id} {
       allow read: if ownsUserField('user_id') || isAdmin();
       allow create, update: if willOwnUserField('user_id') || isAdmin();
@@ -1572,10 +1582,11 @@ service cloud.firestore {
     }
     match /dna_agent_settings/{id} {
       allow read: if ownsUserField('user_id');
-      allow create: if signedIn() && id == uid() && willOwn('user_id');
-      allow update: if signedIn() && id == uid() && isOwner('user_id') && willOwn('user_id');
-      allow delete: if signedIn() && id == uid() && isOwner('user_id');
+      allow write: if false; // Checked settings receipts and reset/action serialization.
     }
+    match /_dna_action_plans/{id} { allow read, write: if false; }
+    match /_dna_action_receipts/{id} { allow read, write: if false; }
+    match /_dna_action_limits/{id} { allow read, write: if false; }
     match /dna_agent_actions/{id} {
       allow read: if isOwner('user_id');
       allow write: if false;
@@ -1735,17 +1746,16 @@ service cloud.firestore {
     match /email_send_log/{id}                { allow read, write: if isAdmin(); }
     match /email_send_state/{id}              { allow read, write: if isAdmin(); }
     match /email_unsubscribe_tokens/{id}      { allow read, write: if false; }
+    match /_auth_email_challenges/{id} { allow read, write: if false; }
+    match /_auth_email_limits/{id} { allow read, write: if false; }
     match /auth_challenges/{id} {
-      // Clients may listen for their own login-approval / QR challenges,
-      // BUT never for email-2FA challenges (docId ends in `_2fa`) — those
-      // hold the verification secret and must only be read by the
-      // auth2faVerify Cloud Function (Admin SDK bypasses rules).
+      // Only non-secret device/QR status rows may be watched. Reject legacy
+      // public OTP/token material regardless of the document's name.
       allow read: if signedIn()
-        && !id.matches('.*_2fa$')
-        && (
-          resource.data.user_id == uid() ||
-          resource.data.user_id == profileId()
-        );
+        && resource.data.get('challenge_type', '') != 'email_2fa'
+        && !resource.data.keys().hasAny(['code_hash', 'code_salt'])
+        && !resource.data.get('metadata', {}).keys().hasAny(['code_hash', 'code_salt', 'custom_token', 'pending_session'])
+        && resource.data.user_id == uid();
       allow create, update, delete: if false;
     }
     match /account_deletion_requests/{id}     { allow create: if willOwn('user_id'); allow read, update, delete: if isAdmin(); }

@@ -5,7 +5,7 @@ vi.mock('@/lib/tokenMarketplaceService', () => ({ tokenAccountGuard: (uid: strin
   const epoch = mock.epoch;
   return () => { if (!uid || mock.uid !== uid || mock.epoch !== epoch) throw Object.assign(new Error('Account changed'), { code: 'account-changed' }); };
 } }));
-import { clearDnaAdaptationData, changeDnaAction } from './dnaAdaptationService';
+import { clearDnaAdaptationData, changeDnaAction, readDnaState } from './dnaAdaptationService';
 const confirmed = (_name: string, request: { expectedOwnerUid: string; requestId: string }) => ({ data: {
   success: true, ownerUid: request.expectedOwnerUid, requestId: request.requestId, deleted: 5,
 }, error: null });
@@ -54,5 +54,40 @@ describe('adaptation reset confirmation', () => {
   it('reports unsupported action errors instead of claiming changes were applied', async () => {
     mock.invoke.mockResolvedValue({ data: null, error: { message: 'Applying changes is temporarily unavailable' } });
     await expect(changeDnaAction('alice', 'action', false)).rejects.toThrow('temporarily unavailable');
+  });
+});
+
+describe('verified executable action receipts', () => {
+  const actor = { uid: 'alice', profileId: 'alice-profile' }, target = { kind: 'feed', preferences: { boost_topics: ['art'], reduce_topics: [] } };
+  const action = { id: 'verified-action', user_id: 'alice', action_type: 'feed_tune', summary: 'Boost art', created_at: '2026-10-04',
+    phase: 'applied', applied: true, reverted: false, generation: 'initial', change: { type: 'feed_tune', patch: { boost_topics: ['art'] } }, before: { kind: 'feed', preferences: null }, after: target };
+  const receipt = (_name: string, request: Record<string, unknown>) => ({ error: null, data: { success: true, ownerUid: 'alice', profileId: 'alice-profile', generation: 'initial', requestId: request.requestId, actionId: action.id, applied: true, phase: 'applied', action, target } });
+  const change = () => changeDnaAction('alice', action.id, true, { actor, generation: 'initial' });
+  it('requires a bound receipt describing the actual target and retains the same request on ambiguous retries', async () => {
+    mock.invoke.mockResolvedValueOnce({ error: { code: 'unavailable', message: 'Lost connection' }, data: null }).mockImplementation(receipt);
+    await expect(change()).rejects.toThrow('Lost connection'); const first = mock.invoke.mock.calls[0][1];
+    await expect(change()).resolves.toEqual({ action, target }); expect(mock.invoke.mock.calls[1][1]).toEqual(first);
+  });
+  it.each(['owner', 'profile', 'request', 'generation', 'phase', 'target', 'unsafe-plan'])('rejects mismatched %s instead of claiming Apply', async field => {
+    mock.invoke.mockImplementation((name, request) => {
+      const result = receipt(name, request) as { data: Record<string, unknown>; error: null };
+      if (field === 'owner') result.data.ownerUid = 'bob'; if (field === 'profile') result.data.profileId = 'bob-profile';
+      if (field === 'request') result.data.requestId = 'another'; if (field === 'generation') result.data.generation = 'after-reset';
+      if (field === 'phase') result.data.phase = 'reverted'; if (field === 'target') result.data.target = { ...target, preferences: { boost_topics: ['sports'], reduce_topics: [] } };
+      if (field === 'unsafe-plan') result.data.action = { ...action, change: { type: 'feed_tune', patch: { visibility: 'public' } } };
+      return result;
+    });
+    await expect(change()).rejects.toThrow(/not confirmed/);
+  });
+  it('rejects a stale or duplicated executable state before exposing controls', async () => {
+    const settings = { user_id: 'alice', mode: 'suggest', cadence_minutes: 360, last_run_at: null, max_intensity: 'balanced', trigger_on_post: true, trigger_on_follow: true, trigger_on_session: true, learning_paused: false, personalization_opted_out: false };
+    for (const actions of [[{ ...action, generation: 'old' }], [action, action]]) {
+      mock.invoke.mockResolvedValue({ error: null, data: { success: true, ownerUid: 'alice', profileId: 'alice-profile', generation: 'initial', settings, settingsVersion: null, actions } });
+      await expect(readDnaState(actor)).rejects.toThrow(/not confirmed/);
+    }
+  });
+  it('suppresses an in-flight receipt after account epochs change', async () => {
+    mock.invoke.mockImplementation((name, request) => { mock.epoch += 2; return receipt(name, request); });
+    await expect(change()).rejects.toMatchObject({ code: 'account-changed' });
   });
 });

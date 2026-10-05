@@ -131,7 +131,7 @@ export const SoundCard = memo(function SoundCard({
               onUse(sound.sound_id);
             }}
           >
-            Use Sound
+            Preview sound
           </Button>
         </div>
       </Card>

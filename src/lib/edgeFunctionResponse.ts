@@ -31,6 +31,18 @@ export async function parseEdgeInvokeResult<T = any>(
 
 export function gateVerifyErrorMessage(code?: string): string {
   switch (code) {
+    case 'permission-denied':
+      return 'Incorrect code or this sign-in request is no longer available';
+    case 'failed-precondition':
+      return 'This sign-in request expired or changed — please sign in again';
+    case 'unavailable':
+    case 'deadline-exceeded':
+    case 'internal':
+      return 'Verification is unavailable — check your connection and try again';
+    case 'resource-exhausted':
+      return 'Too many attempts — please try again later';
+    case 'invalid-argument':
+      return 'Enter the full six-digit code';
     case 'wrong_code':
       return 'Incorrect code — check and try again';
     case 'challenge_expired':

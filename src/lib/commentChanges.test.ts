@@ -1,23 +1,32 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const state = vi.hoisted(() => ({ row: { user_id: 'alice-profile', post_id: 'post' } as Record<string, unknown> | null, get: vi.fn(), update: vi.fn(), delete: vi.fn(), guard: vi.fn() }));
-vi.mock('@/lib/firebase/firestoreDb', () => ({ getFirestoreDb: () => ({}) }));
-vi.mock('firebase/firestore', () => ({ doc: (_db: unknown, collection: string, id: string) => `${collection}/${id}`, runTransaction: async (_db: unknown, run: (tx: unknown) => Promise<void>) => run({ get: state.get, update: state.update, delete: state.delete }) }));
-import { changeComment } from './commentChanges';
-beforeEach(() => { vi.clearAllMocks(); state.row = { user_id: 'alice-profile', post_id: 'post' }; state.guard.mockReset(); state.get.mockImplementation(async () => ({ exists: () => !!state.row, data: () => state.row })); });
-describe('atomic comment changes', () => {
-  it.each(['edit', 'delete'] as const)('changes only the verified comment: %s', async action => {
-    await changeComment({ action, commentId: 'comment', postId: 'post', text: 'Updated' }, 'alice-profile', state.guard);
-    if (action === 'edit') expect(state.update).toHaveBeenCalledWith('comments/comment', { text: 'Updated' });
-    else expect(state.delete).toHaveBeenCalledWith('comments/comment');
+const state = vi.hoisted(() => ({ call: vi.fn(), epoch: 1, uid: 'alice' }));
+vi.mock('@/lib/firebase/functionsService', () => ({ invokeFunction: state.call }));
+vi.mock('@/lib/tokenMarketplaceService', () => ({ tokenAccountSnapshot: () => ({ uid: state.uid, epoch: state.epoch }) }));
+import { changeComment, saveCommentChange } from './commentChanges';
+beforeEach(() => { vi.clearAllMocks(); state.epoch++; state.uid = 'alice'; state.call.mockImplementation(async (_name, input) => ({ error: null, data: {
+  ok: true, ownerUid: input.expectedOwnerUid, profileId: input.expectedProfileId, action: input.action, postId: input.postId, commentId: input.commentId ?? 'created-comment',
+  requestId: input.requestId, revision: 'b'.repeat(48), ...(input.action === 'like' ? { liked: input.liked } : {}) } })); });
+describe('checked comment changes', () => {
+  it.each(['edit', 'delete'] as const)('sends the exact bound %s operation and revision', async action => {
+    const guard = vi.fn(); const result = await changeComment({ action, commentId: 'comment', postId: 'post', text: 'Updated', expectedRevision: 'a'.repeat(48) }, 'alice-profile', guard);
+    expect(result.guard).toBe(guard); expect(state.call).toHaveBeenCalledWith('managePostComment', expect.objectContaining({ expectedOwnerUid: 'alice', expectedProfileId: 'alice-profile', action, commentId: 'comment', postId: 'post', expectedRevision: 'a'.repeat(48) }));
   });
-  it.each(['missing', 'owner', 'post'])('does not mutate an unavailable or mismatched row: %s', async reason => {
-    state.row = reason === 'missing' ? null : { user_id: reason === 'owner' ? 'bob-profile' : 'alice-profile', post_id: reason === 'post' ? 'other-post' : 'post' };
-    await expect(changeComment({ action: 'edit', commentId: 'comment', postId: 'post', text: 'Updated' }, 'alice-profile', state.guard)).rejects.toThrow();
-    expect(state.update).not.toHaveBeenCalled(); expect(state.delete).not.toHaveBeenCalled();
+  it.each([{ ownerUid: 'bob' }, { profileId: 'bob-profile' }, { action: 'create' }, { postId: 'other-post' }, { commentId: 'other-comment' }, { requestId: 'wrong' }, { revision: null }])('rejects a mismatched receipt %j', async patch => {
+    state.call.mockImplementation(async (_name, input) => ({ data: { ok: true, ownerUid: 'alice', profileId: 'alice-profile', action: 'delete', postId: 'post', commentId: 'comment', requestId: input.requestId, revision: 'b'.repeat(48), ...patch } }));
+    await expect(changeComment({ action: 'delete', commentId: 'comment', postId: 'post', expectedRevision: 'a'.repeat(48) }, 'alice-profile', () => {})).rejects.toThrow('could not be verified');
   });
-  it('rechecks the session after reading before scheduling a delete', async () => {
-    state.guard.mockImplementationOnce(() => {}).mockImplementationOnce(() => {}).mockImplementationOnce(() => { throw new Error('Account changed'); });
-    await expect(changeComment({ action: 'delete', commentId: 'comment', postId: 'post' }, 'alice-profile', state.guard)).rejects.toThrow('Account changed');
-    expect(state.delete).not.toHaveBeenCalled();
+  it('keeps the same request ID after an ambiguous failure and uses a new one after acknowledgement', async () => {
+    const body = { action: 'create' as const, postId: 'post', text: 'Retry draft', imageUrl: null };
+    state.call.mockResolvedValueOnce({ error: { message: 'Unavailable', name: 'unavailable' } });
+    await expect(saveCommentChange(body, 'alice-profile', () => {})).rejects.toThrow('Unavailable');
+    await saveCommentChange(body, 'alice-profile', () => {}); await saveCommentChange(body, 'alice-profile', () => {});
+    expect(state.call.mock.calls[0][1].requestId).toBe(state.call.mock.calls[1][1].requestId); expect(state.call.mock.calls[2][1].requestId).not.toBe(state.call.mock.calls[1][1].requestId);
+  });
+  it('does not turn a verified committed receipt into a failed save after the account changed', async () => {
+    let active = true; const base = state.call.getMockImplementation()!;
+    state.call.mockImplementation(async (...args) => { const result = await base(...args); active = false; return result; });
+    const guard = () => { if (!active) throw new Error('Account changed'); };
+    const saved = await changeComment({ action: 'delete', commentId: 'comment', postId: 'post', expectedRevision: null }, 'alice-profile', guard);
+    expect(() => saved.guard()).toThrow('Account changed');
   });
 });

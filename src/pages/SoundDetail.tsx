@@ -37,14 +37,15 @@ export default function SoundDetailPage() {
   const navigate = useNavigate();
   const [isSaving, setIsSaving] = useState(false);
 
-  const { data: sound, isLoading } = useSound(soundId!);
+  const soundQuery = useSound(soundId!);
+  const { data: sound, isLoading } = soundQuery;
   const { data: stats } = useSoundStats(soundId!);
   const { data: posts } = usePostsWithSound(soundId!);
   const { data: isSaved = false, refetch: refetchSaved } = useIsSoundSaved(soundId);
   const { saveSound, unsaveSound } = useSaveSound();
   const trackPlay = useTrackSoundPlay();
   const audioUrl = sound?.preview_url || sound?.audio_url || '';
-  const audioPlayer = useAudioPlayer(audioUrl);
+  const audioPlayer = useAudioPlayer(audioUrl, soundId);
 
   useEffect(() => {
     if (audioPlayer.isPlaying && sound) {
@@ -115,6 +116,7 @@ export default function SoundDetailPage() {
     );
   }
 
+  if (soundQuery.isError) return <AppLayout><div role="alert" className="p-6"><p>This sound could not be checked.</p><Button onClick={() => void soundQuery.refetch()}>Retry sound</Button></div></AppLayout>;
   if (!sound) {
     return (
       <AppLayout hideNav>

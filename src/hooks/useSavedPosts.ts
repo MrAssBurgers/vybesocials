@@ -1,3 +1,4 @@
+import { readCommentCounts } from '@/lib/commentService';
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
@@ -33,18 +34,19 @@ export function useSavedPosts() {
 
       if (postsError) throw postsError;
 
+      const commentCounts = await readCommentCounts((posts || []).map(post => post.id), profileId);
       // Get like and comment counts
       const postsWithCounts = await Promise.all(
         (posts || []).map(async (post) => {
-          const [{ count: likeCount }, { count: commentCount }] = await Promise.all([
+          const [{ count: likeCount }] = await Promise.all([
             db.from('likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
-            db.from('comments').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
+
           ]);
 
           return {
             ...post,
             like_count: likeCount || 0,
-            comment_count: commentCount || 0,
+            comment_count: commentCounts[post.id] ?? 0,
           };
         })
       );

@@ -1,6 +1,7 @@
 import { TWILIO_SECRETS, getTwilioConfig, twilioVerifyStart, twilioVerifyCheck } from './_shared/twilioVerify.js';
 import { verifiedAuthPhone } from './_shared/phoneVerificationAuthority.js';
-import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
+import { randomBytes } from 'crypto';
+import { requestEmailChallenge, verifyEmailChallenge } from './_shared/emailChallengeAuthority.js';
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { DocumentReference } from 'firebase-admin/firestore';
@@ -19,53 +20,25 @@ const GOOGLE_WEB_CLIENT_ID =
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RESEND_URL = 'https://api.resend.com/emails';
 
-function code(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
-
 function fromAddr(): string {
   return process.env.EMAIL_FROM || 'VYBE <no-reply@vybehub.app>';
 }
 
-async function sendCodeEmail(to: string, otp: string): Promise<boolean> {
+async function sendCodeEmail(to: string, otp: string, deliveryId: string): Promise<boolean> {
   const key = process.env.RESEND_API_KEY?.trim();
-  if (!key) {
-    console.error('[auth2fa] RESEND_API_KEY not bound');
-    return false;
-  }
+  if (!key) return false;
   const html = renderAuthEmail('reauthentication', { email: to, code: otp, link: otp });
-  const res = await fetch(RESEND_URL, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from: fromAddr(),
-      to: [to],
-      subject: AUTH_EMAIL_SUBJECTS.reauthentication,
-      html,
-    }),
-  });
-  if (!res.ok) {
-    console.error('[auth2fa] Resend failed:', res.status, (await res.text()).slice(0, 200));
-    return false;
-  }
-  return true;
-}
-
-function maskEmail(email: string): string {
-  const [local, domain] = email.split('@');
-  if (!domain) return '***';
-  const visible = local.slice(0, Math.min(2, local.length));
-  return `${visible}***@${domain}`;
-}
-
-function hashOtp(otp: string, salt: string): string {
-  return createHmac('sha256', salt).update(otp).digest('hex');
-}
-
-function otpMatches(provided: string, codeHash: string, codeSalt: string): boolean {
-  const expected = Buffer.from(codeHash, 'hex');
-  const actual = Buffer.from(hashOtp(String(provided).trim(), codeSalt), 'hex');
-  return expected.length === actual.length && timingSafeEqual(expected, actual);
+  try {
+    const res = await fetch(RESEND_URL, {
+      method: 'POST',
+      signal: AbortSignal.timeout(15_000),
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'Idempotency-Key': `email-confirmation/${deliveryId}` },
+      body: JSON.stringify({ from: fromAddr(), to: [to], subject: AUTH_EMAIL_SUBJECTS.reauthentication, html }),
+    });
+    if (!res.ok) return false;
+    const receipt = await res.json() as { id?: unknown };
+    return typeof receipt.id === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(receipt.id);
+  } catch { return false; }
 }
 
 /**
@@ -123,203 +96,14 @@ export const claimProfileByEmail = onCall({ cors: true }, async (request) => {
 
 /** auth-2fa-request — issue a 6-digit code (email channel). */
 export const auth2faRequest = onCall(
-  { cors: true, secrets: ['RESEND_API_KEY', 'EMAIL_FROM'] },
-  async (request) => {
-    const payload = (request.data || {}) as { challengeId?: string; email?: string };
-    const existingChallengeId = asString(payload.challengeId);
-    const uid = request.auth?.uid;
-
-    // Soft-signed-out resend: refresh code on an existing challenge by id.
-    if (!uid && existingChallengeId) {
-      enforceRateLimit(await rateLimit(`2fa-req-anon:${existingChallengeId}`, 5, 600));
-      const ref = db.collection('auth_challenges').doc(existingChallengeId);
-      const snap = await ref.get();
-      const data = snap.data() as {
-        user_id?: string;
-        challenge_type?: string;
-        expires_at?: number | string;
-        email?: string;
-        metadata?: Record<string, unknown>;
-      } | undefined;
-      if (!data?.user_id) throw new HttpsError('not-found', 'Challenge not found');
-      const type = data.challenge_type || 'email_2fa';
-      if (type !== 'email_2fa' && type !== 'login_approval') {
-        throw new HttpsError('failed-precondition', 'Unsupported challenge');
-      }
-      const challengeUid = String(data.user_id);
-      let email = asString(data.email);
-      if (!email) {
-        try {
-          email = (await auth.getUser(challengeUid)).email || undefined;
-        } catch {
-          email = undefined;
-        }
-      }
-      if (!email) throw new HttpsError('failed-precondition', 'No email on account');
-
-      const c = code();
-      const salt = randomBytes(16).toString('hex');
-      const expiresAtMs = Date.now() + 10 * 60 * 1000;
-      const expiresAtIso = new Date(expiresAtMs).toISOString();
-      await ref.set({
-        code_hash: hashOtp(c, salt),
-        code_salt: salt,
-        channel: 'email',
-        email,
-        expires_at: type === 'login_approval' ? expiresAtIso : expiresAtMs,
-        updated_at: new Date().toISOString(),
-        metadata: {
-          ...(data.metadata || {}),
-          code_hash: hashOtp(c, salt),
-          code_salt: salt,
-          code_channel: 'email',
-        },
-      }, { merge: true });
-
-      const sent = await sendCodeEmail(email, c);
-      if (!sent) throw new HttpsError('internal', 'Failed to send verification email');
-      return { ok: true, challengeId: existingChallengeId, expiresAt: expiresAtIso, email: maskEmail(email) };
-    }
-
-    const authedUid = requireAuth(request);
-    enforceRateLimit(await rateLimit(`2fa-req:${authedUid}`, 5, 600));
-
-    let email: string | undefined;
-    try {
-      email = (await auth.getUser(authedUid)).email || undefined;
-    } catch {
-      email = undefined;
-    }
-    if (!email) throw new HttpsError('failed-precondition', 'No email on account');
-
-    const c = code();
-    const salt = randomBytes(16).toString('hex');
-    const expiresAtMs = Date.now() + 10 * 60 * 1000;
-    const expiresAtIso = new Date(expiresAtMs).toISOString();
-    // Random id — never `${uid}_2fa` (predictable and unsafe for unauth verify).
-    const ref = existingChallengeId
-      ? db.collection('auth_challenges').doc(existingChallengeId)
-      : db.collection('auth_challenges').doc();
-    await ref.set({
-      user_id: authedUid,
-      challenge_type: 'email_2fa',
-      code_hash: hashOtp(c, salt),
-      code_salt: salt,
-      channel: 'email',
-      email,
-      status: 'pending',
-      expires_at: expiresAtMs,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }, { merge: true });
-
-    const sent = await sendCodeEmail(email, c);
-    if (!sent) throw new HttpsError('internal', 'Failed to send verification email');
-    return { ok: true, challengeId: ref.id, expiresAt: expiresAtIso, email: maskEmail(email) };
-  },
+  { cors: true, timeoutSeconds: 60, secrets: ['RESEND_API_KEY', 'EMAIL_FROM'] },
+  async request => requestEmailChallenge(db, auth, sendCodeEmail, request.auth?.uid || null, request.data || {}),
 );
 
-/** auth-2fa-verify — confirm a 6-digit code; mint custom token when soft-signed-out. */
-export const auth2faVerify = onCall({ cors: true }, async (request) => {
-  const payload = (request.data || {}) as { code?: string; challengeId?: string };
-  const provided = asString(payload.code);
-  const challengeId = asString(payload.challengeId);
-  if (!provided) throw new HttpsError('invalid-argument', 'code required');
+export const auth2faVerify = onCall({ cors: true, timeoutSeconds: 60 }, async request =>
+  verifyEmailChallenge(db, auth, request.auth?.uid || null, request.data || {}),
+);
 
-  const uid = request.auth?.uid;
-  enforceRateLimit(await rateLimit(`2fa-verify:${challengeId || uid || 'anon'}`, 10, 600));
-
-  const ref = challengeId
-    ? db.collection('auth_challenges').doc(challengeId)
-    : uid
-      ? db.collection('auth_challenges').doc(`${uid}_2fa`)
-      : null;
-  if (!ref) throw new HttpsError('unauthenticated', 'Sign in or provide challengeId');
-
-  const snap = await ref.get();
-  const data = snap.data() as {
-    user_id?: string;
-    expires_at?: number | string;
-    code_hash?: string;
-    code_salt?: string;
-    challenge_type?: string;
-    status?: string;
-    metadata?: Record<string, unknown>;
-  } | undefined;
-
-  const meta = (data?.metadata || {}) as Record<string, unknown>;
-  const codeHash = data?.code_hash || asString(meta.code_hash);
-  const codeSalt = data?.code_salt || asString(meta.code_salt);
-  const challengeUid = asString(data?.user_id);
-  if (!data || !codeHash || !codeSalt || !challengeUid) {
-    throw new HttpsError('permission-denied', 'Invalid or expired code');
-  }
-
-  const expiresRaw = data.expires_at;
-  const expiresMs = typeof expiresRaw === 'number'
-    ? expiresRaw
-    : typeof expiresRaw === 'string'
-      ? Date.parse(expiresRaw)
-      : 0;
-  if (!expiresMs || expiresMs < Date.now()) {
-    throw new HttpsError('permission-denied', 'Invalid or expired code');
-  }
-  if (data.status && data.status !== 'pending') {
-    throw new HttpsError('failed-precondition', 'Challenge already resolved');
-  }
-  if (uid && uid !== challengeUid) {
-    throw new HttpsError('permission-denied', 'Not your challenge');
-  }
-  if (!otpMatches(provided, codeHash, codeSalt)) {
-    throw new HttpsError('permission-denied', 'Invalid or expired code');
-  }
-
-  const now = new Date().toISOString();
-  if (data.challenge_type === 'login_approval') {
-    let customToken: string;
-    try {
-      customToken = await auth.createCustomToken(challengeUid, { email_2fa: challengeId });
-    } catch (err) {
-      console.error('[auth2faVerify] createCustomToken failed', err);
-      throw new HttpsError('internal', 'Could not mint session token');
-    }
-    await ref.set({
-      status: 'approved',
-      resolved_at: now,
-      metadata: {
-        ...meta,
-        resolved_by: 'email_code',
-        custom_token: customToken,
-        code_hash: FieldValue.delete(),
-        code_salt: FieldValue.delete(),
-      },
-    }, { merge: true });
-    return { ok: true, customToken, status: 'approved' };
-  }
-
-  await ref.delete().catch(async () => {
-    await ref.set({ status: 'approved', resolved_at: now }, { merge: true });
-  });
-  await db.collection('profiles').doc(challengeUid).set(
-    { two_factor_verified_at: now },
-    { merge: true },
-  ).catch(() => undefined);
-
-  if (!uid) {
-    let customToken: string;
-    try {
-      customToken = await auth.createCustomToken(challengeUid, { email_2fa: true });
-    } catch (err) {
-      console.error('[auth2faVerify] createCustomToken failed', err);
-      throw new HttpsError('internal', 'Could not mint session token');
-    }
-    return { ok: true, customToken };
-  }
-
-  return { ok: true };
-});
-
-/** auth-2fa-preauth — start a pre-auth challenge for risky actions. */
 export const auth2faPreauth = onCall(async (request) => {
   const uid = requireAuth(request);
   await db.collection('auth_challenges').doc(`${uid}_preauth`).set({
@@ -627,57 +411,8 @@ export const authLoginApproval = onCall(
 
   // Fallback: trusted device unreachable → email a 6-digit code on this challenge.
   if (action === 'switch_to_code') {
-    const challengeId = asString(data.challengeId);
-    if (!challengeId) throw new HttpsError('invalid-argument', 'challengeId required');
-    enforceRateLimit(await rateLimit(`login-switch-code:${challengeId}`, 5, 600));
-
-    const row = await loadChallenge(challengeId);
-    if (!row || row.challenge_type !== 'login_approval') {
-      return { ok: false, error: 'not_found' };
-    }
-    if (challengeExpired(row.expires_at)) return { ok: false, error: 'expired' };
-    if (row.status && row.status !== 'pending') return { ok: false, error: 'already_resolved' };
-
-    const challengeUid = asString(row.user_id);
-    if (!challengeUid) return { ok: false, error: 'no_session' };
-
-    let email: string | undefined;
-    try {
-      email = (await auth.getUser(challengeUid)).email || undefined;
-    } catch {
-      email = undefined;
-    }
-    if (!email) return { ok: false, error: 'email_failed' };
-
-    const c = code();
-    const salt = randomBytes(16).toString('hex');
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-    const meta = (row.metadata || {}) as Record<string, unknown>;
-    await db.collection('auth_challenges').doc(challengeId).set({
-      expires_at: expiresAt,
-      channel: 'email',
-      email,
-      code_hash: hashOtp(c, salt),
-      code_salt: salt,
-      metadata: {
-        ...meta,
-        code_hash: hashOtp(c, salt),
-        code_salt: salt,
-        code_channel: 'email',
-        switched_to: 'email_code',
-      },
-    }, { merge: true });
-
-    const sent = await sendCodeEmail(email, c);
-    if (!sent) return { ok: false, error: 'email_failed' };
-
-    return {
-      ok: true,
-      challengeId,
-      expiresAt,
-      email: maskEmail(email),
-      mode: 'code',
-    };
+    return requestEmailChallenge(db, auth, sendCodeEmail, request.auth?.uid || null,
+      { challengeId: data.challengeId }, { allowLoginSwitch: true });
   }
 
   if (action === 'switch_to_sms') {

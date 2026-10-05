@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/lib/auth';
-import { useComments, useCreateComment } from '@/hooks/useComments';
+import { useProfileAccount } from '@/hooks/useProfileAccount';
+import { useComments, useCreateComment, useDeleteComment, useLikeComment } from '@/hooks/useComments';
 import { GifPicker } from '@/components/chat/GifPicker';
 import { MentionInput } from './MentionInput';
 import { CommentThread } from './CommentThread';
@@ -35,15 +36,21 @@ type SortOption = 'newest' | 'top';
  * YouTube-style inline comments section for long-form videos.
  * Lives directly below the video, scrollable, with video continuing to play.
  */
-export const InlineComments = memo(function InlineComments({
+export const InlineComments = memo(function InlineComments(props: InlineCommentsProps) {
+  const account = useProfileAccount();
+  return <InlineCommentsSession key={`${account.session.uid}:${account.session.epoch}:${account.profile?.id}:${props.postId}`} {...props} />;
+});
+const InlineCommentsSession = memo(function InlineCommentsSession({
   postId,
   authorId,
   commentCount = 0,
   accessScope,
 }: InlineCommentsProps) {
   const { profile } = useAuth();
-  const { data: comments, isLoading, isError, isFetching, refetch } = useComments(postId, accessScope ? { scope: accessScope } : undefined);
+  const { data: comments, isLoading, isError, isFetching, refetch, hasNextPage, fetchNextPage, isFetchingNextPage } = useComments(postId, accessScope ? { scope: accessScope } : undefined);
   const createComment = useCreateComment();
+  const deleteComment = useDeleteComment();
+  const likeComment = useLikeComment();
 
   const [text, setText] = useState('');
   const [replyingTo, setReplyingTo] = useState<{ id: string; username: string } | null>(null);
@@ -168,7 +175,7 @@ export const InlineComments = memo(function InlineComments({
   const sortedComments = sortComments(comments || [], sortBy);
 
   const visibleComments = sortedComments.slice(0, displayCount);
-  const hasMore = sortedComments.length > displayCount;
+  const hasMore = sortedComments.length > displayCount || hasNextPage;
   const canSubmit = (text.trim() || mediaUrl) && !createComment.isPending && !isUploading;
 
   return (
@@ -365,6 +372,8 @@ export const InlineComments = memo(function InlineComments({
                 comment={comment}
                 postId={postId}
                 onReply={handleReply}
+                onDelete={() => deleteComment.mutate({ commentId: comment.id, postId, expectedRevision: comment.revision })}
+                onLike={() => { if (!likeComment.isPending && !comment.needs_owner_confirmation) likeComment.mutate({ commentId: comment.id, postId, liked: !comment.is_liked }); }}
               />
             ))}
             
@@ -372,7 +381,7 @@ export const InlineComments = memo(function InlineComments({
               <Button
                 variant="ghost"
                 className="w-full"
-                onClick={() => setDisplayCount(prev => prev + 10)}
+                disabled={isFetchingNextPage} onClick={() => { setDisplayCount(prev => prev + 10); if (sortedComments.length <= displayCount && hasNextPage) void fetchNextPage(); }}
               >
                 Show more comments
               </Button>
@@ -381,7 +390,8 @@ export const InlineComments = memo(function InlineComments({
         ) : (
           <div className="text-center py-8">
             <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-            <p className="text-muted-foreground">No comments yet</p>
+            <p className="text-muted-foreground">{hasNextPage ? 'More comments available' : 'No comments yet'}</p>
+            {hasNextPage && <Button variant="ghost" disabled={isFetchingNextPage} onClick={() => void fetchNextPage()}>Load more comments</Button>}
             <p className="text-sm text-muted-foreground/70">Be the first to share your thoughts!</p>
           </div>
         )}

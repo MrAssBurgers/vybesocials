@@ -84,3 +84,18 @@ describe('explicit music playback lifecycle', () => {
     await act(async () => { resolve(); await pending; }); expect(second.result.current.isPlaying).toBe(true); expect(first.result.current.isPlaying).toBe(false);
   });
 });
+
+it('requires fresh sound admission before constructing Audio and allows retry after denial', async () => {
+  const admit = vi.fn().mockRejectedValueOnce(new Error('removed')).mockResolvedValue(undefined); const { result } = renderHook(() => useMusicPlayback('/sounds/comment.wav', 60, admit));
+  await act(() => result.current.play()); expect(FakeAudio.instances).toHaveLength(0); expect(result.current.error).toMatch(/no longer available/);
+  await act(() => result.current.play()); expect(admit).toHaveBeenCalledTimes(2); expect(FakeAudio.instances).toHaveLength(1);
+});
+it('stops a pending permission check when another player starts', async () => {
+  let finish!: () => void; const admit = () => new Promise<void>(resolve => { finish = resolve; }); const first = renderHook(() => useMusicPlayback('/sounds/comment.wav', 60, admit)); const second = renderHook(() => useMusicPlayback('/sounds/dm-sent.wav'));
+  let pending!: Promise<void>; act(() => { pending = first.result.current.play(); }); await act(() => second.result.current.play()); await act(async () => { finish(); await pending; });
+  expect(FakeAudio.instances).toHaveLength(1); expect(first.result.current.isPlaying).toBe(false); expect(second.result.current.isPlaying).toBe(true);
+});
+it('does not hang forever while checking current sound availability', async () => {
+  vi.useFakeTimers(); const { result } = renderHook(() => useMusicPlayback('/sounds/comment.wav', 60, () => new Promise(() => {}))); let pending!: Promise<void>; act(() => { pending = result.current.play(); }); await act(async () => { vi.advanceTimersByTime(15000); await pending; });
+  expect(result.current.isLoading).toBe(false); expect(FakeAudio.instances).toHaveLength(0); expect(result.current.error).toMatch(/could not be checked/);
+});

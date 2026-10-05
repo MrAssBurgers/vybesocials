@@ -35,6 +35,11 @@ import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/pas
 import { awaitOAuthRedirectCapture, clearOAuthRedirectPending, isLikelyFirebaseOAuthReturnUrl, isOAuthRedirectInFlight, recoverOAuthSessionIfSignedIn } from '@/lib/firebase/oauthRedirect';
 import { isDespiaOAuthInFlight } from '@/lib/despiaOAuth';
 import { captureException } from '@/lib/sentry';
+import { tokenAccountGuard, tokenAccountSnapshot } from '@/lib/tokenMarketplaceService';
+import { beginLoginApprovalCheck, endLoginApprovalCheck } from '@/lib/loginApprovalGate';
+import { captureAuthSnapshotGuard, completeAuthConfirmation, createAuthAttemptController, isRetiredAuthAttempt, type AuthSessionAttempt } from '@/lib/authSessionAttempt';
+import { getFirebaseAuth } from '@/lib/firebase/authService';
+import { clearMirroredAuth } from '@/lib/authSessionMirror';
 
 /** Fail-soft — production may not have deployed sync_signup_username yet. */
 async function trySyncSignupUsername(): Promise<string | null> {
@@ -182,7 +187,8 @@ function retainCachedProfile(
   return true;
 }
 
-function persistCurrentProfile(profileData: Profile) {
+function persistCurrentProfile(profileData: Profile, guard: () => void = () => {}) {
+  guard();
   cacheProfileAvatar(profileData.id, profileData.avatar_url);
   const payload = {
     id: profileData.id,
@@ -199,6 +205,7 @@ function persistCurrentProfile(profileData: Profile) {
     void syncUserAuthIndex(profileData.user_id, profileData.id).catch(() => {});
   }
   requestAnimationFrame(() => {
+    try { guard(); } catch { return; }
     prefetchDMConversationsFromNav();
     const qc = (window as any).__REACT_QUERY_CLIENT__;
     if (qc && profileData.id && profileData.user_id) {
@@ -254,6 +261,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const authInitializedRef = useRef(false);
   const explicitSignOutRef = useRef(false);
   const bootstrapUserRef = useRef<string | null>(null);
+  const authAttempts = useRef(createAuthAttemptController(tokenAccountSnapshot, {
+    begin: beginLoginApprovalCheck, end: endLoginApprovalCheck,
+  })).current;
 
   // Reject stale cached profile when auth user changes (wrong-user queries break RLS).
   useEffect(() => {
@@ -279,7 +289,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Schedule auto-unban when ban expires
-  const scheduleBanExpiry = (expiresAt: string | null, isPermanent: boolean) => {
+  const scheduleBanExpiry = (expiresAt: string | null, isPermanent: boolean, guard: () => void = () => {}) => {
     clearBanExpiryTimer();
     
     if (isPermanent || !expiresAt) return;
@@ -296,12 +306,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     // Schedule the unban
     banExpiryTimerRef.current = setTimeout(() => {
+      try { guard(); } catch { return; }
       setBanInfo(null);
     }, timeUntilExpiry);
   };
 
   // Check if user is banned
-  const checkBanStatus = async (profileId: string) => {
+  const checkBanStatus = async (profileId: string, guard: () => void = tokenAccountGuard()) => {
+    try { guard(); } catch { return; }
     const { data, error } = await db
       .from('user_bans')
       .select('reason, expires_at, is_permanent, is_meme_ban, custom_gif_url')
@@ -309,12 +321,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .order('created_at', { ascending: false })
       .limit(10);
 
+    try { guard(); } catch { return; }
+
     const activeBan = !error ? pickActiveBan(data ?? []) : null;
 
     if (activeBan) {
       setBanInfo({ ...activeBan, reason: activeBan.reason || 'No reason provided' } as BanInfo);
       // Schedule auto-unban when time is up
-      scheduleBanExpiry(activeBan.expires_at, activeBan.is_permanent);
+      scheduleBanExpiry(activeBan.expires_at, activeBan.is_permanent, guard);
     } else {
       setBanInfo(null);
       clearBanExpiryTimer();
@@ -322,7 +336,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Subscribe to realtime ban changes (single channel per profile — see realtimeChannel.ts)
-  const subscribeToBanChanges = (profileId: string) => {
+  const subscribeToBanChanges = (profileId: string, guard: () => void = tokenAccountGuard()) => {
     removeRealtimeChannel(banSubscriptionRef.current);
     banSubscriptionRef.current = null;
 
@@ -334,7 +348,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           table: 'user_bans',
           filter: `user_id=eq.${profileId}`,
           callback: () => {
-            checkBanStatus(profileId);
+            void checkBanStatus(profileId, guard);
           },
         },
       ],
@@ -387,19 +401,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Note: Referral/invite popup is now handled entirely by InvitePopup component
   // using the referral.ts utilities with localStorage persistence
 
-  const fetchProfile = async (userId: string, retryCount = 0) => {
+  const fetchProfile = async (userId: string, retryCount = 0, guard: () => void = tokenAccountGuard(userId)) => {
     const maxRetries = 1;
 
     const applyProfile = (profileData: Profile) => {
+      guard();
       setProfile(profileData);
-      persistCurrentProfile(profileData);
-      checkBanStatus(profileData.id);
-      subscribeToBanChanges(profileData.id);
+      persistCurrentProfile(profileData, guard);
+      void checkBanStatus(profileData.id, guard);
+      subscribeToBanChanges(profileData.id, guard);
       return profileData;
     };
     
     try {
+      guard();
       const indexed = await getProfileByAuthUid(userId);
+      guard();
       if (indexed?.id) {
         return applyProfile(indexed as unknown as Profile);
       }
@@ -411,10 +428,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('user_id', userId)
         .limit(1);
 
+      guard();
+
       if (!error && data?.[0]) {
         const profileData = data[0] as unknown as Profile;
 
         const { data: { user: authUser } } = await db.auth.getUser();
+        guard();
         const metaUsername = authUser?.user_metadata?.username;
         const shouldSyncSignupUsername =
           isGeneratedUsername(profileData.username) ||
@@ -424,12 +444,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (shouldSyncSignupUsername) {
           void trySyncSignupUsername().then((syncedUsername) => {
+            guard();
             if (syncedUsername && !isGeneratedUsername(syncedUsername)) {
               setProfile((prev) =>
                 prev?.id === profileData.id ? { ...prev, username: syncedUsername } : prev,
               );
             }
-          });
+          }).catch(() => {});
         } else {
           clearSignupUsername();
         }
@@ -439,37 +460,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (retryCount < maxRetries) {
         await new Promise((r) => setTimeout(r, 250));
-        return fetchProfile(userId, retryCount + 1);
+        guard();
+        return fetchProfile(userId, retryCount + 1, guard);
       }
 
       // Fast local ensure — claim first so we don't orphan a duplicate placeholder.
       try {
+        guard();
         await db.rpc('claim_profile_by_email').catch(() => undefined);
+        guard();
         const claimed = await getProfileByAuthUid(userId);
+        guard();
         if (claimed?.id) {
           return applyProfile(claimed as unknown as Profile);
         }
         const ensured = await ensureUserProfile(userId);
+        guard();
         if (ensured?.id) {
           return applyProfile(ensured as unknown as Profile);
         }
       } catch (ensureErr) {
+        try { guard(); } catch { return null; }
         console.warn('[Auth] ensureUserProfile failed:', ensureErr);
       }
 
       if (retainCachedProfile(setProfile, userId)) {
         window.setTimeout(() => {
-          void fetchProfile(userId, 0);
+          void fetchProfile(userId, 0, guard);
         }, 2000);
         return getCachedCurrentProfile();
       }
 
       console.warn('[Auth] Profile unavailable — retrying in background');
       window.setTimeout(() => {
-        void fetchProfile(userId, 0);
+        void fetchProfile(userId, 0, guard);
       }, 1500);
       return null;
     } catch (err) {
+      try { guard(); } catch { return null; }
       const msg = err instanceof Error ? err.message : String(err);
       const permissionDenied = /missing or insufficient permissions|permission-denied/i.test(msg);
       const offline = /client is offline|unavailable|Failed to get document because the client is offline/i.test(msg);
@@ -482,26 +510,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (retryCount < maxRetries) {
         await new Promise((r) => setTimeout(r, permissionDenied || offline ? 500 : 300));
-        return fetchProfile(userId, retryCount + 1);
+        return fetchProfile(userId, retryCount + 1, guard);
       }
       
       retainCachedProfile(setProfile, userId);
       window.setTimeout(() => {
-        void fetchProfile(userId, 0);
+        void fetchProfile(userId, 0, guard);
       }, permissionDenied || offline ? 1500 : 2000);
       return null;
     }
   };
 
   /** Warm caches + profile after sign-in — never blocks navigation. */
-  const bootstrapSessionData = (userId: string, authEvent: string) => {
+  const bootstrapSessionData = (userId: string, authEvent: string, guard: () => void = tokenAccountGuard(userId)) => {
+    try { guard(); } catch { return; }
     if (bootstrapUserRef.current === userId && authEvent !== 'SIGNED_IN') return;
     bootstrapUserRef.current = userId;
 
     queueMicrotask(() => {
+      try { guard(); } catch { return; }
       const qc = (window as any).__REACT_QUERY_CLIENT__;
       void prefetchAndApplyUserTheme(userId, qc);
-      void fetchProfile(userId);
+      void fetchProfile(userId, 0, guard);
 
       void (async () => {
         try {
@@ -509,6 +539,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             resolveSessionProfileId(undefined),
             new Promise<string | null>((resolve) => window.setTimeout(() => resolve(null), 2000)),
           ]);
+          guard();
           if (profileId && qc) {
             qc.setQueryData(['session-profile-id', userId], profileId);
             warmHomeCachesForProfile(qc, userId, profileId);
@@ -517,6 +548,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             void qc.invalidateQueries({ refetchType: 'active' });
           }
         } catch (err) {
+          try { guard(); } catch { return; }
           console.error('[Auth] Session bootstrap failed:', err);
         }
 
@@ -524,10 +556,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // that blocks email claim and duplicates accounts in friends/search.
         void (async () => {
           try {
+            guard();
             await db.rpc('claim_profile_by_email');
+            guard();
             resetSessionProfileMemo();
-            await fetchProfile(userId, 0);
+            await fetchProfile(userId, 0, guard);
           } catch (err: unknown) {
+            try { guard(); } catch { return; }
             console.warn('[Auth] claim_profile_by_email failed:', err);
             captureException(err, { scope: 'auth:claim_profile_by_email', userId });
           }
@@ -537,7 +572,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   /** Drop local session while a login-approval challenge is pending (tokens must not unlock the app). */
-  const softSignOutForLoginApproval = useCallback(async () => {
+  const softSignOutForLoginApproval = useCallback(async (attempt: AuthSessionAttempt) => {
+    attempt.guard();
     explicitSignOutRef.current = true;
     clearFunctionAuthHeadersCache();
     setWasLoggedIn(false);
@@ -548,11 +584,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearCachedUserLevel();
     stopHeartbeat();
     try {
-      await db.auth.signOut({ scope: 'local' as any });
+      const auth = getFirebaseAuth();
+      if (!auth) throw new Error('Sign-out is unavailable.');
+      // The compatibility adapter clears persistence after its await without an
+      // attempt guard. Keep that cleanup below our ownership check instead.
+      await auth.signOut();
     } catch {
       /* ignore */
     }
+    // Firebase sign-out intentionally changes the account epoch. Only this
+    // attempt may continue cleanup, and it must still be signed out.
+    attempt.signedOut();
     try {
+      clearMirroredAuth(localStorage, attempt.guard);
       for (const key of Object.keys(localStorage)) {
         if (key.startsWith('firebase:authUser:') || key.startsWith('sb-')) {
           localStorage.removeItem(key);
@@ -563,55 +607,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     // Allow a later custom-token sign-in after approval.
     window.setTimeout(() => {
-      explicitSignOutRef.current = false;
+      if (attempt.isCurrent()) explicitSignOutRef.current = false;
     }, 1500);
   }, []);
 
-  const applyOAuthSession = useCallback(async (oauthSession: Session, method = 'oauth'): Promise<ApplySessionResult> => {
+  const applyOAuthSession = useCallback(async (oauthSession: Session, method = 'oauth', existingAttempt?: AuthSessionAttempt): Promise<ApplySessionResult> => {
+    const needsConfirmation = method !== 'login_approval' && method !== 'email_2fa';
+    const attempt = existingAttempt ?? authAttempts.start(oauthSession.user.id, needsConfirmation);
+    attempt.guard();
+    explicitSignOutRef.current = false;
     clearOAuthRedirectPending();
-
-    const { beginLoginApprovalCheck, endLoginApprovalCheck } = await import('@/lib/loginApprovalGate');
 
     // Interactive sign-ins: check login confirmation BEFORE hydrating React auth
     // so Landing / RootGate cannot navigate into the app early.
-    if (method !== 'login_approval' && method !== 'email_2fa') {
-      beginLoginApprovalCheck();
-      try {
-        // Email 2FA applies to password + OAuth when enabled.
-        try {
-          const { getDocument } = await import('@/lib/firebase/firestoreDb');
-          const settings = await getDocument<{ email_2fa_enabled?: boolean }>(
-            'user_2fa_settings',
-            oauthSession.user.id,
-          );
-          if (settings?.email_2fa_enabled) {
-            const { invokeFunction } = await import('@/lib/firebase/functionsService');
-            const req = await invokeFunction<{
-              ok?: boolean;
-              challengeId?: string;
-              expiresAt?: string;
-            }>('auth-2fa-request', {});
-            if (!req.error && req.data?.challengeId) {
-              endLoginApprovalCheck();
-              await softSignOutForLoginApproval();
-              return {
-                requiresApproval: false,
-                requiresEmail2fa: true,
-                challengeId: req.data.challengeId,
-                expiresAt: req.data.expiresAt,
-              };
-            }
-            console.warn('[Auth] email 2FA request failed — continuing to login approval check', req.error);
-          }
-        } catch (e) {
-          console.warn('[Auth] email 2FA check failed — continuing', e);
+    const gate = await completeAuthConfirmation<ApplySessionResult>(attempt, {
+      check: async guard => {
+        if (!needsConfirmation) return null;
+        const { beginEmailConfirmation } = await import('@/lib/emailConfirmation');
+        guard();
+        const emailGate = await beginEmailConfirmation(oauthSession.user.id, guard);
+        guard();
+        if (emailGate) {
+          return { requiresApproval: false, requiresEmail2fa: true, ...emailGate };
         }
 
         const { notifyFreshLogin } = await import('@/hooks/useSessionTracking');
+        guard();
         const result = await notifyFreshLogin(method);
+        guard();
         if (result.requiresApproval) {
-          endLoginApprovalCheck();
-          await softSignOutForLoginApproval();
           return {
             requiresApproval: true,
             challengeId: result.challengeId,
@@ -620,35 +644,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             geo: result.geo,
           };
         }
-        endLoginApprovalCheck();
-      } catch (e) {
-        endLoginApprovalCheck();
-        console.warn('[Auth] login approval check failed', e);
-      }
-    }
-
-    setWasLoggedIn(true);
-    setSession(oauthSession);
-    setUser(oauthSession.user);
-    setActiveAuthUserId(oauthSession.user.id);
-    authInitializedRef.current = true;
-    setLoading(false);
-    setIsInitialized(true);
-    startHeartbeat();
-    if (oauthSession.expires_at) {
-      scheduleTokenRefresh(oauthSession.expires_at);
-    }
-    bootstrapSessionData(oauthSession.user.id, 'SIGNED_IN');
-    void db.auth.refreshSession().catch(() => {});
+        return null;
+      },
+      signOut: () => softSignOutForLoginApproval(attempt),
+      hydrate: () => {
+        attempt.guard();
+        setWasLoggedIn(true);
+        setSession(oauthSession);
+        setUser(oauthSession.user);
+        setActiveAuthUserId(oauthSession.user.id);
+        authInitializedRef.current = true;
+        setLoading(false);
+        setIsInitialized(true);
+        startHeartbeat();
+        if (oauthSession.expires_at) scheduleTokenRefresh(oauthSession.expires_at);
+        bootstrapSessionData(oauthSession.user.id, 'SIGNED_IN', attempt.guard);
+        void db.auth.refreshSession().catch(() => {});
+      },
+    });
+    attempt.guard();
+    if (gate) return gate;
 
     if (method === 'login_approval') {
       void import('@/hooks/useSessionTracking').then(({ notifyFreshLogin }) => {
+        attempt.guard();
         void notifyFreshLogin('login_approval');
-      });
+      }).catch(() => {});
     }
 
     return { requiresApproval: false };
-  }, [softSignOutForLoginApproval]);
+  }, [authAttempts, softSignOutForLoginApproval]);
 
   useEffect(() => {
     // ──────────────────────────────────────────────────────────────────────
@@ -762,6 +787,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
+        const eventGuard = captureAuthSnapshotGuard(tokenAccountSnapshot, session?.user?.id);
+        try { eventGuard(); } catch { return; }
+
         if (event === 'SIGNED_IN' && session?.user) {
           stripStaleOnboardingFlagFromDisk();
           clearObsoleteAuthStorage();
@@ -807,8 +835,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Identify the user in Sentry so errors carry user context.
         try {
           const { setSentryUser } = await import('@/lib/sentry');
+          eventGuard();
           setSentryUser(session?.user ? { id: session.user.id, username: session.user.email ?? undefined } : null);
         } catch { /* noop */ }
+        try { eventGuard(); } catch { return; }
 
         // Keep the Realtime socket authenticated so RLS-filtered postgres_changes
         // events (e.g. DM INSERT on `messages`) actually reach the client.
@@ -842,6 +872,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const { data: recovered, error: recoverError } = await refreshStoredSession(
               getStoredSessionRefreshTimeoutMs() + 4000,
             );
+            // A successful recovery gets its own current Auth event. This old
+            // signed-out callback must not overwrite it (or another account).
+            try { eventGuard(); } catch { return; }
             if (recovered.session?.user) {
               logEvent('auth', 'Recovered session after unexpected SIGNED_OUT', {
                 userId: recovered.session.user.id,
@@ -946,9 +979,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           sessionStorage.setItem('vybe-oauth-error', msg);
         }
       } else if (captured.session?.user) {
-        const gate = await applyOAuthSession(captured.session);
-        if (!gate.requiresApproval && !gate.requiresEmail2fa) {
-          hydrateCachedProfile(captured.session.user.id);
+        try {
+          const attempt = authAttempts.start(captured.session.user.id);
+          const gate = await applyOAuthSession(captured.session, 'oauth', attempt);
+          attempt.guard();
+          if (!gate.requiresApproval && !gate.requiresEmail2fa) {
+            hydrateCachedProfile(captured.session.user.id);
+          }
+        } catch (error) {
+          if (isRetiredAuthAttempt(error)) return;
+          sessionStorage.setItem('vybe-oauth-error', 'Sign-in confirmation is unavailable. Please sign in again.');
+          authInitializedRef.current = true;
+          setLoading(false);
+          setIsInitialized(true);
+          return;
         }
         authInitializedRef.current = true;
         setLoading(false);
@@ -1118,6 +1162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
     // Cleanup on unmount
     return () => {
+      authAttempts.retire();
       document.removeEventListener('visibilitychange', resumeRefresh);
       window.removeEventListener('app-resumed', resumeRefresh);
       window.removeEventListener('pageshow', onPageShow);
@@ -1225,11 +1270,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (emailOrUsername: string, password: string) => {
-    const { beginLoginApprovalCheck, endLoginApprovalCheck } = await import('@/lib/loginApprovalGate');
-    beginLoginApprovalCheck();
+    const attempt = authAttempts.start();
+    let confirmationAttempted = false;
     try {
       const { resolveLoginEmail } = await import('@/lib/loginEmail');
+      attempt.guard();
       const normalized = await resolveLoginEmail(emailOrUsername);
+      attempt.guard();
       clearOAuthRedirectPending();
 
       const { data, error } = await db.auth.signInWithPassword({
@@ -1239,72 +1286,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const sessionUser = data.session?.user;
       if (sessionUser) {
-        // Email 2FA: send code while session is live, then soft-sign-out until verified.
-        try {
-          const { getDocument } = await import('@/lib/firebase/firestoreDb');
-          const settings = await getDocument<{ email_2fa_enabled?: boolean }>(
-            'user_2fa_settings',
-            sessionUser.id,
-          );
-          if (settings?.email_2fa_enabled) {
-            const { invokeFunction } = await import('@/lib/firebase/functionsService');
-            const req = await invokeFunction<{
-              ok?: boolean;
-              challengeId?: string;
-              expiresAt?: string;
-            }>('auth-2fa-request', {});
-            // A real challenge includes an id. Production currently answers
-            // { ok: true } with no id, which is not a code to enter. Signing out
-            // there locks a valid password with no way to finish 2FA.
-            if (!req.error && req.data?.challengeId) {
-              endLoginApprovalCheck();
-              await softSignOutForLoginApproval();
-              return {
-                error: null,
-                requiresEmail2fa: true,
-                requiresApproval: false,
-                challengeId: req.data.challengeId,
-                expiresAt: req.data.expiresAt,
-              };
-            }
-            console.warn('[Auth] email 2FA request did not issue a challenge — continuing sign-in', req.error);
-          }
-        } catch (e) {
-          console.warn('[Auth] email 2FA check failed — continuing sign-in', e);
-        }
-
-        const gate = await applyOAuthSession(data.session!, 'password');
+        attempt.bindAuthenticated(sessionUser.id);
+        confirmationAttempted = true;
+        const gate = await applyOAuthSession(data.session!, 'password', attempt);
+        attempt.guard();
         return { error: null, ...gate };
       }
 
+      attempt.guard();
       const { data: liveUser } = await db.auth.getUser();
+      attempt.guard();
       if (liveUser.user) {
+        attempt.bindAuthenticated(liveUser.user.id);
+        confirmationAttempted = true;
         const gate = await applyOAuthSession({
           user: liveUser.user,
           access_token: '',
           refresh_token: '',
-        }, 'password');
+        }, 'password', attempt);
+        attempt.guard();
         return { error: null, ...gate };
       }
 
-      endLoginApprovalCheck();
+      attempt.endCheck();
       if (error) throw error;
       return { error: new Error('Sign in did not complete. Please try again.') };
     } catch (error) {
+      if (!attempt.isCurrent()) return { error: isRetiredAuthAttempt(error) ? error : new Error('This sign-in changed. Please try again.') };
+      if (confirmationAttempted) {
+        attempt.endCheck();
+        return { error: error as Error };
+      }
       try {
         const { data: liveUser } = await db.auth.getUser();
+        attempt.guard();
         if (liveUser.user) {
+          attempt.bindAuthenticated(liveUser.user.id);
+          confirmationAttempted = true;
           const gate = await applyOAuthSession({
             user: liveUser.user,
             access_token: '',
             refresh_token: '',
-          }, 'password');
+          }, 'password', attempt);
+          attempt.guard();
           return { error: null, ...gate };
         }
       } catch {
         /* ignore recovery errors */
       }
-      endLoginApprovalCheck();
+      if (attempt.isCurrent()) attempt.endCheck();
       return { error: error as Error };
     }
   };
@@ -1324,6 +1354,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    authAttempts.retire();
     explicitSignOutRef.current = true;
     clearFunctionAuthHeadersCache();
     setWasLoggedIn(false);

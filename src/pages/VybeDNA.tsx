@@ -31,7 +31,8 @@ const FadeInSection = memo(function FadeInSection({ children, delay = 0 }: { chi
 
 export default function VybeDNAPage() {
   const navigate = useNavigate();
-  const { data: dna, isLoading } = useVybeDNA();
+  const { data: dna, isLoading, isPending, isFetching, isError, refetch } = useVybeDNA();
+  const hasPersonality = !!dna && dna.id !== 'seed' && !isError;
   const [copied, setCopied] = useState(false);
 
   const handleShare = async () => {
@@ -67,7 +68,7 @@ export default function VybeDNAPage() {
             </h1>
             <p className="text-xs text-muted-foreground">Evolves with your activity · still learning</p>
           </div>
-          {dna && (
+          {hasPersonality && (
             <Button variant="ghost" size="icon" onClick={handleShare}>
               {copied ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
             </Button>
@@ -76,17 +77,15 @@ export default function VybeDNAPage() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 pt-4 space-y-5">
-        {isLoading ? (
-          <div className="h-64 flex items-center justify-center">
-            <RefreshCw className="w-8 h-8 animate-spin text-muted-foreground" />
+        {/* Auto-Pilot has its own checked settings/history authority. */}
+        <FadeInSection><DNAAutoPilot /></FadeInSection>
+        {isLoading || (isPending && !isError) ? (
+          <div role="status" className="h-40 flex flex-col gap-3 items-center justify-center">
+            <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" aria-hidden="true" />
+            <p className="text-sm text-muted-foreground">Loading your personality panel…</p>
           </div>
-        ) : dna ? (
+        ) : hasPersonality ? (
           <>
-            {/* Auto-Pilot — autonomous AI agent */}
-            <FadeInSection>
-              <DNAAutoPilot />
-            </FadeInSection>
-
             {/* DNA Orb - keep single animation for hero */}
             <FadeInSection delay={30}>
               <div className="pt-4 pb-10">
@@ -155,7 +154,14 @@ export default function VybeDNAPage() {
               </Suspense>
             </FadeInSection>
           </>
-        ) : null}
+        ) : (
+          <Card><CardContent className="p-4 space-y-3" role={isError ? 'alert' : 'status'}>
+            <p className="text-sm text-muted-foreground">{isError
+              ? 'Your personality panel could not load. Auto-Pilot remains available above.'
+              : 'Your personality panel is not ready yet. You can still review Auto-Pilot above.'}</p>
+            <Button variant="secondary" size="sm" disabled={isFetching} onClick={() => void refetch()}>Retry personality panel</Button>
+          </CardContent></Card>
+        )}
       </div>
     </div>
   );

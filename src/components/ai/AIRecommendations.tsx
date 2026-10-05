@@ -1,3 +1,4 @@
+import { readCommentCounts } from '@/lib/commentService';
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Loader2, RefreshCw } from 'lucide-react';
@@ -134,21 +135,19 @@ export function AIRecommendations() {
       db.from('likes').select('post_id').eq('user_id', profile.id).in('post_id', postIds),
       db.from('bookmarks').select('post_id').eq('user_id', profile.id).in('post_id', postIds),
       db.from('likes').select('post_id').in('post_id', postIds),
-      db.from('comments').select('post_id').in('post_id', postIds),
+      readCommentCounts(postIds, profile.id),
     ]);
 
     const likedIds = new Set(likesRes.data?.map(l => l.post_id) || []);
     const bookmarkedIds = new Set(bookmarksRes.data?.map(b => b.post_id) || []);
     
     const likeCounts: Record<string, number> = {};
-    const commentCounts: Record<string, number> = {};
+    const commentCounts = commentCountsRes;
     
     likeCountsRes.data?.forEach(l => {
       likeCounts[l.post_id] = (likeCounts[l.post_id] || 0) + 1;
     });
-    commentCountsRes.data?.forEach(c => {
-      commentCounts[c.post_id] = (commentCounts[c.post_id] || 0) + 1;
-    });
+
 
     return data.map(post => ({
       ...post,

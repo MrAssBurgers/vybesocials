@@ -7,15 +7,16 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/lib/auth';
-import { useComments, useCreateComment, useDeleteComment } from '@/hooks/useComments';
+import { useProfileAccount } from '@/hooks/useProfileAccount';
+import { useComments, useCreateComment, useDeleteComment, useLikeComment } from '@/hooks/useComments';
 import { GifPicker } from '@/components/chat/GifPicker';
 import { MentionInput } from './MentionInput';
 import { CommentThread } from './CommentThread';
-import { db } from '@/lib/firebase';
+
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { navVisibility } from '@/lib/navVisibility';
-import { useQueryClient } from '@tanstack/react-query';
+
 import { AICommentSuggestions } from '@/components/ai/AICommentSuggestions';
 
 interface CommentSheetProps {
@@ -37,7 +38,11 @@ export interface CommentSheetRef {
  * Slides up over the clip, dims background, clip pauses.
  * Drag down or tap outside to close.
  */
-export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(function CommentSheet({
+export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(function CommentSheet(props, ref) {
+  const account = useProfileAccount();
+  return <CommentSheetSession key={`${account.session.uid}:${account.session.epoch}:${account.profile?.id}:${props.postId}`} {...props} ref={ref} />;
+}));
+const CommentSheetSession = memo(forwardRef<CommentSheetRef, CommentSheetProps>(function CommentSheetSession({
   postId,
   authorId,
   commentCount = 0,
@@ -46,10 +51,10 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
   onOpenChange,
 }, ref) {
   const { profile } = useAuth();
-  const { data: comments, isLoading, isError, isFetching, refetch, queryKey } = useComments(isOpen ? postId : '');
+  const { data: comments, isLoading, isError, isFetching, refetch, hasNextPage, fetchNextPage, isFetchingNextPage } = useComments(isOpen ? postId : '');
   const createComment = useCreateComment();
   const deleteComment = useDeleteComment();
-  const queryClient = useQueryClient();
+  const likeComment = useLikeComment();
   const dragControls = useDragControls();
 
   const [text, setText] = useState('');
@@ -59,51 +64,15 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
   const captureSend = useDraftContinuationGuard(JSON.stringify([postId, text, gifUrl, replyingTo]));
   const [sheetHeight, setSheetHeight] = useState(0.6);
 
-  // Like a comment
-  const handleLikeComment = useCallback(async (commentId: string) => {
-    if (!profile) return;
-    
-    // Optimistic update
-    queryClient.setQueryData(queryKey, (old: any) => {
-      if (!old) return old;
-      return old.map((c: any) => {
-        if (c.id === commentId) {
-          const wasLiked = c.is_liked;
-          return {
-            ...c,
-            is_liked: !wasLiked,
-            like_count: wasLiked ? Math.max(0, (c.like_count || 0) - 1) : (c.like_count || 0) + 1,
-          };
-        }
-        return c;
-      });
-    });
-
-    try {
-      const { data: existing } = await (db as any)
-        .from('comment_likes')
-        .select('id')
-        .eq('comment_id', commentId)
-        .eq('user_id', profile.id)
-        .maybeSingle();
-
-      if (existing) {
-        await (db as any).from('comment_likes').delete().eq('id', existing.id);
-      } else {
-        await (db as any).from('comment_likes').insert({
-          comment_id: commentId,
-          user_id: profile.id,
-        });
-      }
-    } catch (err) {
-      queryClient.invalidateQueries({ queryKey: ['comments', postId] });
-    }
-  }, [profile, postId, queryClient, queryKey]);
-
+  const handleLikeComment = useCallback((commentId: string) => {
+    const comment = comments?.find(row => row.id === commentId);
+    if (!comment || likeComment.isPending || comment.needs_owner_confirmation) return;
+    likeComment.mutate({ postId, commentId, liked: !comment.is_liked });
+  }, [comments, likeComment, postId]);
   // Delete a comment
   const handleDeleteComment = useCallback(async (commentId: string) => {
-    deleteComment.mutate({ commentId, postId });
-  }, [deleteComment, postId]);
+    deleteComment.mutate({ commentId, postId, expectedRevision: comments?.find(row => row.id === commentId)?.revision ?? null });
+  }, [deleteComment, postId, comments]);
 
   const sheetRef = useRef<HTMLDivElement>(null);
 
@@ -258,12 +227,13 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
               ) : (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <span className="text-4xl mb-3">💬</span>
-                  <p className="text-muted-foreground font-medium">No comments yet</p>
+                  <p className="text-muted-foreground font-medium">{hasNextPage ? 'More comments available' : 'No comments yet'}</p>
                   <p className="text-sm text-muted-foreground/70">Start the conversation!</p>
                 </div>
               )}
             </div>
 
+            {hasNextPage && !isError && <Button variant="ghost" disabled={isFetchingNextPage} onClick={() => void fetchNextPage()}>{isFetchingNextPage ? 'Loading comments…' : 'Load more comments'}</Button>}
             {/* Composer - pinned at bottom */}
             {profile && (
               <div className="border-t border-border p-3 bg-background/95 backdrop-blur-sm">

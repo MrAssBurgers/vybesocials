@@ -131,6 +131,16 @@ export async function readSocialPostPreviewsPage(db: Firestore, uid: string, raw
   });
 }
 
+/** Transaction-local admission for dependent content. A comment never grants
+ * access to its parent, and mutations must conflict with audience revocation. */
+export async function admitSocialPost(db: Firestore, tx: Transaction, viewer: AudienceIdentity, postId: string) {
+  const row = (await tx.get(db.collection('posts').doc(postId))).data();
+  if (!row || !validAudienceId(row.author_id)) return null;
+  const admission = await authorAdmission(db, tx, viewer, row.author_id);
+  if (!admission || (row.user_id !== undefined && (typeof row.user_id !== 'string' || !admission.author.aliases.includes(row.user_id)))) return null;
+  return projectPost(postId, row, admission);
+}
+
 // Server-only boundary. Never derive this object from callable input. The
 // authorization callback must re-read the connection/token within this same
 // transaction, so revocation conflicts with delivery and forces revalidation.

@@ -119,11 +119,13 @@ function PostDetailMedia({ type, mediaUrl, caption }: { type: string; mediaUrl: 
   );
 }
 
-export function CommentActions({ isOwn, commentId, postId, commentText }: {
+export function CommentActions({ isOwn, commentId, postId, commentText, commentRevision = null, needsOwnerConfirmation = false }: {
   isOwn: boolean;
   commentId: string;
   postId: string;
   commentText: string;
+  commentRevision?: string | null;
+  needsOwnerConfirmation?: boolean;
 }) {
   const submitSafetyReport = useSafetyReport(commentId);
   const [reportOpen, setReportOpen] = useState(false);
@@ -131,15 +133,17 @@ export function CommentActions({ isOwn, commentId, postId, commentText }: {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(commentText);
+  const [editRevision, setEditRevision] = useState(commentRevision);
+  const [deleteRevision, setDeleteRevision] = useState(commentRevision);
   const deleteComment = useDeleteComment();
   const editComment = useEditComment();
   const editRef = useRef<HTMLInputElement>(null);
 
   const handleEditSave = () => {
     const trimmed = editText.trim();
-    if (!trimmed || trimmed === commentText) { setIsEditing(false); return; }
+    if (!trimmed || (trimmed === commentText && !needsOwnerConfirmation)) { setIsEditing(false); return; }
     editComment.mutate(
-      { commentId, postId, text: trimmed },
+      { commentId, postId, text: trimmed, expectedRevision: editRevision },
       { onSuccess: () => setIsEditing(false) }
     );
   };
@@ -149,6 +153,7 @@ export function CommentActions({ isOwn, commentId, postId, commentText }: {
       <div className="flex items-center gap-1.5 flex-1 min-w-0 mt-1">
         <input
           ref={editRef}
+          aria-label="Edit comment"
           value={editText}
           onChange={(e) => setEditText(e.target.value)}
           onKeyDown={(e) => {
@@ -159,10 +164,10 @@ export function CommentActions({ isOwn, commentId, postId, commentText }: {
           className="flex-1 min-w-0 text-sm bg-white/10 border border-border rounded-lg px-2 py-1 text-foreground outline-none focus:ring-1 focus:ring-primary"
           disabled={editComment.isPending}
         />
-        <Button variant="ghost" size="icon" className="h-6 w-6 text-primary" onClick={handleEditSave} disabled={editComment.isPending}>
+        <Button variant="ghost" size="icon" aria-label={editComment.isPending ? 'Saving comment' : 'Save comment'} className="h-6 w-6 text-primary" onClick={handleEditSave} disabled={editComment.isPending}>
           <Check className="h-3.5 w-3.5" />
         </Button>
-        <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" onClick={() => { setIsEditing(false); setEditText(commentText); }}>
+        <Button variant="ghost" size="icon" aria-label="Cancel edit" className="h-6 w-6 text-muted-foreground" onClick={() => { setIsEditing(false); setEditText(commentText); }}>
           <X className="h-3.5 w-3.5" />
         </Button>
       </div>
@@ -171,6 +176,7 @@ export function CommentActions({ isOwn, commentId, postId, commentText }: {
 
   return (
     <>
+      {isOwn && needsOwnerConfirmation && <Button variant="ghost" size="sm" disabled={editComment.isPending} onClick={() => editComment.mutate({ commentId, postId, text: commentText, expectedRevision: null })}>Save and share</Button>}
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen} modal={false}>
         <DropdownMenuTrigger asChild>
           <Button
@@ -207,12 +213,12 @@ export function CommentActions({ isOwn, commentId, postId, commentText }: {
         >
           {isOwn ? (
             <>
-              <DropdownMenuItem onClick={() => { setMenuOpen(false); setIsEditing(true); setTimeout(() => editRef.current?.focus(), 50); }}>
+              <DropdownMenuItem onClick={() => { setMenuOpen(false); setEditText(commentText); setEditRevision(commentRevision); setIsEditing(true); setTimeout(() => editRef.current?.focus(), 50); }}>
                 <Pencil className="h-4 w-4 mr-2" />
                 Edit
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => { setMenuOpen(false); setShowDeleteConfirm(true); }}
+                onClick={() => { setMenuOpen(false); setDeleteRevision(commentRevision); setShowDeleteConfirm(true); }}
                 className="text-destructive focus:text-destructive"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -239,7 +245,7 @@ export function CommentActions({ isOwn, commentId, postId, commentText }: {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteComment.mutate({ commentId, postId })}
+              onClick={() => deleteComment.mutate({ commentId, postId, expectedRevision: deleteRevision })}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteComment.isPending ? 'Deleting…' : 'Delete'}
@@ -285,6 +291,7 @@ function PostDetailContent() {
   const commentInputRef = useRef<HTMLInputElement>(null);
 
   const account = useProfileAccount();
+  useEffect(() => { setNewComment(''); setCommentGifUrl(null); setShowGifPicker(false); }, [id, account.session.uid, account.session.epoch, profile?.id]);
   const { entry, retry: retryPost } = useActivePostPreview(id || '');
   const checked = entry.post;
   const postLoading = entry.status === 'queued' || entry.status === 'loading';
@@ -332,7 +339,7 @@ function PostDetailContent() {
 
   const { currentReaction, likeCount, handleReaction } = usePostReaction(reactionSource);
 
-  const { data: comments, isLoading: commentsLoading, isError: commentsError, isFetching: commentsFetching, refetch: retryComments } = useComments(post ? id! : '', { scope: `${account.session.uid}:${account.session.epoch}:${profile?.id}:${entry.expires}` });
+  const { data: comments, isLoading: commentsLoading, isError: commentsError, isFetching: commentsFetching, refetch: retryComments, hasNextPage: moreComments, fetchNextPage: loadMoreComments, isFetchingNextPage: loadingMoreComments } = useComments(post ? id! : '', { scope: `${account.session.uid}:${account.session.epoch}:${profile?.id}:${entry.expires}` });
   const createComment = useCreateComment();
   const deleteComment = useDeleteComment();
 
@@ -769,7 +776,7 @@ function PostDetailContent() {
             {/* Comments section */}
             <div className="px-4 py-3">
               <h3 className="text-sm font-semibold text-muted-foreground mb-4">
-                {post.comment_count > 0 ? `Comments (${post.comment_count})` : 'Comments'}
+                {!commentsLoading && !commentsError && commentsList.length > 0 ? `Comments (${commentsList.length}${moreComments ? '+' : ''})` : 'Comments'}
               </h3>
 
               <div className="space-y-3 max-h-[50vh] overflow-y-auto overscroll-contain pr-1">
@@ -802,6 +809,7 @@ function PostDetailContent() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
+                            {comment.needs_owner_confirmation && <p className="mb-2 text-xs text-muted-foreground">Only you can see this older comment. Use Edit and save to share it again.</p>}
                             <p className="text-sm text-foreground">
                               <Link to={`/u/${comment.user.username}`}>
                                 <StyledUsername
@@ -830,7 +838,7 @@ function PostDetailContent() {
                             isOwn={profile?.id === comment.user.id}
                             commentId={comment.id}
                             postId={post.id}
-                            commentText={comment.text}
+                            commentText={comment.text} commentRevision={comment.revision} needsOwnerConfirmation={comment.needs_owner_confirmation}
                           />
                         </div>
                       </div>
@@ -843,6 +851,7 @@ function PostDetailContent() {
                     <p className="text-xs text-muted-foreground/60 mt-0.5">Be the first to share your thoughts</p>
                   </div>
                 )}
+                {moreComments && !commentsError && <Button variant="ghost" disabled={loadingMoreComments} onClick={() => void loadMoreComments()}>{loadingMoreComments ? 'Loading comments…' : 'Load more comments'}</Button>}
               </div>
             </div>
           </div>
@@ -900,6 +909,7 @@ function PostDetailContent() {
                 <div className="relative flex-shrink-0">
                   <button
                     type="button"
+                    aria-label="Add a GIF"
                     onClick={() => setShowGifPicker(!showGifPicker)}
                     disabled={!!commentGifUrl}
                     className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
@@ -920,6 +930,7 @@ function PostDetailContent() {
                 <Button 
                   type="submit" 
                   size="icon"
+                  aria-label={createComment.isPending ? 'Posting comment' : 'Post comment'}
                   disabled={(!newComment.trim() && !commentGifUrl) || createComment.isPending}
                   className={cn(
                     "h-9 w-9 rounded-full flex-shrink-0 transition-all",

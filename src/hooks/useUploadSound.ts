@@ -1,73 +1,40 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { db } from '@/lib/firebase';
+import { reportAccountSnapshot } from '@/lib/reportModerationService';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
-import { reportAccountGuard } from '@/lib/reportModerationService';
+import { useQueryClient } from '@tanstack/react-query';
 import { useReportAccountSession } from '@/hooks/useReportAccountSession';
+import { captureSoundActor, forgetCancelledSoundAttempt, publishOriginalSound, soundUploadRequest, type SoundActor, type SoundUploadInput, type SoundUploadReceipt } from '@/lib/soundUploadService';
 
 export function useUploadSound() {
-  const { user } = useAuth();
-  const session = useReportAccountSession();
-  const [isUploading, setIsUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const mounted = useRef(false);
-  useEffect(() => { setIsUploading(false); setProgress(0); }, [session.uid, session.epoch]);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-
-  const uploadSound = useCallback(async ({
-    file,
-    title,
-    tags = [],
-    duration = 0,
-  }: {
-    file: File;
-    title: string;
-    tags?: string[];
-    duration?: number;
-  }) => {
-    if (!user) {
-      toast.error('Please sign in to upload sounds');
-      return null;
-    }
-
-    if (file.size > 20 * 1024 * 1024) {
-      toast.error('File too large (max 20MB)');
-      return null;
-    }
-
-    const account = reportAccountGuard(user.id);
-    const guard = () => { account(); if (!mounted.current) throw new Error('Upload view closed.'); };
+  const { user, profile } = useAuth(); const session = useReportAccountSession(); const queryClient = useQueryClient();
+  const [isUploading, setIsUploading] = useState(false), [progress, setProgress] = useState(0), [stage, setStage] = useState(''), [error, setError] = useState('');
+  const mounted = useRef(false), revision = useRef(0);
+  const active = useRef<{ controller: AbortController; actor: SoundActor; receipt?: SoundUploadReceipt } | null>(null);
+  useEffect(() => { mounted.current = true; setIsUploading(false); setProgress(0); setError(''); return () => { mounted.current = false; revision.current++; active.current?.controller.abort(); active.current = null; }; }, [session.uid, session.epoch]);
+  const uploadSound = useCallback(async (input: SoundUploadInput) => {
+    if (active.current) return null;
+    const operation = ++revision.current, view = () => { if (!mounted.current || operation !== revision.current) throw new Error('Sound upload view changed.'); };
+    let actor: SoundActor;
+    try { const current = reportAccountSnapshot(); if (current.uid !== session.uid || current.epoch !== session.epoch || !user || profile?.user_id !== user.id || session.uid !== user.id) throw new Error('Wait for your account to load.'); actor = captureSoundActor(user.id, profile.id, view); }
+    catch (failure) { setError(failure instanceof Error ? failure.message : 'Sign in to upload audio.'); return null; }
+    const controller = new AbortController(); active.current = { actor, controller };
+    setIsUploading(true); setError('');
     try {
-      guard();
-      setIsUploading(true);
-      setProgress(30);
-
-      const { data, error } = await db.functions.invoke('upload-sound', {
-        body: { title, tags, duration },
-      });
-      guard();
-
-      setProgress(80);
-
-      // This endpoint currently has no audio transport. A domain-error object
-      // is not a durable upload receipt, even when HTTP transport succeeded.
-      if (error || !data || data.ok !== true || typeof data.sound_id !== 'string' || !data.sound_id) {
-        toast.message('Sound upload is not available yet. Your file has not been uploaded.');
-        return null;
-      }
-      // Metadata-only requests cannot prove the selected file was stored.
-      // Keep this closed until a real binary upload/verified receipt exists.
-      toast.message('The audio upload could not be confirmed. Your file is still selected.');
-      return null;
-    } catch (error: any) {
-      try { guard(); } catch { return null; }
-      console.error('Upload sound error:', error);
-      toast.error(error.message || 'Failed to upload sound');
-      return null;
-    } finally {
-      try { guard(); setIsUploading(false); setProgress(0); } catch { /* Retired account/view. */ }
+      const result = await publishOriginalSound(input, actor, controller.signal, (value, label) => { actor.guard(); setProgress(value); setStage(label); }, receipt => { if (active.current?.controller === controller) active.current.receipt = receipt; });
+      actor.guard(); queryClient.invalidateQueries({ queryKey: ['sounds'] }); toast.success('Your original sound is published.'); return result;
+    } catch (failure) {
+      try { actor.guard(); } catch { return null; }
+      setError(failure instanceof Error ? failure.message : 'Your sound could not be confirmed. Retry with the same file.'); return null;
+    } finally { if (active.current?.controller === controller) active.current = null; try { actor.guard(); setIsUploading(false); } catch { /* Retired view/account. */ } }
+  }, [user, profile, session.uid, session.epoch, queryClient]);
+  const cancelUpload = useCallback(async () => {
+    const current = active.current; if (!current) return;
+    current.controller.abort();
+    if (current.receipt) {
+      try { const result = await soundUploadRequest(current.actor, { action: 'cancel', uploadId: current.receipt.uploadId }); current.actor.guard(); if (result.status === 'cancelled') forgetCancelledSoundAttempt(result.uploadId); setError(result.status === 'published' ? 'Your sound was already published. You can find it in My uploads.' : 'Upload cancelled. You can change the file and try again.'); }
+      catch { try { current.actor.guard(); setError('Stopped waiting. Check My uploads before retrying if publication was already finishing.'); } catch { /* Retired account. */ } }
     }
-  }, [user]);
-
-  return { uploadSound, isUploading, progress };
+  }, []);
+  return { uploadSound, cancelUpload, isUploading, progress, stage, error };
 }

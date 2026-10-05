@@ -1,10 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db, requireAuth } from './_shared/admin.js';
-const collections = ['dna_auto_theme', 'dna_agent_actions', 'dna_content_preferences'];
+import { normalizeDnaChange } from './_shared/dnaActionSchema.js';
+import { manageDnaActions, saveExecutableDnaActions } from './_shared/dnaActionAuthority.js';
+const collections = ['dna_auto_theme', 'dna_agent_actions', 'dna_content_preferences', '_dna_action_plans', '_dna_action_receipts'];
 const row = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
 const initialGeneration = 'initial';
-const suggestionTypes = ['apply_theme', 'navigate', 'generate_theme'];
+const suggestionTypes = ['feed_tune', 'layout_change', 'apply_theme', 'navigate', 'generate_theme'];
 export function parseDnaSuggestions(content, mode) {
     let parsed;
     try {
@@ -16,8 +18,11 @@ export function parseDnaSuggestions(content, mode) {
     const actions = Array.isArray(parsed) ? parsed : row(parsed) && Array.isArray(parsed.actions) ? parsed.actions : [];
     return actions.filter(action => row(action) && suggestionTypes.includes(String(action.type))
         && typeof action.reason === 'string' && action.reason.trim().length > 0 && action.reason.length <= 500)
-        .slice(0, 3).map(action => ({ action_type: action.type, summary: action.reason.trim(),
-        before: null, after: null, applied: false, reverted: false, mode, status: 'suggested', created_at: new Date().toISOString() }));
+        .slice(0, 3).map(action => {
+        const change = normalizeDnaChange({ type: action.type, ...(action.preset !== undefined ? { preset: action.preset } : {}), ...(action.patch !== undefined ? { patch: action.patch } : {}) });
+        return { action_type: action.type, summary: action.reason.trim(),
+            before: null, after: null, applied: false, reverted: false, mode, status: 'suggested', created_at: new Date().toISOString(), ...(change ? { change } : {}) };
+    });
 }
 /** Server-only reset generation prevents work started before a reset from restoring erased history. */
 export async function readDnaAdaptationGeneration(store, uid) {
@@ -26,14 +31,17 @@ export async function readDnaAdaptationGeneration(store, uid) {
         throw new HttpsError('failed-precondition', 'Adaptation data is being cleared. Retry after it finishes.');
     return state?.generation ?? initialGeneration;
 }
-export async function saveDnaActions(store, uid, generation, actions) {
+export async function saveDnaActions(store, uid, generation, actions, expectedProfileId) {
     if (!Array.isArray(actions) || actions.length > 3 || actions.some(action => !row(action)
-        || Object.keys(action).some(key => !['action_type', 'summary', 'before', 'after', 'applied', 'reverted', 'mode', 'status', 'created_at'].includes(key))
+        || Object.keys(action).some(key => !['action_type', 'summary', 'before', 'after', 'applied', 'reverted', 'mode', 'status', 'created_at', 'change'].includes(key))
+        || (action.change !== undefined && (!normalizeDnaChange(action.change) || normalizeDnaChange(action.change)?.type !== action.action_type))
         || !suggestionTypes.includes(String(action.action_type)) || typeof action.summary !== 'string' || !action.summary.trim() || action.summary.length > 500
         || action.before !== null || action.after !== null || action.applied !== false || action.reverted !== false || action.status !== 'suggested'
         || !['suggest', 'autonomous'].includes(String(action.mode)) || typeof action.created_at !== 'string' || !Number.isFinite(Date.parse(action.created_at)))) {
         throw new HttpsError('invalid-argument', 'Auto-Pilot suggestions were invalid. No actions were saved.');
     }
+    if (actions.some(action => action.change !== undefined) || expectedProfileId)
+        return saveExecutableDnaActions(store, uid, generation, actions, expectedProfileId);
     const saved = actions.map(action => ({ ...action, id: store.collection('dna_agent_actions').doc().id, user_id: uid }));
     await store.runTransaction(async (tx) => {
         const [state, settings] = await Promise.all([
@@ -51,6 +59,8 @@ export async function saveDnaActions(store, uid, generation, actions) {
     return saved;
 }
 export async function runDnaActionChange(store, uid, input) {
+    if (row(input) && input.operation !== undefined)
+        return manageDnaActions(store, uid, input);
     if (!row(input) || Object.keys(input).some(key => !['expectedOwnerUid', 'actionId', 'applyPending'].includes(key))
         || typeof input.actionId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(input.actionId)
         || typeof input.applyPending !== 'boolean' || typeof input.expectedOwnerUid !== 'string') {
@@ -110,7 +120,7 @@ export async function runClearDnaAdaptationData(store, uid, input) {
             if (!current?.resetting || current.request_id !== requestId || current.owner_uid !== uid) {
                 throw new HttpsError('aborted', 'The adaptation reset changed. Retry the original request.');
             }
-            const pages = await Promise.all(collections.map(name => tx.get(store.collection(name).where('user_id', '==', uid).limit(100))));
+            const pages = await Promise.all(collections.map(name => tx.get(store.collection(name).where(name.startsWith('_dna_') ? 'owner_uid' : 'user_id', '==', uid).limit(80))));
             const documents = pages.flatMap(page => page.docs);
             if (documents.length) {
                 for (const document of documents)

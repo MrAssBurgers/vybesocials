@@ -33,6 +33,8 @@ export * from './aiDetectText.js';
 export * from './auth.js';
 export * from './phoneVerification.js';
 export { readMusicCatalog } from './musicCatalog.js';
+export { readPostComments, readPostCommentCounts, readCommentContext, managePostComment } from './comments.js';
+export { uploadSound, readSoundLibrary } from './soundUpload.js';
 export * from './briefs.js';
 export * from './email.js';
 export * from './reportNotify.js';

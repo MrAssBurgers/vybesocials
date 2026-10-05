@@ -15,6 +15,7 @@ import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { useSafetySettings } from '@/hooks/useSafetySettings';
+import { useEditComment } from '@/hooks/useComments';
 
 interface Comment {
   id: string;
@@ -32,6 +33,8 @@ interface Comment {
     avatar_url: string | null;
   };
   replies?: Comment[];
+  revision?: string | null;
+  needs_owner_confirmation?: boolean;
 }
 
 interface CommentThreadProps {
@@ -54,6 +57,7 @@ export const CommentThread = memo(function CommentThread({
   depth = 0,
 }: CommentThreadProps) {
   const { profile } = useAuth();
+  const restore = useEditComment();
   const { data: safetySettings } = useSafetySettings();
   const [showReplies, setShowReplies] = useState(depth === 0);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -116,6 +120,10 @@ export const CommentThread = memo(function CommentThread({
       </Link>
 
       <div className="flex-1 min-w-0">
+        {isOwn && comment.needs_owner_confirmation && <div className="mb-2 rounded-xl border border-border p-2 text-xs text-muted-foreground">
+          <p>Only you can see this older comment. Save it again to share it.</p>
+          <Button size="sm" variant="ghost" disabled={restore.isPending} onClick={() => restore.mutate({ commentId: comment.id, postId, text: comment.text, expectedRevision: null })}>Save and share</Button>
+        </div>}
         {/* Comment content - flat row, no bubble */}
         <div className="relative">
           <div className={cn(

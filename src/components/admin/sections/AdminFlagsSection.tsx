@@ -53,7 +53,7 @@ function FlagsForSession({ uid, epoch }: { uid?: string; epoch: number }) {
 
   const openContext = async (flag: ContentFlag) => {
     try {
-      const path = await contentFlagContextPath(flag, guard);
+      const path = await contentFlagContextPath(flag, guard, uid && profile?.user_id === uid ? { expectedOwnerUid: uid, expectedProfileId: profile.id } : undefined);
       guard();
       if (path) navigate(path);
       else toast.message('Context unavailable for this legacy flag.');

@@ -1,4 +1,8 @@
-import { useCallback } from 'react';
+import { readCommentCounts } from '@/lib/commentService';
+import { useCallback, useMemo } from 'react';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
+import { captureSoundActor, readSoundLibrary } from '@/lib/soundUploadService';
+import { reportAccountSnapshot } from '@/lib/reportModerationService';
 import { useMusicPlayback } from '@/hooks/useMusicPlayback';
 import { db } from '@/lib/firebase';
 import { useQuery } from '@tanstack/react-query';
@@ -44,97 +48,58 @@ export interface SoundAnalytics {
   plays_last_7d: number;
 }
 
-// Get trending sounds
-export function useTrendingSounds() {
-  return useQuery({
-    queryKey: ['sounds', 'trending'],
-    queryFn: async () => {
-      const { data, error } = await db
-        .from('sounds')
-        .select(`
-          *,
-          uploader_profile:profiles!uploader_id(id, display_name, avatar_url)
-        `)
-        .eq('is_approved', true)
-        .order('trend_score', { ascending: false })
-        .limit(20);
-      
-      if (error) throw error;
-      return data as Sound[];
-    },
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  });
+function useSoundActor() {
+  const { user, profile } = useAuth(); const session = useReportAccountSession();
+  const ready = !!user && profile?.user_id === user.id && session.uid === user.id;
+  return { uid: ready ? user.id : '', profileId: ready ? profile.id : '', epoch: session.epoch, ready };
 }
-
-// Get new sounds
-export function useNewSounds() {
-  return useQuery({
-    queryKey: ['sounds', 'new'],
-    queryFn: async () => {
-      const { data, error } = await db
-        .from('sounds')
-        .select(`
-          *,
-          uploader_profile:profiles!uploader_id(id, display_name, avatar_url)
-        `)
-        .eq('is_approved', true)
-        .order('created_at', { ascending: false })
-        .limit(20);
-      
-      if (error) throw error;
-      return data as Sound[];
-    },
-    staleTime: 1000 * 60 * 5,
-  });
+function scopedSoundActor(scope: { uid: string; profileId: string; epoch: number }) {
+  return captureSoundActor(scope.uid, scope.profileId, () => { const current = reportAccountSnapshot(); if (current.uid !== scope.uid || current.epoch !== scope.epoch) throw new Error('Sound account changed.'); });
 }
+function useLibrary(kind: 'new' | 'trending' | 'mine') {
+  const scope = useSoundActor();
+  const query = useQuery({
+    queryKey: ['sounds', kind, scope.uid, scope.profileId, scope.epoch], enabled: scope.ready,
+    queryFn: async () => {
+      const actor = scopedSoundActor(scope); const sounds: Sound[] = []; let cursor: string | undefined;
+      const seen = new Set<string>();
+      for (let page = 0; page < 4; page++) {
+        const result = await readSoundLibrary(actor, { action: 'list', kind, ...(cursor ? { cursor } : {}) });
+        sounds.push(...result.sounds); if (!result.nextCursor) return sounds;
+        if (seen.has(result.nextCursor)) throw new Error('Sound pages repeated. Refresh and retry.');
+        seen.add(result.nextCursor); cursor = result.nextCursor;
+      }
+      return sounds; // The browser intentionally shows at most 100 recent entries.
+    }, staleTime: 0, refetchInterval: 15000, refetchOnWindowFocus: 'always', retry: false,
+  });
+  const data = useMemo(() => scope.ready && !query.isError ? query.data : undefined, [scope.ready, query.isError, query.data]);
+  return { ...query, data };
+}
+// Popularity counters are unavailable: this compatibility hook returns recent originals.
+export function useTrendingSounds() { return useLibrary('new'); }
+export function useNewSounds() { return useLibrary('new'); }
+export function useMySounds() { return useLibrary('mine'); }
 
-// Get user's saved sounds
 export function useSavedSounds() {
-  const { profile, user } = useAuth();
-  const authUserId = profile?.user_id || user?.id;
-  
-  return useQuery({
-    queryKey: ['sounds', 'saved', authUserId],
+  const scope = useSoundActor();
+  return useQuery({ queryKey: ['sounds', 'saved', scope.uid, scope.epoch], enabled: scope.ready, retry: false,
     queryFn: async () => {
-      if (!authUserId) return [];
-      
-      const { data, error } = await db
-        .from('user_saved_sounds')
-        .select(`
-          sound:sounds!inner(
-            *,
-            uploader_profile:profiles!uploader_id(id, display_name, avatar_url)
-          )
-        `)
-        .eq('user_id', authUserId);
-      
+      const actor = scopedSoundActor(scope);
+      const { data, error } = await db.from('user_saved_sounds').select('sound_id').eq('user_id', scope.uid).limit(50); actor.guard();
       if (error) throw error;
-      return data.map(item => item.sound) as Sound[];
+      const sounds: Sound[] = [];
+      for (const entry of data || []) { if (typeof entry.sound_id !== 'string' || !/^[a-f0-9]{64}$/.test(entry.sound_id)) continue; const result = await readSoundLibrary(actor, { action: 'get', soundId: entry.sound_id }); sounds.push(...result.sounds); }
+      return sounds;
     },
-    enabled: !!authUserId,
-    networkMode: 'always',
   });
 }
-
-// Get specific sound by ID
 export function useSound(soundId: string) {
-  return useQuery({
-    queryKey: ['sounds', soundId],
-    queryFn: async () => {
-      const { data, error } = await db
-        .from('sounds')
-        .select(`
-          *,
-          uploader_profile:profiles!uploader_id(id, display_name, avatar_url)
-        `)
-        .eq('sound_id', soundId)
-        .single();
-      
-      if (error) throw error;
-      return data as Sound;
-    },
-    enabled: !!soundId,
+  const scope = useSoundActor();
+  const query = useQuery({ queryKey: ['sounds', 'detail', soundId, scope.uid, scope.profileId, scope.epoch], enabled: scope.ready && !!soundId,
+    queryFn: async () => { if (!/^[a-f0-9]{64}$/.test(soundId)) return null; const result = await readSoundLibrary(scopedSoundActor(scope), { action: 'get', soundId }); return result.sounds[0] || null; },
+    staleTime: 0, refetchInterval: 15000, refetchOnWindowFocus: 'always', retry: false,
   });
+  return { ...query, data: scope.ready && !query.isError ? query.data : undefined };
 }
 
 // Get sound analytics
@@ -198,11 +163,12 @@ export function usePostsWithSound(soundId: string) {
         userBookmarks = bookmarksResult.data?.map((b) => b.post_id) || [];
       }
 
+      const commentCounts = await readCommentCounts(posts.map(post => post.id), profileId);
       const postsWithCounts = await Promise.all(
         posts.map(async (post) => {
-          const [likesCount, commentsCount] = await Promise.all([
+          const [likesCount] = await Promise.all([
             db.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
-            db.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
+
           ]);
 
           const authorRow = post.profiles as { id: string; username: string; display_name?: string | null; avatar_url: string | null } | null;
@@ -222,7 +188,7 @@ export function usePostsWithSound(soundId: string) {
               avatar_url: authorRow?.avatar_url,
             },
             like_count: likesCount.count || 0,
-            comment_count: commentsCount.count || 0,
+            comment_count: commentCounts[post.id] ?? 0,
             is_liked: userLikes.includes(post.id),
             is_bookmarked: userBookmarks.includes(post.id),
             is_pinned: post.is_pinned || false,
@@ -311,6 +277,12 @@ export function useTrackSoundPlay() {
 }
 
 // Existing sound surfaces share the checked, explicitly started media player.
-export function useAudioPlayer(audioUrl: string) {
-  return useMusicPlayback(audioUrl);
+export function useAudioPlayer(audioUrl: string, soundId?: string) {
+  const scope = useSoundActor();
+  const authorize = useCallback(async () => {
+    if (!soundId || !scope.ready || reportAccountSnapshot().epoch !== scope.epoch) throw new Error('Sound account changed.');
+    const result = await readSoundLibrary(scopedSoundActor(scope), { action: 'get', soundId });
+    if (!result.sounds[0] || result.sounds[0].audio_url !== audioUrl) throw new Error('This sound is no longer available.');
+  }, [scope.uid, scope.profileId, scope.ready, scope.epoch, soundId, audioUrl]);
+  return useMusicPlayback(audioUrl, 60, authorize);
 }

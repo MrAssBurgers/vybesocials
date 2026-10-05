@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const state = vi.hoisted(() => ({ read: vi.fn() }));
+const state = vi.hoisted(() => ({ read: vi.fn(), parent: vi.fn() }));
 vi.mock('@/lib/firebase', () => ({ db: { from: (table: string) => ({ select: () => ({ eq: (field: string, id: string) => ({
   maybeSingle: () => state.read(table, field, id), limit: (limit: number) => state.read(table, field, id, limit),
 }) }) }) } }));
+vi.mock('@/lib/commentService', () => ({ readCommentParent: state.parent }));
 import { contentFlagContextPath, hasContentFlagContext } from './contentFlagContext';
-beforeEach(() => state.read.mockReset());
+const identity = { expectedOwnerUid: 'alice', expectedProfileId: 'alice-profile' };
+beforeEach(() => { state.read.mockReset(); state.parent.mockReset(); });
 
 describe('legacy flag context routes', () => {
   it.each([['post', '/p/target'], ['clip', '/p/target'], ['mini_app', '/mini-apps/target']])('uses the exact %s route', async (content_type, path) => {
@@ -32,14 +34,14 @@ describe('legacy flag context routes', () => {
     expect(await contentFlagContextPath({ content_type: 'profile', content_id: 'auth-id' }, () => {})).toBeNull();
   });
   it('opens a comment through its checked parent reference and propagates failed reads', async () => {
-    state.read.mockResolvedValueOnce({ data: { post_id: 'parent' }, error: null }).mockResolvedValueOnce({ data: null, error: new Error('Denied') });
+    state.parent.mockResolvedValueOnce('parent').mockRejectedValueOnce(new Error('Denied'));
     const flag = { content_type: 'comment', content_id: 'comment-id' };
-    expect(await contentFlagContextPath(flag, () => {})).toBe('/p/parent#comment-comment-id');
-    await expect(contentFlagContextPath(flag, () => {})).rejects.toThrow('Denied');
+    expect(await contentFlagContextPath(flag, () => {}, identity)).toBe('/p/parent#comment-comment-id');
+    await expect(contentFlagContextPath(flag, () => {}, identity)).rejects.toThrow('Denied');
   });
   it('does not return context after the account guard changes during a lookup', async () => {
     let active = true;
-    state.read.mockImplementation(async () => { active = false; return { data: { post_id: 'parent' }, error: null }; });
-    await expect(contentFlagContextPath({ content_type: 'comment', content_id: 'comment-id' }, () => { if (!active) throw new Error('Account changed'); })).rejects.toThrow('Account changed');
+    state.parent.mockImplementation(async () => { active = false; return 'parent'; });
+    await expect(contentFlagContextPath({ content_type: 'comment', content_id: 'comment-id' }, () => { if (!active) throw new Error('Account changed'); }, identity)).rejects.toThrow('Account changed');
   });
 });

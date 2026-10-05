@@ -6,7 +6,7 @@ import { isStoriesQueryKey, sanitizeStoriesCacheData } from '@/lib/storiesCacheS
 
 // Moderator notes, reporter identities and inspected source must be fetched
 // under current server authority, never restored from a previous disk snapshot.
-const PRIVATE_REPORT_KEYS = new Set(['admin-reports', 'content-flags', 'report-inspection', 'pending-moderation-count', 'post-deletion-log', 'feed-mutes', 'custom-sounds', 'mini-apps', 'social-feed', 'comments', 'post-detail-interaction', 'clip-detail-interaction', 'watch-detail-interaction', 'video', 'clip-viewer-initial', 'clips-viewer-feed', 'post', 'local-feed', 'personalized-feed-v2', 'personalized-feed', 'infinite-following-posts']);
+const PRIVATE_REPORT_KEYS = new Set(['admin-reports', 'content-flags', 'report-inspection', 'pending-moderation-count', 'post-deletion-log', 'feed-mutes', 'custom-sounds', 'sounds', 'sound', 'saved-sounds', 'mini-apps', 'social-feed', 'comments', 'post-detail-interaction', 'clip-detail-interaction', 'watch-detail-interaction', 'video', 'clip-viewer-initial', 'clips-viewer-feed', 'post', 'local-feed', 'personalized-feed-v2', 'personalized-feed', 'infinite-following-posts']);
 // The disk cache is shared by all accounts on this browser. Private conversation
 // previews, message bodies and their related records need current membership;
 // neither a user-shaped query key nor a previous successful read proves it.
@@ -30,8 +30,9 @@ const PRIVATE_STORY_KEYS = new Set(['stories', 'visible-story', 'story-author', 
 // Profile sections depend on the current viewer and fresh audience decisions.
 const PRIVATE_PROFILE_KEYS = new Set(['profile', 'profile-by-id', 'profile-by-username', 'profile-view-identity', 'profile-view-request', 'profile-visibility-resolved', 'profile-visibility-settings', 'profile-section', 'profile-blocked-pair', 'profile-view-level', 'profile-view-friends-count', 'profile-cover-bg', 'profile-friends-list', 'follow-list', 'follow-authority', 'follow-management', 'tagged-posts']);
 const PRIVATE_THEME_KEYS = new Set(['shared-theme', 'public-themes', 'saved-themes', 'my-shared-themes', 'theme-likes']);
+const PRIVATE_DNA_KEYS = new Set(['dna-agent-settings', 'dna-content-preferences', 'dna-actions']);
 const isPrivatePersistedKey = (key?: readonly unknown[]) => typeof key?.[0] === 'string'
-  && (PRIVATE_REPORT_KEYS.has(key[0]) || PRIVATE_THEME_KEYS.has(key[0]) || PRIVATE_DM_KEYS.has(key[0]) || PRIVATE_COMMUNITY_KEYS.has(key[0]) || PRIVATE_STORY_KEYS.has(key[0]) || PRIVATE_PROFILE_KEYS.has(key[0]) || (key[0] === 'posts' && key[1] === 'profile-server-v2'));
+  && (PRIVATE_DNA_KEYS.has(key[0]) || PRIVATE_REPORT_KEYS.has(key[0]) || PRIVATE_THEME_KEYS.has(key[0]) || PRIVATE_DM_KEYS.has(key[0]) || PRIVATE_COMMUNITY_KEYS.has(key[0]) || PRIVATE_STORY_KEYS.has(key[0]) || PRIVATE_PROFILE_KEYS.has(key[0]) || (key[0] === 'posts' && key[1] === 'profile-server-v2'));
 
 /**
  * IndexedDB-backed storage adapter for react-query persistence.

@@ -7,7 +7,7 @@ let stopOtherPlayer: (() => void) | null = null;
 const EMPTY = { isPlaying: false, isLoading: false, isLoaded: false, currentTime: 0, duration: 0, error: '' };
 
 /** Explicit media playback, independent of optional UI sound effects. No autoplay. */
-export function useMusicPlayback(source: string, maxSeconds = Infinity) {
+export function useMusicPlayback(source: string, maxSeconds = Infinity, authorize?: () => Promise<void>) {
   const session = useReportAccountSession();
   const key = `${session.uid}:${session.epoch}:${source}:${maxSeconds}`;
   const currentKey = useRef(key); currentKey.current = key;
@@ -50,6 +50,16 @@ export function useMusicPlayback(source: string, maxSeconds = Infinity) {
       if (current.uid !== session.uid || current.epoch !== session.epoch) throw new Error('Account changed.');
       account = reportAccountGuard(session.uid || ''); account();
     } catch { update({ error: 'Wait for your account to load, then retry.' }); return; }
+    if (authorize) {
+      update({ error: '', isLoading: true, isPlaying: false });
+      stopOtherPlayer = stop;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let retire: (() => void) | undefined;
+      const timeout = new Promise<void>((resolve, reject) => { retire = resolve; timer = setTimeout(() => reject(new Error('Sound check timed out.')), 15000); });
+      release.current = () => { clearTimeout(timer); retire?.(); };
+      try { await Promise.race([authorize(), timeout]); clearTimeout(timer); account(); if (!isCurrent()) return; release.current = null; }
+      catch { if (isCurrent()) { stop(); setState(previous => ({ ...previous, error: 'This sound is no longer available or could not be checked. Refresh and retry.' })); } return; }
+    }
     const audio = new Audio(source); instance.current = audio;
     audio.preload = 'metadata'; audio.volume = preferences.current.volume; audio.muted = preferences.current.isMuted;
     const at = resumeAt;
@@ -87,7 +97,7 @@ export function useMusicPlayback(source: string, maxSeconds = Infinity) {
       if (!isCurrent()) { audio.pause(); return; }
       fail('Playback did not start. Press Play to retry.');
     }
-  }, [key, maxSeconds, session.uid, source, stop]);
+  }, [key, maxSeconds, session.uid, source, stop, authorize]);
   const seek = useCallback((seconds: number) => {
     if (!Number.isFinite(seconds)) return;
     const duration = instance.current?.duration;

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Sparkles, Sliders, Activity, ShieldCheck, Pause, Play, Trash2, RotateCcw,
@@ -37,9 +37,11 @@ function timeAgo(iso: string) {
 
 export default function AutoPilotSettings() {
   const nav = useNavigate();
-  const { settings, loading, loadError, clearing, updateSettings, clearAdaptationData, refresh } = useDNAAutoPilot();
+  const { settings, loading, loadError, operationError, busy, clearing, updateSettings, clearAdaptationData, refresh } = useDNAAutoPilot();
   const { data: signals, loading: signalsLoading } = useLearningSignals();
   const [tab, setTab] = useState('settings');
+  const [cadence, setCadence] = useState(360);
+  useEffect(() => { if (settings) setCadence(settings.cadence_minutes); }, [settings?.cadence_minutes]);
 
   return (
     <div className="page-scroll-fix pb-24 relative">
@@ -71,6 +73,7 @@ export default function AutoPilotSettings() {
               <Button variant="secondary" size="sm" className="rounded-full" onClick={() => void refresh()} disabled={loading}>Retry</Button>
             </CardContent></Card>
           )}
+          {operationError && <p role="alert" className="text-sm text-destructive mt-3">{operationError}</p>}
 
           {/* SETTINGS */}
           <TabsContent value="settings" className="space-y-3 mt-4">
@@ -83,12 +86,13 @@ export default function AutoPilotSettings() {
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <Label className="text-sm font-semibold">Run frequency</Label>
-                      <span className="text-xs text-muted-foreground">Every {CADENCE_LABELS(settings.cadence_minutes)}</span>
+                      <span className="text-xs text-muted-foreground">Every {CADENCE_LABELS(cadence)}</span>
                     </div>
                     <Slider
-                      value={[settings.cadence_minutes]}
+                      value={[cadence]} disabled={!!busy}
                       min={30} max={1440} step={30}
-                      onValueChange={(v) => updateSettings({ cadence_minutes: v[0] })}
+                      onValueChange={(v) => setCadence(v[0])}
+                      onValueCommit={(v) => void updateSettings({ cadence_minutes: v[0] })}
                     />
                     <div className="flex justify-between text-[10px] text-muted-foreground">
                       <span>30m</span><span>6h</span><span>24h</span>
@@ -115,7 +119,7 @@ export default function AutoPilotSettings() {
                             <p className="text-[11px] text-muted-foreground">{desc}</p>
                           </div>
                         </div>
-                        <Switch checked={!!settings[k]} onCheckedChange={(v) => updateSettings({ [k]: v } as any)} />
+                        <Switch checked={!!settings[k]} disabled={!!busy} onCheckedChange={(v) => updateSettings({ [k]: v } as any)} />
                       </div>
                     ))}
                   </CardContent>
@@ -132,6 +136,7 @@ export default function AutoPilotSettings() {
                         return (
                           <button
                             key={i.value}
+                            disabled={!!busy}
                             onClick={() => updateSettings({ max_intensity: i.value })}
                             className={cn(
                               "rounded-2xl p-3 text-center transition-all active:scale-95 border",
@@ -239,6 +244,7 @@ export default function AutoPilotSettings() {
                       </div>
                       <Switch
                         checked={settings.learning_paused}
+                        disabled={!!busy}
                         onCheckedChange={(v) => updateSettings({ learning_paused: v })}
                       />
                     </div>
@@ -259,6 +265,7 @@ export default function AutoPilotSettings() {
                       </div>
                       <Switch
                         checked={settings.personalization_opted_out}
+                        disabled={!!busy}
                         onCheckedChange={(v) => {
                           updateSettings(v
                             ? { personalization_opted_out: true, mode: 'off', learning_paused: true }
@@ -281,7 +288,7 @@ export default function AutoPilotSettings() {
                     </div>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="sm" className="w-full rounded-full" disabled={clearing}>
+                        <Button variant="destructive" size="sm" className="w-full rounded-full" disabled={!!busy}>
                           <Trash2 className="w-3.5 h-3.5 mr-1.5" /> {clearing ? 'Clearing adaptation data…' : 'Clear my adaptation data'}
                         </Button>
                       </AlertDialogTrigger>

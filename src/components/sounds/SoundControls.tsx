@@ -27,7 +27,7 @@ export const SoundControls = memo(function SoundControls({
   className,
   compact = false
 }: SoundControlsProps) {
-  const audioPlayer = useAudioPlayer(sound.preview_url || sound.audio_url);
+  const audioPlayer = useAudioPlayer(sound.preview_url || sound.audio_url, sound.sound_id);
 
   const maxDuration = Math.min(60, sound.duration); // Max 60 seconds for videos
   const endTime = Math.min(startTime + 30, sound.duration); // 30 second clips
@@ -183,7 +183,7 @@ export const SoundControls = memo(function SoundControls({
         )}
 
         {audioPlayer.error && <p role="alert" className="text-sm">{audioPlayer.error}</p>}
-              {audioPlayer.isLoading && <p role="status" className="text-sm">Starting audio…</p>}
+              {audioPlayer.isLoading && <p role="status" className="text-sm">Starting audioâ€¦</p>}
               {/* Controls */}
         <div className="flex items-center gap-3">
           <Button

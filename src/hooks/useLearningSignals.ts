@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { useReportAccountSession } from './useReportAccountSession';
+import { reportAccountGuard } from '@/lib/reportModerationService';
 
 export interface LearningSignals {
   likes30d: number;
@@ -16,12 +18,18 @@ export interface LearningSignals {
 export function useLearningSignals() {
   const { user } = useAuth();
   const profileId = useAuthProfileId();
+  const session = useReportAccountSession();
+  const scope = JSON.stringify([user?.id, session.epoch, profileId]);
+  const [loadedFor, setLoadedFor] = useState('');
   const [data, setData] = useState<LearningSignals | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    if (!user?.id || !profileId) return;
+    if (!user?.id || !profileId || session.uid !== user.id) return;
     let active = true;
+    const guard = reportAccountGuard(user.id);
+    setLoading(true); setError(null);
     (async () => {
       const since = new Date(Date.now() - 30 * 86400_000).toISOString();
       const socialId = profileId;
@@ -38,6 +46,8 @@ export function useLearningSignals() {
       ]);
 
       if (!active) return;
+      guard();
+      if (commentsR.error || recentCommentsR.error) throw commentsR.error || recentCommentsR.error;
       const watchSec = (sessionsR.data || []).reduce((s, r: any) => s + (r.duration_seconds || 0), 0);
       const recent = [
         ...(recentLikesR.data || []).map((l: any) => ({ kind: 'like' as const, label: `Reacted ${l.reaction_type}`, at: l.created_at })),
@@ -55,9 +65,15 @@ export function useLearningSignals() {
         recent,
       });
       setLoading(false);
-    })();
+      setLoadedFor(scope);
+    })().catch(reason => {
+      if (!active) return;
+      try { guard(); } catch { return; }
+      setData(null); setLoadedFor(scope); setLoading(false); setError(reason instanceof Error ? reason : new Error('Learning history could not be loaded.'));
+    });
     return () => { active = false; };
-  }, [user?.id, profileId]);
+  }, [user?.id, profileId, session.uid, session.epoch, scope]);
 
-  return { data, loading };
+  const current = loadedFor === scope && session.uid === user?.id;
+  return { data: current ? data : null, loading: loading || !current, error: current ? error : null };
 }

@@ -18,9 +18,10 @@ interface SoundPlayerProps {
 }
 
 export function SoundPlayer({ soundId, onClose, onUse, className }: SoundPlayerProps) {
-  const { data: sound } = useSound(soundId);
+  const soundQuery = useSound(soundId);
+  const { data: sound } = soundQuery;
   const trackPlay = useTrackSoundPlay();
-  const audioPlayer = useAudioPlayer(sound?.preview_url || sound?.audio_url || '');
+  const audioPlayer = useAudioPlayer(sound?.preview_url || sound?.audio_url || '', soundId);
 
   // Track play events
   useEffect(() => {
@@ -29,7 +30,7 @@ export function SoundPlayer({ soundId, onClose, onUse, className }: SoundPlayerP
     }
   }, [audioPlayer.isPlaying, sound, trackPlay]);
 
-  if (!sound) return null;
+  if (!sound) return <Card className="fixed bottom-20 left-4 right-4 z-50 mx-auto max-w-md p-4"><p role={soundQuery.isError ? "alert" : "status"}>{soundQuery.isError ? "This sound could not be checked." : soundQuery.isLoading ? "Loading sound…" : "This sound is no longer available."}</p>{soundQuery.isError && <Button onClick={() => void soundQuery.refetch()}>Retry sound</Button>}<Button variant="ghost" onClick={onClose}>Close player</Button></Card>;
 
   const progress = audioPlayer.duration > 0 ? (audioPlayer.currentTime / audioPlayer.duration) * 100 : 0;
 
@@ -135,7 +136,7 @@ export function SoundPlayer({ soundId, onClose, onUse, className }: SoundPlayerP
               </div>
 
               {audioPlayer.error && <p role="alert" className="text-sm">{audioPlayer.error}</p>}
-              {audioPlayer.isLoading && <p role="status" className="text-sm">Starting audio�</p>}
+              {audioPlayer.isLoading && <p role="status" className="text-sm">Starting audio…</p>}
               {/* Controls */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">

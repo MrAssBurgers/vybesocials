@@ -153,6 +153,17 @@ export async function readSocialPostPreviewsPage(db, uid, raw) {
         return { ownerUid: uid, viewerProfileId: viewer.profileId, requestedPostIds: input.postIds, posts };
     });
 }
+/** Transaction-local admission for dependent content. A comment never grants
+ * access to its parent, and mutations must conflict with audience revocation. */
+export async function admitSocialPost(db, tx, viewer, postId) {
+    const row = (await tx.get(db.collection('posts').doc(postId))).data();
+    if (!row || !validAudienceId(row.author_id))
+        return null;
+    const admission = await authorAdmission(db, tx, viewer, row.author_id);
+    if (!admission || (row.user_id !== undefined && (typeof row.user_id !== 'string' || !admission.author.aliases.includes(row.user_id))))
+        return null;
+    return projectPost(postId, row, admission);
+}
 /** Account-bound reader with a separately authorized external public-feed boundary. */
 export async function readSocialFeedPage(db, uid, raw, nowMs = Date.now(), external) {
     const input = normalizeSocialFeedInput(raw, uid);

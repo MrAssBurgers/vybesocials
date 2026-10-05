@@ -30,15 +30,16 @@ try {
     }
     await assertFails(updateDoc(doc(other, name, 'dna-fixture'), { user_id: 'dna-other' })); checks++;
   }
-  for (const name of ['_dna_adaptation_state', '_dna_adaptation_resets']) {
+  for (const name of ['_dna_adaptation_state', '_dna_adaptation_resets', '_dna_action_plans', '_dna_action_receipts', '_dna_action_limits']) {
     await env.withSecurityRulesDisabled(context => setDoc(doc(context.firestore(), name, 'dna-owner'), { owner_uid: 'dna-owner' }));
     for (const client of [owner, env.authenticatedContext('admin', { admin: true }).firestore()]) {
       await assertFails(getDoc(doc(client, name, 'dna-owner'))); checks++;
       await assertFails(setDoc(doc(client, name, 'dna-owner'), { resetting: false })); checks++;
     }
   }
-  await assertSucceeds(setDoc(doc(owner, 'dna_agent_settings', 'dna-owner'), { user_id: 'dna-owner', mode: 'off', learning_paused: true })); checks++;
-  await assertSucceeds(updateDoc(doc(owner, 'dna_agent_settings', 'dna-owner'), { personalization_opted_out: true })); checks++;
+  await assertFails(setDoc(doc(owner, 'dna_agent_settings', 'dna-owner'), { user_id: 'dna-owner', mode: 'off', learning_paused: true })); checks++;
+  await env.withSecurityRulesDisabled(context => setDoc(doc(context.firestore(), 'dna_agent_settings', 'dna-owner'), { user_id: 'dna-owner', mode: 'suggest' }));
+  await assertFails(updateDoc(doc(owner, 'dna_agent_settings', 'dna-owner'), { personalization_opted_out: true })); checks++;
   await assertFails(updateDoc(doc(other, 'dna_agent_settings', 'dna-owner'), { user_id: 'dna-other', learning_paused: false })); checks++;
   await assertFails(setDoc(doc(other, 'dna_agent_settings', 'dna-owner'), { user_id: 'dna-other', mode: 'autonomous' })); checks++;
   await assertFails(updateDoc(doc(owner, 'dna_agent_settings', 'dna-owner'), { user_id: 'dna-other' })); checks++;

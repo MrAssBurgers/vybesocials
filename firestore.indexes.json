@@ -1,5 +1,14 @@
 {
   "indexes": [
+    { "collectionGroup": "comments", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "post_id", "order": "ASCENDING" }, { "fieldPath": "created_at", "order": "ASCENDING" }, { "fieldPath": "__name__", "order": "ASCENDING" }
+    ] },
+    { "collectionGroup": "_sound_uploads", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "published_at_ms", "order": "DESCENDING" }, { "fieldPath": "__name__", "order": "DESCENDING" }
+    ] },
+    { "collectionGroup": "_sound_uploads", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "owner_uid", "order": "ASCENDING" }, { "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "published_at_ms", "order": "DESCENDING" }, { "fieldPath": "__name__", "order": "DESCENDING" }
+    ] },
     { "collectionGroup": "shared_themes", "queryScope": "COLLECTION", "fields": [
       { "fieldPath": "is_public", "order": "ASCENDING" }, { "fieldPath": "likes_count", "order": "DESCENDING" }
     ] },
@@ -467,6 +476,10 @@
       ] }
   ],
   "fieldOverrides": [
+    { "collectionGroup": "_comment_cursors", "fieldPath": "expires_at", "ttl": true, "indexes": [] },
+    { "collectionGroup": "_auth_email_challenges", "fieldPath": "expireAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "_auth_email_limits", "fieldPath": "expireAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "_sound_library_cursors", "fieldPath": "expireAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "_shared_theme_cursors", "fieldPath": "expireAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "_social_feed_cursors", "fieldPath": "expires_at", "ttl": true, "indexes": [] }
   ]

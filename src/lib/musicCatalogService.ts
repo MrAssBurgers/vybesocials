@@ -1,5 +1,6 @@
 import { invokeFunction } from '@/lib/firebase/functionsService';
 import { reportAccountGuard } from '@/lib/reportModerationService';
+import { isLocalPreview, LOCAL_PREVIEW_PROJECT } from '@/lib/firebase/localPreview';
 
 export interface MusicPreview {
   track_id: string; title: string; artist: string; genre: string; duration: number;
@@ -11,6 +12,9 @@ const text = (value: unknown, max: number): value is string => typeof value === 
 export function safeAudioSource(value: unknown): value is string {
   if (!text(value, 2048)) return false;
   if (/^\/sounds\/(dm-received|dm-sent|post-liked|share-post|comment|call-ring|vybe-notification)\.wav$/.test(value)) return true;
+  if (isLocalPreview()) {
+    try { const url = new URL(value); if (url.origin === location.origin && url.pathname.startsWith(`/v0/b/${LOCAL_PREVIEW_PROJECT}.appspot.com/o/original-sounds%2F`) && url.searchParams.get('alt') === 'media' && /^[a-z0-9-]{36}$/.test(url.searchParams.get('token') || '')) return true; } catch { /* Continue normal source validation. */ }
+  }
   try { const url = new URL(value); return url.protocol === 'https:' && !url.username && !url.password
       && /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,63}$/.test(url.hostname)
       && !/(^|\.)(localhost|local|internal|lan|home|invalid|test)$/.test(url.hostname); } catch { return false; }

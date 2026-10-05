@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { db } from '@/lib/firebase';
 import { motion } from 'framer-motion';
 import { gateVerifyErrorMessage, parseEdgeInvokeResult } from '@/lib/edgeFunctionResponse';
+import { checkedEmailChallenge } from '@/lib/emailConfirmation';
 
 type Mode = 'code' | 'approval' | 'options' | 'sms';
 
@@ -60,6 +61,15 @@ export function LoginGateModal({
   const pollTimerRef = useRef<number | null>(null);
   const cancelledRef = useRef(false);
   const submittedRef = useRef(false);
+  const context = useMemo(() => ({}), [open, challengeId, mode, email]);
+  const contextRef = useRef<object | null>(context);
+  contextRef.current = context;
+  useEffect(() => {
+    contextRef.current = context;
+    return () => { if (contextRef.current === context) contextRef.current = null; };
+  }, [context]);
+  const current = useCallback((captured: object) => open && contextRef.current === captured, [open]);
+
 
   // ── Expiry countdown ─────────────────────────────────────
   useEffect(() => {
@@ -68,7 +78,12 @@ export function LoginGateModal({
     setApprovalChallengeId(challengeId);
     setCurrentMode(mode);
     setCurrentEmail(email);
-  }, [expiresAt, challengeId, mode, email]);
+    setCode('');
+    setBusy(false);
+    setOptionBusy(null);
+    setResendCooldown(0);
+    submittedRef.current = false;
+  }, [open, challengeId, mode, email, expiresAt]);
 
 
   useEffect(() => {
@@ -95,9 +110,10 @@ export function LoginGateModal({
     cancelledRef.current = false;
 
     const pollChallengeId = activeChallengeId;
+    let retired = false;
 
     const finalize = (status: string, session?: any, customToken?: string | null) => {
-      if (cancelledRef.current) return;
+      if (retired || cancelledRef.current) return;
       cancelledRef.current = true;
       if (status === 'approved') {
         onSuccess(session ?? null, customToken ?? null);
@@ -113,12 +129,12 @@ export function LoginGateModal({
     let sessionRetryCount = 0;
 
     const poll = async () => {
-      if (cancelledRef.current) return;
+      if (retired || cancelledRef.current) return;
       try {
         const { data, error } = await db.functions.invoke('auth-login-approval', {
           body: { action: 'poll', challengeId: pollChallengeId },
         });
-        if (cancelledRef.current) return;
+        if (retired || cancelledRef.current) return;
         if (!error) {
           const status = (data as any)?.status;
           if (status === 'approved') {
@@ -134,7 +150,9 @@ export function LoginGateModal({
               pollTimerRef.current = window.setTimeout(poll, 400);
               return;
             }
-            finalize('approved', null, null);
+            toast.error('This sign-in could not be completed. Please sign in again.');
+            cancelledRef.current = true;
+            onCancel();
             return;
           }
           if (status === 'denied' || status === 'expired' || status === 'not_found') {
@@ -143,7 +161,7 @@ export function LoginGateModal({
           }
         }
       } catch {}
-      if (document.visibilityState === 'visible' && !cancelledRef.current) {
+      if (!retired && document.visibilityState === 'visible' && !cancelledRef.current) {
         pollTimerRef.current = window.setTimeout(poll, 1500);
       }
     };
@@ -179,6 +197,7 @@ export function LoginGateModal({
     poll();
     document.addEventListener('visibilitychange', onVisible);
     return () => {
+      retired = true;
       cancelledRef.current = true;
       if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
       document.removeEventListener('visibilitychange', onVisible);
@@ -188,8 +207,9 @@ export function LoginGateModal({
 
   // ── Verify code (email or sms) ───────────────────────────
   const verifyCode = useCallback(async (codeStr: string) => {
-    if (busy || submittedRef.current) return;
+    if (busy || optionBusy || submittedRef.current) return;
     if (!/^\d{6}$/.test(codeStr)) return;
+    const captured = context;
     submittedRef.current = true;
     setBusy(true);
     try {
@@ -198,9 +218,11 @@ export function LoginGateModal({
         body: { challengeId: activeChallengeId, code: codeStr },
       });
       const { payload, errorCode } = await parseEdgeInvokeResult(result);
+      if (!current(captured)) return;
 
-      if (errorCode || !payload?.ok) {
-        toast.error(gateVerifyErrorMessage(errorCode));
+      if (result.error || errorCode || payload?.ok !== true) {
+        const transportCode = String(result.error?.code || result.error?.name || '').replace(/^functions\//, '');
+        toast.error(gateVerifyErrorMessage(errorCode || transportCode));
         setCode('');
         submittedRef.current = false;
         return;
@@ -221,15 +243,18 @@ export function LoginGateModal({
         return;
       }
 
-      // Authenticated in-session verify (settings / already signed in).
-      onSuccess(null);
+      toast.error('No sign-in receipt was returned. Please sign in again.');
+      setCode('');
+      submittedRef.current = false;
     } catch {
+      if (!current(captured)) return;
       toast.error('Verification failed — check your connection and try again.');
+      setCode('');
       submittedRef.current = false;
     } finally {
-      setBusy(false);
+      if (current(captured)) setBusy(false);
     }
-  }, [busy, activeChallengeId, onSuccess, onCancel, currentMode]);
+  }, [busy, activeChallengeId, onSuccess, onCancel, currentMode, context, current, optionBusy]);
 
   // Auto-submit when all 6 digits are filled
   useEffect(() => {
@@ -240,9 +265,9 @@ export function LoginGateModal({
 
   const resendCode = async () => {
     if (resendCooldown > 0 || busy) return;
+    const captured = context;
     if (currentMode === 'sms') {
       await switchToSms();
-      setResendCooldown(30);
       return;
     }
     try {
@@ -250,7 +275,8 @@ export function LoginGateModal({
       const { data, error } = await db.functions.invoke('auth-2fa-request', {
         body: { email: currentEmail, challengeId: activeChallengeId },
       });
-      if (error || (data as any)?.ok === false || (data as any)?.error) {
+      if (!current(captured)) return;
+      if (error || (data as any)?.ok !== true || (data as any)?.error) {
         toast.error("Couldn't send a new code. Try again in a moment.");
         return;
       }
@@ -258,41 +284,50 @@ export function LoginGateModal({
         toast.error("Couldn't resend the verification email. Try signing in again.");
         return;
       }
-      if ((data as any)?.challengeId) setActiveChallengeId((data as any).challengeId);
-      if ((data as any)?.expiresAt) setActiveExpiresAt((data as any).expiresAt);
+      const receipt = checkedEmailChallenge(data, activeChallengeId);
+      setActiveChallengeId(receipt.challengeId);
+      setActiveExpiresAt(receipt.expiresAt);
       toast.success('New code sent');
       setResendCooldown(30);
       setCode('');
       submittedRef.current = false;
+    } catch {
+      if (current(captured)) toast.error("Couldn't send a new code. Please try again.");
     } finally {
-      setBusy(false);
+      if (current(captured)) setBusy(false);
     }
   };
 
   const denySelf = async () => {
+    const captured = context;
     try {
       setBusy(true);
-      await db.functions.invoke('auth-login-approval', {
+      const { data, error } = await db.functions.invoke('auth-login-approval', {
         body: { action: 'deny_self', challengeId },
       });
+      if (!current(captured)) return;
+      if (error || data?.ok !== true || data.status !== 'denied') throw new Error('Denied receipt missing');
       toast.success('Sign-in denied. Change your password if this wasn\'t you.');
-    } catch {}
-    finally {
-      setBusy(false);
       onCancel();
+    } catch {
+      if (current(captured)) toast.error('Sign-in could not be denied. Please try again.');
+    } finally {
+      if (current(captured)) setBusy(false);
     }
   };
 
   // Trusted device unreachable → email a 6-digit code instead.
   const switchToCode = async () => {
     if (optionBusy) return;
+    const captured = context;
     setOptionBusy('email');
     try {
       const { data, error } = await db.functions.invoke('auth-login-approval', {
         body: { action: 'switch_to_code', challengeId: approvalChallengeId },
       });
+      if (!current(captured)) return;
       const payload = (data as any) || {};
-      if (error || payload.ok === false || !payload.challengeId) {
+      if (error || payload.ok !== true || !payload.challengeId) {
         const reason = payload.error || error?.message || 'unknown';
         if (reason === 'expired') toast.error('This sign-in request has expired. Try again.');
         else if (reason === 'email_failed') toast.error("Couldn't send the email right now — try SMS instead.");
@@ -300,32 +335,35 @@ export function LoginGateModal({
         else toast.error("Couldn't email a code — try SMS instead.");
         return;
       }
+      const receipt = checkedEmailChallenge(payload, approvalChallengeId);
       cancelledRef.current = true;
       if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
-      setActiveChallengeId(payload.challengeId);
-      setActiveExpiresAt(payload.expiresAt);
+      setActiveChallengeId(receipt.challengeId);
+      setActiveExpiresAt(receipt.expiresAt);
       if (payload.email) setCurrentEmail(payload.email);
       setCode('');
       submittedRef.current = false;
       setCurrentMode('code');
       toast.success(`Code sent to ${payload.email || currentEmail}`);
     } catch {
-      toast.error("Couldn't switch to email code");
+      if (current(captured)) toast.error("Couldn't switch to email code");
     } finally {
-      setOptionBusy(null);
+      if (current(captured)) setOptionBusy(null);
     }
   };
 
   // Trusted device unreachable → text a 6-digit code to verified phone.
   const switchToSms = async () => {
     if (optionBusy) return;
+    const captured = context;
     setOptionBusy('sms');
     try {
       const { data, error } = await db.functions.invoke('auth-login-approval', {
         body: { action: 'switch_to_sms', challengeId: approvalChallengeId },
       });
+      if (!current(captured)) return;
       const payload = (data as any) || {};
-      if (error || payload.ok === false || !payload.challengeId) {
+      if (error || payload.ok !== true || !payload.challengeId) {
         const reason = payload.error || error?.message || 'unknown';
         if (reason === 'expired') toast.error('This sign-in request has expired. Try again.');
         else if (reason === 'no_verified_phone') toast.error('No verified phone on this account. Try email instead.');
@@ -335,19 +373,21 @@ export function LoginGateModal({
         else toast.error("Couldn't send SMS — try email instead.");
         return;
       }
+      const receipt = checkedEmailChallenge(payload, approvalChallengeId);
       cancelledRef.current = true;
       if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
-      setActiveChallengeId(payload.challengeId);
-      setActiveExpiresAt(payload.expiresAt);
+      setActiveChallengeId(receipt.challengeId);
+      setActiveExpiresAt(receipt.expiresAt);
       setPhoneMasked(payload.phoneMasked ?? null);
       setCode('');
       submittedRef.current = false;
       setCurrentMode('sms');
+      setResendCooldown(30);
       toast.success(`Code texted to ${payload.phoneMasked || 'your phone'}`);
     } catch {
-      toast.error("Couldn't send SMS code");
+      if (current(captured)) toast.error("Couldn't send SMS code");
     } finally {
-      setOptionBusy(null);
+      if (current(captured)) setOptionBusy(null);
     }
   };
 
@@ -363,7 +403,7 @@ export function LoginGateModal({
 
   // Lock dismissal while a verify/poll is in flight or while we're handling a
   // submission, so users can't accidentally drop the gate by tapping outside.
-  const lockDismiss = busy;
+  const lockDismiss = busy || optionBusy !== null;
 
   return (
     <Dialog
@@ -411,7 +451,7 @@ export function LoginGateModal({
                 pattern={REGEXP_ONLY_DIGITS}
                 value={code}
                 onChange={setCode}
-                disabled={busy}
+                disabled={busy || optionBusy !== null}
                 autoFocus
               >
                 <InputOTPGroup className="gap-2">
@@ -449,7 +489,7 @@ export function LoginGateModal({
                   Use a different account
                 </Button>
                 <Button
-                  disabled={busy || code.length !== 6}
+                  disabled={busy || optionBusy !== null || code.length !== 6}
                   onClick={() => verifyCode(code)}
                 >
                   {busy

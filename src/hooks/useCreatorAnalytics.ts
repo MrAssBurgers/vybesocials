@@ -1,3 +1,4 @@
+import { readCommentCounts } from '@/lib/commentService';
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
@@ -6,7 +7,7 @@ import { useAuth } from '@/lib/auth';
  * Fetch content performance metrics for the creator's posts
  */
 export function useCreatorContentStats() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   return useQuery({
     queryKey: ['creator-content-stats', user?.id],
@@ -17,7 +18,7 @@ export function useCreatorContentStats() {
       const { data: posts, error: postsErr } = await db
         .from('posts')
         .select('id, type, caption, view_count, created_at')
-        .eq('author_id', user.id)
+        .in('author_id', [...new Set([user.id, profile?.id].filter(Boolean))])
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -29,7 +30,7 @@ export function useCreatorContentStats() {
       // Batch fetch likes and comments counts
       const [likesRes, commentsRes] = await Promise.all([
         db.from('likes').select('post_id', { count: 'exact' }).in('post_id', postIds),
-        db.from('comments').select('post_id', { count: 'exact' }).in('post_id', postIds),
+        readCommentCounts(postIds, profile?.id),
       ]);
 
       // Count likes per post
@@ -38,13 +39,10 @@ export function useCreatorContentStats() {
         likesByPost[l.post_id] = (likesByPost[l.post_id] || 0) + 1;
       });
 
-      const commentsByPost: Record<string, number> = {};
-      commentsRes.data?.forEach(c => {
-        commentsByPost[c.post_id] = (commentsByPost[c.post_id] || 0) + 1;
-      });
+      const commentsByPost = commentsRes;
 
       const totalLikes = likesRes.count || 0;
-      const totalComments = commentsRes.count || 0;
+      const totalComments = Object.values(commentsRes).reduce((total, count) => total + count, 0);
       const totalViews = posts.reduce((sum, p) => sum + (p.view_count || 0), 0);
 
       // Engagement rate = (likes + comments) / views * 100
@@ -72,7 +70,7 @@ export function useCreatorContentStats() {
  * Fetch follower growth data
  */
 export function useFollowerGrowth() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   return useQuery({
     queryKey: ['follower-growth', user?.id],

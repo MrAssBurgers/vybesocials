@@ -26,7 +26,6 @@ export const checkRunwayStatus = pending('check-runway-status');
 // Music provider sync (low-priority — Spotify is the real path now)
 export const syncMusicProviders = pending('sync-music-providers');
 export const testMusicProvider = pending('test-music-provider');
-export const uploadSound = pending('upload-sound');
 
 // Auth email hook (Firebase Auth handles its own templates — port if customized)
 export const authEmailHook = pending('auth-email-hook');

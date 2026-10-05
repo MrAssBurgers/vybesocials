@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { filterBlockedContent, containsBlockedContent } from '@/lib/contentModeration';
@@ -8,106 +8,43 @@ import { toast } from 'sonner';
 import { useBumpReactionStreak } from './useReactionStreaks';
 import { useTokenReward } from './useVybeTokens';
 import { recordChallengeActivity } from '@/lib/challengeProgressClient';
-import { tokenAccountGuard, tokenAccountSnapshot, type TokenAccountGuard } from '@/lib/tokenMarketplaceService';
+import { tokenAccountGuard, type TokenAccountGuard } from '@/lib/tokenMarketplaceService';
 
-import { changeComment } from '@/lib/commentChanges';
+import { changeComment, saveCommentChange } from '@/lib/commentChanges';
+import { useEffect, useState } from 'react';
+import { readCommentsPage, type Comment } from '@/lib/commentService';
+import { useProfileAccount } from './useProfileAccount';
 
 const COMMENT_REWARD_ACCOUNT = Symbol('comment-reward-account');
 
-interface Comment {
-  id: string;
-  text: string;
-  image_url: string | null;
-  created_at: string;
-  is_flagged?: boolean;
-  safety_score?: number;
-  safety_categories?: string[];
-  like_count?: number;
-  is_liked?: boolean;
-  user: {
-    id: string;
-    username: string;
-    avatar_url: string | null;
-  };
-}
-
 export function useComments(postId: string, access?: { scope: string }) {
-  const { profile, user } = useAuth();
-  const session = tokenAccountSnapshot();
-  const queryKey = ['comments', postId, user?.id, session.epoch, profile?.id, access?.scope];
-  const query = useQuery({
-    queryKey,
-    gcTime: 0,
-    staleTime: 0,
-    retry: false,
-    queryFn: async (): Promise<Comment[]> => {
-      const guard = tokenAccountGuard(user?.id);
-      guard();
-      if (!user || profile?.user_id !== user.id) throw new Error('Not authenticated');
-      const { data, error } = await db
-        .from('comments')
-        .select(`
-          id,
-          text,
-          image_url,
-          created_at,
-          is_flagged,
-          safety_score,
-          safety_categories,
-          user:profiles!user_id (
-            id,
-            username,
-            avatar_url
-          )
-        `)
-        .eq('post_id', postId)
-        .order('created_at', { ascending: true });
-
-      guard();
-      if (error) throw error;
-
-      // Fetch like counts and user's likes in parallel
-      const commentIds = (data || []).map(c => c.id);
-      const likeCounts: Record<string, number> = {};
-      const userLikes: Set<string> = new Set();
-
-      if (commentIds.length > 0) {
-        const [countsRes, userLikesRes] = await Promise.all([
-          (db as any).from('comment_likes').select('comment_id').in('comment_id', commentIds),
-          profile
-            ? (db as any).from('comment_likes').select('comment_id').eq('user_id', profile.id).in('comment_id', commentIds)
-            : Promise.resolve({ data: [] }),
-        ]);
-
-        guard();
-        if (countsRes.error) throw countsRes.error;
-        if (userLikesRes.error) throw userLikesRes.error;
-        // Count likes per comment
-        for (const row of (countsRes.data || [])) {
-          likeCounts[row.comment_id] = (likeCounts[row.comment_id] || 0) + 1;
-        }
-        for (const row of (userLikesRes.data || [])) {
-          userLikes.add(row.comment_id);
-        }
-      }
-
-      return (data || []).map(comment => ({
-        ...comment,
-        text: filterBlockedContent(comment.text),
-        image_url: comment.image_url,
-        is_flagged: comment.is_flagged ?? false,
-        safety_score: comment.safety_score ?? 0,
-        safety_categories: comment.safety_categories ?? [],
-        like_count: likeCounts[comment.id] || 0,
-        is_liked: userLikes.has(comment.id),
-        user: comment.user as unknown as { id: string; username: string; avatar_url: string | null },
-      }));
-    },
-    enabled: !!postId && !!user && profile?.user_id === user.id && session.uid === user.id,
+  const account = useProfileAccount();
+  const { profile, user, session } = account;
+  const [view, setView] = useState({ visible: document.visibilityState !== 'hidden', epoch: 0, now: Date.now() });
+  useEffect(() => {
+    const tick = () => setView(value => ({ ...value, now: Date.now() }));
+    const visibility = () => setView(value => ({ visible: document.visibilityState !== 'hidden', epoch: value.epoch + 1, now: Date.now() }));
+    const timer = window.setInterval(tick, 1000);
+    document.addEventListener('visibilitychange', visibility);
+    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', visibility); };
+  }, []);
+  const valid = !!postId && account.ready;
+  const queryKey = ['comments', postId, user?.id, session.epoch, profile?.id, access?.scope, view.epoch];
+  const query = useInfiniteQuery({
+    queryKey, gcTime: 0, staleTime: 0, retry: false, initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam, signal }) => readCommentsPage({ expectedOwnerUid: user!.id, expectedProfileId: profile!.id, postId,
+      ...(pageParam ? { cursor: pageParam } : {}) }, account.guard, signal),
+    getNextPageParam: (last, _pages, _last, params) => last.nextCursor && !params.includes(last.nextCursor) ? last.nextCursor : undefined,
+    enabled: valid && view.visible, refetchInterval: 20000, refetchOnWindowFocus: 'always',
   });
-  return { ...query, queryKey };
+  const comments: Comment[] = [], seen = new Set<string>();
+  if (valid && view.visible && !query.isError) for (const page of query.data?.pages ?? []) {
+    if (page.leaseUntil <= view.now) continue;
+    for (const comment of page.comments) if (!seen.has(comment.id)) { seen.add(comment.id); comments.push({ ...comment, text: filterBlockedContent(comment.text) }); }
+  }
+  const expired = !!query.data && query.data.pages.some(page => page.leaseUntil <= view.now);
+  return { ...query, data: comments, queryKey, isError: query.isError || expired, isExpired: expired };
 }
-
 export function useCreateComment() {
   const { profile, user } = useAuth();
   const queryClient = useQueryClient();
@@ -156,21 +93,9 @@ export function useCreateComment() {
       }
 
       rewardAccount();
-      const { data, error } = await db
-        .from('comments')
-        .insert({
-          user_id: profile.id,
-          post_id: postId,
-          text: filteredText,
-          image_url: imageUrl || null,
-          is_flagged: isFlagged,
-          safety_score: safetyScore,
-          safety_categories: safetyCategories,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
+      const receipt = await saveCommentChange({ action: 'create', postId, text: filteredText, imageUrl: imageUrl || null,
+        isFlagged, safetyScore, safetyCategories }, profile.id, rewardAccount);
+      const data = { id: receipt.commentId };
       const saved = { ...data, [COMMENT_REWARD_ACCOUNT]: rewardAccount };
       // The comment is durable. A changed account must not trigger follow-up
       // requests or turn that successful save into a failed-send retry.
@@ -202,7 +127,7 @@ export function useCreateComment() {
           try { rewardAccount(); } catch { return; }
           if (result.requires_review) {
             // Update the flag status if moderation catches something
-            db.from('comments').update({ is_flagged: true }).eq('id', data.id).then(() => {});
+            // Additional moderation is advisory here; only the server may change stored review state.
           }
         }).catch(console.error);
       }
@@ -242,7 +167,7 @@ export function useCreateComment() {
   };
 }
 
-type CommentChangeInput = { commentId: string; postId: string; text?: string };
+type CommentChangeInput = { commentId: string; postId: string; text?: string; expectedRevision?: string | null };
 
 function useChangeComment(action: 'edit' | 'delete') {
   const { profile, user } = useAuth();
@@ -253,7 +178,7 @@ function useChangeComment(action: 'edit' | 'delete') {
         guard();
         if (!user || !profile || profile.user_id !== user.id) throw new Error('Not authenticated');
         if (action === 'edit') {
-          if (typeof input.text !== 'string' || !input.text.trim()) throw new Error('Enter a comment before saving.');
+          if (typeof input.text !== 'string') throw new Error('Enter a comment before saving.');
           if (containsBlockedContent(input.text).blocked) throw new Error('Your comment contains inappropriate content. Please revise.');
           return await changeComment({ ...input, action, text: filterBlockedContent(input.text) }, profile.id, guard);
         }
@@ -301,3 +226,17 @@ function useChangeComment(action: 'edit' | 'delete') {
 
 export function useDeleteComment() { return useChangeComment('delete'); }
 export function useEditComment() { return useChangeComment('edit'); }
+
+export function useLikeComment() {
+  const { user, profile } = useAuth(); const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { postId: string; commentId: string; liked: boolean }) => {
+      const guard = tokenAccountGuard(user?.id); guard();
+      if (!user || profile?.user_id !== user.id) throw new Error('Not authenticated');
+      try { return { receipt: await saveCommentChange({ ...input, action: 'like' }, profile.id, guard), guard }; }
+      catch (error) { guard(); throw error; }
+    },
+    onSuccess: ({ receipt, guard }) => { try { guard(); void client.invalidateQueries({ queryKey: ['comments', receipt.postId] }); } catch { /* Old account. */ } },
+    onError: (error: Error) => { if (!('code' in error && error.code === 'account-changed')) toast.error(error.message || 'Could not update this reaction.'); },
+  });
+}

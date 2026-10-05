@@ -15,6 +15,11 @@ vi.mock('@/hooks/useModeration', () => ({ moderateContent: mock.moderate }));
 vi.mock('@/lib/challengeProgressClient', () => ({ recordChallengeActivity: mock.activity }));
 vi.mock('@/lib/despiaRewardedAds', () => ({ requestDespiaRewardedAd: mock.ad }));
 vi.mock('sonner', () => ({ toast: { error: mock.error, info: vi.fn() } }));
+vi.mock('@/lib/commentChanges', () => ({ changeComment: vi.fn(), saveCommentChange: async (payload: unknown) => {
+  mock.insert(payload); const result = await mock.insertResult as { data: { id: string }; error?: Error };
+  if (result.error) throw result.error;
+  return { commentId: result.data.id };
+} }));
 import { useCreateComment } from './useComments';
 import { useDailyLoginChallenge } from './useDailyLogin';
 import { useRewardedAd } from './useRewardedAd';

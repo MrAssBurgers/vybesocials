@@ -31,7 +31,7 @@ function timeAgo(iso: string | null) {
 }
 
 export function DNAAutoPilot() {
-  const { settings, actions, loading, loadError, running, setMode, runNow, revert, applyPending, refresh } = useDNAAutoPilot();
+  const { settings, actions, loading, loadError, operationError, busy, running, setMode, runNow, revert, applyPending, refresh } = useDNAAutoPilot();
   const mode: AutoPilotMode = settings?.mode || 'suggest';
   const isOn = mode !== 'off' && !settings?.learning_paused && !settings?.personalization_opted_out;
 
@@ -73,7 +73,7 @@ export function DNAAutoPilot() {
               return (
                 <button
                   key={value}
-                  disabled={loading || !!loadError}
+                  disabled={loading || !!loadError || !!busy}
                   onClick={() => setMode(value)}
                   className={cn(
                     "flex flex-col items-center gap-0.5 py-2 px-1 rounded-xl text-[11px] font-medium transition-all active:scale-95",
@@ -92,7 +92,7 @@ export function DNAAutoPilot() {
 
           <Button
             onClick={runNow}
-            disabled={running || loading || !!loadError || !isOn}
+            disabled={!!busy || loading || !!loadError || !isOn}
             className="w-full rounded-full bg-gradient-to-r from-primary to-accent hover:opacity-90"
           >
             <Zap className={cn("w-4 h-4 mr-2", running && "animate-pulse")} />
@@ -108,7 +108,8 @@ export function DNAAutoPilot() {
             <h3 className="text-sm font-semibold">Auto-Pilot history</h3>
             <span className="text-[10px] text-muted-foreground">{actions.length} action{actions.length === 1 ? '' : 's'}</span>
           </div>
-          <p className="text-xs text-muted-foreground mb-3">Applying and undoing Auto-Pilot changes is temporarily unavailable. Your current settings stay in place.</p>
+          <p className="text-xs text-muted-foreground mb-3">Review each change before applying it. Undo is available while those settings remain unchanged.</p>
+          {operationError && <p role="alert" className="text-sm text-destructive mb-3">{operationError}</p>}
 
           {loadError ? (
             <div role="alert" className="space-y-3 py-4 text-center">
@@ -143,23 +144,28 @@ export function DNAAutoPilot() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm leading-snug">{a.summary}</p>
+                      {a.change && <p className="text-xs text-muted-foreground mt-1">{a.action_type === 'apply_theme'
+                        ? `Theme: ${String(a.change.preset)}`
+                        : Object.entries((a.change.patch || {}) as Record<string, unknown>).map(([field, value]) => `${field.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').toLowerCase()}: ${Array.isArray(value) ? value.join(', ') || 'none' : String(value)}`).join(' · ')}</p>}
                       <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
                         <span>{timeAgo(a.created_at)}</span>
                         <span>·</span>
                         <span className="capitalize">{a.action_type.replace('_', ' ')}</span>
                         {a.reverted && <span className="text-destructive">· reverted</span>}
-                        {!a.applied && !a.reverted && <span className="text-accent">· suggestion</span>}
+                        {a.phase === 'informational' && <span>· idea only — run again for a supported change</span>}
+                        {a.phase === 'suggested' && <span className="text-accent">· ready to review</span>}
+                        {a.applied && <span>· applied</span>}
                       </div>
                     </div>
                     <div className="flex flex-col gap-1 shrink-0">
-                      {!a.applied && !a.reverted && (
-                        <Button size="sm" variant="ghost" disabled title="Applying Auto-Pilot changes is temporarily unavailable" className="h-7 px-2 text-[11px]" onClick={() => applyPending(a.id)}>
-                          <Check className="w-3 h-3 mr-1" /> Apply
+                      {a.phase === 'suggested' && (
+                        <Button size="sm" variant="ghost" disabled={!!busy} className="h-7 px-2 text-[11px]" onClick={() => applyPending(a.id)}>
+                          <Check className="w-3 h-3 mr-1" /> {busy === a.id ? 'Applying…' : 'Apply'}
                         </Button>
                       )}
                       {a.applied && !a.reverted && (
-                        <Button size="sm" variant="ghost" disabled title="Undoing Auto-Pilot changes is temporarily unavailable" className="h-7 px-2 text-[11px]" onClick={() => revert(a.id)}>
-                          <RotateCcw className="w-3 h-3 mr-1" /> Undo
+                        <Button size="sm" variant="ghost" disabled={!!busy} className="h-7 px-2 text-[11px]" onClick={() => revert(a.id)}>
+                          <RotateCcw className="w-3 h-3 mr-1" /> {busy === a.id ? 'Undoing…' : 'Undo'}
                         </Button>
                       )}
                     </div>

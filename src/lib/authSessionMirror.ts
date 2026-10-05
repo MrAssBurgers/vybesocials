@@ -30,7 +30,8 @@ export function mirrorAuthUserJson(storage: Pick<Storage, 'setItem'>, apiKey: st
   storage.setItem(AUTH_BACKUP_KEY, json);
 }
 
-export function clearMirroredAuth(storage: Pick<Storage, 'getItem' | 'removeItem' | 'key'> & { length: number }) {
+export function clearMirroredAuth(storage: Pick<Storage, 'getItem' | 'removeItem' | 'key'> & { length: number }, guard: () => void = () => {}) {
+  guard();
   storage.removeItem(AUTH_BACKUP_KEY);
   const keys: string[] = [];
   for (let i = 0; i < storage.length; i++) {
@@ -38,7 +39,7 @@ export function clearMirroredAuth(storage: Pick<Storage, 'getItem' | 'removeItem
     if (key && key.startsWith('firebase:authUser:')) keys.push(key);
   }
   keys.forEach((key) => storage.removeItem(key));
-  clearAuthVault();
+  clearAuthVault(guard);
 }
 
 /** Unlocked Despia vault copy. Play Store WebViews wipe localStorage on quit. */
@@ -115,7 +116,8 @@ export function writeAuthVault(json: string) {
   }).catch(() => { /* browser without the native bridge */ });
 }
 
-export function clearAuthVault() {
+export function clearAuthVault(guard: () => void = () => {}) {
+  guard();
   lastVaultJson = '';
   if (!nativeVaultLikely()) return;
   if (vaultWrite) {
@@ -123,6 +125,7 @@ export function clearAuthVault() {
     return;
   }
   void import('despia-native').then((mod) => {
+    guard();
     const despia = (mod as { default?: unknown }).default || mod;
     if (typeof despia !== 'function') return;
     void despia(`setvault://?key=${AUTH_VAULT_KEY}&value=&locked=false`);

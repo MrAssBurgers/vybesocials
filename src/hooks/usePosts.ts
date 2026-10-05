@@ -1,3 +1,4 @@
+import { readCommentCounts } from '@/lib/commentService';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
@@ -226,12 +227,13 @@ export function usePosts(
         }
       }
 
+      const commentCounts = await readCommentCounts((posts || []).map(post => post.id), profile?.id);
       // Get counts for each post
       const postsWithCounts = await Promise.all(
         (posts || []).map(async (post) => {
-          const [likesCount, commentsCount] = await Promise.allSettled([
+          const [likesCount] = await Promise.allSettled([
             db.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
-            db.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
+
           ]);
 
           const joinedAuthor = post.author as unknown as { id: string; username: string; display_name?: string | null; avatar_url: string | null; is_verified?: boolean | null } | null;
@@ -265,7 +267,7 @@ export function usePosts(
             view_count: (post as any).view_count ?? 0,
             author,
             like_count: likesCount.status === 'fulfilled' ? likesCount.value.count || 0 : 0,
-            comment_count: commentsCount.status === 'fulfilled' ? commentsCount.value.count || 0 : 0,
+            comment_count: commentCounts[post.id] ?? 0,
             is_liked: userLikes.includes(post.id),
             is_bookmarked: userBookmarks.includes(post.id),
             reaction_type: userReactionMap[post.id] || null,
@@ -372,11 +374,12 @@ export function useFollowingPosts() {
       const userReactionMap2: Record<string, string> = {};
       likesResult.data?.forEach(l => { if (l.reaction_type) userReactionMap2[l.post_id] = l.reaction_type; });
 
+      const commentCounts = await readCommentCounts(posts.map(post => post.id), profile.id);
       const postsWithCounts = await Promise.all(
         (posts || []).map(async (post) => {
-          const [likesCount, commentsCount] = await Promise.all([
+          const [likesCount] = await Promise.all([
             db.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
-            db.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
+
           ]);
 
           const author = post.author as unknown as { id: string; username: string; display_name?: string | null; avatar_url: string | null; is_verified?: boolean | null } | null;
@@ -391,7 +394,7 @@ export function useFollowingPosts() {
             view_count: (post as any).view_count ?? 0,
             author,
             like_count: likesCount.count || 0,
-            comment_count: commentsCount.count || 0,
+            comment_count: commentCounts[post.id] ?? 0,
             is_liked: userLikes.includes(post.id),
             is_bookmarked: userBookmarks.includes(post.id),
             reaction_type: userReactionMap2[post.id] || null,

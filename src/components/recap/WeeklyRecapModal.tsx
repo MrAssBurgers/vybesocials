@@ -1,3 +1,4 @@
+import { readCommentCounts } from '@/lib/commentService';
 import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -57,7 +58,7 @@ export function WeeklyRecapModal() {
     try {
       // Get user's posts from this week first
       const postsRes = await (db.from('posts') as any).select('id, caption', { count: 'exact' })
-        .eq('author_id', user.id).gte('created_at', weekAgoStr);
+        .in('author_id', [...new Set([user.id, profile?.id].filter(Boolean))]).gte('created_at', weekAgoStr);
 
       const postIds = (postsRes.data || []).map(p => p.id);
 
@@ -66,7 +67,7 @@ export function WeeklyRecapModal() {
           ? db.from('likes').select('id', { count: 'exact' }).in('post_id', postIds).gte('created_at', weekAgoStr)
           : Promise.resolve({ count: 0 } as any),
         postIds.length > 0
-          ? db.from('comments').select('id', { count: 'exact' }).in('post_id', postIds).gte('created_at', weekAgoStr)
+          ? readCommentCounts(postIds, profile?.id, weekAgoStr).then(counts => ({ count: Object.values(counts).reduce((sum, count) => sum + count, 0) }))
           : Promise.resolve({ count: 0 } as any),
         db.from('follows').select('id', { count: 'exact' })
           .eq('following_id', user.id).gte('created_at', weekAgoStr),
