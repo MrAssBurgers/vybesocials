@@ -1,3 +1,4 @@
+import { PostListReadStatus } from '@/components/posts/PostListReadStatus';
 import { memo } from 'react';
 import { Link } from 'react-router-dom';
 import { usePosts } from '@/hooks/usePosts';
@@ -10,7 +11,8 @@ interface ClipsTabProps {
 }
 
 export const ClipsTab = memo(function ClipsTab({ profileId }: ClipsTabProps) {
-  const { data: posts, isLoading } = usePosts('short', profileId);
+  const postQuery = usePosts('short', profileId);
+  const { data: posts, isLoading } = postQuery;
 
   if (isLoading) {
     return (
@@ -24,12 +26,12 @@ export const ClipsTab = memo(function ClipsTab({ profileId }: ClipsTabProps) {
 
   const clips = posts || [];
 
-  if (!clips.length) {
+  if (!clips.length && !postQuery.isError && !postQuery.hasNextPage && !postQuery.hasMoreWindow) {
     return <EmptyState icon={<Film className="h-8 w-8" />} title="No clips yet" description="" />;
   }
 
   return (
-    <div className="grid grid-cols-3 gap-1">
+    <><PostListReadStatus query={postQuery} /><div className="grid grid-cols-3 gap-1">
       {clips.map((post) => (
         <Link
           key={post.id}
@@ -43,6 +45,6 @@ export const ClipsTab = memo(function ClipsTab({ profileId }: ClipsTabProps) {
           />
         </Link>
       ))}
-    </div>
+    </div></>
   );
 });

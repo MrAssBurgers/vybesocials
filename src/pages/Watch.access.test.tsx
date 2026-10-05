@@ -25,6 +25,10 @@ beforeEach(() => { vi.clearAllMocks(); state.entry = { status: 'unavailable', ex
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 const admit = () => { state.entry = { status: 'ready', expires: 30000, post }; };
 describe('checked long-video page', () => {
+  it('does not label an unavailable related feed as empty', () => {
+    admit(); state.feed.mockReturnValue({ isError: true, isFetching: false, refetch: state.retry }); mount(); expect(screen.queryByText('No related videos yet')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry posts' })); expect(state.retry).toHaveBeenCalledOnce();
+  });
   it('denies raw reads, recommendations and comments before admission', () => {
     const view = mount(); expect(screen.getByText('This video is unavailable')).toBeInTheDocument();
     expect(view.container.querySelector('video')).toBeNull(); expect(screen.queryByText('Comment area')).toBeNull();

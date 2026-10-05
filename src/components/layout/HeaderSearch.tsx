@@ -1,3 +1,5 @@
+import { useSocialPostList } from '@/hooks/useSocialPostList';
+import { PostListReadStatus } from '@/components/posts/PostListReadStatus';
 import React, { useState, useEffect, useRef, useMemo, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, X, TrendingUp, Clock, Users, Hash, Film, ShoppingBag } from 'lucide-react';
@@ -145,9 +147,12 @@ export const HeaderSearch = React.forwardRef<HTMLDivElement, { className?: strin
     }
   }, [isOpen]);
 
+  const postQuery = useSocialPostList({ scope: 'search', search: debouncedQuery }, isOpen && debouncedQuery.length >= 2);
+  const postResults: SearchResult[] = (postQuery.data ?? []).slice(0, 5).map(post => ({ type: 'post', id: post.id,
+    title: post.caption.slice(0, 50) || 'Untitled post', subtitle: post.type === 'short' ? 'Clip' : 'Post', imageUrl: post.thumbnail_url || post.media_url }));
   // Search query
-  const { data: searchResults = [], isLoading } = useQuery({
-    queryKey: ['header-search', debouncedQuery],
+  const { data: otherResults = [], isLoading: loadingOther } = useQuery({
+    queryKey: ['header-search', debouncedQuery, 'non-post-v2'],
     queryFn: async (): Promise<SearchResult[]> => {
       if (!debouncedQuery) return [];
 
@@ -168,25 +173,6 @@ export const HeaderSearch = React.forwardRef<HTMLDivElement, { className?: strin
             title: user.display_name || user.username,
             subtitle: `@${user.username}`,
             imageUrl: user.avatar_url || undefined,
-          });
-        });
-      }
-
-      // Search posts by caption
-      const { data: posts } = await db
-        .from('posts')
-        .select('id, caption, media_url, type')
-        .ilike('caption', `%${debouncedQuery}%`)
-        .limit(5);
-
-      if (posts) {
-        posts.forEach(post => {
-          results.push({
-            type: 'post',
-            id: post.id,
-            title: post.caption?.slice(0, 50) || 'Untitled post',
-            subtitle: post.type === 'short' ? 'Clip' : 'Post',
-            imageUrl: post.media_url,
           });
         });
       }
@@ -228,6 +214,8 @@ export const HeaderSearch = React.forwardRef<HTMLDivElement, { className?: strin
     },
     enabled: debouncedQuery.length > 0,
   });
+  const searchResults = [...otherResults.filter(result => result.type !== 'post'), ...postResults];
+  const isLoading = loadingOther || postQuery.isLoading;
 
   const handleSelect = (result: SearchResult) => {
     addRecentSearch(query);
@@ -389,7 +377,7 @@ export const HeaderSearch = React.forwardRef<HTMLDivElement, { className?: strin
                 )}
 
                 {/* No results */}
-                {debouncedQuery && !isLoading && searchResults.length === 0 && (
+                {debouncedQuery && !isLoading && !postQuery.isError && !postQuery.hasNextPage && !postQuery.hasMoreWindow && searchResults.length === 0 && (
                   <div className="p-8 text-center">
                     <p className="text-muted-foreground">No results for "{debouncedQuery}"</p>
                   </div>
@@ -447,7 +435,8 @@ export const HeaderSearch = React.forwardRef<HTMLDivElement, { className?: strin
                     </div>
                   </div>
                 )}
-              </ScrollArea>
+                {debouncedQuery.length >= 2 && <PostListReadStatus query={postQuery} />}
+            </ScrollArea>
             </motion.div>
           </>
         )}

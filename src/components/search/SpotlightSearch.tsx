@@ -1,3 +1,5 @@
+import { useSocialPostList } from '@/hooks/useSocialPostList';
+import { PostListReadStatus } from '@/components/posts/PostListReadStatus';
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -47,21 +49,8 @@ export function SpotlightSearch({ open, onClose }: SpotlightSearchProps) {
     enabled: !!debouncedQuery && debouncedQuery.length >= 2 && activeTab === 'people',
   });
 
-  // Posts search
-  const { data: posts = [], isLoading: loadingPosts } = useQuery({
-    queryKey: ['spotlight-posts', debouncedQuery],
-    queryFn: async () => {
-      if (!debouncedQuery || debouncedQuery.length < 2) return [];
-      const { data } = await db
-        .from('posts')
-        .select('id, content, media_url, media_type, created_at, profiles:user_id(username, avatar_url)')
-        .ilike('content', `%${debouncedQuery}%`)
-        .order('created_at', { ascending: false })
-        .limit(20);
-      return data || [];
-    },
-    enabled: !!debouncedQuery && debouncedQuery.length >= 2 && activeTab === 'posts',
-  });
+  const postQuery = useSocialPostList({ scope: 'search', search: debouncedQuery.trim() }, open && activeTab === 'posts' && debouncedQuery.trim().length >= 2);
+  const posts = postQuery.data ?? [], loadingPosts = postQuery.isLoading;
 
   // Trending suggestions when no query
   const { data: trending = [] } = useQuery({
@@ -136,6 +125,7 @@ export function SpotlightSearch({ open, onClose }: SpotlightSearchProps) {
           ))}
         </div>
 
+        {activeTab === 'posts' && debouncedQuery.trim().length >= 2 && <PostListReadStatus query={postQuery} />}
         {/* Results */}
         <div className="flex-1 overflow-y-auto px-4 pb-20">
           {!debouncedQuery ? (
@@ -211,17 +201,17 @@ export function SpotlightSearch({ open, onClose }: SpotlightSearchProps) {
                 posts.map((post: any) => (
                   <button
                     key={post.id}
-                    onClick={() => { navigate(`/clips/${post.id}`); onClose(); }}
+                    onClick={() => { navigate(post.type === 'short' ? `/clips/${post.id}` : post.type === 'video' ? `/watch/${post.id}` : `/p/${post.id}`); onClose(); }}
                     className="w-full text-left px-3 py-3 rounded-xl hover:bg-muted/40 transition-colors border border-border/20"
                   >
-                    <p className="text-sm line-clamp-2">{post.content || 'Media post'}</p>
+                    <p className="text-sm line-clamp-2">{post.caption || 'Media post'}</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      @{post.profiles?.username || 'user'}
+                      @{post.author?.username || 'user'}
                     </p>
                   </button>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">No posts found</p>
+                !postQuery.isError && !postQuery.hasNextPage && !postQuery.hasMoreWindow && <p className="text-sm text-muted-foreground text-center py-8">No posts found</p>
               )}
             </div>
           ) : (

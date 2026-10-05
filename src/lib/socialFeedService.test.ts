@@ -81,7 +81,7 @@ describe('current account social feed transport', () => {
   });
   it('retains continuation through a filtered empty page and rejects repeated cursor', async () => {
     const cursor = 'a'.repeat(48); state.invoke.mockResolvedValue({ data: { ...response(), posts: [], nextCursor: cursor } });
-    expect(await readSocialFeed(input, () => {})).toEqual({ posts: [], nextCursor: cursor });
+    expect(await readSocialFeed(input, () => {})).toMatchObject({ posts: [], nextCursor: cursor, leaseUntil: expect.any(Number) });
     await expect(readSocialFeed({ ...input, cursor }, () => {})).rejects.toThrow(/verified/);
   });
   it('propagates failed reads instead of turning them into an empty feed', async () => {
@@ -90,50 +90,15 @@ describe('current account social feed transport', () => {
     expect(state.invoke).toHaveBeenCalledTimes(1);
     expect(state.feed).not.toHaveBeenCalled();
   });
-  it('displays admitted discovery content when the primary reader is missing', async () => {
-    const { reactionType: _reaction, isBookmarked: _saved, ...approved } = post;
-    state.invoke.mockResolvedValueOnce({ error: { name: 'not-found', message: 'NOT_FOUND' }, data: null }).mockResolvedValueOnce({ data: { ownerUid: 'alice', viewerProfileId: 'profile-alice', requestedPostIds: ['post-live'], posts: [{ ...approved, id: 'post-live' }] } });
-    state.feed.mockResolvedValue([{
-      id: 'post-live', type: 'post', caption: 'Hi', created_at: '2026-10-04T12:00:00.000Z',
-      author_id: 'profile-bob', author_username: 'bob', media_url: 'https://cdn.example/a.jpg',
-      like_count: 1, comment_count: 0, is_liked: true, is_bookmarked: false,
-    }]);
-    const page = await readSocialFeed(input, () => {});
-    expect(state.feed).toHaveBeenCalledWith('get_posts_with_counts', expect.objectContaining({ p_offset: 0, p_limit: 15 }));
-    expect(page.posts[0]).toMatchObject({ id: 'post-live', caption: 'Hello', media_url: '', author: { username: 'bob' }, is_liked: true, reaction_type: 'like' });
-    expect(state.invoke).toHaveBeenLastCalledWith('readSocialPostPreviews', { expectedOwnerUid: 'alice', expectedProfileId: 'profile-alice', postIds: ['post-live'] });
-    expect(page.nextCursor).toBeNull();
-  });
-  it.each(['local', 'following', 'personalized'] as const)('never substitutes the general timeline for %s', async feed => {
-    state.invoke.mockResolvedValue({ error: { name: 'not-found' } });
-    await expect(readSocialFeed({ ...input, feed, ...(feed === 'local' ? { area: { lat: 41.9, lng: -87.6 } } : {}) }, () => {})).rejects.toThrow('temporarily unavailable');
-    expect(state.feed).not.toHaveBeenCalled();
-  });
-  it.each(['permission-denied', 'unauthenticated', 'invalid-argument', 'unavailable'])('never falls back on %s even when the message mentions 404', async code => {
-    state.invoke.mockResolvedValue({ error: { code, message: '404 profile not found' } });
+  it.each(['not-found', 'permission-denied', 'unauthenticated', 'invalid-argument', 'unavailable'])('never uses raw candidates when reader fails: %s', async code => {
+    state.invoke.mockResolvedValue({ error: { code, message: 'Feed unavailable' } });
     await expect(readSocialFeed(input, () => {})).rejects.toMatchObject({ code });
-    expect(state.feed).not.toHaveBeenCalled();
+    expect(state.feed).not.toHaveBeenCalled(); expect(state.invoke).toHaveBeenCalledTimes(1);
   });
-  it('does not display a candidate rejected by current audience checks', async () => {
-    state.feed.mockResolvedValue([{ id: 'private', author_id: 'bob', caption: 'Private snapshot', media_url: 'https://example.test/private.jpg' }]);
-    state.invoke.mockResolvedValueOnce({ error: { name: 'not-found' } }).mockResolvedValueOnce({ data: { ownerUid: 'alice', viewerProfileId: 'profile-alice', requestedPostIds: ['private'], posts: [] } });
-    expect(await readSocialFeed(input, () => {})).toEqual({ posts: [], nextCursor: null });
-  });
-  it('does not display raw candidates when preview admission is also unavailable', async () => {
-    state.feed.mockResolvedValue([{ id: 'private', author_id: 'bob', caption: 'Private snapshot' }]);
-    state.invoke.mockResolvedValue({ error: { name: 'not-found', message: 'Not deployed' } });
-    await expect(readSocialFeed(input, () => {})).rejects.toThrow('Not deployed');
-    expect(state.invoke).toHaveBeenCalledTimes(2);
-  });
-  it('finishes admitted legacy pagination without sending its offset to the primary reader', async () => {
-    const { reactionType: _reaction, isBookmarked: _saved, ...approved } = post;
-    state.feed.mockResolvedValue([{ id: 'post-one', author_id: 'profile-bob', caption: 'Old caption' }]);
-    state.invoke.mockResolvedValue({ data: { ownerUid: 'alice', viewerProfileId: 'profile-alice', requestedPostIds: ['post-one'], posts: [approved] } });
-    const result = await readSocialFeed({ ...input, cursor: 'c:15' }, () => {});
-    expect(state.feed).toHaveBeenCalledWith('get_posts_with_counts', expect.objectContaining({ p_offset: 15 }));
-    expect(state.invoke).toHaveBeenCalledTimes(1);
-    expect(state.invoke).toHaveBeenCalledWith('readSocialPostPreviews', expect.any(Object));
-    expect(result.posts[0].caption).toBe('Hello');
+  it('starts the visible lease before transport, so slow reads do not extend access', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1000);
+    state.invoke.mockImplementation(async () => { now.mockReturnValue(15000); return { data: response() }; });
+    expect((await readSocialFeed(input, () => {})).leaseUntil).toBe(31000); now.mockRestore();
   });
   it('denies before transport and after an account changes in flight', async () => {
     const stale = () => { throw new Error('Account changed'); };

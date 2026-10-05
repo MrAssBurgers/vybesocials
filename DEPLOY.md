@@ -33,6 +33,17 @@ Publishing requires access to the appropriate project. Verify current access; do
 
 This follow-up also repairs existing sound uploads (`uploadSound`, `readSoundLibrary`), comments (`readPostComments`, `readPostCommentCounts`, `readCommentContext`, `managePostComment`) and DNA Apply/Undo (`dnaAutopilot`, `dnaAutopilotRevert`). Review their shared rules and named indexes together: public sound proof listing indexes, comments by parent/time, the existing DNA history index, `_sound_library_cursors.expireAt` and `_comment_cursors.expires_at` TTL policies. Keep private challenge, receipt, plan and cursor namespaces denied. Historical unproven comments/sounds are not automatically attested. Source-object/orphan retention and actual provider/native behavior need operational validation before production certification. No preview fixture or local mail sink belongs in a release.
 
+## Pending existing-feature stability resources (2026-10-04)
+
+No production deployment was performed for this checkpoint. Review these exact changed exports and their matching client before any rollout:
+
+- Checked post reads: `readSocialPostList`, `readSocialFeed`, `readSocialPostPreviews`, `getRankedFeed`, `getRecommendations`, `calculateFeedRanking`, `sharePreview`, `mcp`, and `sitemapDynamic`. Broad signed-in raw post reads are now denied; only canonical owners and staff retain raw read access. Deploy the checked readers and required indexes before activating the matching rules/client. Older raw-reader clients are incompatible. Current audience/block/deletion checks do not prove historical authorship; the old caller-writable author fields require a separate migration.
+- Saved original audio: `manageSavedSounds` plus the changed `readSoundLibrary`/`uploadSound` module. Deploy the `_saved_sound_refs` owner/active/name index and matching private rules; old direct `user_saved_sounds` access is denied. See [sound contracts](docs/SOUND_UPLOADS.md).
+- Account controls: `manageSignInPreferences`, `authSessionRevoke`, `manageNotificationPreferences`, and `muteSmartPings`. Matching rules, session/history indexes, and receipt/limit TTLs are required. See [account contracts](docs/ACCOUNT_SETTINGS_STABILITY.md). This does not lift the `auth2faRequest` deployment restriction or establish server-enforced MFA.
+- Notification delivery dependencies: `sendPushNotification`, `sendBriefNotification`, `onDmMessageCreated`, `onConversationMessageCreated`, `onCallCreated`, `onSocialNotificationCreated`, `smartBriefPings`, and `smartPingDispatcher`. Each uses the shared checked preference authority; deploy together with the canonical settings endpoint. No real push/provider delivery was exercised during local QA.
+
+Review the named indexes in `firestore.indexes.json`, including profile/sound/filter post ordering, bookmarks, tagged posts, pins, saved sounds, sessions and login history. New TTL fields are `_social_post_list_cursors.expires_at` and `expireAt` on `_notification_preference_requests`, `_sign_in_preference_receipts`, `_sign_in_preference_limits`, `_auth_session_revocations`, and `_auth_session_revoke_limits`. Expiration is checked before managed cleanup. Preserve earlier pending resources and private namespaces. Do not deploy the local wrapper, fixtures, or emulator configuration. Do not use a broad Functions deploy.
+
 ## Offline strategy (Despia Native default)
 
 VYBE defaults to **Despia local server** (`@despia/local`) so Offline Support → **Native** works. The binary hydrates from `vybehub.app`, then boots from on-device `http://localhost`.

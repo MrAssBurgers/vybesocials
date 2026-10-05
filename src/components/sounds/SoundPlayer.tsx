@@ -1,3 +1,4 @@
+import { SaveSoundButton } from './SaveSoundButton';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Play, Pause, Heart, Share2, Camera, Volume2, VolumeX } from 'lucide-react';
@@ -176,13 +177,7 @@ export function SoundPlayer({ soundId, onClose, onUse, className }: SoundPlayerP
                 </div>
 
                 <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                  >
-                    <Heart className="h-4 w-4" />
-                  </Button>
+                  <SaveSoundButton soundId={sound.sound_id} saved={sound.is_saved} />
 
                   <Button
                     variant="ghost"

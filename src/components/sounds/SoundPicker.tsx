@@ -31,7 +31,8 @@ export const SoundPicker = memo(function SoundPicker({
   // Query hooks
   const { data: trendingSounds, isLoading: loadingTrending } = useTrendingSounds();
   const { data: newSounds, isLoading: loadingNew } = useNewSounds();
-  const { data: savedSounds, isLoading: loadingSaved } = useSavedSounds();
+  const savedQuery = useSavedSounds();
+  const { data: savedSounds, isLoading: loadingSaved } = savedQuery;
 
   const handleSoundSelect = useCallback((sound: Sound) => {
     onSelectSound(sound);
@@ -189,7 +190,8 @@ export const SoundPicker = memo(function SoundPicker({
 
               <TabsContent value="saved" className="h-full m-0">
                 <ScrollArea className="h-full">
-                  {renderSoundGrid(savedSounds || [], loadingSaved)}
+                  {savedQuery.isError ? <div role="alert" className="p-4">Saved sounds could not be loaded.<Button onClick={() => void savedQuery.refetch()}>Retry saved sounds</Button></div> : <>{renderSoundGrid(savedSounds || [], loadingSaved)}{savedQuery.entries?.some(entry => !entry.sound) && <p className="p-4 text-sm">Some saved references are unavailable. Open Sounds to review or remove them.</p>}</>}
+                  {savedQuery.hasNextPage && <Button disabled={savedQuery.isFetchingNextPage} onClick={() => void savedQuery.fetchNextPage()}>Load more saved sounds</Button>}
                 </ScrollArea>
               </TabsContent>
             </div>

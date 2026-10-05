@@ -61,7 +61,7 @@ function rowToPost(row: Record<string, unknown>): Post | null {
  * Legacy discovery candidates only. The caller must obtain current server
  * admission before displaying content; this query does not enforce audiences.
  */
-export async function readClientSocialFeed(input: SocialFeedInput, guard: () => void): Promise<SocialFeedPage> {
+export async function readClientSocialFeed(input: SocialFeedInput, guard: () => void): Promise<Omit<SocialFeedPage, 'leaseUntil'>> {
   guard();
   // The legacy query has no trustworthy locality proof, current follow
   // admission or personalized ranking. Do not relabel its general timeline.

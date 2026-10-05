@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef } from 'react';
 import { Bell, Megaphone, BellRing, Smartphone, MessageSquare, Phone, Sparkles, Eye, Heart, MessageCircle, UserPlus, Users } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,8 @@ import { parseEdgeInvokeResult, pushDeliveryErrorMessage } from '@/lib/edgeFunct
 import { haptics } from '@/lib/haptics';
 import { useNotificationPreferences, useUpdateNotificationPreference } from '@/hooks/useNotificationPreferences';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
-import { useQueryClient } from '@tanstack/react-query';
+import { tokenAccountGuard } from '@/lib/tokenMarketplaceService';
+import type { NotificationBooleanKey } from '@/lib/notificationPreferenceService';
 import {
   SettingsSectionCard,
   SettingsPanel,
@@ -19,10 +21,13 @@ import {
 } from './SettingsUI';
 
 export function NotificationsSection() {
-  const { profile } = useAuth();
-  const { data: prefs } = useNotificationPreferences();
+  const { user, profile } = useAuth();
+  const preferenceQuery = useNotificationPreferences();
+  const { data: prefs, revision } = preferenceQuery;
   const updatePref = useUpdateNotificationPreference();
-  const queryClient = useQueryClient();
+  const context = useMemo(() => ({ active: true }), [user?.id, profile?.id]);
+  const contextRef = useRef(context); contextRef.current = context;
+  useEffect(() => { context.active = true; return () => { context.active = false; }; }, [context]);
   const {
     isSupported: pushSupported,
     isSubscribed: pushSubscribed,
@@ -33,20 +38,22 @@ export function NotificationsSection() {
   } = usePushNotifications();
 
   const handleToggle = async (key: string, value: boolean) => {
-    haptics.tap();
-    updatePref.mutate({ key: key as never, value });
-
-    if (!value && key === 'announcements_enabled' && profile?.id) {
-      await db
-        .from('notifications')
-        .delete()
-        .eq('user_id', profile.id)
-        .eq('type', 'announcement')
-        .eq('read', false);
-
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
-      toast.success('Announcement notifications cleared');
+    if (!prefs || !revision || updatePref.isPending) return;
+    const accountGuard = tokenAccountGuard(user?.id);
+    const current = () => {
+      try { accountGuard(); return context.active && contextRef.current === context; } catch { return false; }
+    };
+    try {
+      haptics.tap();
+      const saved = await updatePref.mutateAsync({ key: key as NotificationBooleanKey, value, revision });
+      if (!current()) return;
+      if (saved.preferences[key as NotificationBooleanKey] !== value) {
+        toast.info('A newer choice is already saved. Your settings have been refreshed.');
+      } else toast.success('Notification preference saved');
+    } catch (error) {
+      if (!current()) return;
+      toast.error(error instanceof Error ? error.message : 'Could not save this preference. Please retry.');
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'aborted') void preferenceQuery.refetch();
     }
   };
 
@@ -88,11 +95,8 @@ export function NotificationsSection() {
                       haptics.tap();
                       if (isDespiaRuntime() && profile?.id) {
                         const sent = fireDespiaTestPushInstant(profile.id);
-                        toast.success(
-                          sent
-                            ? 'Test push sent — check your lock screen!'
-                            : 'Could not send test push on this device.',
-                        );
+                        if (sent) toast.info('Test push requested. Check your device for the notification.');
+                        else toast.error('Could not request a test push on this device.');
                         return;
                       }
 
@@ -118,7 +122,7 @@ export function NotificationsSection() {
                         if (result.error && !payload?.success && !(payload?.ok === true && (payload?.sent as number) > 0)) {
                           throw new Error(errorMessage || result.error.message);
                         }
-                        toast.success('Test push sent — check your lock screen!');
+                        toast.success('Test push accepted by the delivery service. Check your device.');
                       } catch (e: unknown) {
                         const msg = e instanceof Error ? e.message : 'Could not send test push';
                         toast.error(msg);
@@ -163,10 +167,18 @@ export function NotificationsSection() {
         )}
       </SettingsSectionCard>
 
+      {!prefs ? (
+        <SettingsSectionCard icon={BellRing} title="Notification preferences">
+          <p role={preferenceQuery.isError ? 'alert' : 'status'} className="text-sm text-muted-foreground">
+            {preferenceQuery.isError ? 'Could not load your saved notification preferences.' : 'Loading your notification preferences…'}
+          </p>
+          {preferenceQuery.isError && <Button className="mt-3 rounded-full" variant="outline" onClick={() => void preferenceQuery.refetch()}>Retry notification preferences</Button>}
+        </SettingsSectionCard>
+      ) : <>
       <SettingsSectionCard
         icon={BellRing}
-        title="In-App Notifications"
-        description="Choose what notifications you want to receive while using the app"
+        title="Push alert preferences"
+        description="Choose which push alerts you receive. Existing notifications stay in your inbox."
         delay={0.05}
       >
         <SettingsPanel className="space-y-0">
@@ -205,10 +217,10 @@ export function NotificationsSection() {
           <SettingsToggleRow
             icon={Sparkles}
             title="Stories"
-            description="Story likes and views"
+            description="Story push alerts are not available yet. Your saved choice is retained."
             checked={prefs?.stories_enabled ?? true}
             onCheckedChange={(checked) => handleToggle('stories_enabled', checked)}
-            disabled={updatePref.isPending}
+            disabled
           />
           <SettingsToggleRow
             icon={Heart}
@@ -249,26 +261,28 @@ export function NotificationsSection() {
         icon={Sparkles}
         iconClassName="from-violet-500/20 to-primary/10 ring-violet-500/25"
         title="Smart Pings"
-        description="Clean, contextual alerts from your Daily Brief and nearby activity. Capped daily so it never feels spammy."
+        description="Choose alerts from your Daily Brief and map activity."
         delay={0.08}
       >
         <SettingsPanel className="space-y-0">
           {[
-            { key: 'nearby_enabled', label: 'Happenings near you', desc: 'Posts and moments within your radius' },
-            { key: 'friend_activity_enabled', label: 'Friend activity', desc: 'When friends post or go live nearby' },
-            { key: 'trending_local_enabled', label: 'Trending locally', desc: "What's blowing up around you" },
+            { key: 'nearby_enabled', label: 'Map activity', desc: 'Map waves and meetup invitations' },
+            { key: 'friend_activity_enabled', label: 'Friend activity', desc: 'Push alerts are not available yet. Your saved choice is retained.', unavailable: true },
+            { key: 'trending_local_enabled', label: 'Trending locally', desc: 'Push alerts are not available yet. Your saved choice is retained.', unavailable: true },
             { key: 'brief_pings_enabled', label: 'Daily Brief stories', desc: 'Top story alerts based on your interests' },
-          ].map(({ key, label, desc }) => (
+          ].map(({ key, label, desc, unavailable }) => (
             <SettingsToggleRow
               key={key}
               title={label}
               description={desc}
               checked={(prefs as unknown as Record<string, boolean | undefined>)?.[key] ?? true}
               onCheckedChange={(v) => handleToggle(key, v)}
+              disabled={updatePref.isPending || unavailable}
             />
           ))}
         </SettingsPanel>
       </SettingsSectionCard>
+      </>}
 
       <SettingsSectionCard icon={Bell} title="Notification Status" delay={0.1}>
         <div className="space-y-3">
@@ -283,9 +297,9 @@ export function NotificationsSection() {
           />
           <SettingsStatusCard
             active={!!prefs?.announcements_enabled}
-            title={`Announcements: ${prefs?.announcements_enabled ? 'Enabled' : 'Disabled'}`}
+            title={`Announcements: ${!prefs ? 'Not loaded' : prefs.announcements_enabled ? 'Enabled' : 'Disabled'}`}
             description={
-              prefs?.announcements_enabled
+              !prefs ? 'Load your saved preferences to view this setting.' : prefs.announcements_enabled
                 ? 'You will receive important updates'
                 : 'You may miss important announcements'
             }

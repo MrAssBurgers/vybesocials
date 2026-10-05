@@ -1,3 +1,4 @@
+import { PostListReadStatus } from '@/components/posts/PostListReadStatus';
 import { useState, useMemo, useCallback, useRef, useEffect, memo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ClipsEmptyState } from '@/components/explore/ClipsEmptyState';
@@ -110,6 +111,8 @@ const ExploreTabBar = memo(function ExploreTabBar({
 const BOTTOM_NAV_HEIGHT = 80;
 
 function FullscreenClipsViewer({
+  postControls,
+  hasMore,
   clips,
   startIndex,
   onClose,
@@ -118,6 +121,8 @@ function FullscreenClipsViewer({
   onTabChange,
   isLoading,
 }: {
+  postControls?: React.ReactNode;
+  hasMore?: boolean;
   clips: ClipPost[];
   startIndex: number;
   onClose: () => void;
@@ -250,7 +255,8 @@ function FullscreenClipsViewer({
   if (clips.length === 0) {
     return (
       <main aria-label="Clips viewer" className="clips-empty-screen" style={{ minHeight: '100dvh' }}>
-        <ClipsEmptyState onAction={() => navigate('/upload')} onBrowseVideos={onSwitchToVideos} />
+        {postControls}
+        {hasMore ? <p className="text-center text-muted-foreground">Continue loading to find more clips.</p> : <ClipsEmptyState onAction={() => navigate('/upload')} onBrowseVideos={onSwitchToVideos} />}
         <Button aria-label="Close clips" variant="ghost" size="icon"
           className="absolute left-5 z-30 rounded-full bg-foreground/5 text-foreground/75 hover:bg-foreground/10"
           style={{ top: 'calc(var(--sat, 0px) + 16px)' }} onClick={onClose}>
@@ -262,6 +268,7 @@ function FullscreenClipsViewer({
 
   return (
     <main aria-label="Clips viewer" className="fixed inset-0 z-50 bg-background">
+      <div className="absolute bottom-24 left-1/2 z-[100] -translate-x-1/2">{postControls}</div>
       {/* Close — above clip overlays (MobileShortCard uses z-50) */}
       <Button
         variant="ghost"
@@ -369,6 +376,8 @@ function FullscreenClipsViewer({
 
 // Videos Gallery View
 function VideosGalleryView({
+  postControls,
+  hasMore,
   videos,
   isLoading,
   viewMode,
@@ -383,6 +392,8 @@ function VideosGalleryView({
   trendingCreators,
   trendingTags,
 }: {
+  postControls?: React.ReactNode;
+  hasMore?: boolean;
   videos: ClipPost[];
   isLoading: boolean;
   viewMode: 'clips' | 'videos';
@@ -516,7 +527,8 @@ function VideosGalleryView({
         </AnimatePresence>
 
         {/* Videos Grid */}
-        <ExploreVideosGrid videos={videos} isLoading={isLoading} hasFilters={!!searchQuery.trim() || !!selectedTag || activeCategory !== 'all'} />
+        {postControls}
+        <ExploreVideosGrid hasMore={hasMore} videos={videos} isLoading={isLoading} hasFilters={!!searchQuery.trim() || !!selectedTag || activeCategory !== 'all'} />
       </div>
     </AppLayout>
   );
@@ -567,7 +579,8 @@ export default function ExplorePage() {
   }, [searchParams]);
 
   const selectedTag = searchParams.get('tag');
-  const { data: posts, isLoading, isError, isFetching, refetch } = usePosts();
+  const postQuery = usePosts();
+  const { data: posts, isLoading, isError, isFetching, refetch } = postQuery;
 
   // Compute trending creators from posts
   const trendingCreators = useMemo(() => {
@@ -720,6 +733,8 @@ export default function ExplorePage() {
     }
     return (
       <FullscreenClipsViewer
+        hasMore={postQuery.hasNextPage || postQuery.hasMoreWindow}
+        postControls={<PostListReadStatus query={postQuery} />}
         clips={filteredContent}
         startIndex={0}
         onClose={handleCloseClips}
@@ -751,6 +766,8 @@ export default function ExplorePage() {
 
   return (
     <VideosGalleryView
+      hasMore={postQuery.hasNextPage || postQuery.hasMoreWindow}
+        postControls={<PostListReadStatus query={postQuery} />}
       videos={filteredContent}
       isLoading={isLoading}
       viewMode={viewMode}

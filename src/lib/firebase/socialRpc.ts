@@ -1,3 +1,5 @@
+import { readSocialPostPreviews } from '@/lib/socialFeedService';
+import { tokenAccountGuard } from '@/lib/tokenMarketplaceService';
 import {
   getDocument,
   getDocuments,
@@ -55,17 +57,18 @@ async function rpcGetProfileByUsername(params: Record<string, unknown>) {
 async function rpcIncrementViewCount(params: Record<string, unknown>) {
   const postId = String(params.post_id_param || params.p_post_id || params.post_id || '');
   if (!postId) return null;
-  const post = await getDocument<Record<string, unknown>>('posts', postId);
+  const uid = await currentAuthUid(), profileId = await currentProfileId();
+  if (!uid || !profileId) return null;
+  const guard = tokenAccountGuard(uid);
+  const post = (await readSocialPostPreviews({ expectedOwnerUid: uid, expectedProfileId: profileId, postIds: [postId] }, guard))[0];
   if (!post) return null;
-  const profileId = await currentProfileId();
-  // Firestore intentionally forbids clients from mutating another creator's
-  // post. Until this counter moves server-side, fail quietly instead of
-  // producing repeated permission warnings for every viewed post.
-  if (!profileId || post.author_id !== profileId) {
-    return Number(post.view_count || 0);
-  }
-  const next = Number(post.view_count || 0) + 1;
+  // Clients can increment their own presentation counter only. An admitted
+  // preview is sufficient for non-owner reads; never fetch its raw document.
+  if (post.author.id !== profileId) return post.viewCount;
+  guard();
+  const next = post.viewCount + 1;
   await updateDocument('posts', postId, { view_count: next });
+  guard();
   return next;
 }
 

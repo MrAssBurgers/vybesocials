@@ -1,3 +1,6 @@
+import { readPublicSocialPost } from './_shared/socialFeedAuthority.js';
+import { deliverBriefIfAllowed } from './_shared/briefDelivery.js';
+import { manageNotificationPreferencesFor } from './_shared/notificationPreferenceAuthority.js';
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import { dispatchPushToProfile, dispatchCallPushToProfile, dispatchDmPushToProfile } from './_shared/fcmPush.js';
@@ -420,20 +423,24 @@ export const sendBriefNotification = onCall(
   const uid = requireAuth(request);
   const { title = 'Your daily brief is ready', body = 'Tap to read what\'s new' } =
     (request.data || {}) as { title?: string; body?: string };
-  const result = await dispatchPushToProfile(uid, { title, body, type: 'brief' });
-  return { ok: true, sent: result.sent };
+  const delivery = await deliverBriefIfAllowed(uid, 'brief', () => dispatchPushToProfile(uid, { title, body, type: 'brief' }));
+  return 'skipped' in delivery ? { ok: true, sent: 0, skipped: delivery.skipped } : { ok: true, sent: delivery.result.sent };
 });
 
 /** sitemap-dynamic — public HTTP endpoint serving sitemap.xml. */
 export const sitemapDynamic = onRequest({ cors: true }, async (_req, res) => {
-  const snap = await db.collection('posts').where('visibility', '==', 'public').orderBy('created_at', 'desc').limit(5000).get();
-  const urls = snap.docs.map((d) => `<url><loc>https://vybehub.app/post/${d.id}</loc><lastmod>${new Date((d.data() as any).created_at || Date.now()).toISOString()}</lastmod></url>`).join('');
+  const snap = await db.collection('posts').where('visibility', '==', 'public').orderBy('created_at', 'desc').limit(500).get();
+  const urls: string[] = [];
+  for (let offset = 0; offset < snap.size; offset += 20) {
+    const admitted = await Promise.all(snap.docs.slice(offset, offset + 20).map(doc => readPublicSocialPost(db, doc.id)));
+    for (const post of admitted) if (post) urls.push(`<url><loc>https://vybehub.app/p/${encodeURIComponent(post.id)}</loc><lastmod>${post.createdAt}</lastmod></url>`);
+  }
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 <url><loc>https://vybehub.app/</loc><priority>1.0</priority></url>
-${urls}
+${urls.join('')}
 </urlset>`;
-  res.set('Content-Type', 'application/xml').send(xml);
+  res.set('Cache-Control', 'no-store').set('Content-Type', 'application/xml').send(xml);
 });
 
 /** notify-expiring-streaks — scheduled-ish helper (call via cron later). */
@@ -442,10 +449,9 @@ export const notifyExpiringStreaks = onCall(async (request) => {
   return { notified: 0 };
 });
 
-/** mute-smart-pings — flip user preference. */
+/** mute-smart-pings — explicitly mute brief delivery for one hour. */
 export const muteSmartPings = onCall(async (request) => {
   const uid = requireAuth(request);
-  const { muted } = (request.data || {}) as { muted?: boolean };
-  await db.collection('profiles').doc(uid).set({ smart_pings_muted: !!muted, updated_at: new Date().toISOString() }, { merge: true });
-  return { ok: true };
+  enforceRateLimit(await rateLimit(`notification-preferences:${uid}`, 60, 60));
+  return manageNotificationPreferencesFor(db, uid, { ...(request.data || {}), action: 'muteBrief' });
 });

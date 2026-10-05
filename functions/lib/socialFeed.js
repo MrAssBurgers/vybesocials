@@ -2,6 +2,13 @@ import { onCall } from 'firebase-functions/v2/https';
 import { db, enforceRateLimit, rateLimit, requireAuth } from './_shared/admin.js';
 import { closeFriendAuthorityId } from './_shared/profileAudienceAuthority.js';
 import { normalizeSocialFeedInput, normalizeSocialPostPreviewsInput, readSocialFeedPage, readSocialPostPreviewsPage } from './_shared/socialFeedAuthority.js';
+import { normalizeSocialPostListInput, readSocialPostListPage } from './_shared/socialPostListAuthority.js';
+export const readSocialPostList = onCall({ region: 'us-central1', timeoutSeconds: 60 }, async (request) => {
+    const uid = requireAuth(request);
+    normalizeSocialPostListInput(request.data, uid);
+    enforceRateLimit(await rateLimit(`social-post-list:${closeFriendAuthorityId(uid, 'read')}`, 120, 60));
+    return readSocialPostListPage(db, uid, request.data);
+});
 export const readSocialPostPreviews = onCall({ region: 'us-central1', timeoutSeconds: 60 }, async (request) => {
     const uid = requireAuth(request);
     normalizeSocialPostPreviewsInput(request.data, uid);

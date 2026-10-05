@@ -4,7 +4,7 @@ import { FieldPath, Timestamp } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
-import { resolveIdentity, validAudienceId } from './_shared/profileAudienceAuthority.js';
+import { resolveIdentity, validAudienceId, type AudienceIdentity } from './_shared/profileAudienceAuthority.js';
 import { inspectSound, SOUND_MAX_BYTES, SOUND_TYPES } from './_shared/soundInspection.js';
 
 type Row = Record<string, any>;
@@ -19,7 +19,7 @@ function inputRow(uid: string, raw: unknown): Row {
   if (!validAudienceId(input.expectedProfileId)) throw new HttpsError('invalid-argument', 'A valid profile is required.');
   return input;
 }
-async function actor(database: Firestore, tx: Transaction, uid: string, profileId: string) {
+export async function resolveSoundActor(database: Firestore, tx: Transaction, uid: string, profileId: string) {
   const result = await resolveIdentity(database, tx, uid);
   if (!result || result.uid !== uid || result.profileId !== profileId) throw new HttpsError('failed-precondition', 'Your profile identity changed. Reopen sounds.');
   return result;
@@ -51,7 +51,7 @@ export async function runUploadSound(database: Firestore, uid: string, raw: unkn
       || typeof input.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(input.sha256) || input.publicConsent !== true) throw new HttpsError('invalid-argument', 'Choose valid audio up to 20 MiB and confirm public sharing.');
     const id = hash([uid, input.requestId]), fingerprint = hash([profileId, input.title.trim(), input.tags, input.byteSize, input.contentType, input.sha256, true]);
     return database.runTransaction(async tx => {
-      await actor(database, tx, uid, profileId);
+      await resolveSoundActor(database, tx, uid, profileId);
       const ref = proofRef(database, id), prior = await tx.get(ref), quotaRef = database.doc(`_sound_upload_limits/${uid}`), quota = await tx.get(quotaRef);
       if (prior.exists) {
         const row = prior.data(); if (!validProof(row, id) || row.owner_uid !== uid || row.profile_id !== profileId || row.fingerprint !== fingerprint) throw new HttpsError('already-exists', 'This request was already used for different sound details.');
@@ -72,7 +72,7 @@ export async function runUploadSound(database: Firestore, uid: string, raw: unkn
   if (!validUpload(input.uploadId)) throw new HttpsError('invalid-argument', 'A valid upload is required.');
   const id = input.uploadId, ref = proofRef(database, id), lease = randomUUID();
   const initial = await database.runTransaction(async tx => {
-    await actor(database, tx, uid, profileId);
+    await resolveSoundActor(database, tx, uid, profileId);
     const snap = await tx.get(ref), row = snap.data();
     if (!validProof(row, id) || row.owner_uid !== uid || row.profile_id !== profileId) throw new HttpsError('not-found', 'Sound upload not found.');
     const sound = await tx.get(database.doc(`sounds/${id}`));
@@ -104,7 +104,7 @@ export async function runUploadSound(database: Firestore, uid: string, raw: unkn
     if (!outputMetadata.generation || Number(outputMetadata.size) !== checked.bytes.length || outputMetadata.contentType !== 'audio/wav') throw unavailable();
     const path = candidate, outputGeneration = String(outputMetadata.generation);
     const result = await database.runTransaction(async tx => {
-      const identity = await actor(database, tx, uid, profileId), latest = (await tx.get(ref)).data(), soundRef = database.doc(`sounds/${id}`), sound = await tx.get(soundRef);
+      const identity = await resolveSoundActor(database, tx, uid, profileId), latest = (await tx.get(ref)).data(), soundRef = database.doc(`sounds/${id}`), sound = await tx.get(soundRef);
       if (!validProof(latest, id) || latest.owner_uid !== uid || latest.profile_id !== profileId) throw unavailable();
       if (latest.status === 'published') { if (!publicSound(sound.data(), latest)) throw unavailable(); return latest; }
       if (latest.status !== 'checking' || latest.lease !== lease || latest.expires_at_ms <= Date.now() || sound.exists) throw unavailable();
@@ -127,12 +127,35 @@ export async function runUploadSound(database: Firestore, uid: string, raw: unkn
   }
 }
 
+/** Current sound admission shared by public browsing and saved references. */
+export async function admitSound(database: Firestore, tx: Transaction, viewer: AudienceIdentity, id: string, providedProof?: Row) {
+  if (!validUpload(id)) return null;
+  const proof = providedProof || (await tx.get(proofRef(database, id))).data();
+  const row = (await tx.get(database.doc(`sounds/${id}`))).data();
+  if (!row || !validProof(proof, id) || !publicSound(row, proof)) return null;
+  const owner = await resolveIdentity(database, tx, proof.owner_uid);
+  if (!owner || owner.uid !== proof.owner_uid || owner.profileId !== proof.profile_id) return null;
+  if (owner.uid !== viewer.uid) {
+    const [outgoing, incoming] = await Promise.all([tx.get(database.collection('blocked_users').where('blocker_id', 'in', viewer.aliases).where('blocked_id', 'in', owner.aliases).limit(1)), tx.get(database.collection('blocked_users').where('blocker_id', 'in', owner.aliases).where('blocked_id', 'in', viewer.aliases).limit(1))]);
+    if (!outgoing.empty || !incoming.empty) return null;
+  }
+  if (typeof proof.object_path !== 'string' || !proof.object_path.startsWith(`original-sounds/${proof.owner_uid}/${id}/`) || typeof proof.download_token !== 'string' || !/^[a-z0-9-]{36}$/.test(proof.download_token)) return null;
+  const bucket = getStorage().bucket().name;
+  const host = process.env.FIREBASE_STORAGE_EMULATOR_HOST ? `http://${process.env.FIREBASE_STORAGE_EMULATOR_HOST}` : 'https://firebasestorage.googleapis.com';
+  const url = `${host}/v0/b/${bucket}/o/${encodeURIComponent(proof.object_path)}?alt=media&token=${encodeURIComponent(proof.download_token)}`;
+  const saved = (await tx.get(database.doc(`_saved_sound_refs/${hash([viewer.uid, id])}`))).data();
+  return { sound_id: id, title: row.title, artist: row.artist, uploader_id: row.uploader_id, duration: row.duration, audio_url: url, preview_url: url,
+    tags: row.tags, usage_count: 0, trend_score: 0, is_original: true, is_extracted: false, is_approved: true, is_explicit: false, moderation_status: row.moderation_status,
+    is_saved: saved?.version === 1 && saved.owner_uid === viewer.uid && saved.profile_id === viewer.profileId && saved.sound_id === id && saved.active === true,
+    created_at: row.created_at, updated_at: row.updated_at, uploader_profile: { id: owner.profileId, display_name: row.artist, avatar_url: null } };
+}
+
 export async function runReadSoundLibrary(database: Firestore, uid: string, raw: unknown) {
   const input = inputRow(uid, raw); keys(input, ['kind', 'cursor', 'soundId']);
   if (!['list', 'get'].includes(input.action) || (input.action === 'get' && (!validUpload(input.soundId) || input.kind !== undefined || input.cursor !== undefined))
     || (input.action === 'list' && (!['new', 'trending', 'mine'].includes(input.kind) || input.soundId !== undefined || (input.cursor !== undefined && (typeof input.cursor !== 'string' || !/^[a-f0-9]{32}$/.test(input.cursor)))))) throw new HttpsError('invalid-argument', 'Invalid sound selection.');
   return database.runTransaction(async tx => {
-    const viewer = await actor(database, tx, uid, input.expectedProfileId);
+    const viewer = await resolveSoundActor(database, tx, uid, input.expectedProfileId);
     let candidates: FirebaseFirestore.DocumentSnapshot[];
     if (input.action === 'get') candidates = [await tx.get(proofRef(database, input.soundId))];
     else {
@@ -148,20 +171,8 @@ export async function runReadSoundLibrary(database: Firestore, uid: string, raw:
     const sounds = [];
     for (const document of candidates) {
       if (!document.exists || !validUpload(document.id)) continue;
-      const proof = document.data(), row = (await tx.get(database.doc(`sounds/${document.id}`))).data();
-      if (!row || !validProof(proof, document.id) || !publicSound(row, proof) || (input.kind === 'mine' && proof.owner_uid !== uid)) continue;
-      const owner = await resolveIdentity(database, tx, proof.owner_uid); if (!owner || owner.uid !== proof.owner_uid || owner.profileId !== proof.profile_id) continue;
-      if (owner.uid !== uid) {
-        const [outgoing, incoming] = await Promise.all([tx.get(database.collection('blocked_users').where('blocker_id', 'in', viewer.aliases).where('blocked_id', 'in', owner.aliases).limit(1)), tx.get(database.collection('blocked_users').where('blocker_id', 'in', owner.aliases).where('blocked_id', 'in', viewer.aliases).limit(1))]);
-        if (!outgoing.empty || !incoming.empty) continue;
-      }
-      if (typeof proof.object_path !== 'string' || !proof.object_path.startsWith(`original-sounds/${proof.owner_uid}/${document.id}/`) || typeof proof.download_token !== 'string' || !/^[a-z0-9-]{36}$/.test(proof.download_token)) continue;
-      const bucket = getStorage().bucket().name;
-      const host = process.env.FIREBASE_STORAGE_EMULATOR_HOST ? `http://${process.env.FIREBASE_STORAGE_EMULATOR_HOST}` : 'https://firebasestorage.googleapis.com';
-      const url = `${host}/v0/b/${bucket}/o/${encodeURIComponent(proof.object_path)}?alt=media&token=${encodeURIComponent(proof.download_token)}`;
-      sounds.push({ sound_id: document.id, title: row.title, artist: row.artist, uploader_id: row.uploader_id, duration: row.duration, audio_url: url, preview_url: url,
-        tags: row.tags, usage_count: 0, trend_score: 0, is_original: true, is_extracted: false, is_approved: true, is_explicit: false, moderation_status: row.moderation_status,
-        created_at: row.created_at, updated_at: row.updated_at, uploader_profile: { id: owner.profileId, display_name: row.artist, avatar_url: null } });
+      const sound = await admitSound(database, tx, viewer, document.id, document.data());
+      if (sound && (input.kind !== 'mine' || sound.uploader_id === viewer.profileId)) sounds.push(sound);
     }
     let nextCursor: string | null = null;
     if (input.action === 'list' && candidates.length === 25) {

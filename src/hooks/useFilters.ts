@@ -1,3 +1,4 @@
+import { useSocialPostList } from './useSocialPostList';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
@@ -219,18 +220,5 @@ export function useCreateFilter() {
 }
 
 export function useFilterPosts(filterId: string | null) {
-  return useQuery({
-    queryKey: ['filter-posts', filterId],
-    enabled: !!filterId,
-    queryFn: async () => {
-      const { data, error } = await db
-        .from('posts')
-        .select('*, author:profiles!posts_author_id_fkey(id, username, avatar_url, display_name)')
-        .eq('filter_id', filterId!)
-        .order('created_at', { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return data || [];
-    },
-  });
+  return useSocialPostList({ scope: 'filter', targetId: filterId ?? undefined }, !!filterId);
 }

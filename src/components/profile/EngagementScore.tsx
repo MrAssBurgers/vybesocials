@@ -7,6 +7,7 @@ interface EngagementScoreProps {
   followerCount: number;
   followingCount: number;
   className?: string;
+  available?: boolean;
 }
 
 /**
@@ -43,7 +44,8 @@ function getScoreLabel(score: number): { label: string; color: string; icon: typ
   return { label: 'New', color: 'text-muted-foreground', icon: MessageCircle };
 }
 
-export function EngagementScore({ postCount, followerCount, followingCount, className }: EngagementScoreProps) {
+export function EngagementScore({ postCount, followerCount, followingCount, className, available = true }: EngagementScoreProps) {
+  if (!available) return <span className={cn('text-xs text-muted-foreground', className)}>Engagement score unavailable</span>;
   const score = calculateScore(postCount, followerCount, followingCount);
   const { label, color, icon: Icon } = getScoreLabel(score);
 

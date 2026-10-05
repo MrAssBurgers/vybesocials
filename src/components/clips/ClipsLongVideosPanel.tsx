@@ -1,3 +1,4 @@
+import { PostListReadStatus } from '@/components/posts/PostListReadStatus';
 import { memo, useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, Clock, Users, Sparkles } from 'lucide-react';
@@ -100,7 +101,7 @@ export const ClipsLongVideosPanel = memo(function ClipsLongVideosPanel() {
         <div className="px-4 pt-8"><FeedFailureNotice label="videos" retrying={activeQuery.isFetching} onRetry={() => { void activeQuery.refetch(); }} /></div>
       ) : videos.length === 0 ? (
         <div className="px-4 pt-8">
-          <FeedEmptyPage hasMore={hasNextPage} loading={isFetchingNextPage} onLoadMore={() => { void fetchNextPage(); }}>
+          <FeedEmptyPage hasMore={hasNextPage || activeQuery.hasMoreWindow} loading={isFetchingNextPage} onLoadMore={() => { void (activeQuery.hasMoreWindow ? activeQuery.advanceWindow() : fetchNextPage()); }}>
           <EmptyState
             emoji="📺"
             title="No long videos yet"
@@ -120,7 +121,7 @@ export const ClipsLongVideosPanel = memo(function ClipsLongVideosPanel() {
             <VideoCard key={post.id} post={post} />
           ))}
           {activeQuery.isError ? <div className="col-span-full"><FeedFailureNotice label="more videos" retrying={activeQuery.isFetching} onRetry={() => { void activeQuery.refetch(); }} /></div>
-          : hasNextPage && !canAutoContinue ? <div className="col-span-full"><FeedEmptyPage hasMore loading={isFetchingNextPage} onLoadMore={() => { void fetchNextPage(); }}>{null}</FeedEmptyPage></div>
+          : hasNextPage && !canAutoContinue ? <div className="col-span-full"><FeedEmptyPage hasMore loading={isFetchingNextPage} onLoadMore={() => { void (activeQuery.hasMoreWindow ? activeQuery.advanceWindow() : fetchNextPage()); }}>{null}</FeedEmptyPage></div>
           : hasNextPage && (
             <div ref={loadMoreRef} className="col-span-full h-12 flex items-center justify-center">
               {isFetchingNextPage && (
@@ -130,6 +131,7 @@ export const ClipsLongVideosPanel = memo(function ClipsLongVideosPanel() {
           )}
         </div>
       )}
+      {(activeQuery.hasMoreWindow || activeQuery.hasPreviousWindow) && <PostListReadStatus query={activeQuery} />}
     </div>
   );
 });

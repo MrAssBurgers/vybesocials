@@ -1,3 +1,5 @@
+import { PostListReadStatus } from '@/components/posts/PostListReadStatus';
+import { useRemoveSavedPost } from '@/hooks/useSavedPosts';
 import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -65,11 +67,14 @@ export default function ProfilePage() {
           is_following: false,
         } as NonNullable<typeof profileData>)
       : undefined);
-  const { data: posts } = usePosts(undefined, profile?.id, { enabled: !!profile?.id });
-  const { data: savedPosts } = useSavedPosts();
+  const [activeTab, setActiveTab] = useState('posts');
+  const postQuery = usePosts(undefined, profile?.id, { enabled: !!profile?.id && (activeTab === 'posts' || activeTab === 'shorts') });
+  const { data: posts } = postQuery;
+  const savedQuery = useSavedPosts(activeTab === 'saved' && profile?.id === currentProfile?.id);
+  const { data: savedPosts } = savedQuery;
+  const removeSavedPost = useRemoveSavedPost();
   const updateAvatar = useUpdateAvatar();
   const markConversationReadByUser = useMarkConversationReadByUser();
-  const [activeTab, setActiveTab] = useState('posts');
   const { data: profileRole } = useUserRoleById(profile?.id);
   const isModOrAdmin = useIsModOrAdmin();
   const [warnDialogOpen, setWarnDialogOpen] = useState(false);
@@ -303,6 +308,7 @@ export default function ProfilePage() {
           userId={profile.id}
           isOwnProfile={isOwnProfile}
           postCount={profile.post_count || 0}
+          postCountExact={profile.post_count_exact === true}
           followerCount={liveFollowerCount || 0}
           followingCount={profile.following_count || 0}
         />
@@ -385,14 +391,14 @@ export default function ProfilePage() {
                   ))}
                 </div>
               ) : (
-                <EmptyState emoji="📷" title="No posts yet" />
+                !postQuery.isLoading && !postQuery.isError && !postQuery.hasNextPage && !postQuery.hasMoreWindow && <EmptyState emoji="📷" title="No posts yet" />
               )}
             </motion.div>
           )}
 
           {activeTab === 'shorts' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
-              <ClipsGrid clips={clipsForGrid} />
+              {(clipsForGrid.length > 0 || (!postQuery.isLoading && !postQuery.isError && !postQuery.hasNextPage && !postQuery.hasMoreWindow)) && <ClipsGrid clips={clipsForGrid} />}
             </motion.div>
           )}
 
@@ -442,10 +448,19 @@ export default function ProfilePage() {
                   ))}
                 </div>
               ) : (
-                <EmptyState emoji="🔖" title="No saved posts yet" description="Posts you save will appear here" />
+                !savedQuery.isLoading && !savedQuery.isError && !savedQuery.hasNextPage && !savedQuery.hasMoreWindow && !savedQuery.unavailableSavedPostIds.length && <EmptyState emoji="🔖" title="No saved posts yet" description="Posts you save will appear here" />
               )}
             </motion.div>
           )}
+          {(activeTab === 'posts' || activeTab === 'shorts') && <PostListReadStatus query={postQuery} />}
+          {activeTab === 'saved' && isOwnProfile && <>
+            {savedQuery.unavailableSavedPostIds.map(id => <div key={id} className="my-2 flex items-center justify-between rounded-xl border p-3 text-sm">
+              <span>Saved post is unavailable</span><Button variant="ghost" disabled={removeSavedPost.isPending} onClick={() => removeSavedPost.mutate(id)}>Remove saved post</Button>
+            </div>)}
+            {removeSavedPost.isError && <p role="alert" className="text-sm text-destructive">Could not remove this saved post. Retry.</p>}
+            <PostListReadStatus query={savedQuery} />
+          </>}
+
         </div>
 
         {/* Moderator dialogs */}

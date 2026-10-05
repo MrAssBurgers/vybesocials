@@ -1,3 +1,4 @@
+import { SaveSoundButton } from './SaveSoundButton';
 import { memo } from 'react';
 import { motion } from 'framer-motion';
 import { Play, Pause, Heart, Users, TrendingUp, Music2 } from 'lucide-react';
@@ -122,6 +123,7 @@ export const SoundCard = memo(function SoundCard({
             </div>
           )}
 
+          <SaveSoundButton soundId={sound.sound_id} saved={sound.is_saved} />
           {/* Action Button */}
           <Button
             size="sm"

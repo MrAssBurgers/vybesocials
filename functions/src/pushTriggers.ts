@@ -7,8 +7,8 @@ import {
   isPushAllowedForType,
   loadNotificationPreferences,
   sanitizeDmPushBody,
-  type NotificationPrefKey,
 } from './_shared/pushPreferences.js';
+import { readDeliveryNotificationContext } from './_shared/notificationPreferenceAuthority.js';
 import { logPushDelivery, shouldSkipRecipientPush } from './_shared/smartPushGate.js';
 import { isRetiredUpgradeNotice } from './_shared/retiredUpgradeNotice.js';
 
@@ -360,32 +360,6 @@ const SOCIAL_PUSH_TYPES = new Set([
 
 const SKIP_BELL_PUSH_TYPES = new Set(['message', 'dm', 'group_message', 'missed_call']);
 
-function prefKeyForNotificationType(type: string): NotificationPrefKey | null {
-  switch (type) {
-    case 'like':
-      return 'likes_enabled';
-    case 'comment':
-      return 'comments_enabled';
-    case 'follow':
-      return 'follows_enabled';
-    case 'friend_request':
-    case 'friend_accepted':
-    case 'friend_declined':
-      return 'friend_requests_enabled';
-    case 'mention':
-      return 'mentions_enabled';
-    case 'announcement':
-      return 'announcements_enabled';
-    case 'map_wave':
-    case 'map_meetup':
-      return 'nearby_enabled';
-    case 'smart_ping':
-      return 'brief_pings_enabled';
-    default:
-      return null;
-  }
-}
-
 function routeForNotificationDoc(n: Record<string, unknown>, type: string): string {
   const deep = asString(n.deep_link) ?? asString(n.url);
   if (deep) {
@@ -468,12 +442,12 @@ async function notifySocialPush(notification: Record<string, unknown>, notificat
   const url = routeForNotificationDoc(notification, type);
   const postId = asString(notification.post_id);
 
-  const prefKey = prefKeyForNotificationType(type);
-  const prefs = await loadNotificationPreferences(userId);
-  if (prefKey && prefs && prefs[prefKey] === false) return;
+  const recipient = await readDeliveryNotificationContext(db, userId);
+  const prefs = recipient.preferences;
+  if (!isPushAllowedForType(type, prefs)) return;
   if (isBlockedByQuietHours(type, prefs)) return;
 
-  await dispatchDmPushToProfile(userId, {
+  await dispatchDmPushToProfile(recipient.profileId, {
     title,
     body,
     url,
@@ -488,6 +462,7 @@ async function notifySocialPush(notification: Record<string, unknown>, notificat
       actorId: actorId || '',
       actorName: actorName || '',
       notificationId,
+      ...(type === 'smart_ping' ? { recipientUid: recipient.ownerUid } : {}),
     },
   });
 }

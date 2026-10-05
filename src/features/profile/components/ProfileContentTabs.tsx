@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Play } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { getDocumentFromServer, getDocumentsFromServer, where, firestoreLimit } from '@/lib/firebase/firestoreDb';
-import { useProfileSectionQuery } from '../hooks/useProfileSectionQuery';
+import { useSocialPostList } from '@/hooks/useSocialPostList';
+import { PostListReadStatus } from '@/components/posts/PostListReadStatus';
 import { Skeleton } from '@/components/ui/skeleton';
 import { VideoThumbnail } from '@/components/ui/VideoThumbnail';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -30,28 +30,9 @@ export function ProfileContentTabs({
   const reduceMotion = useReducedMotion();
   const [activeTab, setActiveTab] = useState<ContentTab>('posts');
   const allowed = { posts: canViewPosts, clips: canViewClips, tagged: canViewTagged };
-  const content = useProfileSectionQuery(['content', profileId, activeTab], !!profileId && allowed[activeTab], async guard => {
-    if (activeTab === 'tagged') {
-      const tags = await getDocumentsFromServer('post_user_tags', [where('tagged_user_id', '==', profileId), firestoreLimit(60)]); guard();
-      const ids = [...new Set(tags.map(row => row.post_id).filter((id): id is string => typeof id === 'string' && !id.includes('/')))];
-      const posts = [];
-      for (const id of ids) { guard(); const row = await getDocumentFromServer('posts', id); guard(); if (row) posts.push(row); }
-      return posts;
-    }
-    const profile = await getDocumentFromServer('profiles', profileId); guard();
-    const aliases = [...new Set([profileId, ...(typeof profile?.user_id === 'string' ? [profile.user_id] : [])])];
-    const types = activeTab === 'clips' ? ['short'] : ['post', 'video'];
-    const rows = [];
-    for (const type of types) {
-      guard();
-      rows.push(...await getDocumentsFromServer('posts', [where('author_id', 'in', aliases), where('type', '==', type), firestoreLimit(60)])); guard();
-    }
-    return rows;
-  });
-  const allPosts = useMemo(() => (content.data || []).filter(row => row.is_draft !== true && !row.deleted_at && row.status !== 'deleted' && row.status !== 'draft')
-    .map(row => ({ id: String(row.id), post_id: String(row.id), type: String(row.type), caption: typeof row.caption === 'string' ? row.caption : '',
-      media_url: typeof row.media_url === 'string' ? row.media_url : '', thumbnail_url: typeof row.thumbnail_url === 'string' ? row.thumbnail_url : null,
-      view_count: typeof row.view_count === 'number' ? row.view_count : null })), [content.data]);
+  const content = useSocialPostList({ scope: activeTab === 'tagged' ? 'tagged' : 'profile', targetId: profileId,
+    ...(activeTab === 'clips' ? { contentType: 'short' as const } : {}) }, !!profileId && allowed[activeTab]);
+  const allPosts = useMemo(() => (content.data || []).filter(row => activeTab !== 'posts' || row.type !== 'short').map(row => ({ ...row, post_id: row.id })), [content.data, activeTab]);
   const posts = canViewPosts && activeTab === 'posts' ? allPosts : [];
   const clips = canViewClips && activeTab === 'clips' ? allPosts : [];
   const tagged = canViewTagged && activeTab === 'tagged' ? allPosts : [];
@@ -140,13 +121,13 @@ export function ProfileContentTabs({
       >
         {!allowed[activeTab] && <EmptyState title="Content not shared" description="This section is not available on this profile." />}
         {content.isError && allowed[activeTab] && <div role="alert" className="py-8 text-center"><p>Content could not be loaded.</p><button type="button" className="min-h-11 text-primary" onClick={() => void content.refetch()}>Retry content</button></div>}
-        {allowed[activeTab] && !content.isError && activeTab === 'posts' && posts.length === 0 && (
+        {allowed[activeTab] && !content.isError && !content.hasNextPage && !content.hasMoreWindow && activeTab === 'posts' && posts.length === 0 && (
           <EmptyState title={emptyCopy.posts.title} description={emptyCopy.posts.description} />
         )}
-        {allowed[activeTab] && !content.isError && activeTab === 'clips' && clips.length === 0 && (
+        {allowed[activeTab] && !content.isError && !content.hasNextPage && !content.hasMoreWindow && activeTab === 'clips' && clips.length === 0 && (
           <EmptyState title={emptyCopy.clips.title} description={emptyCopy.clips.description} />
         )}
-        {allowed[activeTab] && !content.isError && activeTab === 'tagged' && tagged.length === 0 && (
+        {allowed[activeTab] && !content.isError && !content.hasNextPage && !content.hasMoreWindow && activeTab === 'tagged' && tagged.length === 0 && (
           <EmptyState title={emptyCopy.tagged.title} description={emptyCopy.tagged.description} />
         )}
 
@@ -222,6 +203,7 @@ export function ProfileContentTabs({
             ))}
           </div>
         )}
+        {allowed[activeTab] && !content.isError && <PostListReadStatus query={content} />}
       </motion.div>
     </section>
   );

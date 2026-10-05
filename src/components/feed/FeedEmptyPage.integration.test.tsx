@@ -3,10 +3,11 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Post } from '@/hooks/useInfinitePosts';
 
-const state = vi.hoisted(() => ({ next: vi.fn(), retry: vi.fn(), hasNext: true, fetching: false, error: false, pages: [] as { posts: Post[] }[] }));
+const state = vi.hoisted(() => ({ next: vi.fn(), retry: vi.fn(), window: vi.fn(), hasWindow: false, hasNext: true, fetching: false, error: false, pages: [] as { posts: Post[] }[] }));
 const query = () => ({ data: { pages: state.pages }, hasNextPage: state.hasNext,
   isFetchingNextPage: state.fetching, isLoading: false, isError: state.error, isFetching: state.fetching,
-  fetchNextPage: state.next, refetch: state.retry });
+  fetchNextPage: state.next, refetch: state.retry, hasMoreWindow: state.hasWindow, advanceWindow: state.window });
+vi.mock('@/lib/appScrollContainer', () => ({ scrollAppTo: vi.fn() }));
 vi.mock('@/hooks/useRankedFeed', () => ({ useRankedFeed: () => query() }));
 vi.mock('@/hooks/useInfinitePosts', () => ({ usePersonalizedFeed: () => query(), useInfiniteFollowingPosts: () => query() }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn(), useParams: () => ({ postId: 'selected' }), useLocation: () => ({}) }));
@@ -65,16 +66,27 @@ import { ClipsLongVideosPanel } from '@/components/clips/ClipsLongVideosPanel';
 import VideoBrowse from '@/pages/VideoBrowse';
 import Shorts from '@/pages/Shorts';
 import ClipsViewer from '@/pages/ClipsViewer';
+import { FeedWindowControl } from './FeedWindowControl';
 
-beforeEach(() => { localStorage.clear(); state.pages = [{ posts: [] }]; state.next.mockReset(); state.retry.mockReset(); state.hasNext = true; state.fetching = false; state.error = false;
+beforeEach(() => { localStorage.clear(); state.pages = [{ posts: [] }]; state.next.mockReset(); state.retry.mockReset(); state.window.mockReset().mockResolvedValue(undefined); state.hasWindow = false; state.hasNext = true; state.fetching = false; state.error = false;
   vi.stubGlobal('IntersectionObserver', class { observe() {} unobserve() {} disconnect() {} });
   Object.defineProperty(HTMLElement.prototype, 'scrollTo', { configurable: true, value: vi.fn() });
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); Reflect.deleteProperty(HTMLElement.prototype, 'scrollTo'); });
 function HomeEmpty() { return <InlinePostList posts={state.pages.flatMap(page => page.posts)} isLoading={false} isFetchingNext={state.fetching} hasNextPage={state.hasNext}
-  onLoadMore={state.next} loadMoreRef={vi.fn()} emptyIcon="✨" emptyText="No posts" showAds={false} emptyOverride={<p>Find your friends</p>} />; }
+  onLoadMore={state.next} windowControls={state.hasWindow ? <FeedWindowControl onContinue={state.window} /> : undefined} loadMoreRef={vi.fn()} emptyIcon="✨" emptyText="No posts" showAds={false} emptyOverride={<p>Find your friends</p>} />; }
 
 describe('empty filtered pages keep their raw cursor reachable', () => {
+  it.each([['Home', HomeEmpty], ['Watch', VideoBrowse]] as const)('%s makes a full window transition explicit without reporting an empty catalog', (_name, Component) => {
+    state.hasNext = false; state.hasWindow = true; render(<Component />);
+    expect(state.next).not.toHaveBeenCalled(); expect(state.window).not.toHaveBeenCalled();
+    expect(screen.queryByText('Find your friends')).not.toBeInTheDocument(); expect(screen.queryByText('No videos yet')).not.toBeInTheDocument(); expect(screen.queryByText('Caught up')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to older posts' })); expect(state.window).toHaveBeenCalledOnce();
+  });
+  it('keeps rendered Home posts until the user chooses to replace the full window', () => {
+    state.pages = [{ posts: Array.from({ length: 5 }, (_, i) => ({ id: `visible-${i}`, type: 'post', media_url: '', author: { id: 'alice' } } as Post)) }]; state.hasWindow = true; state.hasNext = false; render(<HomeEmpty />);
+    expect(screen.queryByText('Caught up')).not.toBeInTheDocument(); expect(state.window).not.toHaveBeenCalled(); fireEvent.click(screen.getByRole('button', { name: 'Continue to older posts' })); expect(state.window).toHaveBeenCalledOnce();
+  });
   it.each([['Home', HomeEmpty], ['Watch', VideoBrowse], ['long videos', ClipsLongVideosPanel], ['Clips', Shorts], ['opened clip', ClipsViewer]] as const)('%s continues only after an explicit request', (_name, Component) => {
     const page = render(<Component />);
     expect(state.next).not.toHaveBeenCalled();

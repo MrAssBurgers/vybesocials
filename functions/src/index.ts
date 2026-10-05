@@ -76,7 +76,10 @@ export * from './badgeAuthority.js';
 export * from './tokenMarketplace.js';
 export * from './reportModeration.js';
 export { publishStory, listVisibleStories, manageCloseFriends } from './storyPublish.js';
-export { readSocialFeed, readSocialPostPreviews } from './socialFeed.js';
+export { readSocialFeed, readSocialPostPreviews, readSocialPostList } from './socialFeed.js';
+export { manageSavedSounds } from './soundSaved.js';
+export { manageSignInPreferences } from './securitySettings.js';
+export { manageNotificationPreferences } from './notificationPreferences.js';
 export { manageFollow } from './follow.js';
 
 

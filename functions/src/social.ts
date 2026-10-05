@@ -1,5 +1,7 @@
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth } from './_shared/admin.js';
+import { resolveIdentity, validAudienceId } from './_shared/profileAudienceAuthority.js';
+import { admitSocialPost, readPublicSocialPost, readSocialFeedPage } from './_shared/socialFeedAuthority.js';
 
 function escapeHtml(input: unknown): string {
   return String(input ?? '')
@@ -25,64 +27,60 @@ export const sharePreview = onRequest({ cors: true }, async (req, res) => {
   const rawId = (req.query.postId as string) || (req.path.split('/').pop() || '');
   const postId = rawId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 128);
   if (!postId) { res.status(400).send('postId required'); return; }
-  const doc = await db.collection('posts').doc(postId).get();
-  if (!doc.exists) { res.status(404).send('not found'); return; }
-  const post: any = doc.data();
-  const title = escapeHtml((post.title || 'A post on VYBE').slice(0, 80));
+  res.set('Cache-Control', 'no-store');
+  const post = await readPublicSocialPost(db, postId);
+  if (!post) { res.status(404).send('not found'); return; }
+  const title = escapeHtml('A post on VYBE');
   const desc = escapeHtml((post.caption || '').slice(0, 160));
-  const image = escapeHtml(safeImageUrl(post.cover_url || post.media_url, 'https://vybehub.app/og-default.png'));
+  const image = escapeHtml(safeImageUrl(post.thumbnailUrl || post.mediaUrl, 'https://vybehub.app/og-default.png'));
   const safePostId = encodeURIComponent(postId);
   res.set('Content-Type', 'text/html').send(`<!doctype html><html><head>
 <meta charset="utf-8"/><title>${title}</title>
 <meta property="og:title" content="${title}"/>
 <meta property="og:description" content="${desc}"/>
 <meta property="og:image" content="${image}"/>
-<meta property="og:url" content="https://vybehub.app/post/${safePostId}"/>
+<meta property="og:url" content="https://vybehub.app/p/${safePostId}"/>
 <meta name="twitter:card" content="summary_large_image"/>
-<meta http-equiv="refresh" content="0; url=https://vybehub.app/post/${safePostId}"/>
-</head><body><a href="https://vybehub.app/post/${safePostId}">Open in VYBE</a></body></html>`);
+<meta http-equiv="refresh" content="0; url=https://vybehub.app/p/${safePostId}"/>
+</head><body><a href="https://vybehub.app/p/${safePostId}">Open in VYBE</a></body></html>`);
 });
 
 
-/** get-ranked-feed — engagement-weighted recent posts. */
-export const getRankedFeed = onCall(async (request) => {
-  requireAuth(request);
-  const { limit = 50, mode = 'explore' } = (request.data || {}) as { limit?: number; mode?: string };
-  const snap = await db.collection('posts').orderBy('created_at', 'desc').limit(Math.min(Number(limit), 100)).get();
-  const posts = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-  // Engagement score: shares 5, saves 4, comments 3, likes 1, views 0.1
-  const scored = posts.map((p) => ({
-    ...p,
-    _score: (p.share_count || 0) * 5 + (p.save_count || 0) * 4 + (p.comment_count || 0) * 3 + (p.like_count || 0) + (p.view_count || 0) * 0.1,
-  }));
-  if (mode !== 'recent') scored.sort((a, b) => b._score - a._score);
-  return { posts: scored };
-});
-
-/** calculate-feed-ranking — recompute denormalized score on a post. */
-export const calculateFeedRanking = onCall(async (request) => {
-  requireAuth(request);
-  const { postId } = (request.data || {}) as { postId?: string };
-  if (!postId) throw new HttpsError('invalid-argument', 'postId required');
-  const doc = await db.collection('posts').doc(postId).get();
-  if (!doc.exists) throw new HttpsError('not-found', 'post not found');
-  const p: any = doc.data();
-  const score = (p.share_count || 0) * 5 + (p.save_count || 0) * 4 + (p.comment_count || 0) * 3 + (p.like_count || 0) + (p.view_count || 0) * 0.1;
-  await doc.ref.update({ engagement_score: score, ranked_at: new Date().toISOString() });
-  return { score };
-});
-
-/** get-recommendations — simple recent posts in user's interests. */
-export const getRecommendations = onCall(async (request) => {
-  const uid = requireAuth(request);
-  const profile = (await db.collection('profiles').doc(uid).get()).data() || {};
-  const interests = ((profile.interests || profile.onboarding_interests || []) as string[]).slice(0, 5);
-  if (!interests.length) {
-    const snap = await db.collection('posts').orderBy('created_at', 'desc').limit(20).get();
-    return { posts: snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) };
+async function legacyAdmittedFeed(uid: string, personalized: boolean, limit: unknown = 20) {
+  const viewer = await db.runTransaction(tx => resolveIdentity(db, tx, uid));
+  if (!viewer || viewer.uid !== uid) throw new HttpsError('failed-precondition', 'Finish setting up your profile.');
+  const requested = Number(limit);
+  if (!Number.isSafeInteger(requested) || requested < 1 || requested > 100) throw new HttpsError('invalid-argument', 'Choose between one and one hundred posts.');
+  const posts = [];
+  let cursor: string | undefined;
+  for (let pageIndex = 0; pageIndex < Math.ceil(requested / 20); pageIndex++) {
+    const result = await readSocialFeedPage(db, uid, { expectedOwnerUid: uid, expectedProfileId: viewer.profileId, feed: personalized ? 'personalized' : 'discover', ...(cursor ? { cursor } : {}) });
+    posts.push(...result.posts.map(post => ({ id: post.id, author_id: post.author.id, type: post.type, caption: post.caption, tags: post.tags,
+      media_url: post.mediaUrl, thumbnail_url: post.thumbnailUrl, created_at: post.createdAt, like_count: post.likeCount, comment_count: post.commentCount,
+      view_count: post.viewCount, author: { id: post.author.id, username: post.author.username, avatar_url: post.author.avatarUrl } })));
+    cursor = result.nextCursor ?? undefined;
+    if (!cursor) break;
   }
-  const snap = await db.collection('posts').where('tags', 'array-contains-any', interests).orderBy('created_at', 'desc').limit(20).get();
-  return { posts: snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) };
+  return { posts: posts.slice(0, requested) };
+}
+
+/** Compatibility endpoints use the same admission as the current feed. */
+export const getRankedFeed = onCall(async request => legacyAdmittedFeed(requireAuth(request), request.data?.mode !== 'recent', request.data?.limit ?? 50));
+export const getRecommendations = onCall(async request => legacyAdmittedFeed(requireAuth(request), true));
+
+/** Owners may refresh their own admitted post's presentation score. */
+export const calculateFeedRanking = onCall(async request => {
+  const uid = requireAuth(request), postId = request.data?.postId;
+  if (!validAudienceId(postId)) throw new HttpsError('invalid-argument', 'postId required');
+  return db.runTransaction(async tx => {
+    const viewer = await resolveIdentity(db, tx, uid);
+    if (!viewer || viewer.uid !== uid) throw new HttpsError('failed-precondition', 'Your profile changed.');
+    const post = await admitSocialPost(db, tx, viewer, postId);
+    if (!post || post.author.id !== viewer.profileId) throw new HttpsError('permission-denied', 'This post is unavailable.');
+    const score = post.commentCount * 3 + post.likeCount + post.viewCount * 0.1;
+    tx.update(db.collection('posts').doc(postId), { engagement_score: score, ranked_at: new Date().toISOString() });
+    return { score };
+  });
 });
 
 /** create-group — group conversation. */

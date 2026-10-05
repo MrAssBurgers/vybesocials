@@ -1,3 +1,5 @@
+import { useSocialPostList } from '@/hooks/useSocialPostList';
+import { PostListReadStatus } from '@/components/posts/PostListReadStatus';
 import { useState, useMemo, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Search as SearchIcon, Users, Hash, Newspaper, X, TrendingUp, Sparkles, Contact } from 'lucide-react';
@@ -29,72 +31,16 @@ const TABS: { id: SearchTab; label: string; icon: React.ElementType }[] = [
   { id: 'hashtags', label: 'Hashtags', icon: Hash },
 ];
 
-function useSearchPosts(query: string) {
-  return useQuery({
-    queryKey: ['search-posts', query],
-    queryFn: async () => {
-      if (!query || query.length < 2) return [];
-      const normalized = query.trim().replace(/^#/, '').toLowerCase();
-      const { data, error } = await db
-        .from('posts')
-        .select('id, caption, tags, type, media_url, created_at, like_count, comment_count, author:profiles!author_id(id, username, avatar_url)')
-        .limit(250);
-      if (error) throw error;
-      return (data || [])
-        .filter((post) => {
-          const caption = String(post.caption || '').toLowerCase();
-          const tags = Array.isArray(post.tags)
-            ? post.tags.map((tag: unknown) => String(tag).replace(/^#/, '').toLowerCase())
-            : [];
-          return caption.includes(normalized) || tags.some((tag: string) => tag.includes(normalized));
-        })
-        .sort((a, b) => {
-          const engagement = Number(b.like_count || 0) - Number(a.like_count || 0);
-          if (engagement !== 0) return engagement;
-          return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
-        })
-        .slice(0, 30);
-    },
-    enabled: query.length >= 2,
-    networkMode: 'always',
-    staleTime: 1000 * 60 * 5,
-    placeholderData: (prev) => prev,
-  });
+function useSearchPosts(query: string, enabled: boolean) {
+  return useSocialPostList({ scope: 'search', search: query.trim().replace(/^#/, '') }, enabled && query.trim().replace(/^#/, '').length >= 2);
 }
-
-function useSearchHashtags(query: string) {
-  return useQuery({
-    queryKey: ['search-hashtags', query],
-    queryFn: async () => {
-      if (!query || query.length < 2) return [];
-      const { data, error } = await db
-        .from('posts')
-        .select('tags')
-        .not('tags', 'is', null)
-        .limit(200);
-      if (error) throw error;
-      const tagCounts: Record<string, number> = {};
-      (data || []).forEach(post => {
-        const tags = post.tags as string[] | null;
-        if (tags) {
-          tags.forEach(tag => {
-            const lower = tag.toLowerCase();
-            if (lower.includes(query.toLowerCase())) {
-              tagCounts[lower] = (tagCounts[lower] || 0) + 1;
-            }
-          });
-        }
-      });
-      return Object.entries(tagCounts)
-        .map(([tag, count]) => ({ tag, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 20);
-    },
-    enabled: query.length >= 2,
-    networkMode: 'always',
-    staleTime: 1000 * 60 * 5,
-    placeholderData: (prev) => prev,
-  });
+function useSearchHashtags(query: string, enabled: boolean) {
+  const result = useSearchPosts(query, enabled), counts = new Map<string, number>();
+  for (const post of result.data ?? []) for (const tag of post.tags) {
+    const normalized = tag.replace(/^#/, '').toLowerCase();
+    if (normalized.includes(query.trim().replace(/^#/, '').toLowerCase())) counts.set(normalized, (counts.get(normalized) ?? 0) + 1);
+  }
+  return { ...result, data: result.data ? [...counts].map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count) : undefined };
 }
 
 function useTrendingPeople() {
@@ -125,8 +71,10 @@ export default function SearchPage() {
   const [inputFocused, setInputFocused] = useState(false);
 
   const { data: people, isPending: loadingPeople, isError: peopleError, refetch: refetchPeople } = useSearchPeople(debouncedQuery);
-  const { data: posts, isPending: loadingPosts, isError: postsError, refetch: refetchPosts } = useSearchPosts(debouncedQuery);
-  const { data: hashtags, isPending: loadingHashtags, isError: hashtagsError, refetch: refetchHashtags } = useSearchHashtags(debouncedQuery);
+  const postQuery = useSearchPosts(debouncedQuery, activeTab === 'posts');
+  const { data: posts, isPending: loadingPosts, isError: postsError, refetch: refetchPosts } = postQuery;
+  const hashtagQuery = useSearchHashtags(debouncedQuery, activeTab === 'hashtags');
+  const { data: hashtags, isPending: loadingHashtags, isError: hashtagsError, refetch: refetchHashtags } = hashtagQuery;
   const { data: trendingPeople } = useTrendingPeople();
 
   useEffect(() => {
@@ -276,7 +224,7 @@ export default function SearchPage() {
                   ) : loadingPosts && !posts ? <SearchSkeleton /> : posts && posts.length > 0 ? (
                     posts.map((post: any, idx: number) => <PostRow key={post.id} post={post} index={idx} />)
                   ) : (
-                    <EmptyResults query={debouncedQuery} type="posts" />
+                    !postQuery.hasNextPage && !postQuery.hasMoreWindow && <EmptyResults query={debouncedQuery} type="posts" />
                   )}
                 </div>
               )}
@@ -291,7 +239,7 @@ export default function SearchPage() {
                   ) : loadingHashtags && !hashtags ? <SearchSkeleton /> : hashtags && hashtags.length > 0 ? (
                     hashtags.map((tag, idx) => <HashtagRow key={tag.tag} tag={tag} index={idx} />)
                   ) : (
-                    <EmptyResults query={debouncedQuery} type="hashtags" />
+                    !hashtagQuery.hasNextPage && !hashtagQuery.hasMoreWindow && <EmptyResults query={debouncedQuery} type="hashtags" />
                   )}
                 </div>
               )}
@@ -299,6 +247,7 @@ export default function SearchPage() {
             </motion.div>
           )}
         </AnimatePresence>
+        {hasQuery && activeTab !== 'people' && <PostListReadStatus query={activeTab === 'posts' ? postQuery : hashtagQuery} />}
       </div>
     </AppLayout>
   );

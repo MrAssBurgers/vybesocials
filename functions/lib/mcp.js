@@ -1,3 +1,5 @@
+import { resolveIdentity } from './_shared/profileAudienceAuthority.js';
+import { readSocialPostListPage } from './_shared/socialPostListAuthority.js';
 /**
  * VYBE MCP endpoint — Streamable HTTP transport for external AI agents
  * (ChatGPT, Claude, Cursor, Codex) to call VYBE tools as the signed-in user.
@@ -70,24 +72,12 @@ const TOOLS = [
         },
         handler: async (input, uid) => {
             const limit = Math.min(20, Math.max(1, Number(input.limit ?? 10)));
-            const snap = await db.collection('posts')
-                .where('user_id', '==', uid)
-                .orderBy('created_at', 'desc')
-                .limit(limit)
-                .get();
-            return {
-                posts: snap.docs.map((d) => {
-                    const x = d.data();
-                    return {
-                        id: d.id,
-                        caption: x.caption ?? '',
-                        media_type: x.media_type ?? null,
-                        created_at: x.created_at?.toDate?.().toISOString?.() ?? null,
-                        like_count: x.like_count ?? 0,
-                        comment_count: x.comment_count ?? 0,
-                    };
-                }),
-            };
+            const viewer = await db.runTransaction(tx => resolveIdentity(db, tx, uid));
+            if (!viewer || viewer.uid !== uid)
+                throw new Error('Finish setting up your profile.');
+            const page = await readSocialPostListPage(db, uid, { expectedOwnerUid: uid, expectedProfileId: viewer.profileId, scope: 'profile', targetId: viewer.profileId });
+            return { posts: page.posts.slice(0, limit).map(post => ({ id: post.id, caption: post.caption, media_type: post.type,
+                    created_at: post.createdAt, like_count: post.likeCount, comment_count: post.commentCount })) };
         },
     },
     {

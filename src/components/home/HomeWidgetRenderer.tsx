@@ -144,6 +144,7 @@ interface Props {
   isFetchingNextForYou: boolean;
   hasNextForYou?: boolean;
   onLoadMoreForYou?: () => void;
+  forYouWindowControls?: ReactNode;
   globalPosts: Post[];
   globalLoading: boolean;
   globalRefreshing?: boolean;
@@ -153,6 +154,7 @@ interface Props {
   isFetchingNextGlobal: boolean;
   hasNextGlobal?: boolean;
   onLoadMoreGlobal?: () => void;
+  globalWindowControls?: ReactNode;
   localControls?: ReactNode;
   localReady?: boolean;
   localPosts: Post[];
@@ -164,6 +166,7 @@ interface Props {
   isFetchingNextLocal: boolean;
   hasNextLocal?: boolean;
   onLoadMoreLocal?: () => void;
+  localWindowControls?: ReactNode;
   loadMoreRef: (node: HTMLDivElement | null) => void;
 }
 
@@ -301,6 +304,7 @@ function FeedSection({
   globalPosts, globalLoading, globalRefreshing, globalError, onRetryGlobal, globalFetching, isFetchingNextGlobal,
   localControls, localReady = true, localPosts, localLoading, localRefreshing, localError, onRetryLocal, localFetching, isFetchingNextLocal,
   hasNextForYou, onLoadMoreForYou, hasNextGlobal, onLoadMoreGlobal, hasNextLocal, onLoadMoreLocal,
+  forYouWindowControls, globalWindowControls, localWindowControls,
   loadMoreRef,
 }: Props) {
   const { user, profile, loading: authLoading } = useAuth();
@@ -380,6 +384,7 @@ function FeedSection({
             isFetchingNext={isFetchingNextForYou}
             hasNextPage={hasNextForYou}
             onLoadMore={onLoadMoreForYou}
+            windowControls={forYouWindowControls}
             loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}}
             emptyIcon="✨"
             emptyText="No posts yet. Follow creators or check Global!"
@@ -400,6 +405,7 @@ function FeedSection({
             isFetchingNext={isFetchingNextLocal}
             hasNextPage={hasNextLocal}
             onLoadMore={onLoadMoreLocal}
+            windowControls={localWindowControls}
             loadMoreRef={activeTab === 'local' ? loadMoreRef : () => {}}
             emptyIcon="📍"
             emptyText="No nearby posts shared to Local yet. Share a moment from your post's options."
@@ -418,6 +424,7 @@ function FeedSection({
             isFetchingNext={isFetchingNextGlobal}
             hasNextPage={hasNextGlobal}
             onLoadMore={onLoadMoreGlobal}
+            windowControls={globalWindowControls}
             loadMoreRef={activeTab === 'global' ? loadMoreRef : () => {}}
             emptyIcon="🌍"
             emptyText="No posts yet. Be the first to share something!"
@@ -431,7 +438,7 @@ function FeedSection({
 }
 
 export function InlinePostList({
-  posts, isLoading, isRefreshing, isError, onRetry, isFetchingNext, loadMoreRef, emptyIcon, emptyText, onExplore, showAds, emptyOverride, hasNextPage, onLoadMore,
+  posts, isLoading, isRefreshing, isError, onRetry, isFetchingNext, loadMoreRef, emptyIcon, emptyText, onExplore, showAds, emptyOverride, hasNextPage, onLoadMore, windowControls,
 }: {
   posts: Post[];
   isLoading: boolean;
@@ -441,6 +448,7 @@ export function InlinePostList({
   isFetchingNext: boolean;
   hasNextPage?: boolean;
   onLoadMore?: () => void;
+  windowControls?: ReactNode;
   loadMoreRef: (node: HTMLDivElement | null) => void;
   emptyIcon: string;
   emptyText: string;
@@ -587,11 +595,13 @@ export function InlinePostList({
             Retry
           </Button>
         )}
+        {windowControls}
       </div>
     );
   }
   if (!isLoading && posts.length === 0) {
     if (hasNextPage && onLoadMore) return <FeedEmptyPage hasMore loading={isFetchingNext} onLoadMore={onLoadMore}>{null}</FeedEmptyPage>;
+    if (windowControls) return <>{windowControls}</>;
     if (emptyOverride) return <>{emptyOverride}</>;
     const iconMap: Record<string, { icon: typeof Sparkles; gradient: string }> = {
       '✨': { icon: Sparkles, gradient: 'from-violet-500/20 to-fuchsia-500/20' },
@@ -687,7 +697,8 @@ export function InlinePostList({
       </div>}
 
       {/* Only claim completion when the raw cursor is exhausted. */}
-      {!hasNextPage && !isFetchingNext && posts.length >= 5 && (
+      {windowControls}
+      {!hasNextPage && !windowControls && !isFetchingNext && posts.length >= 5 && (
         <CaughtUpScreen />
       )}
 

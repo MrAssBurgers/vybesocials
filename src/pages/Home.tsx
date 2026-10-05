@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { useInfiniteFollowingPosts, usePersonalizedFeed } from '@/hooks/useInfinitePosts';
 import { useSocialFeed } from '@/hooks/useSocialFeed';
+import { FeedWindowControl } from '@/components/feed/FeedWindowControl';
+import { mergeFeedWindowPosts } from '@/lib/mergeFeedWindowPosts';
 import { LocalLocationControl } from '@/components/home/LocalLocationControl';
 import { useLocalFeed } from '@/hooks/useLocalFeed';
 import type { Post } from '@/hooks/useInfinitePosts';
@@ -120,6 +122,9 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     hasNextPage: hasNextForYou,
     isFetchingNextPage: isFetchingNextForYou,
     refetch: refetchForYou,
+    hasMoreWindow: moreForYouWindow, advanceWindow: advanceForYouWindow,
+    hasPreviousWindow: previousForYou, previousWindow: backForYou, restartWindow: restartForYou,
+    windowIndex: forYouWindowIndex,
   } = usePersonalizedFeed(undefined, { enabled: isForYouTab });
 
   // Following feed — merged into For You only when that tab is active
@@ -132,6 +137,9 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     hasNextPage: hasNextFollowing,
     isFetchingNextPage: isFetchingNextFollowing,
     refetch: refetchFollowing,
+    hasMoreWindow: moreFollowingWindow, advanceWindow: advanceFollowingWindow,
+    hasPreviousWindow: previousFollowing, previousWindow: backFollowing, restartWindow: restartFollowing,
+    windowIndex: followingWindowIndex,
   } = useInfiniteFollowingPosts(undefined, { enabled: isForYouTab && !!profileId });
 
   const {
@@ -143,6 +151,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     hasNextPage: hasNextGlobal,
     isFetchingNextPage: isFetchingNextGlobal,
     refetch: refetchGlobal,
+    hasMoreWindow: moreGlobalWindow, advanceWindow: advanceGlobalWindow,
+    hasPreviousWindow: previousGlobal, previousWindow: backGlobal, restartWindow: restartGlobal,
   } = useSocialFeed('post', isGlobalTab);
 
   const {
@@ -155,24 +165,16 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     hasNextPage: hasNextLocal,
     isFetchingNextPage: isFetchingNextLocal,
     refetch: refetchLocal,
+    hasMoreWindow: moreLocalWindow, advanceWindow: advanceLocalWindow,
+    hasPreviousWindow: previousLocal, previousWindow: backLocal, restartWindow: restartLocal,
   } = useLocalFeed({ enabled: isLocalTab });
 
   const queryClient = useQueryClient();
   const forYouPosts = useMemo(() => {
-    const personalized = (forYouData?.pages.flatMap(page => page.posts ?? []) || [])
-      .filter((post): post is Post => !!post?.id && !!post?.author?.id && (post.type === 'post' || post.type === 'video'));
-    const following = (followingData?.pages.flatMap(page => page.posts ?? []) || [])
-      .filter((post): post is Post => !!post?.id && !!post?.author?.id && (post.type === 'post' || post.type === 'video'));
-    
-    // Merge and deduplicate by post ID
-    const seen = new Set<string>();
-    const merged: Post[] = [];
-    for (const post of [...following, ...personalized]) {
-      if (!seen.has(post.id)) {
-        seen.add(post.id);
-        merged.push(post);
-      }
-    }
+    const merged = mergeFeedWindowPosts([
+      { windowIndex: followingWindowIndex, pages: followingData?.pages },
+      { windowIndex: forYouWindowIndex, pages: forYouData?.pages },
+    ]);
 
     // Apply DNA content preferences (client-side boost/reduce)
     if (dnaPrefs) {
@@ -192,7 +194,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     }
 
     return merged;
-  }, [forYouData, followingData, dnaPrefs]);
+  }, [forYouData, followingData, forYouWindowIndex, followingWindowIndex, dnaPrefs]);
   
   const localPosts = useMemo(() => 
     localData?.pages.flatMap(page => page.posts) || [], 
@@ -413,6 +415,10 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             forYouFetching={forYouFetching || followingFetching}
             isFetchingNextForYou={isFetchingNextForYou || isFetchingNextFollowing}
             hasNextForYou={hasNextForYou || hasNextFollowing}
+            forYouWindowControls={(!hasNextForYou && !hasNextFollowing && (moreForYouWindow || moreFollowingWindow)) || previousForYou || previousFollowing ? <FeedWindowControl disabled={forYouFetching || followingFetching}
+              onContinue={!hasNextForYou && !hasNextFollowing && (moreForYouWindow || moreFollowingWindow) ? () => { if (moreForYouWindow) void advanceForYouWindow().catch(() => {}); if (moreFollowingWindow) void advanceFollowingWindow().catch(() => {}); scrollAppTo(0, 'auto'); } : undefined}
+              onNewer={previousForYou || previousFollowing ? () => { if (previousForYou) backForYou(); if (previousFollowing) backFollowing(); scrollAppTo(0, 'auto'); } : undefined}
+              onRestart={previousForYou || previousFollowing ? () => { restartForYou(); restartFollowing(); scrollAppTo(0, 'auto'); } : undefined} /> : undefined}
             onLoadMoreForYou={() => {
               if (hasNextForYou && !isFetchingNextForYou) void fetchNextForYou();
               if (hasNextFollowing && !isFetchingNextFollowing) void fetchNextFollowing();
@@ -425,6 +431,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             globalFetching={globalFetching}
             isFetchingNextGlobal={isFetchingNextGlobal}
             hasNextGlobal={hasNextGlobal}
+            globalWindowControls={moreGlobalWindow || previousGlobal ? <FeedWindowControl disabled={globalFetching} onContinue={moreGlobalWindow ? () => { void advanceGlobalWindow().catch(() => {}); scrollAppTo(0, 'auto'); } : undefined} onNewer={previousGlobal ? () => { backGlobal(); scrollAppTo(0, 'auto'); } : undefined} onRestart={previousGlobal ? () => { restartGlobal(); scrollAppTo(0, 'auto'); } : undefined} /> : undefined}
             onLoadMoreGlobal={() => { if (hasNextGlobal && !isFetchingNextGlobal) void fetchNextGlobal(); }}
             localControls={<LocalLocationControl location={localLocation} />}
             localReady={!!localLocation.location}
@@ -436,6 +443,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             localFetching={localFetching}
             isFetchingNextLocal={isFetchingNextLocal}
             hasNextLocal={hasNextLocal}
+            localWindowControls={moreLocalWindow || previousLocal ? <FeedWindowControl disabled={localFetching} onContinue={moreLocalWindow ? () => { void advanceLocalWindow().catch(() => {}); scrollAppTo(0, 'auto'); } : undefined} onNewer={previousLocal ? () => { backLocal(); scrollAppTo(0, 'auto'); } : undefined} onRestart={previousLocal ? () => { restartLocal(); scrollAppTo(0, 'auto'); } : undefined} /> : undefined}
             onLoadMoreLocal={() => { if (hasNextLocal && !isFetchingNextLocal) void fetchNextLocal(); }}
             loadMoreRef={loadMoreRef}
           />

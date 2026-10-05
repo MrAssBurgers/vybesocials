@@ -14,6 +14,7 @@ import { MessageCircle, BadgeCheck } from 'lucide-react';
 import { useMutualFriendsWithUser } from '@/components/profile/MutualFriendsDisplay';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { useDisplayStyle } from '@/hooks/useDisplayStyle';
+import { useVisiblePostCount } from '@/hooks/useVisiblePostCount';
 
 interface UserProfileHoverCardProps {
   username: string;
@@ -32,14 +33,16 @@ interface ProfileData {
   follower_count: number;
   following_count: number;
   post_count: number;
+  post_count_label?: string;
   is_following: boolean;
 }
 
 function useHoverProfile(username: string, enabled: boolean) {
   const { profile: currentUser } = useAuth();
 
-  return useQuery({
-    queryKey: ['hover-profile', username],
+  const query = useQuery({
+    queryKey: ['hover-profile', username, currentUser?.id],
+    placeholderData: undefined,
     queryFn: async (): Promise<ProfileData | null> => {
       // Use case-insensitive lookup with ilike
       const { data: profiles, error } = await db
@@ -55,7 +58,7 @@ function useHoverProfile(username: string, enabled: boolean) {
       }
 
       // Get counts in parallel
-      const [followerRes, followingRes, postRes, isFollowingRes] = await Promise.all([
+      const [followerRes, followingRes, isFollowingRes] = await Promise.all([
         db
           .from('follows')
           .select('id', { count: 'exact', head: true })
@@ -64,10 +67,6 @@ function useHoverProfile(username: string, enabled: boolean) {
           .from('follows')
           .select('id', { count: 'exact', head: true })
           .eq('follower_id', profileData.id),
-        db
-          .from('posts')
-          .select('id', { count: 'exact', head: true })
-          .eq('author_id', profileData.id),
         currentUser?.id
           ? db
               .from('follows')
@@ -82,7 +81,7 @@ function useHoverProfile(username: string, enabled: boolean) {
         ...profileData,
         follower_count: followerRes.count || 0,
         following_count: followingRes.count || 0,
-        post_count: postRes.count || 0,
+        post_count: 0,
         is_following: !!isFollowingRes.data,
       };
     },
@@ -90,6 +89,8 @@ function useHoverProfile(username: string, enabled: boolean) {
     staleTime: 30000, // Cache for 30 seconds
     retry: 1,
   });
+  const posts = useVisiblePostCount(query.data?.id, enabled);
+  return { ...query, data: query.data ? { ...query.data, post_count: posts.count ?? 0, post_count_label: posts.label } : query.data };
 }
 
 // Mini mutual friends row component for hover card
@@ -237,7 +238,7 @@ export function UserProfileHoverCard({
             {/* Stats */}
             <div className="flex items-center gap-4 text-sm">
               <div>
-                <span className="font-semibold">{profileData.post_count}</span>
+                <span className="font-semibold">{profileData.post_count_label ?? '—'}</span>
                 <span className="text-muted-foreground ml-1">posts</span>
               </div>
               <div>

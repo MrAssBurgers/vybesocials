@@ -98,16 +98,9 @@ export function useCreateAnnouncement() {
         .neq('id', profile!.id);
       
       if (usersToNotify && usersToNotify.length > 0) {
-        const { data: disabledPrefs } = await db
-          .from('notification_preferences')
-          .select('user_id')
-          .eq('announcements_enabled', false);
-        
-        const disabledUserIds = new Set(disabledPrefs?.map(p => p.user_id) || []);
-        
-        const notifyUserIds = usersToNotify
-          .map(u => u.id)
-          .filter(id => !disabledUserIds.has(id));
+        // Notification preferences control device push. They do not erase or
+        // prevent inbox announcements; delivery checks preferences on the server.
+        const notifyUserIds = usersToNotify.map(u => u.id);
         
         if (notifyUserIds.length > 0) {
           const notifications = notifyUserIds.map(userId => ({

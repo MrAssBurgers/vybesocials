@@ -1,13 +1,7 @@
 import { db } from './admin.js';
+import { readDeliveryNotificationPreferences } from './notificationPreferenceAuthority.js';
 export async function loadNotificationPreferences(profileId) {
-    const snap = await db
-        .collection('notification_preferences')
-        .where('user_id', '==', profileId)
-        .limit(1)
-        .get();
-    if (snap.empty)
-        return null;
-    return snap.docs[0].data();
+    return readDeliveryNotificationPreferences(db, profileId);
 }
 export function prefKeyForPushType(type) {
     switch (type) {
@@ -19,6 +13,7 @@ export function prefKeyForPushType(type) {
         case 'call':
             return 'calls_enabled';
         case 'like':
+        case 'reaction':
             return 'likes_enabled';
         case 'comment':
             return 'comments_enabled';
@@ -36,6 +31,8 @@ export function prefKeyForPushType(type) {
         case 'map_meetup':
             return 'nearby_enabled';
         case 'smart_ping':
+        case 'brief':
+        case 'daily_brief':
             return 'brief_pings_enabled';
         default:
             return null;
@@ -47,6 +44,8 @@ export function isPushAllowedForType(type, prefs) {
         return true;
     if (!prefs)
         return true;
+    if (key === 'brief_pings_enabled' && typeof prefs.brief_muted_until === 'number' && prefs.brief_muted_until > Date.now())
+        return false;
     return prefs[key] !== false;
 }
 /** Calls break through quiet hours; everything else respects them when configured. */

@@ -4,14 +4,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({ read: vi.fn(), session: { uid: 'alice', epoch: 1 } }));
-vi.mock('@/hooks/useProfileAccount', () => ({ useProfileAccount: () => { const epoch = state.session.epoch; return { ready: true, profile: { id: 'a' }, session: state.session, guard: () => { if (epoch !== state.session.epoch) throw new Error('Account changed'); } }; } }));
-vi.mock('@/lib/firebase/firestoreDb', () => ({ getDocumentFromServer: vi.fn(async () => ({ id: 'target', user_id: 'target-uid' })), getDocumentsFromServer: state.read, where: (...args: unknown[]) => args, firestoreLimit: (n: number) => n }));
+vi.mock('@/hooks/useProfileAccount', () => ({ useProfileAccount: () => { const epoch = state.session.epoch; return { ready: true, user: { id: 'alice' }, profile: { id: 'a' }, session: state.session, guard: () => { if (epoch !== state.session.epoch) throw new Error('Account changed'); } }; } }));
+vi.mock('@/lib/socialPostListService', () => ({ readSocialPostList: (...args: unknown[]) => state.read(...args) }));
 vi.mock('@/components/ui/VideoThumbnail', () => ({ VideoThumbnail: ({ alt }: { alt: string }) => <span>{alt}</span> }));
 vi.mock('./ProfileCoverHero', () => ({ formatProfileStat: String }));
 import { ProfileContentTabs } from './ProfileContentTabs';
 let client: QueryClient;
 const wrapper = ({ children }: { children: ReactNode }) => <MemoryRouter><QueryClientProvider client={client}>{children}</QueryClientProvider></MemoryRouter>;
-beforeEach(() => { vi.clearAllMocks(); state.session = { uid: 'alice', epoch: 1 }; client = new QueryClient({ defaultOptions: { queries: { retry: false } } }); state.read.mockResolvedValue([]); });
+beforeEach(() => { vi.clearAllMocks(); state.session = { uid: 'alice', epoch: 1 }; client = new QueryClient({ defaultOptions: { queries: { retry: false } } }); state.read.mockResolvedValue({ posts: [], unavailableSavedPostIds: [], nextCursor: null, leaseUntil: Date.now() + 30000 }); });
 afterEach(() => { cleanup(); client.clear(); });
 describe('profile tabs request only authorized content', () => {
   it('defaults to no queries and disabled tabs', () => {
@@ -22,11 +22,11 @@ describe('profile tabs request only authorized content', () => {
   it('fetches permitted clips without also reading hidden posts or tags', async () => {
     render(<ProfileContentTabs profileId="target" canViewClips />, { wrapper });
     await waitFor(() => expect(state.read).toHaveBeenCalledTimes(1));
-    expect(state.read.mock.calls[0]).toEqual(['posts', [['author_id', 'in', ['target', 'target-uid']], ['type', '==', 'short'], 60]]);
-    expect(screen.getByRole('button', { name: 'Posts' })).toBeDisabled(); expect(screen.getByRole('button', { name: 'Tagged' })).toBeDisabled();
+    expect(state.read.mock.calls[0][0]).toEqual({ expectedOwnerUid: 'alice', expectedProfileId: 'a', scope: 'profile', targetId: 'target', contentType: 'short' });
+    expect(await screen.findByRole('button', { name: 'Posts' })).toBeDisabled(); expect(screen.getByRole('button', { name: 'Tagged' })).toBeDisabled();
   });
   it('removes old content immediately when permission is revoked', async () => {
-    state.read.mockResolvedValue([{ id: 'clip', type: 'short', caption: 'Private clip', media_url: 'media' }]);
+    state.read.mockResolvedValue({ posts: [{ id: 'clip', type: 'short', caption: 'Private clip', media_url: 'media' }], unavailableSavedPostIds: [], nextCursor: null, leaseUntil: Date.now() + 30000 });
     const view = render(<ProfileContentTabs profileId="target" canViewClips />, { wrapper });
     await screen.findByText('Private clip'); view.rerender(<ProfileContentTabs profileId="target" />);
     expect(screen.queryByText('Private clip')).not.toBeInTheDocument();

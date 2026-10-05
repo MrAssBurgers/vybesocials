@@ -273,7 +273,7 @@ export function ProfileHeroCard({
 
         {/* Stats capsules row */}
         <div className="flex items-center gap-1.5 sm:gap-2 mt-4 overflow-x-auto no-scrollbar">
-          <StatCapsule value={profile.post_count} label="Posts" />
+          <StatCapsule value={profile.post_count_label ?? '—'} label="Visible posts" />
           <StatCapsule
             value={liveFollowerCount}
             label="Followers"

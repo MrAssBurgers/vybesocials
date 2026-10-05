@@ -7,6 +7,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { db, requireAuth, messaging } from './_shared/admin.js';
 import { chatCompletion } from './_shared/geminiAi.js';
 import { modelForTier, TOKEN_BUDGET } from './_shared/aiModels.js';
+import { deliverBriefIfAllowed } from './_shared/briefDelivery.js';
 
 function slot(d = new Date()): 'morning' | 'midday' | 'evening' {
   const h = d.getUTCHours();
@@ -80,17 +81,18 @@ export const smartBriefPings = onSchedule({ schedule: 'every 60 minutes' }, asyn
     .where('pinged', '!=', true).limit(200).get();
   for (const doc of briefs.docs) {
     const data = doc.data() as any;
-    const tokens = await db.collection('push_tokens').where('user_id', '==', data.user_id).get();
-    if (!tokens.empty) {
-      try {
+    try {
+      await deliverBriefIfAllowed(data.user_id, 'daily_brief', async () => {
+        const tokens = await db.collection('push_tokens').where('user_id', '==', data.user_id).get();
+        if (tokens.empty) return;
         await messaging.sendEachForMulticast({
           tokens: tokens.docs.map((d) => (d.data() as any).token).filter(Boolean),
           notification: { title: 'Your daily brief is ready', body: 'Tap to see your vybe' },
           data: { type: 'daily_brief', slot: currentSlot },
         });
         await doc.ref.update({ pinged: true });
-      } catch (e) { console.warn('push failed', e); }
-    }
+      });
+    } catch (e) { console.warn('brief push skipped or failed', e); }
   }
 });
 

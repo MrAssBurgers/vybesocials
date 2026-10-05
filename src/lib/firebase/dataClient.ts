@@ -959,52 +959,18 @@ async function rpcIsUsernameAvailable(username: string, excludeUserId?: string):
   return false;
 }
 
-interface Settings2FARow {
-  user_id: string;
-  email_2fa_enabled: boolean;
-  login_approvals_enabled: boolean;
-  backup_codes_hashed?: string[];
-  created_at: string;
-  updated_at: string;
+async function rpcEnsure2faSettings() {
+  const { data: { user } } = await firebaseAuth.getUser();
+  if (!user) throw new Error('Sign in to read security settings.');
+  const { readSignInPreferences } = await import('@/lib/securitySettingsService');
+  const result = await readSignInPreferences(user.id);
+  return { user_id: user.id, ...result.settings, revision: result.revision };
 }
 
-async function rpcEnsure2faSettings(): Promise<Settings2FARow | null> {
-  const { data: { user } } = await firebaseAuth.getUser();
-  if (!user) return null;
-
-  const docId = user.id;
-  const existing = await getDocument<Settings2FARow>('user_2fa_settings', docId);
-  if (existing) return existing;
-
-  const now = new Date().toISOString();
-  const row: Settings2FARow = {
-    user_id: docId,
-    email_2fa_enabled: false,
-    login_approvals_enabled: false,
-    backup_codes_hashed: [],
-    created_at: now,
-    updated_at: now,
-  };
-  await setDocument('user_2fa_settings', docId, row);
-  return row;
-}
-
-async function rpcUpdate2faSettings(params: Record<string, unknown>): Promise<Settings2FARow | null> {
-  const { data: { user } } = await firebaseAuth.getUser();
-  if (!user) return null;
-
-  const current = await rpcEnsure2faSettings();
-  if (!current) return null;
-
-  const now = new Date().toISOString();
-  const next: Settings2FARow = {
-    ...current,
-    email_2fa_enabled: params.p_email_2fa !== undefined ? !!params.p_email_2fa : current.email_2fa_enabled,
-    login_approvals_enabled: params.p_login_approvals !== undefined ? !!params.p_login_approvals : current.login_approvals_enabled,
-    updated_at: now,
-  };
-  await setDocument('user_2fa_settings', user.id, next, true);
-  return next;
+async function rpcUpdate2faSettings(_params: Record<string, unknown>): Promise<never> {
+  // The old whole-row RPC has no version/request receipt. Fail closed rather
+  // than silently bypassing the current settings screen's checked mutation.
+  throw new Error('Reopen Security settings to change your sign-in preferences.');
 }
 
 async function rpcCreateDmConversation(otherProfileId: string): Promise<string | null> {

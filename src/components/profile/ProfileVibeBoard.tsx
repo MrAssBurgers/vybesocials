@@ -11,6 +11,7 @@ interface ProfileVibeBoardProps {
   userId: string;
   isOwnProfile: boolean;
   postCount: number;
+  postCountExact?: boolean;
   followerCount: number;
   followingCount: number;
 }
@@ -35,6 +36,7 @@ export const ProfileVibeBoard = memo(function ProfileVibeBoard({
   userId,
   isOwnProfile,
   postCount,
+  postCountExact = false,
   followerCount,
   followingCount,
 }: ProfileVibeBoardProps) {
@@ -78,6 +80,7 @@ export const ProfileVibeBoard = memo(function ProfileVibeBoard({
               </div>
               <EngagementScore
                 postCount={postCount}
+                available={postCountExact}
                 followerCount={followerCount}
                 followingCount={followingCount}
                 className="hidden sm:flex"
@@ -109,6 +112,7 @@ export const ProfileVibeBoard = memo(function ProfileVibeBoard({
         >
           <EngagementScore
             postCount={postCount}
+            available={postCountExact}
             followerCount={followerCount}
             followingCount={followingCount}
           />

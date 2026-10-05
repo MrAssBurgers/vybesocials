@@ -1,4 +1,5 @@
 import { db } from './admin.js';
+import { readDeliveryNotificationPreferences } from './notificationPreferenceAuthority.js';
 
 export type NotificationPrefKey =
   | 'dms_enabled'
@@ -17,16 +18,10 @@ export type NotificationPrefKey =
 
 export type NotificationPrefs = Partial<
   Record<NotificationPrefKey | 'show_message_preview' | 'quiet_hours_start' | 'quiet_hours_end', boolean | string | null>
->;
+> & { brief_muted_until?: number | null };
 
 export async function loadNotificationPreferences(profileId: string): Promise<NotificationPrefs | null> {
-  const snap = await db
-    .collection('notification_preferences')
-    .where('user_id', '==', profileId)
-    .limit(1)
-    .get();
-  if (snap.empty) return null;
-  return snap.docs[0].data() as NotificationPrefs;
+  return readDeliveryNotificationPreferences(db, profileId);
 }
 
 export function prefKeyForPushType(type: string): NotificationPrefKey | null {
@@ -39,6 +34,7 @@ export function prefKeyForPushType(type: string): NotificationPrefKey | null {
     case 'call':
       return 'calls_enabled';
     case 'like':
+    case 'reaction':
       return 'likes_enabled';
     case 'comment':
       return 'comments_enabled';
@@ -56,6 +52,8 @@ export function prefKeyForPushType(type: string): NotificationPrefKey | null {
     case 'map_meetup':
       return 'nearby_enabled';
     case 'smart_ping':
+    case 'brief':
+    case 'daily_brief':
       return 'brief_pings_enabled';
     default:
       return null;
@@ -66,6 +64,7 @@ export function isPushAllowedForType(type: string, prefs: NotificationPrefs | nu
   const key = prefKeyForPushType(type);
   if (!key) return true;
   if (!prefs) return true;
+  if (key === 'brief_pings_enabled' && typeof prefs.brief_muted_until === 'number' && prefs.brief_muted_until > Date.now()) return false;
   return prefs[key] !== false;
 }
 

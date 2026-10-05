@@ -42,11 +42,11 @@ export const WeeklyRhythmBanner = forwardRef<HTMLDivElement>((_, ref) => {
       });
     }
 
-    if (data.totalPostsToday > 0) {
+    if (typeof data.totalPostsToday === 'number' && data.totalPostsToday > 0) {
       items.push({
         icon: <Flame className="h-3.5 w-3.5" />,
         label: 'Today',
-        value: `${data.totalPostsToday} posts shared`,
+        value: `${data.totalPostsToday}${data.totalPostsHasMore ? '+' : ''} visible posts shared`,
         color: 'text-destructive',
       });
     }

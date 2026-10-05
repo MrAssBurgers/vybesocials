@@ -8,6 +8,8 @@ import { useRankedFeed } from '@/hooks/useRankedFeed';
 import { VideoCard } from '@/components/explore/VideoCard';
 import { FeedEmptyPage } from '@/components/feed/FeedEmptyPage';
 import { FeedFailureNotice } from '@/components/posts/FeedFailureNotice';
+import { FeedWindowControl } from '@/components/feed/FeedWindowControl';
+import { scrollAppTo } from '@/lib/appScrollContainer';
 
 const CATEGORIES = [
   { id: 'foryou', label: 'For You', icon: Sparkles },
@@ -24,7 +26,12 @@ export default function VideoBrowse() {
     isFetchingNextPage,
     fetchNextPage,
     isError, isFetching, refetch,
+    hasMoreWindow, advanceWindow, hasPreviousWindow, previousWindow, restartWindow,
   } = useRankedFeed({ contentType: 'video' });
+  const windowControls = hasMoreWindow || hasPreviousWindow ? <FeedWindowControl disabled={isFetching}
+    onContinue={hasMoreWindow ? () => { void advanceWindow().catch(() => {}); scrollAppTo(0, 'auto'); } : undefined}
+    onNewer={hasPreviousWindow ? () => { previousWindow(); scrollAppTo(0, 'auto'); } : undefined}
+    onRestart={hasPreviousWindow ? () => { restartWindow(); scrollAppTo(0, 'auto'); } : undefined} /> : null;
 
   const videos = useMemo(
     () => data?.pages.flatMap((p) => p.posts) ?? [],
@@ -56,7 +63,7 @@ export default function VideoBrowse() {
           <div>
             <h1 className="text-xl font-bold">Watch</h1>
             <p className="text-xs text-muted-foreground">
-              {videos.length} {videos.length === 1 ? 'video' : 'videos'}
+              {isError ? 'Videos unavailable' : isLoading ? 'Loading videos…' : `${videos.length} ${videos.length === 1 ? 'video' : 'videos'} in this group`}
             </p>
           </div>
         </div>
@@ -95,15 +102,17 @@ export default function VideoBrowse() {
             ))}
           </div>
         ) : isError && filteredVideos.length === 0 ? (
-          <FeedFailureNotice label="videos" retrying={isFetching} onRetry={() => { void refetch(); }} />
+          <><FeedFailureNotice label="videos" retrying={isFetching} onRetry={() => { void refetch(); }} />{windowControls}</>
+        ) : filteredVideos.length === 0 && hasMoreWindow ? (
+          windowControls
         ) : filteredVideos.length === 0 ? (
-          <FeedEmptyPage hasMore={hasNextPage} loading={isFetchingNextPage} onLoadMore={() => { void fetchNextPage(); }}>
+          <><FeedEmptyPage hasMore={hasNextPage} loading={isFetchingNextPage} onLoadMore={() => { void fetchNextPage(); }}>
           <div className="text-center py-16">
             <Film className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-            <p className="font-medium mb-1">No videos yet</p>
-            <p className="text-sm text-muted-foreground">Be the first to upload a video!</p>
+            <p className="font-medium mb-1">{hasPreviousWindow ? 'No videos in this group' : 'No videos yet'}</p>
+            <p className="text-sm text-muted-foreground">{hasPreviousWindow ? 'Return to newer posts to keep browsing.' : 'Be the first to upload a video!'}</p>
           </div>
-          </FeedEmptyPage>
+          </FeedEmptyPage>{windowControls}</>
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -127,6 +136,7 @@ export default function VideoBrowse() {
                 </Button>
               </div>
             )}
+            {windowControls}
           </>
         )}
       </div>

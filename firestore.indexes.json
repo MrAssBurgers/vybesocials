@@ -1,5 +1,17 @@
 {
   "indexes": [
+    {"collectionGroup":"posts","queryScope":"COLLECTION","fields":[{"fieldPath":"author_id","order":"ASCENDING"},{"fieldPath":"is_pinned","order":"ASCENDING"}]},
+    {"collectionGroup":"login_history","queryScope":"COLLECTION","fields":[{"fieldPath":"user_id","order":"ASCENDING"},{"fieldPath":"created_at","order":"DESCENDING"}]},
+    {"collectionGroup":"user_sessions","queryScope":"COLLECTION","fields":[{"fieldPath":"user_id","order":"ASCENDING"},{"fieldPath":"revoked_at","order":"ASCENDING"},{"fieldPath":"last_seen_at","order":"DESCENDING"}]},
+    {"collectionGroup":"post_user_tags","queryScope":"COLLECTION","fields":[{"fieldPath":"tagged_user_id","order":"ASCENDING"},{"fieldPath":"created_at","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}]},
+    {"collectionGroup":"bookmarks","queryScope":"COLLECTION","fields":[{"fieldPath":"user_id","order":"ASCENDING"},{"fieldPath":"created_at","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}]},
+    {"collectionGroup":"posts","queryScope":"COLLECTION","fields":[{"fieldPath":"filter_id","order":"ASCENDING"},{"fieldPath":"type","order":"ASCENDING"},{"fieldPath":"created_at","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}]},
+    {"collectionGroup":"posts","queryScope":"COLLECTION","fields":[{"fieldPath":"filter_id","order":"ASCENDING"},{"fieldPath":"created_at","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}]},
+    {"collectionGroup":"posts","queryScope":"COLLECTION","fields":[{"fieldPath":"sound_id","order":"ASCENDING"},{"fieldPath":"type","order":"ASCENDING"},{"fieldPath":"created_at","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}]},
+    {"collectionGroup":"posts","queryScope":"COLLECTION","fields":[{"fieldPath":"sound_id","order":"ASCENDING"},{"fieldPath":"created_at","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}]},
+    {"collectionGroup":"posts","queryScope":"COLLECTION","fields":[{"fieldPath":"author_id","order":"ASCENDING"},{"fieldPath":"type","order":"ASCENDING"},{"fieldPath":"created_at","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}]},
+    {"collectionGroup":"posts","queryScope":"COLLECTION","fields":[{"fieldPath":"author_id","order":"ASCENDING"},{"fieldPath":"created_at","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}]},
+    {"collectionGroup":"_saved_sound_refs","queryScope":"COLLECTION","fields":[{"fieldPath":"owner_uid","order":"ASCENDING"},{"fieldPath":"active","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}]},
     { "collectionGroup": "comments", "queryScope": "COLLECTION", "fields": [
       { "fieldPath": "post_id", "order": "ASCENDING" }, { "fieldPath": "created_at", "order": "ASCENDING" }, { "fieldPath": "__name__", "order": "ASCENDING" }
     ] },
@@ -476,6 +488,12 @@
       ] }
   ],
   "fieldOverrides": [
+    {"collectionGroup":"_notification_preference_requests","fieldPath":"expireAt","ttl":true,"indexes":[]},
+    {"collectionGroup":"_social_post_list_cursors","fieldPath":"expires_at","ttl":true,"indexes":[]},
+    {"collectionGroup":"_auth_session_revoke_limits","fieldPath":"expireAt","ttl":true,"indexes":[]},
+    {"collectionGroup":"_auth_session_revocations","fieldPath":"expireAt","ttl":true,"indexes":[]},
+    {"collectionGroup":"_sign_in_preference_limits","fieldPath":"expireAt","ttl":true,"indexes":[]},
+    {"collectionGroup":"_sign_in_preference_receipts","fieldPath":"expireAt","ttl":true,"indexes":[]},
     { "collectionGroup": "_comment_cursors", "fieldPath": "expires_at", "ttl": true, "indexes": [] },
     { "collectionGroup": "_auth_email_challenges", "fieldPath": "expireAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "_auth_email_limits", "fieldPath": "expireAt", "ttl": true, "indexes": [] },

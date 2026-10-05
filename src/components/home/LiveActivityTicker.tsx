@@ -33,13 +33,13 @@ export function LiveActivityTicker() {
             : `${stats.activeChats} active chats right now`,
       });
     }
-    if (stats.recentPosts > 0) {
+    if (typeof stats.recentPosts === 'number' && stats.recentPosts > 0) {
       msgs.push({
         emoji: '⚡',
         text:
-          stats.recentPosts === 1
+          stats.recentPosts === 1 && !stats.recentPostsHasMore
             ? '1 new post in the last 5 min'
-            : `${stats.recentPosts} new posts in the last 5 min`,
+            : `${stats.recentPosts}${stats.recentPostsHasMore ? '+' : ''} visible posts in the last 5 min`,
       });
     }
     if (stats.badgesClaimed > 0) {
@@ -50,11 +50,6 @@ export function LiveActivityTicker() {
             ? '1 reward claimed today'
             : `${stats.badgesClaimed} rewards claimed today`,
       });
-    }
-
-    // Fallback if no live data
-    if (msgs.length === 0) {
-      msgs.push({ emoji: '✨', text: 'VYBE is waking up — be the first!' });
     }
 
     return msgs;

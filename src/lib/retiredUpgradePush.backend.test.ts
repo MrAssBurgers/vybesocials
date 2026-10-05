@@ -13,8 +13,9 @@ vi.mock('../../functions/src/_shared/fcmPush.js', () => ({
 vi.mock('../../functions/src/_shared/onesignalPush.js', () => ({ resolvePushTargetProfileId: vi.fn() }));
 vi.mock('../../functions/src/_shared/pushPreferences.js', () => ({
   loadNotificationPreferences: mocks.preferences, isBlockedByQuietHours: () => false,
-  isPushAllowedForType: () => true, sanitizeDmPushBody: vi.fn(),
+  isPushAllowedForType: (type: string, prefs: Record<string, unknown>) => type !== 'announcement' || prefs.announcements_enabled !== false, sanitizeDmPushBody: vi.fn(),
 }));
+vi.mock('../../functions/src/_shared/notificationPreferenceAuthority.js', () => ({ readDeliveryNotificationContext: async (_db: unknown, profileId: string) => ({ ownerUid: profileId, profileId, preferences: await mocks.preferences(profileId) }) }));
 vi.mock('../../functions/src/_shared/smartPushGate.js', () => ({ logPushDelivery: vi.fn(), shouldSkipRecipientPush: vi.fn() }));
 import { onSocialNotificationCreated } from '../../functions/src/pushTriggers';
 

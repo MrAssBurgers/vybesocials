@@ -1,3 +1,4 @@
+import { PostListReadStatus } from '@/components/posts/PostListReadStatus';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Bookmark, BookmarkCheck, Share2, Sparkles, Eye, Users } from 'lucide-react';
@@ -19,7 +20,8 @@ export function FilterDetailSheet({ filter, onClose }: FilterDetailSheetProps) {
   const { user } = useAuth();
   const { save, unsave } = useSaveFilter();
   const { data: savedFilters = [] } = useSavedFilters();
-  const { data: posts = [] } = useFilterPosts(filter?.id || null);
+  const postQuery = useFilterPosts(filter?.id || null);
+  const { data: posts = [] } = postQuery;
 
   const isSaved = filter ? savedFilters.some(f => f.id === filter.id) : false;
 
@@ -177,6 +179,7 @@ export function FilterDetailSheet({ filter, onClose }: FilterDetailSheetProps) {
                 </div>
               </div>
 
+              <PostListReadStatus query={postQuery} />
               {/* Posts using this filter */}
               {posts.length > 0 && (
                 <div className="mt-6 px-4 pb-6">
@@ -184,7 +187,7 @@ export function FilterDetailSheet({ filter, onClose }: FilterDetailSheetProps) {
                     Posts using this filter
                   </h3>
                   <div className="grid grid-cols-3 gap-1 rounded-xl overflow-hidden">
-                    {posts.slice(0, 9).map((post: any) => (
+                    {posts.map((post: any) => (
                       <button
                         key={post.id}
                         onClick={() => { navigate(`/p/${post.id}`); onClose(); }}

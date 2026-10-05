@@ -504,6 +504,7 @@ self.addEventListener('push', (event) => {
       callId: data.callId,
       postId: data.postId || data.post_id,
       subtype: data.subtype,
+      recipientUid: typeof data.recipientUid === 'string' ? data.recipientUid : undefined,
       timestamp: Date.now(),
     },
     // iOS/Safari specific - silent must be false to make sound
@@ -558,11 +559,12 @@ self.addEventListener('notificationclick', (event) => {
     targetUrl = data.postId ? `/p/${data.postId}` : '/notifications';
   } else if (data.type === 'smart_ping') {
     if (action === 'mute1h') {
-      // Fire-and-forget mute via edge function (uses any open client's session)
+      // The app must match this server-provided recipient before mutating.
       event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
           const c = list[0];
-          if (c) c.postMessage({ type: 'MUTE_SMART_PINGS', hours: 1 });
+          if (c) c.postMessage({ type: 'MUTE_SMART_PINGS', hours: 1, recipientUid: data.recipientUid });
+          else return clients.openWindow('/settings?tab=notifications');
         })
       );
       return;

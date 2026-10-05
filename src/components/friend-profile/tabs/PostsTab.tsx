@@ -1,3 +1,4 @@
+import { PostListReadStatus } from '@/components/posts/PostListReadStatus';
 import { memo } from 'react';
 import { Link } from 'react-router-dom';
 import { usePosts } from '@/hooks/usePosts';
@@ -10,7 +11,8 @@ interface PostsTabProps {
 }
 
 export const PostsTab = memo(function PostsTab({ profileId }: PostsTabProps) {
-  const { data: posts, isLoading } = usePosts('post', profileId);
+  const postQuery = usePosts('post', profileId);
+  const { data: posts, isLoading } = postQuery;
 
   if (isLoading) {
     return (
@@ -24,12 +26,12 @@ export const PostsTab = memo(function PostsTab({ profileId }: PostsTabProps) {
 
   const filtered = (posts || []).filter((p) => p.type === 'post' || p.type === 'image');
 
-  if (!filtered.length) {
+  if (!filtered.length && !postQuery.isError && !postQuery.hasNextPage && !postQuery.hasMoreWindow) {
     return <EmptyState icon={<Grid className="h-8 w-8" />} title="No posts yet" description="" />;
   }
 
   return (
-    <div className="grid grid-cols-3 gap-1">
+    <><PostListReadStatus query={postQuery} /><div className="grid grid-cols-3 gap-1">
       {filtered.map((post) => (
         <Link
           key={post.id}
@@ -49,6 +51,6 @@ export const PostsTab = memo(function PostsTab({ profileId }: PostsTabProps) {
           )}
         </Link>
       ))}
-    </div>
+    </div></>
   );
 });

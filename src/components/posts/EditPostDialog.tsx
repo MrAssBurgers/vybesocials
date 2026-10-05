@@ -55,6 +55,8 @@ export function EditPostDialog({ open, onOpenChange, post }: EditPostDialogProps
 
       toast.success('Post updated!');
       queryClient.invalidateQueries({ queryKey: ['posts'] });
+      void queryClient.invalidateQueries({ queryKey: ['social-post-list'] });
+      void queryClient.invalidateQueries({ queryKey: ['profile-visible-post-count'] });
       queryClient.invalidateQueries({ queryKey: ['post', post.id] });
       onOpenChange(false);
     } catch (error) {

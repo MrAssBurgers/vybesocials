@@ -386,6 +386,8 @@ function PostDetailContent() {
       toast.success('Post deleted');
       setDeleteDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ['posts'] });
+      void queryClient.invalidateQueries({ queryKey: ['social-post-list'] });
+      void queryClient.invalidateQueries({ queryKey: ['profile-visible-post-count'] });
       queryClient.invalidateQueries({ queryKey: ['profile'] });
       queryClient.invalidateQueries({ queryKey: ['profile-by-id'] });
       navigate(-1);

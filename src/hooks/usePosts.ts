@@ -1,5 +1,4 @@
-import { readCommentCounts } from '@/lib/commentService';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useFeedMuteFilter } from '@/hooks/useFeedMuteFilter';
@@ -8,19 +7,12 @@ import { optimizeForUpload, isVideoFile, generateVideoThumbnail, getCompressedEx
 import { withTimeout } from '@/lib/withTimeout';
 import { moderateContent } from '@/hooks/useModeration';
 import { toast } from 'sonner';
-import { setCachedProfiles } from '@/lib/profileCache';
-import { resolveAuthorIds, fetchMemberProfiles } from '@/lib/dmMembershipRepair';
-import { getUserProfile } from '@/lib/firebase/users';
 import { isValidMediaUrl } from '@/lib/mediaUrl';
 import { runPublishVybeCheck } from '@/lib/vybeCheck/runPublishVybeCheck';
 import { challengeTypeForPost, recordChallengeActivity } from '@/lib/challengeProgressClient';
 import { tokenAccountGuard, tokenMarketplaceRequest, type TokenAccountGuard } from '@/lib/tokenMarketplaceService';
-import {
-  getDocuments as getFirestoreDocuments,
-  getDocumentsFromServer as getFirestoreDocumentsFromServer,
-  where as firestoreWhere,
-  firestoreLimit as directFirestoreLimit,
-} from '@/lib/firebase/firestoreDb';
+import { useSocialFeed } from './useSocialFeed';
+import { useSocialPostList } from './useSocialPostList';
 
 export { isValidMediaUrl };
 
@@ -30,401 +22,16 @@ const POST_ACTOR_GUARD = Symbol('postActorGuard');
 // The mutation already displayed the precise safety-check decision.
 class NotifiedPublishCheckError extends Error {}
 
-interface Post {
-  id: string;
-  type: string;
-  media_url: string;
-  thumbnail_url: string | null;
-  caption: string;
-  tags: string[];
-  created_at: string;
-  is_pinned: boolean;
-  view_count: number;
-  is_ai_generated?: boolean;
-  ai_confidence?: number;
-  ai_override?: boolean | null;
-  author: {
-    id: string;
-    username: string;
-    display_name?: string | null;
-    avatar_url: string | null;
-    is_verified?: boolean | null;
-  };
-  like_count: number;
-  comment_count: number;
-  is_liked: boolean;
-  is_bookmarked: boolean;
-}
-
-export function usePosts(
-  type?: 'short' | 'post' | 'video',
-  authorId?: string,
-  options?: { enabled?: boolean },
-) {
-  const { profile } = useAuth();
-  const queryEnabled =
-    options?.enabled !== false && (authorId !== undefined ? !!authorId : true);
-
-  const postsQuery = useQuery({
-    // Version profile cache entries whenever their server-read contract changes.
-    // Persisted empty results previously stayed fresh for 30 minutes, so a new
-    // bundle never executed the repaired query even after a full navigation.
-    queryKey: ['posts', authorId ? 'profile-server-v2' : 'feed-v1', type, authorId, profile?.id],
-    enabled: queryEnabled,
-    staleTime: authorId ? 0 : undefined,
-    refetchOnMount: authorId ? 'always' : undefined,
-    queryFn: async (): Promise<Post[]> => {
-      // Pinned posts only matter when viewing a specific author's profile.
-      // For global/feed views, sort purely by recency so a user pinning a post
-      // doesn't bubble that post to the top of everyone else's feed.
-      const isProfileView = !!authorId;
-      let profileViewAuthor: Awaited<ReturnType<typeof getUserProfile>> = null;
-      let profileAuthorIds: string[] = [];
-
-      let query = db
-        .from('posts')
-        .select(`
-          id,
-          author_id,
-          type,
-          media_url,
-          thumbnail_url,
-          caption,
-          tags,
-          created_at,
-          is_pinned,
-          view_count,
-          is_ai_generated,
-          ai_confidence,
-          ai_override,
-          author:profiles!author_id (
-            id,
-            username,
-            display_name,
-            avatar_url,
-            is_verified
-          )
-        `);
-
-      if (isProfileView) {
-        profileViewAuthor = await getUserProfile(authorId!);
-        const authorIds = await resolveAuthorIds(authorId!);
-        profileAuthorIds = authorIds;
-        // A single resolved identity is the common case. Use equality instead of
-        // `in: [id]`: it is cheaper, avoids a composite-query edge in the
-        // Firestore adapter, and lets the author profile render its own newly
-        // published post immediately. Legacy profiles can still resolve to both
-        // profile and auth IDs and use the bounded `in` query below.
-        query = authorIds.length === 1
-          ? query.eq('author_id', authorIds[0]!)
-          : authorIds.length <= 10
-            ? query.in('author_id', authorIds)
-            : query.eq('author_id', authorIds[0]!);
-      }
-
-      // Profile rows are sorted below (pinned first, then newest). Keeping the
-      // author query unordered also gives it the same reliable Firestore shape
-      // as the working profile post-count query; the previous ordered query
-      // could return an empty snapshot while direct document reads and the
-      // author count both proved the post existed.
-      if (!isProfileView) {
-        query = query.order('created_at', { ascending: false });
-      }
-      query = query.limit(500);
-
-      if (type) {
-        query = query.eq('type', type);
-      }
-
-      let feedExcludeAuthors: Set<string> | null = null;
-      if (!isProfileView && profile?.id) {
-        const { data: blocks } = await db
-          .from('blocked_users')
-          .select('blocked_id')
-          .eq('blocker_id', profile.id);
-        feedExcludeAuthors = new Set((blocks || []).map((b: any) => b.blocked_id).filter(Boolean));
-      }
-
-      let rawPosts: any[] | null = null;
-      let error: { message?: string } | null = null;
-
-      if (isProfileView) {
-        try {
-          // Profile reads use the native Firestore path. The compatibility
-          // query adapter is useful for feed joins, but production canaries
-          // showed it returning an empty profile grid while the same author's
-          // count and direct post documents were readable.
-          const batches = await Promise.all(profileAuthorIds.map(async (resolvedAuthorId) => {
-            const constraints = [
-              firestoreWhere('author_id', '==', resolvedAuthorId),
-              directFirestoreLimit(500),
-            ];
-            try {
-              return await getFirestoreDocumentsFromServer<Record<string, any>>('posts', constraints);
-            } catch (serverReadError) {
-              console.warn('[usePosts] Server profile read unavailable; using cached posts', serverReadError);
-              return getFirestoreDocuments<Record<string, any>>('posts', constraints);
-            }
-          }));
-          const byPostId = new Map<string, any>();
-          for (const batch of batches) {
-            for (const post of batch) byPostId.set(String(post.id), post);
-          }
-          rawPosts = [...byPostId.values()];
-        } catch (profilePostsError) {
-          error = {
-            message: profilePostsError instanceof Error
-              ? profilePostsError.message
-              : 'Profile posts could not be loaded',
-          };
-        }
-      } else {
-        const result = await query;
-        rawPosts = result.data as any[] | null;
-        error = result.error;
-      }
-
-      if (error) {
-        console.error('Failed to fetch posts:', error);
-        throw error;
-      }
-
-      const posts = feedExcludeAuthors
-        ? (rawPosts || []).filter((p: any) => !feedExcludeAuthors!.has(p.author_id))
-        : rawPosts || [];
-
-      let authorProfileMap = new Map<string, Record<string, unknown>>();
-      try {
-        authorProfileMap = await fetchMemberProfiles(
-          [...new Set((posts as any[]).map((p) => p.author_id).filter(Boolean))],
-        );
-      } catch (authorLookupError) {
-        // Author enrichment is auxiliary. The profile itself is already loaded,
-        // so a transient lookup failure must not turn durable posts into an
-        // incorrect empty grid.
-        console.warn('[usePosts] Author enrichment failed; using profile fallback', authorLookupError);
-      }
-
-      // Get likes and bookmarks for current user
-      let userLikes: string[] = [];
-      let userBookmarks: string[] = [];
-      const userReactionMap: Record<string, string> = {};
-
-      if (profile) {
-        const [likesResult, bookmarksResult] = await Promise.allSettled([
-          db.from('likes').select('post_id, reaction_type').eq('user_id', profile.id),
-          db.from('bookmarks').select('post_id').eq('user_id', profile.id),
-        ]);
-
-        const likesData = likesResult.status === 'fulfilled' ? likesResult.value.data || [] : [];
-        const bookmarksData = bookmarksResult.status === 'fulfilled' ? bookmarksResult.value.data || [] : [];
-        userLikes = likesData.map(l => l.post_id);
-        userBookmarks = bookmarksData.map(b => b.post_id);
-        likesData.forEach(l => { if (l.reaction_type) userReactionMap[l.post_id] = l.reaction_type; });
-
-        if (likesResult.status === 'rejected' || bookmarksResult.status === 'rejected') {
-          console.warn('[usePosts] Reaction/bookmark enrichment partially unavailable');
-        }
-      }
-
-      const commentCounts = await readCommentCounts((posts || []).map(post => post.id), profile?.id);
-      // Get counts for each post
-      const postsWithCounts = await Promise.all(
-        (posts || []).map(async (post) => {
-          const [likesCount] = await Promise.allSettled([
-            db.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
-
-          ]);
-
-          const joinedAuthor = post.author as unknown as { id: string; username: string; display_name?: string | null; avatar_url: string | null; is_verified?: boolean | null } | null;
-          const fallbackAuthor = authorProfileMap.get(post.author_id);
-          const author = joinedAuthor?.username && !joinedAuthor.username.startsWith('user_')
-            ? joinedAuthor
-            : fallbackAuthor
-              ? {
-                  id: String(fallbackAuthor.id),
-                  username: String(fallbackAuthor.username),
-                  display_name: (fallbackAuthor.display_name as string | null) ?? null,
-                  avatar_url: (fallbackAuthor.avatar_url as string | null) ?? null,
-                  is_verified: (fallbackAuthor.is_verified as boolean | null) ?? null,
-                }
-              : profileViewAuthor?.username
-                ? {
-                    id: profileViewAuthor.id,
-                    username: profileViewAuthor.username,
-                    display_name: profileViewAuthor.display_name ?? null,
-                    avatar_url: profileViewAuthor.avatar_url ?? null,
-                    is_verified: profileViewAuthor.is_verified ?? null,
-                  }
-                : joinedAuthor;
-          
-          if (!author?.username) return null;
-          
-          return {
-            ...post,
-            tags: Array.isArray(post.tags) ? post.tags.filter((tag): tag is string => typeof tag === 'string') : [],
-            is_pinned: post.is_pinned ?? false,
-            view_count: (post as any).view_count ?? 0,
-            author,
-            like_count: likesCount.status === 'fulfilled' ? likesCount.value.count || 0 : 0,
-            comment_count: commentCounts[post.id] ?? 0,
-            is_liked: userLikes.includes(post.id),
-            is_bookmarked: userBookmarks.includes(post.id),
-            reaction_type: userReactionMap[post.id] || null,
-          };
-        })
-      );
-
-      // Text-only posts intentionally have no media URL. Keep them when the caption
-      // is non-empty; media posts must still resolve to a valid media URL.
-      const validPosts = postsWithCounts.filter((post): post is NonNullable<typeof post> => {
-        if (post === null) return false;
-        const isCaptionOnlyPost =
-          post.type === 'post' &&
-          typeof post.caption === 'string' &&
-          post.caption.trim().length > 0 &&
-          !post.media_url;
-        return isCaptionOnlyPost || isValidMediaUrl(post.media_url);
-      });
-
-      if (isProfileView) {
-        validPosts.sort((a, b) => {
-          const pinDiff = Number(b.is_pinned) - Number(a.is_pinned);
-          if (pinDiff !== 0) return pinDiff;
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        });
-      }
-
-      // Cache author profiles for instant lookups
-      const authors = validPosts
-        .map(p => p.author)
-        .filter((a): a is NonNullable<typeof a> => !!a);
-      if (authors.length > 0) {
-        setCachedProfiles(authors.map(a => ({
-          id: a.id,
-          username: a.username,
-          display_name: a.display_name || null,
-          avatar_url: a.avatar_url,
-        })));
-      }
-
-      return validPosts;
-    },
-  });
-  return useFeedMuteFilter(postsQuery, !!authorId);
+export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string, options?: { enabled?: boolean }) {
+  const enabled = options?.enabled !== false && (authorId === undefined || !!authorId);
+  const profile = useSocialPostList({ scope: 'profile', targetId: authorId, ...(type ? { contentType: type } : {}) }, enabled && !!authorId);
+  const feed = useSocialFeed(type, enabled && !authorId);
+  return useFeedMuteFilter(authorId ? profile : { ...feed, data: feed.data?.pages.flatMap(page => page.posts) }, !!authorId);
 }
 
 export function useFollowingPosts() {
-  const { profile } = useAuth();
-
-  const postsQuery = useQuery({
-    queryKey: ['following-posts', profile?.id],
-    queryFn: async (): Promise<Post[]> => {
-      if (!profile) return [];
-
-      // Get following list
-      const { data: following } = await db
-        .from('follows')
-        .select('following_id')
-        .eq('follower_id', profile.id);
-
-      const followingIds = following?.map(f => f.following_id) || [];
-
-      if (followingIds.length === 0) return [];
-
-      const { data: posts, error } = await db
-        .from('posts')
-        .select(`
-          id,
-          author_id,
-          type,
-          media_url,
-          thumbnail_url,
-          caption,
-          tags,
-          created_at,
-          is_pinned,
-          view_count,
-          author:profiles!author_id (
-            id,
-            username,
-            display_name,
-            avatar_url,
-            is_verified
-          )
-        `)
-        .in('author_id', followingIds)
-        .neq('author_id', profile.id) // never show your own posts in the Following feed
-        .order('created_at', { ascending: false })
-        .limit(500);
-
-      if (error) {
-        console.error('Failed to fetch following posts:', error);
-        throw error;
-      }
-
-      // Get likes and bookmarks
-      const [likesResult, bookmarksResult] = await Promise.all([
-        db.from('likes').select('post_id, reaction_type').eq('user_id', profile.id),
-        db.from('bookmarks').select('post_id').eq('user_id', profile.id),
-      ]);
-
-      const userLikes = likesResult.data?.map(l => l.post_id) || [];
-      const userBookmarks = bookmarksResult.data?.map(b => b.post_id) || [];
-      const userReactionMap2: Record<string, string> = {};
-      likesResult.data?.forEach(l => { if (l.reaction_type) userReactionMap2[l.post_id] = l.reaction_type; });
-
-      const commentCounts = await readCommentCounts(posts.map(post => post.id), profile.id);
-      const postsWithCounts = await Promise.all(
-        (posts || []).map(async (post) => {
-          const [likesCount] = await Promise.all([
-            db.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
-
-          ]);
-
-          const author = post.author as unknown as { id: string; username: string; display_name?: string | null; avatar_url: string | null; is_verified?: boolean | null } | null;
-
-          // Skip posts with no author
-          if (!author) return null;
-
-          return {
-            ...post,
-            tags: Array.isArray(post.tags) ? post.tags.filter((tag): tag is string => typeof tag === 'string') : [],
-            is_pinned: post.is_pinned ?? false,
-            view_count: (post as any).view_count ?? 0,
-            author,
-            like_count: likesCount.count || 0,
-            comment_count: commentCounts[post.id] ?? 0,
-            is_liked: userLikes.includes(post.id),
-            is_bookmarked: userBookmarks.includes(post.id),
-            reaction_type: userReactionMap2[post.id] || null,
-          };
-        })
-      );
-
-      // Filter out null entries and invalid media
-      const validPosts = postsWithCounts.filter((post): post is NonNullable<typeof post> => 
-        post !== null && isValidMediaUrl(post.media_url)
-      );
-
-      // Cache author profiles
-      const authors = validPosts
-        .map(p => p.author)
-        .filter((a): a is NonNullable<typeof a> => !!a);
-      if (authors.length > 0) {
-        setCachedProfiles(authors.map(a => ({
-          id: a.id,
-          username: a.username,
-          display_name: a.display_name || null,
-          avatar_url: a.avatar_url,
-        })));
-      }
-
-      return validPosts;
-    },
-    enabled: !!profile,
-  });
-  return useFeedMuteFilter(postsQuery);
+  const feed = useSocialFeed(undefined, true, 'following');
+  return { ...feed, data: feed.data?.pages.flatMap(page => page.posts) };
 }
 
 export function useCreatePost() {
@@ -692,6 +299,8 @@ export function useCreatePost() {
       const actorGuard = _post?.[POST_ACTOR_GUARD] as TokenAccountGuard | undefined;
       try { actorGuard?.(); } catch { return; }
       queryClient.invalidateQueries({ queryKey: ['posts'] });
+      void queryClient.invalidateQueries({ queryKey: ['social-post-list'] });
+      void queryClient.invalidateQueries({ queryKey: ['profile-visible-post-count'] });
       queryClient.invalidateQueries({ queryKey: ['social-feed'] });
       // Profile counts are cached separately from profile post grids. Refresh
       // them so a successful publish never leaves “0 Posts” beside a visible post.
@@ -794,6 +403,8 @@ export function useTogglePin() {
     },
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['posts'] });
+      void queryClient.invalidateQueries({ queryKey: ['social-post-list'] });
+      void queryClient.invalidateQueries({ queryKey: ['profile-visible-post-count'] });
       queryClient.invalidateQueries({ queryKey: ['pinned-post-count'] });
       toast.success(vars.isPinned ? 'Pinned to your profile' : 'Unpinned');
     },

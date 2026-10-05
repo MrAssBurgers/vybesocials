@@ -2,6 +2,7 @@ import { db } from '@/lib/firebase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
 import { setCachedProfile, getCachedCurrentProfile } from '@/lib/profileCache';
+import { useVisiblePostCount } from './useVisiblePostCount';
 
 /** Supabase RPCs return row arrays; Firebase client fallbacks may return a single object. */
 function firstProfileRow(data: unknown): Record<string, unknown> | null {
@@ -26,6 +27,8 @@ interface Profile {
   follower_count: number;
   following_count: number;
   post_count: number;
+  post_count_label?: string;
+  post_count_exact?: boolean;
   is_following: boolean;
   is_private?: boolean | null;
   is_verified?: boolean | null;
@@ -37,8 +40,9 @@ interface Profile {
 export function useProfileById(profileId: string | undefined) {
   const { profile: currentProfile } = useAuth();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['profile-by-id', profileId, currentProfile?.id],
+    placeholderData: undefined,
     queryFn: async (): Promise<Profile | null> => {
       if (!profileId) return null;
 
@@ -91,10 +95,9 @@ export function useProfileById(profileId: string | undefined) {
       }
 
       // Get counts in parallel
-      const [followerCount, followingCount, postCount, isFollowing] = await Promise.all([
+      const [followerCount, followingCount, isFollowing] = await Promise.all([
         db.from('follows').select('id', { count: 'exact', head: true }).eq('following_id', profile.id),
         db.from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', profile.id),
-        db.from('posts').select('id', { count: 'exact', head: true }).eq('author_id', profile.id),
         currentProfile
           ? db
               .from('follows')
@@ -117,7 +120,7 @@ export function useProfileById(profileId: string | undefined) {
         ...profile,
         follower_count: followerCount.count || 0,
         following_count: followingCount.count || 0,
-        post_count: postCount.count || 0,
+        post_count: 0,
         is_following: !!isFollowing.data,
       };
     },
@@ -128,6 +131,8 @@ export function useProfileById(profileId: string | undefined) {
     refetchOnMount: false,
     refetchOnWindowFocus: false,
   });
+  const posts = useVisiblePostCount(query.data?.id);
+  return { ...query, data: query.data ? { ...query.data, post_count: posts.count ?? 0, post_count_label: posts.label, post_count_exact: posts.exact } : query.data };
 }
 
 export function useProfileByUsername(username: string) {
@@ -135,7 +140,7 @@ export function useProfileByUsername(username: string) {
   const queryClient = useQueryClient();
   const normalizedKey = (username || '').trim().toLowerCase();
 
-  return useQuery({
+  const query = useQuery({
     // Stable across auth hydrate — never miss warm/disk cache when viewer id arrives.
     queryKey: ['profile', normalizedKey],
     queryFn: async (): Promise<Profile | null> => {
@@ -218,7 +223,6 @@ export function useProfileByUsername(username: string) {
       void Promise.all([
         db.from('follows').select('id', { count: 'exact', head: true }).eq('following_id', p.id),
         db.from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', p.id),
-        db.from('posts').select('id', { count: 'exact', head: true }).eq('author_id', p.id),
         currentProfile
           ? db
               .from('follows')
@@ -228,14 +232,14 @@ export function useProfileByUsername(username: string) {
               .maybeSingle()
           : Promise.resolve({ data: null }),
       ])
-        .then(([followerCount, followingCount, postCount, isFollowing]) => {
+        .then(([followerCount, followingCount, isFollowing]) => {
           queryClient.setQueryData(['profile', normalizedKey], (prev: Profile | null | undefined) => {
             if (!prev || prev.id !== String(p.id)) return prev;
             return {
               ...prev,
               follower_count: followerCount.count || 0,
               following_count: followingCount.count || 0,
-              post_count: postCount.count || 0,
+              post_count: 0,
               is_following: !!isFollowing.data,
             };
           });
@@ -267,6 +271,8 @@ export function useProfileByUsername(username: string) {
     },
     networkMode: 'always',
   });
+  const posts = useVisiblePostCount(query.data?.id);
+  return { ...query, data: query.data ? { ...query.data, post_count: posts.count ?? 0, post_count_label: posts.label, post_count_exact: posts.exact } : query.data };
 }
 
 export function useUpdateAvatar() {

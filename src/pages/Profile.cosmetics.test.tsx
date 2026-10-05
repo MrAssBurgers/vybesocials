@@ -3,11 +3,11 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import { FRAME_CLASS_MAP, THEME_GRADIENTS } from '@/lib/cosmeticConstants';
-const mock = vi.hoisted(() => ({ theme: 'theme_neon', frame: 'avatar_frame_gold', hasWallpaper: true, setBackground: vi.fn(), refreshBackground: vi.fn() }));
+const mock = vi.hoisted(() => ({ theme: 'theme_neon', frame: 'avatar_frame_gold', hasWallpaper: true, setBackground: vi.fn(), refreshBackground: vi.fn(), unavailable: [] as string[], removeSaved: vi.fn(), removeError: false }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 'alice' }, authReady: true, profile: { id: 'alice-profile', user_id: 'alice', username: 'alice' } }) }));
 vi.mock('@/hooks/useProfile', () => ({ useProfileByUsername: () => ({ data: { id: 'alice-profile', user_id: 'alice', username: 'alice' } }), useFollow: () => ({}), useUpdateAvatar: () => ({}) }));
 vi.mock('@/hooks/usePosts', () => ({ usePosts: () => ({ data: [] }) }));
-vi.mock('@/hooks/useSavedPosts', () => ({ useSavedPosts: () => ({ data: [] }) }));
+vi.mock('@/hooks/useSavedPosts', () => ({ useSavedPosts: () => ({ data: [], unavailableSavedPostIds: mock.unavailable }), useRemoveSavedPost: () => ({ mutate: mock.removeSaved, isPending: false, isError: mock.removeError }) }));
 vi.mock('@/hooks/useSignedUrl', () => ({ useSignedUrl: () => ({}) }));
 vi.mock('@/hooks/useMessages', () => ({ useMarkConversationReadByUser: () => ({ mutate: vi.fn() }) }));
 vi.mock('@/hooks/useUserRoleById', () => ({ useUserRoleById: () => ({ data: null }) }));
@@ -30,7 +30,7 @@ vi.mock('@/components/growth/GuestJoinBanner', () => ({ GuestJoinBanner: () => n
 vi.mock('@/components/moderation/ModeratorActionsMenu', () => ({ useIsModOrAdmin: () => false, ModeratorDialogs: () => null }));
 vi.mock('@/components/premium/PremiumMemeBanItems', () => ({ PremiumMemeBanDialog: () => null }));
 import Profile from './Profile';
-beforeEach(() => { vi.clearAllMocks(); mock.hasWallpaper = true; });
+beforeEach(() => { vi.clearAllMocks(); mock.hasWallpaper = true; mock.unavailable = []; mock.removeError = false; });
 afterEach(cleanup);
 describe('profile renders purchased cosmetics', () => {
   it.each([['theme_neon', 'avatar_frame_gold'], ['theme_ocean', 'avatar_frame_fire']])('renders %s from equipped ID and passes the actual avatar frame style', (theme, frame) => {
@@ -77,5 +77,16 @@ describe('profile renders purchased cosmetics', () => {
     expect(background).toHaveStyle({ zIndex: '0' });
     expect(surface.querySelector('.profile-page-shell')).toHaveStyle({ zIndex: '1' });
     expect(mock.setBackground).not.toHaveBeenCalled();
+  });
+});
+
+describe('unavailable saved posts remain removable without revealing old contents', () => {
+  it('shows a neutral saved reference and retries removal without an empty saved-list claim', () => {
+    mock.unavailable = ['denied-post']; mock.removeError = true;
+    render(<MemoryRouter><Profile /></MemoryRouter>); fireEvent.click(screen.getByRole('button', { name: 'Saved' }));
+    expect(screen.getByText('Saved post is unavailable')).toBeInTheDocument(); expect(screen.queryByText('No saved posts yet')).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not remove this saved post');
+    fireEvent.click(screen.getByRole('button', { name: 'Remove saved post' })); expect(mock.removeSaved).toHaveBeenCalledWith('denied-post');
+    expect(screen.queryByRole('link', { name: /denied/i })).not.toBeInTheDocument();
   });
 });

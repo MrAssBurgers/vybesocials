@@ -31,6 +31,7 @@ import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { InlineComments } from '@/components/comments/InlineComments';
 import { ShareSheet } from '@/components/share/ShareSheet';
 import { HoldToShare } from '@/components/share/HoldToShare';
+import { PostListReadStatus } from '@/components/posts/PostListReadStatus';
 
 export default function WatchPage() {
   const { id = '' } = useParams<{ id: string }>();
@@ -88,7 +89,8 @@ function WatchContent() {
   const commentCount = checked?.commentCount || 0;
 
   // Related long-form videos from personalized feed
-  const { data: relatedFeed } = usePersonalizedFeed('video', { enabled: video?.type === 'video' });
+  const relatedQuery = usePersonalizedFeed('video', { enabled: video?.type === 'video' });
+  const { data: relatedFeed } = relatedQuery;
   const relatedVideos = useMemo(
     () =>
       relatedFeed?.pages
@@ -445,7 +447,9 @@ function WatchContent() {
           <div className="w-full lg:w-96 space-y-4">
             <h3 className="font-semibold">Up next</h3>
             <div className="space-y-3">
-              {relatedVideos.length === 0 ? (
+              {relatedVideos.length === 0 && (relatedQuery.isError || relatedQuery.isPending || relatedQuery.hasNextPage || relatedQuery.hasMoreWindow || relatedQuery.hasPreviousWindow) ? (
+                <PostListReadStatus query={relatedQuery} />
+              ) : relatedVideos.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No related videos yet</p>
               ) : (
                 relatedVideos.map((post) => (

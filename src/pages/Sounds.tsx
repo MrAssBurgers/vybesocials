@@ -1,3 +1,4 @@
+import { SavedSoundUnavailable } from '@/components/sounds/SavedSoundUnavailable';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -81,8 +82,8 @@ export default function SoundsPage() {
               </motion.div>
             </div>
           </div>
-          <p className="text-sm font-medium mb-1">No sounds found</p>
-          <p className="text-xs text-muted-foreground">Be the first to upload a sound!</p>
+          <p className="text-sm font-medium mb-1">{searchQuery.trim() ? 'No matching sounds' : activeTab === 'saved' ? 'No saved sounds yet' : activeTab === 'recommended' ? 'No uploads yet' : 'No sounds yet'}</p>
+          <p className="text-xs text-muted-foreground">{searchQuery.trim() ? 'Try a different title, artist, or tag.' : activeTab === 'saved' ? 'Save a sound from Browse to find it here.' : 'Upload original audio to start your library.'}</p>
         </div>
       );
     }
@@ -211,7 +212,11 @@ export default function SoundsPage() {
                   Your Saved Sounds
                 </h2>
               </div>
-              {renderSoundGrid(savedSounds || [], loadingSaved)}
+              {savedQuery.isError ? <div role="alert"><p>Saved sounds could not be loaded.</p><Button onClick={() => void savedQuery.refetch()}>Retry saved sounds</Button></div> : <>
+                {(savedQuery.entries?.some(entry => entry.sound) || loadingSaved || !savedQuery.entries?.length) && renderSoundGrid(savedSounds || [], loadingSaved)}
+                {savedQuery.entries?.filter(entry => !entry.sound).map(entry => <SavedSoundUnavailable key={`${entry.legacy}:${entry.referenceId}`} entry={entry} />)}
+              </>}
+              {savedQuery.hasNextPage && <Button disabled={savedQuery.isFetchingNextPage} onClick={() => void savedQuery.fetchNextPage()}>{savedQuery.isFetchingNextPage ? 'Loading more saved sounds' : 'Load more saved sounds'}</Button>}
             </TabsContent>
 
             <TabsContent value="recommended" className="space-y-6">

@@ -26,12 +26,14 @@ interface ExploreVideosGridProps {
   videos: VideoPost[];
   isLoading: boolean;
   hasFilters?: boolean;
+  hasMore?: boolean;
 }
 
 export const ExploreVideosGrid = memo(function ExploreVideosGrid({
   videos,
   isLoading,
   hasFilters = false,
+  hasMore = false,
 }: ExploreVideosGridProps) {
   if (isLoading) {
     return (
@@ -58,6 +60,7 @@ export const ExploreVideosGrid = memo(function ExploreVideosGrid({
     );
   }
 
+  if (videos.length === 0 && hasMore) return <p className="py-4 text-center text-sm text-muted-foreground">Continue loading to find more videos.</p>;
   if (videos.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-4">

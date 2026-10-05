@@ -101,17 +101,18 @@ function audioUrl(value: unknown) {
   if (url.protocol !== 'https:' || url.hostname !== 'firebasestorage.googleapis.com' || url.username || url.password || url.port) throw new Error('Invalid sound audio.');
   return url.href;
 }
+export function parseLibrarySound(value: unknown, expectedId?: string): Sound {
+    if (!isRow(value) || !validId(value.sound_id) || (expectedId && value.sound_id !== expectedId) || typeof value.title !== 'string' || value.title.length > 100 || typeof value.artist !== 'string' || value.artist.length > 150
+      || (value.is_saved !== undefined && typeof value.is_saved !== 'boolean') || typeof value.duration !== 'number' || value.duration < 0.1 || value.duration > 60 || !Array.isArray(value.tags) || value.tags.length > 10 || value.tags.some(tag => typeof tag !== 'string' || tag.length > 30)
+      || typeof value.created_at !== 'string' || !Number.isFinite(Date.parse(value.created_at)) || !['not_reviewed', 'approved'].includes(String(value.moderation_status))) throw new Error('Sound results could not be verified.');
+    return { ...value, audio_url: audioUrl(value.audio_url), preview_url: audioUrl(value.preview_url) } as unknown as Sound;
+}
 export async function readSoundLibrary(actor: SoundActor, input: { action: 'list'; kind: 'new' | 'trending' | 'mine'; cursor?: string } | { action: 'get'; soundId: string }) {
   actor.guard(); const { data, error } = await invokeFunction<unknown>('read-sound-library', { ...input, expectedOwnerUid: actor.uid, expectedProfileId: actor.profileId }); actor.guard();
   if (error) throw new Error('Your sound library could not be loaded. Please retry.');
   if (!isRow(data) || data.success !== true || data.ownerUid !== actor.uid || data.profileId !== actor.profileId || !Array.isArray(data.sounds) || data.sounds.length > (input.action === 'get' ? 1 : 25)
     || !(data.nextCursor === null || (typeof data.nextCursor === 'string' && /^[a-f0-9]{32}$/.test(data.nextCursor) && (input.action !== 'list' || data.nextCursor !== input.cursor)))) throw new Error('Sound results could not be verified.');
-  const sounds = data.sounds.map(value => {
-    if (!isRow(value) || !validId(value.sound_id) || (input.action === 'get' && value.sound_id !== input.soundId) || typeof value.title !== 'string' || value.title.length > 100 || typeof value.artist !== 'string' || value.artist.length > 150
-      || typeof value.duration !== 'number' || value.duration < 0.1 || value.duration > 60 || !Array.isArray(value.tags) || value.tags.length > 10 || value.tags.some(tag => typeof tag !== 'string' || tag.length > 30)
-      || typeof value.created_at !== 'string' || !Number.isFinite(Date.parse(value.created_at)) || !['not_reviewed', 'approved'].includes(String(value.moderation_status))) throw new Error('Sound results could not be verified.');
-    return { ...value, audio_url: audioUrl(value.audio_url), preview_url: audioUrl(value.preview_url) } as unknown as Sound;
-  });
+  const sounds = data.sounds.map(value => parseLibrarySound(value, input.action === 'get' ? input.soundId : undefined));
   if (new Set(sounds.map(sound => sound.sound_id)).size !== sounds.length) throw new Error('Repeated sound results. Please refresh.');
   return { sounds, nextCursor: data.nextCursor as string | null };
 }

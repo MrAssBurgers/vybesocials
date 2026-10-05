@@ -6,6 +6,7 @@ import { followAuthorityId, hasApprovedFollow, hasCurrentFollow } from './follow
 import { isLocalArea, nearbyLocalArea, sameLocalArea } from './localArea.js';
 import { validPostLocalProof } from './postLocalAreaAuthority.js';
 import { rankSocialPosts } from './socialFeedRanking.js';
+export const validPostDocumentId = (value) => typeof value === 'string' && value.length > 0 && !value.includes('/') && Buffer.byteLength(value) <= 1500;
 const PAGE_SIZE = 20;
 const CURSOR_TTL = 10 * 60 * 1000;
 export function normalizeSocialPostPreviewsInput(raw, uid) {
@@ -17,7 +18,7 @@ export function normalizeSocialPostPreviewsInput(raw, uid) {
     if (!validAudienceId(row.expectedProfileId)
         || Object.keys(row).some(key => !['expectedOwnerUid', 'expectedProfileId', 'postIds'].includes(key))
         || !Array.isArray(row.postIds) || row.postIds.length < 1 || row.postIds.length > PAGE_SIZE
-        || row.postIds.some(id => !validAudienceId(id)) || new Set(row.postIds).size !== row.postIds.length) {
+        || row.postIds.some(id => !validPostDocumentId(id)) || new Set(row.postIds).size !== row.postIds.length) {
         throw new HttpsError('invalid-argument', 'Choose between one and twenty distinct posts.');
     }
     return row;
@@ -55,7 +56,7 @@ function dateText(value) {
         return value.toDate().toISOString();
     return typeof value === 'string' && value.length <= 32 && /^\d{4}-\d\d-\d\dT/.test(value) && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : null;
 }
-async function authorAdmission(db, tx, viewer, alias) {
+export async function authorAdmission(db, tx, viewer, alias) {
     const author = await resolveIdentity(db, tx, alias);
     if (!author)
         return null;
@@ -85,7 +86,7 @@ async function authorAdmission(db, tx, viewer, alias) {
         && (self || level === 'public' || level === 'everyone' || (level === 'friends' && friend) || (level === 'close_friends' && close));
     return { author, settings, allows, connected: !self && (friend || hasCurrentFollow(follow, author, viewer)) };
 }
-function projectPost(id, row, admission) {
+export function projectPost(id, row, admission) {
     const { author, allows, settings } = admission;
     if (typeof row.type !== 'string' || !['post', 'short', 'video'].includes(row.type) || !allows(settings[row.type === 'short' ? 'clips' : 'posts']))
         return null;
@@ -95,7 +96,7 @@ function projectPost(id, row, admission) {
             return null;
     if (Object.hasOwn(row, 'is_private') && (typeof row.is_private !== 'boolean' || (row.is_private && !allows('only_me'))))
         return null;
-    if (row.deleted_at || row.is_deleted || row.is_hidden || row.is_removed || row.removed_at
+    if (row.is_draft || row.deleted_at || row.is_deleted || row.is_hidden || row.is_removed || row.removed_at
         || (row.status !== undefined && row.status !== 'published')
         || (row.moderation_status !== undefined && row.moderation_status !== 'approved')
         || (row.vybe_check_status !== undefined && row.vybe_check_status !== 'approved'))
@@ -121,8 +122,29 @@ function projectPost(id, row, admission) {
         // Presentation snapshots only; these counters never establish permission or reward eligibility.
         likeCount: counter(row.like_count), commentCount: counter(row.comment_count), viewCount: counter(row.view_count), isPinned: row.is_pinned === true,
         tags: Array.isArray(row.tags) ? row.tags.filter((tag) => typeof tag === 'string' && tag.length <= 100).slice(0, 30) : [],
+        isAiGenerated: row.is_ai_generated === true, aiConfidence: typeof row.ai_confidence === 'number' && Number.isFinite(row.ai_confidence) && row.ai_confidence >= 0 && row.ai_confidence <= 1 ? row.ai_confidence : null,
+        aiOverride: typeof row.ai_override === 'boolean' ? row.ai_override : null,
         author: { id: author.profileId, username, displayName: text(author.row.display_name, 200), avatarUrl: httpsUrl(author.row.avatar_url) },
     };
+}
+/** Anonymous metadata never inherits an authenticated viewer's relationships.
+ * Historical authorship is not attested here; this is a current audience gate. */
+export async function readPublicSocialPost(db, postId) {
+    if (!validPostDocumentId(postId))
+        return null;
+    return db.runTransaction(async (tx) => {
+        const row = (await tx.get(db.collection('posts').doc(postId))).data();
+        if (!row || !validAudienceId(row.author_id))
+            return null;
+        const author = await resolveIdentity(db, tx, row.author_id);
+        if (!author || author.row.is_private !== false || (row.user_id !== undefined && !author.aliases.includes(row.user_id)))
+            return null;
+        const settings = normalizedProfileSettings((await tx.get(db.collection('profile_visibility').doc(author.profileId))).data(), author.profileId);
+        const allows = (level) => level === 'public' || level === 'everyone';
+        if (!(allows(row.visibility) || allows(row.audience)))
+            return null;
+        return projectPost(postId, row, { author, settings, allows, connected: false });
+    });
 }
 /** Known-ID previews use exactly the feed's current audience/author projection.
  * No stored message caption, thumbnail or media URL can grant access.

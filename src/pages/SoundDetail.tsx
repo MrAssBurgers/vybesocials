@@ -1,3 +1,5 @@
+import { PostListReadStatus } from '@/components/posts/PostListReadStatus';
+import { SaveSoundButton } from '@/components/sounds/SaveSoundButton';
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -35,14 +37,12 @@ import { PostCard } from '@/components/posts/PostCard';
 export default function SoundDetailPage() {
   const { soundId } = useParams<{ soundId: string }>();
   const navigate = useNavigate();
-  const [isSaving, setIsSaving] = useState(false);
 
   const soundQuery = useSound(soundId!);
   const { data: sound, isLoading } = soundQuery;
   const { data: stats } = useSoundStats(soundId!);
-  const { data: posts } = usePostsWithSound(soundId!);
-  const { data: isSaved = false, refetch: refetchSaved } = useIsSoundSaved(soundId);
-  const { saveSound, unsaveSound } = useSaveSound();
+  const postQuery = usePostsWithSound(soundId!);
+  const { data: posts } = postQuery;
   const trackPlay = useTrackSoundPlay();
   const audioUrl = sound?.preview_url || sound?.audio_url || '';
   const audioPlayer = useAudioPlayer(audioUrl, soundId);
@@ -65,25 +65,6 @@ export default function SoundDetailPage() {
 
   const handleRemix = () => {
     toast.message('Audio remix exports are not available yet. You can preview this sound here.');
-  };
-
-  const handleSaveSound = async () => {
-    if (!soundId) return;
-    setIsSaving(true);
-    try {
-      if (isSaved) {
-        await unsaveSound(soundId);
-        toast.success('Sound removed from saved');
-      } else {
-        await saveSound(soundId);
-        toast.success('Sound saved!');
-      }
-      await refetchSaved();
-    } catch {
-      toast.error('Could not update saved sound');
-    } finally {
-      setIsSaving(false);
-    }
   };
 
   const handleShare = () => {
@@ -275,14 +256,7 @@ export default function SoundDetailPage() {
                 <RotateCcw className="h-4 w-4 mr-2" />
                 Remix
               </Button>
-              <Button 
-                onClick={handleSaveSound} 
-                variant={isSaved ? "default" : "outline"}
-                size="icon"
-                disabled={isSaving}
-              >
-                <Heart className={cn("h-4 w-4", isSaved && "fill-current")} />
-              </Button>
+              <SaveSoundButton soundId={sound.sound_id} saved={sound.is_saved} />
               <Button onClick={handleShare} variant="outline" size="icon">
                 <Share2 className="h-4 w-4" />
               </Button>
@@ -325,7 +299,7 @@ export default function SoundDetailPage() {
                   <PostCard key={post.id} post={post} />
                 ))}
               </div>
-            ) : (
+            ) : !postQuery.isError && !postQuery.isLoading && !postQuery.hasNextPage && !postQuery.hasMoreWindow ? (
               <div className="text-center py-12">
                 <Camera className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
                 <p className="text-muted-foreground text-lg mb-2">No videos yet</p>
@@ -337,7 +311,8 @@ export default function SoundDetailPage() {
                   Create Video
                 </Button>
               </div>
-            )}
+            ) : null}
+            <PostListReadStatus query={postQuery} />
           </div>
         </div>
       </div>

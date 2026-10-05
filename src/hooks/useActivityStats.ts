@@ -1,8 +1,11 @@
+import { usePostReadView } from './usePostReadView';
+import { readSocialPostSummary } from '@/lib/socialPostListService';
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 
 export interface ActivityStats {
-  recentPosts: number;
+  recentPosts: number | null;
+  recentPostsHasMore?: boolean;
   activeLevelUps: number;
   badgesClaimed: number;
   activeChats: number;
@@ -13,7 +16,8 @@ export interface ActivityStats {
  * Refreshes every 60s to keep things fresh without heavy polling.
  */
 export function useActivityStats() {
-  return useQuery({
+  const summary = useRecentPostSummary('five-minutes');
+  const query = useQuery({
     queryKey: ['activity-stats'],
     queryFn: async (): Promise<ActivityStats> => {
       const now = new Date();
@@ -30,11 +34,7 @@ export function useActivityStats() {
       try {
         // Run all queries in parallel - lightweight counts only
         const [postsRes, levelUpsRes, badgesRes, chatsRes] = await Promise.all([
-        // Posts in last 5 minutes
-        db
-          .from('posts')
-          .select('id', { count: 'exact', head: true })
-          .gte('created_at', fiveMinAgo),
+        Promise.resolve({ count: 0 }),
         // Level ups today (user_levels updated today with level > 1)
         db
           .from('user_levels')
@@ -74,13 +74,15 @@ export function useActivityStats() {
       activeChats: 0,
     },
   });
+  return { ...query, data: query.data ? { ...query.data, recentPosts: summary.data?.count ?? null, recentPostsHasMore: summary.data?.hasMore ?? false } : undefined };
 }
 
 export interface RhythmData {
   topXPGainer: { username: string; xp: number } | null;
   activeChallenge: { title: string; endsIn: string } | null;
   trendingTag: string | null;
-  totalPostsToday: number;
+  totalPostsToday: number | null;
+  totalPostsHasMore?: boolean;
 }
 
 /**
@@ -88,7 +90,8 @@ export interface RhythmData {
  * Refreshes every 5 minutes.
  */
 export function useRhythmData() {
-  return useQuery({
+  const summary = useRecentPostSummary('today');
+  const query = useQuery({
     queryKey: ['rhythm-data'],
     queryFn: async (): Promise<RhythmData> => {
       const now = new Date();
@@ -113,12 +116,7 @@ export function useRhythmData() {
           .order('ends_at', { ascending: true })
           .limit(1)
           .maybeSingle(),
-        // Total posts today
-        db
-          .from('posts')
-          .select('id, tags', { count: 'exact', head: false })
-          .gte('created_at', todayStart)
-          .limit(100),
+        Promise.resolve({ data: [] as { tags: string[] }[], count: 0 }),
       ]);
 
       // Get username for top XP gainer
@@ -174,4 +172,14 @@ export function useRhythmData() {
     staleTime: 1000 * 60 * 5, // 5 min
     refetchInterval: 1000 * 60 * 5,
   });
+  const topTag = summary.data?.tags.find(([, count]) => count >= 2)?.[0] ?? null;
+  return { ...query, data: query.data ? { ...query.data, totalPostsToday: summary.data?.count ?? null, totalPostsHasMore: summary.data?.hasMore ?? false, trendingTag: topTag } : undefined };
+}
+
+function useRecentPostSummary(window: 'today' | 'five-minutes') {
+  const view = usePostReadView(true), { account } = view;
+  const since = window === 'today' ? new Date(new Date(view.now).setHours(0, 0, 0, 0)).toISOString() : new Date(Math.floor(view.now / 60000) * 60000 - 300000).toISOString();
+  const query = useQuery({ placeholderData: undefined, queryKey: ['post-activity-summary', window, since, ...view.key], enabled: view.active, staleTime: 0, gcTime: 0, retry: false,
+    refetchInterval: 20000, refetchOnMount: 'always', refetchOnWindowFocus: 'always', queryFn: ({ signal }) => readSocialPostSummary({ expectedOwnerUid: account.user!.id, expectedProfileId: account.profile!.id, scope: 'recent', since }, () => view.guard(signal)) });
+  return { ...query, data: view.active && !query.isPlaceholderData && !query.isError && query.data && query.data.leaseUntil > view.now ? query.data : undefined };
 }

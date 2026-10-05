@@ -1,64 +1,24 @@
-import { readCommentCounts } from '@/lib/commentService';
-import { useQuery } from '@tanstack/react-query';
+import { useSocialPostList } from './useSocialPostList';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useProfileAccount } from './useProfileAccount';
 import { db } from '@/lib/firebase';
-import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
-export function useSavedPosts() {
-  const profileId = useAuthProfileId();
+export function useSavedPosts(enabled = true) {
+  return useSocialPostList({ scope: 'saved' }, enabled);
+}
 
-  return useQuery({
-    queryKey: ['saved-posts', profileId],
-    queryFn: async () => {
-      if (!profileId) return [];
-
-      // First get bookmarked post IDs
-      const { data: bookmarks, error: bookmarksError } = await db
-        .from('bookmarks')
-        .select('post_id')
-        .eq('user_id', profileId)
-        .order('created_at', { ascending: false });
-
-      if (bookmarksError) throw bookmarksError;
-      if (!bookmarks || bookmarks.length === 0) return [];
-
-      const postIds = bookmarks.map(b => b.post_id);
-
-      // Then fetch the posts with author info
-      const { data: posts, error: postsError } = await db
-        .from('posts')
-        .select(`
-          *,
-          author:profiles!posts_author_id_fkey(id, username, avatar_url)
-        `)
-        .in('id', postIds);
-
-      if (postsError) throw postsError;
-
-      const commentCounts = await readCommentCounts((posts || []).map(post => post.id), profileId);
-      // Get like and comment counts
-      const postsWithCounts = await Promise.all(
-        (posts || []).map(async (post) => {
-          const [{ count: likeCount }] = await Promise.all([
-            db.from('likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
-
-          ]);
-
-          return {
-            ...post,
-            like_count: likeCount || 0,
-            comment_count: commentCounts[post.id] ?? 0,
-          };
-        })
-      );
-
-      // Sort by bookmark order
-      return postsWithCounts.sort((a, b) => {
-        const aIndex = postIds.indexOf(a.id);
-        const bIndex = postIds.indexOf(b.id);
-        return aIndex - bIndex;
-      });
+export function useRemoveSavedPost() {
+  const account = useProfileAccount(), client = useQueryClient();
+  return useMutation({
+    mutationKey: ['remove-saved-post', account.session.uid, account.session.epoch],
+    mutationFn: async (postId: string) => {
+      account.guard();
+      for (const alias of new Set([account.user!.id, account.profile!.id])) {
+        account.guard();
+        const result = await db.from('bookmarks').delete().eq('user_id', alias).eq('post_id', postId);
+        account.guard(); if (result.error) throw result.error;
+      }
     },
-    enabled: !!profileId,
-    networkMode: 'always',
+    onSuccess: () => { try { account.guard(); } catch { return; } void client.invalidateQueries({ queryKey: ['social-post-list'] }); },
   });
 }

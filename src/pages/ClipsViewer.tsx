@@ -1,3 +1,4 @@
+import { PostListReadStatus } from '@/components/posts/PostListReadStatus';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -101,6 +102,10 @@ function ClipsViewerContent() {
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const windowQuery = { ...feedQuery, advanceWindow: async () => { await feedQuery.advanceWindow(); setCurrentIndex(0); containerRef.current?.scrollTo({ top: 0, behavior: 'auto' }); },
+    previousWindow: () => { feedQuery.previousWindow(); setCurrentIndex(0); containerRef.current?.scrollTo({ top: 0, behavior: 'auto' }); },
+    restartWindow: () => { feedQuery.restartWindow(); setCurrentIndex(0); containerRef.current?.scrollTo({ top: 0, behavior: 'auto' }); } };
+
 
   // ─── Infinite scroll trigger ───
   const { ref: loadMoreRef, inView } = useInView({ threshold: 0, rootMargin: '200px' });
@@ -246,6 +251,7 @@ function ClipsViewerContent() {
           </div>
         ))}
 
+        {(feedQuery.hasMoreWindow || feedQuery.hasPreviousWindow) && <div className="snap-start bg-background px-4 py-10"><PostListReadStatus query={windowQuery} /></div>}
         {feedQuery.isError ? <div className="snap-start bg-background px-4 py-10 text-center">
           <FeedFailureNotice label="clip recommendations" retrying={feedQuery.isFetching} onRetry={() => { void feedQuery.refetch(); }} />
           <button type="button" className="mt-4 min-h-11 text-sm text-primary hover:underline" onClick={() => navigate('/settings')}>Manage feed mutes in Settings</button>

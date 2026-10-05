@@ -2,6 +2,7 @@ import { TWILIO_SECRETS, getTwilioConfig, twilioVerifyStart, twilioVerifyCheck }
 import { verifiedAuthPhone } from './_shared/phoneVerificationAuthority.js';
 import { randomBytes } from 'crypto';
 import { requestEmailChallenge, verifyEmailChallenge } from './_shared/emailChallengeAuthority.js';
+import { revokeAccountSessions } from './_shared/sessionRevocationAuthority.js';
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { FieldValue } from 'firebase-admin/firestore';
 import { OAuth2Client } from 'google-auth-library';
@@ -793,12 +794,8 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
         reason: 'approval_push',
     };
 });
-/** auth-session-revoke — revoke all refresh tokens for the caller. */
-export const authSessionRevoke = onCall(async (request) => {
-    const uid = requireAuth(request);
-    await auth.revokeRefreshTokens(uid);
-    return { ok: true };
-});
+/** Account-wide only; never turn a one-device request into global revocation. */
+export const authSessionRevoke = onCall({ cors: true, timeoutSeconds: 60 }, request => revokeAccountSessions(db, auth, requireAuth(request), request.auth?.token.auth_time, request.data));
 const QR_SIGNIN_TTL_SEC = 180;
 async function mintCustomTokenFromGoogleIdToken(idToken) {
     const client = new OAuth2Client(GOOGLE_WEB_CLIENT_ID);

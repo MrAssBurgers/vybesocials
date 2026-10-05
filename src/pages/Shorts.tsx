@@ -1,3 +1,4 @@
+import { PostListReadStatus } from '@/components/posts/PostListReadStatus';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { usePersonalizedFeed, useInfiniteFollowingPosts } from '@/hooks/useInfinitePosts';
 import { ShortCard } from '@/components/posts/ShortCard';
@@ -53,6 +54,10 @@ export default function ClipsPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const windowQuery = { ...activeQuery, advanceWindow: async () => { await activeQuery.advanceWindow(); setCurrentIndex(0); containerRef.current?.scrollTo({ top: 0, behavior: 'auto' }); },
+    previousWindow: () => { activeQuery.previousWindow(); setCurrentIndex(0); containerRef.current?.scrollTo({ top: 0, behavior: 'auto' }); },
+    restartWindow: () => { activeQuery.restartWindow(); setCurrentIndex(0); containerRef.current?.scrollTo({ top: 0, behavior: 'auto' }); } };
+
   const currentIndexRef = useRef(0);
 
   const { isMobileOrTablet } = useIsMobileOrTablet();
@@ -277,7 +282,7 @@ export default function ClipsPage() {
     return <AppLayout hideNav fullWidth noPadding>
       <ClipsFeedHeader active={feedTab} onChange={handleFeedTabChange} surface="theme" />
       <div className="flex min-h-dvh items-center justify-center bg-background px-5 py-28">
-        <FeedFailureNotice label="clips" retrying={activeQuery.isFetching} onRetry={() => { void activeQuery.refetch(); }} />
+        <PostListReadStatus query={windowQuery} />
       </div>
     </AppLayout>;
   }
@@ -291,7 +296,7 @@ export default function ClipsPage() {
         >
           <ClipsFeedHeader active={feedTab} onChange={handleFeedTabChange} surface="theme" />
           <div className="relative flex w-full flex-col items-center">
-            <FeedEmptyPage hasMore={hasNextPage} loading={isFetchingNextPage} onLoadMore={() => { void fetchNextPage(); }}>
+            <FeedEmptyPage hasMore={hasNextPage || activeQuery.hasMoreWindow} loading={isFetchingNextPage} onLoadMore={() => { void (activeQuery.hasMoreWindow ? windowQuery.advanceWindow() : fetchNextPage()); }}>
             <ClipsEmptyState
               title={feedTab === 'following' ? 'Make this feed your own' : undefined}
               description={
@@ -366,8 +371,9 @@ export default function ClipsPage() {
             </div>
           ))}
 
+          {(activeQuery.hasMoreWindow || activeQuery.hasPreviousWindow) && <div className="snap-start bg-background px-4 py-10"><PostListReadStatus query={windowQuery} /></div>}
           {activeQuery.isError ? <div className="snap-start bg-background px-4 py-10"><FeedFailureNotice label="more clips" retrying={activeQuery.isFetching} onRetry={() => { void activeQuery.refetch(); }} /></div>
-          : hasNextPage && !canAutoContinue ? <div className="snap-start bg-background"><FeedEmptyPage hasMore loading={isFetchingNextPage} onLoadMore={() => { void fetchNextPage(); }}>{null}</FeedEmptyPage></div>
+          : hasNextPage && !canAutoContinue ? <div className="snap-start bg-background"><FeedEmptyPage hasMore loading={isFetchingNextPage} onLoadMore={() => { void (activeQuery.hasMoreWindow ? windowQuery.advanceWindow() : fetchNextPage()); }}>{null}</FeedEmptyPage></div>
           : hasNextPage && (
             <div
               ref={loadMoreRef}
