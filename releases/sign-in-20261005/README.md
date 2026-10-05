@@ -22,4 +22,10 @@ When the service is available, re-read the active baseline, stop/rebase/retest i
 - 77 exact live-baseline/candidate checks passed. Earlier 96 profile compatibility comparisons retain the same two checked-setup prerequisites. App build, 4,370 tests, typecheck and lint passed; same five lint warnings, no errors. No real email delivery is inferred from these checks.
 - Auth UI uses soft drifting radial light, restrained entry motion, clear busy labels and disabled edits/mode switching during requests. Motion respects reduced-motion preferences and never adds a login delay. Browser password autocomplete uses current/new-password appropriately.
 
-Publish the matching finished main commit through Lovable. Verify the deployed manifest, then designated-account password/code/device/profile/reload. Physical phone close/reopen remains user QA. This record is updated separately with the actual publication and live email result.
+## Actual live account verification
+
+The designated barron.bakic@gmail.com account is enabled in production and retains password/Google providers. The user entered password and real email code directly into vybehub.app; original @bakrix profile opened at /home and survived reload. Credentials/code were not read, changed or printed. Physical phone force-close/reopen remains unverified. Screenshot: outputs/vybe-live-signed-in.png.
+
+Lovable deployment 7cef9681-a2d2-4c6b-939b-0ad698f8f1eb published its prior synced e14563a2bbaeace1ec5e8e80c0dc4f3ee3a1b5a6 build, independently confirmed in production version/native manifests. New motion source e674b9f32a5dab899ff30dd14d8798e24e8c8467 is on GitHub main, but Lovable edit/build history remains stale despite reporting Git sync. New animations are not claimed live until the actual deployed manifest changes. Another exact Rules API attempt still returns 503.
+
+Signed-in Home also exposed missing feed/story/streak services. Those are separate matched deployment work; the ordinary login success does not establish readiness for new users.
