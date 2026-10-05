@@ -18,6 +18,10 @@ export interface MapGroupMap {
   owner_id: string;
   created_at: string;
   member_count?: number;
+  revision: string;
+  status: 'active' | 'legacy';
+  legacy: boolean;
+  membership: { role: 'owner' | 'member'; status: 'active' | 'left'; revision: string } | null;
 }
 
 export type SharingMode =

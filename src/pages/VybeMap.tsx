@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense, Component, memo, type ReactNode, type ErrorInfo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, RefreshCw } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import type L from 'leaflet';
 
 import { useAuth } from '@/lib/auth';
@@ -20,7 +20,6 @@ import {
   useMapClips, useMapMeetups, useMapHeatmap, useMapPlaces, useMapEventPins,
   useFriendRadar, useStartFindFriend, useCreateMapSpot, useLogLocationAccess,
   useFriendCheckIns, useCreateMeetup,
-  useGroupMaps, useCreateGroupMap, useGroupMemberIds,
 } from '@/hooks/vybemap/useVybeMap';
 import { FindFriendOverlay } from '@/components/vybemap/FindFriendOverlay';
 import { FriendCardSheet } from '@/components/vybemap/FriendCardSheet';
@@ -39,7 +38,7 @@ import { resolveTeleportQuery } from '@/lib/vybemap/mapbox/geocode';
 import { externalDirectionsUrl } from '@/lib/vybemap/mapNavigation';
 import { isHeadingTowardYou } from '@/lib/vybemap/headingToward';
 import { sendMapWave } from '@/lib/vybemap/mapSocial';
-import type { MapGroupMap } from '@/lib/vybemap/types';
+import { useSquadDetail, useSquadMatches } from '@/hooks/vybemap/useMapSquads';
 import { useVybeMapFlyTo } from '@/components/vybemap/map/useVybeMapFlyTo';
 import { GhostModeSheet } from '@/components/vybemap/hud/GhostModeSheet';
 import { MapSnapTopBar } from '@/components/vybemap/hud/MapSnapTopBar';
@@ -48,6 +47,7 @@ import { MapFloatingActions } from '@/components/vybemap/hud/MapFloatingActions'
 import { MapViewport } from '@/components/vybemap/MapViewport';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMapSocialRouteAdmission } from '@/hooks/vybemap/useMapSocial';
+import { useMapFriendChat } from '@/hooks/vybemap/useMapFriendChat';
 import { currentMapSocialRoute, mapRouteAccountScope, type MapSocialRouteLease } from '@/lib/vybemap/mapSocialRouteLease';
 
 // Use the existing 3D renderer by default in both preview and production.
@@ -95,6 +95,7 @@ class MapErrorBoundary extends Component<{ children: ReactNode }, { hasError: bo
 
 function VybeMapInner() {
   const navigate = useNavigate();
+  const mapLocation = useLocation();
   const locationAccount = useProfileAccount();
   const routeQueryClient = useQueryClient();
   const routeAccountScope = mapRouteAccountScope(locationAccount.user?.id, locationAccount.profile?.id, locationAccount.session.epoch);
@@ -116,7 +117,7 @@ function VybeMapInner() {
   const [flatFallback, setFlatFallback] = useState(false);
   const useMapbox = !flatFallback;
 
-  const { layers, toggleLayer } = useMapLayers();
+  const { layers, toggleLayer, setLayers } = useMapLayers();
   const friendQuery = useFriendIds(profileId ?? profile?.id);
   const friendIds = friendQuery.data;
   const liveQuery = useLiveFriends(friendIds);
@@ -142,8 +143,6 @@ function VybeMapInner() {
   const createSpot = useCreateMapSpot();
   const createMeetup = useCreateMeetup();
   const effectiveId = profileId ?? profile?.id;
-  const { data: groupMaps = [] } = useGroupMaps(effectiveId);
-  const createGroupMap = useCreateGroupMap();
   const logAccess = useLogLocationAccess();
   const { mapViewMode, setMapViewMode } = useMapViewMode();
   const { setMap, flyTo, flyToUser, startWander, resetBearing } = useVybeMapFlyTo(mapViewMode);
@@ -162,8 +161,21 @@ function VybeMapInner() {
   const findMode = currentFindFriend && findState ? { friend: currentFindFriend, ar: findState.ar } : null;
   const { followHeading, setFollowHeading, toggleFollowHeading } = useMapFollowHeading();
   const [squadsOpen, setSquadsOpen] = useState(false);
-  const [activeSquad, setActiveSquad] = useState<MapGroupMap | null>(null);
-  const { data: squadMemberIds = [] } = useGroupMemberIds(activeSquad?.id);
+  const [selectedSquad, setSelectedSquad] = useState<{ id: string; scope: string } | null>(null);
+  const [squadInvitation, setSquadInvitation] = useState<{ token: string; scope: string } | null>(null);
+  const squadId = selectedSquad?.scope === routeAccountScope ? selectedSquad.id : undefined;
+  const selectedSquadQuery = useSquadDetail(squadId);
+  const activeSquad = selectedSquadQuery.data?.squad?.status === 'active' ? selectedSquadQuery.data.squad : null;
+  const squadCandidates = useMemo(() => friends.map(friend => friend.user_id), [friends]);
+  const squadMatches = useSquadMatches(activeSquad?.id, squadCandidates);
+  useEffect(() => {
+    const hash = new URLSearchParams(mapLocation.hash.slice(1));
+    if (!hash.has('squad-invite')) return;
+    const token = (hash.get('squad-invite') || '').slice(0, 128);
+    setSquadInvitation({ token, scope: routeAccountScope }); setSquadsOpen(true);
+    hash.delete('squad-invite');
+    navigate({ pathname: mapLocation.pathname, search: mapLocation.search, hash: hash.toString() ? `#${hash}` : '' }, { replace: true });
+  }, [mapLocation.hash, mapLocation.pathname, mapLocation.search, navigate, routeAccountScope]);
   const [routeState, setRoute] = useState<{
     scope: string; friendLease?: MapLocationLease; socialLease?: MapSocialRouteLease;
     label: string;
@@ -214,9 +226,10 @@ function VybeMapInner() {
   );
   const effectiveLiveSharing = sharing && locationAvailable && !!safeMyCoords && !locationDenied;
   const sel = useMemo(() => friends.find((f) => f.user_id === selId) || null, [friends, selId]);
+  const friendChat = useMapFriendChat(sel, id => navigate(`/messages/${encodeURIComponent(id)}`));
   const squadSet = useMemo(
-    () => (layers.groups && activeSquad ? new Set(squadMemberIds) : undefined),
-    [layers.groups, activeSquad, squadMemberIds],
+    () => (layers.groups && activeSquad && squadMatches.data ? new Set(squadMatches.data.matchedProfileIds) : undefined),
+    [layers.groups, activeSquad, squadMatches.data],
   );
 
   const readMapCameraCoords = useCallback((): [number, number] | null => {
@@ -505,6 +518,7 @@ function VybeMapInner() {
         <Suspense fallback={null}>
           <VybeMapLeafletFallback
             {...mapProps}
+            squadMemberIds={squadSet}
             mapElRef={mapEl}
             onMapReady={(m) => {
               leafletMapRef.current = m;
@@ -527,10 +541,18 @@ function VybeMapInner() {
         onStatusChip={handleStatusChip}
         squadChip={
           activeSquad && layers.groups
-            ? { label: `${activeSquad.emoji} ${activeSquad.name}`, onClear: () => { setActiveSquad(null); toggleLayer('groups'); } }
+            ? { label: `${activeSquad.emoji} ${activeSquad.name}`, onClear: () => { setSelectedSquad(null); setLayers(value => ({ ...value, groups: false })); } }
             : null
         }
       />
+
+      {squadId && layers.groups && (selectedSquadQuery.isError || squadMatches.isError || !selectedSquadQuery.data || !activeSquad || !squadMatches.data) && (
+        <div className="absolute left-3 right-3 top-28 z-[1100] mx-auto flex max-w-lg items-center gap-2 rounded-xl border border-border bg-background/95 p-3 text-xs" role="status">
+          <span className="flex-1">{selectedSquadQuery.isError || squadMatches.isError ? 'Could not confirm squad highlights.' : selectedSquadQuery.data && !activeSquad ? 'This squad is no longer available.' : 'Checking squad highlights…'}</span>
+          <button className="rounded-lg px-2 py-1 font-semibold" onClick={() => { void selectedSquadQuery.refetch(); if (activeSquad) void squadMatches.refetch(); }}>Retry squad</button>
+          <button className="rounded-lg px-2 py-1 font-semibold" onClick={() => { setSelectedSquad(null); setLayers(value => ({ ...value, groups: false })); }}>Clear squad</button>
+        </div>
+      )}
 
       {routeLoading && (
         <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 z-[1001] top-[calc(var(--app-header-height)+0.5rem)]">
@@ -637,14 +659,16 @@ function VybeMapInner() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {sel && safeMyCoords && (
+        {sel && (
           <FriendCardSheet
             friend={sel}
             myCoords={safeMyCoords}
             headingToward={isHeadingTowardYou(sel, safeMyCoords)}
             routeEtaMinutes={route?.label?.includes(sel.profile?.display_name || sel.profile?.username || '') ? route.durationMinutes : null}
             onClose={() => setSelId(null)}
-            onMessage={() => navigate('/messages')}
+            onMessage={() => void friendChat.open()}
+            messagePending={friendChat.isPending}
+            messageError={friendChat.error}
             onNavigate={() => {
               const lat = sel.displayLat ?? sel.latitude;
               const lng = sel.displayLng ?? sel.longitude;
@@ -741,17 +765,14 @@ function VybeMapInner() {
       <AnimatePresence>
         {squadsOpen && (
           <GroupMapSheet
-            groups={groupMaps}
-            onClose={() => setSquadsOpen(false)}
-            onCreate={async (input) => {
-              await createGroupMap.mutateAsync(input);
-              toggleLayer('groups');
-            }}
-            onSelect={(g) => {
-              setActiveSquad(g);
-              toggleLayer('groups');
+            initialInvite={squadInvitation?.scope === routeAccountScope ? squadInvitation.token : undefined}
+            onClose={() => { setSquadsOpen(false); setSquadInvitation(null); }}
+            onSelect={(id) => {
+              locationAccount.guard();
+              setSelectedSquad({ id, scope: routeAccountScope });
+              setLayers(value => ({ ...value, groups: true, friends: true }));
               setSquadsOpen(false);
-              toast.success(`${g.name} squad on map`);
+              setSquadInvitation(null);
             }}
           />
         )}

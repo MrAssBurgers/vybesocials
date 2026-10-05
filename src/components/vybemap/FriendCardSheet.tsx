@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { MessageCircle, Navigation, User, MapPin, Battery, Clock, Hand, Crosshair } from 'lucide-react';
+import { MessageCircle, Navigation, User, MapPin, Battery, Clock, Hand, Crosshair, X } from 'lucide-react';
 import type { LiveFriend } from '@/lib/vybemap/types';
 import { activityMeta, speedMph } from '@/lib/vybemap/activity';
 import { distanceMiles } from '@/lib/vybemap/geo';
@@ -12,6 +12,8 @@ interface FriendCardSheetProps {
   routeEtaMinutes?: number | null;
   onClose: () => void;
   onMessage: () => void;
+  messagePending?: boolean;
+  messageError?: string;
   onNavigate: () => void;
   onFind: () => void;
   onProfile: () => void;
@@ -29,7 +31,7 @@ function timeSince(iso: string): string {
 }
 
 export function FriendCardSheet({
-  friend, myCoords, headingToward, routeEtaMinutes, onClose, onMessage, onNavigate, onFind, onProfile, onWave, onLiveRoute,
+  friend, myCoords, headingToward, routeEtaMinutes, onClose, onMessage, messagePending, messageError, onNavigate, onFind, onProfile, onWave, onLiveRoute,
 }: FriendCardSheetProps) {
   const name = friend.profile?.display_name || friend.profile?.username || 'Friend';
   const username = friend.profile?.username;
@@ -52,6 +54,7 @@ export function FriendCardSheet({
       <div className="flex justify-center pt-3 pb-2">
         <div className="vybe-map-drawer-handle" />
       </div>
+      <button type="button" aria-label="Close friend card" onClick={onClose} className="absolute right-3 top-2 h-9 w-9 rounded-full bg-white/8 flex items-center justify-center text-white/70"><X className="h-4 w-4" /></button>
 
       {headingToward && (
         <div className="mx-5 mb-3 flex items-center gap-2 rounded-2xl bg-sky-500/12 border border-sky-400/20 px-3 py-2.5">
@@ -104,14 +107,16 @@ export function FriendCardSheet({
           type="button"
           whileTap={{ scale: 0.98 }}
           onClick={onFind}
+          disabled={!myCoords}
           className="mt-5 w-full vybe-map-find-fab h-12 justify-center text-[15px]"
         >
           <Crosshair className="h-[18px] w-[18px]" />
-          {approximate ? 'Find shared area' : 'Find shared location'}
+          {!myCoords ? 'Enable your location to use the finder' : approximate ? 'Find shared area' : 'Find shared location'}
         </motion.button>
 
+        {messageError && <p role="alert" className="mt-3 text-sm text-white/80">{messageError}</p>}
         <div className="grid grid-cols-4 gap-2 mt-3">
-          <ActionBtn icon={MessageCircle} label="Chat" onClick={onMessage} />
+          <ActionBtn icon={MessageCircle} label={messagePending ? 'Opening…' : 'Chat'} onClick={messagePending ? undefined : onMessage} />
           <ActionBtn icon={Navigation} label="Route" onClick={onLiveRoute ?? onNavigate} />
           <ActionBtn icon={Hand} label="Wave" onClick={onWave ?? onMessage} />
           <ActionBtn icon={User} label="Profile" onClick={onProfile} />

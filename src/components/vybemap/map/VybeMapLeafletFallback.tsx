@@ -21,6 +21,7 @@ export interface VybeMapLeafletProps {
   places: MapPlace[];
   eventPins: MapEventPin[];
   heatmap: HeatmapCell[];
+  squadMemberIds?: Set<string>;
   onFriendTap: (f: LiveFriend) => void;
   onPlaceTap: (p: MapPlace) => void;
   mapElRef: React.RefObject<HTMLDivElement | null>;
@@ -29,7 +30,7 @@ export interface VybeMapLeafletProps {
 
 export function VybeMapLeafletFallback({
   center, layers, friends, stories, posts, clips, meetups, places, eventPins, heatmap,
-  onFriendTap, onPlaceTap, mapElRef, onMapReady,
+  onFriendTap, onPlaceTap, mapElRef, onMapReady, squadMemberIds,
 }: VybeMapLeafletProps) {
   const mapRef = useRef<L.Map | null>(null);
   const readyCallback = useRef(onMapReady);
@@ -79,11 +80,13 @@ export function VybeMapLeafletFallback({
         const lat = f.displayLat ?? f.latitude;
         const lng = f.displayLng ?? f.longitude;
         const act = activityMeta(f.activity_type || 'stationary');
-        const element = document.createElement('div'); element.className = 'vybe-live-marker';
-        element.style.setProperty('--ring', (f.speed || 0) > 0.5 ? '#22c55e' : '#6366f1');
-        if (f.profile?.avatar_url) { const image = document.createElement('img'); image.src = f.profile.avatar_url; image.className = 'vybe-live-avatar'; image.referrerPolicy = 'no-referrer'; image.onerror = () => { image.hidden = true; }; element.append(image); }
-        const emoji = document.createElement('span'); emoji.className = 'vybe-live-emoji'; emoji.textContent = act.icon; element.append(emoji);
-        const icon = L.divIcon({ html: element, className: '', iconSize: [48, 48], iconAnchor: [24, 24] });
+        const element = document.createElement('div'); element.className = 'vybe-mbx-friend';
+        element.style.setProperty('--ring', squadMemberIds?.has(f.user_id) ? '#a855f7' : (f.speed || 0) > 0.5 ? '#22c55e' : '#6366f1');
+        const fallback = document.createElement('span'); fallback.className = 'vybe-mbx-avatar flex items-center justify-center bg-zinc-200 text-zinc-600 font-bold text-lg';
+        fallback.textContent = (f.profile?.display_name || f.profile?.username || '?').slice(0, 1); element.append(fallback);
+        if (f.profile?.avatar_url) { const image = document.createElement('img'); image.src = f.profile.avatar_url; image.className = 'vybe-mbx-avatar absolute inset-0'; image.referrerPolicy = 'no-referrer'; image.onerror = () => { image.hidden = true; }; element.append(image); }
+        const emoji = document.createElement('span'); emoji.className = 'vybe-mbx-act'; emoji.textContent = act.icon; element.append(emoji);
+        const icon = L.divIcon({ html: element, className: '', iconSize: [56, 56], iconAnchor: [28, 28] });
         L.marker([lat, lng], { icon }).addTo(layer).on('click', () => onFriendTap(f));
       });
     }
@@ -94,8 +97,8 @@ export function VybeMapLeafletFallback({
       places.slice(0, 40).forEach((p) => {
         const size = 36 + Math.min(p.check_in_count, 24);
         const emoji = p.category === 'food' ? '🍕' : '🔥';
-        const element = document.createElement('div'); element.className = 'vybe-spot-marker'; element.style.width = size + 'px'; element.style.height = size + 'px';
-        if (p.photo_url) { const image = document.createElement('img'); image.src = p.photo_url; image.className = 'vybe-spot-photo'; image.referrerPolicy = 'no-referrer'; element.append(image); } else element.textContent = emoji;
+        const element = document.createElement('div'); element.className = 'vybe-mbx-spot'; element.style.width = size + 'px'; element.style.height = size + 'px';
+        if (p.photo_url) { const image = document.createElement('img'); image.src = p.photo_url; image.className = 'vybe-mbx-spot-img'; image.referrerPolicy = 'no-referrer'; element.append(image); } else element.textContent = emoji;
         const icon = L.divIcon({ html: element, className: '', iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
         L.marker([p.latitude, p.longitude], { icon }).addTo(layer).on('click', (e) => {
           L.DomEvent.stopPropagation(e);
@@ -103,7 +106,7 @@ export function VybeMapLeafletFallback({
         });
       });
     }
-  }, [friends, stories, places, layers, onFriendTap, onPlaceTap, attempt]);
+  }, [friends, stories, places, layers, onFriendTap, onPlaceTap, attempt, squadMemberIds]);
 
   useEffect(() => {
     const hLayer = heatLayerRef.current;

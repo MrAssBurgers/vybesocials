@@ -142,7 +142,7 @@ export function DiscoveryDrawer({
           <ChevronUp className={cn('h-4 w-4 text-white/40 transition-transform duration-200', open && 'rotate-180')} />
           {friends.length ? (
             <>
-              <span>{friends.length} friend{friends.length === 1 ? '' : 's'} nearby</span>
+              <span>{friends.length} friend{friends.length === 1 ? '' : 's'} sharing</span>
               {radarLabel && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/25">
                   {radarLabel}

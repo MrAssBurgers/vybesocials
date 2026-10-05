@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
 import { useProfileAccount } from '@/hooks/useProfileAccount';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
@@ -22,7 +22,8 @@ import {
 import { useMapSocialList, useMapSocialMutation } from './useMapSocial';
 import { useLocationSharing } from '@/hooks/useLocationSharing';
 import { isValidLatLng } from '@/lib/vybemap/geo';
-import { fetchMyGroupMaps, createGroupMap, joinGroupMap, fetchGroupMemberIds } from '@/lib/vybemap/mapSocial';
+import { useSquadList, useSquadAction, useSquadMatches } from './useMapSquads';
+import type { SquadReceipt } from '@/lib/vybemap/mapSquadService';
 import {
   type MapViewMode,
   readStoredMapViewMode,
@@ -243,43 +244,25 @@ export function useCreatePlacePostComment() {
 }
 
 export function useGroupMaps(profileId?: string) {
-  return useQuery({
-    queryKey: ['vybemap-group-maps', profileId],
-    enabled: !!profileId,
-    staleTime: 30_000,
-    queryFn: () => fetchMyGroupMaps(profileId!),
-  });
+  const account = useProfileAccount();
+  return useSquadList(account.ready && account.profile?.id === profileId);
 }
 
 export function useCreateGroupMap() {
-  const { profile } = useAuth();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { name: string; emoji?: string }) => {
-      if (!profile?.id) throw new Error('Not signed in');
-      return createGroupMap(profile.id, input);
-    },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['vybemap-group-maps'] }),
-  });
+  const mutation = useSquadAction('create');
+  return { ...mutation, mutateAsync: async (input: { name: string; emoji?: string }) => {
+    const receipt = await mutation.mutateAsync({ action: 'create', name: input.name.trim(), emoji: input.emoji || '🗺️' }) as SquadReceipt;
+    if (receipt.status !== 'active') throw new Error('This squad is no longer active. Refresh the list.');
+    return receipt.squadId;
+  } };
 }
 
 export function useJoinGroupMap() {
-  const { profile } = useAuth();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (groupId: string) => {
-      if (!profile?.id) throw new Error('Not signed in');
-      return joinGroupMap(profile.id, groupId);
-    },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['vybemap-group-maps'] }),
-  });
+  const mutation = useSquadAction('join');
+  return { ...mutation, mutateAsync: (inviteToken: string) => mutation.mutateAsync({ action: 'join', token: inviteToken }) };
 }
 
-export function useGroupMemberIds(groupId?: string) {
-  return useQuery({
-    queryKey: ['vybemap-group-members', groupId],
-    enabled: !!groupId,
-    staleTime: 20_000,
-    queryFn: () => fetchGroupMemberIds(groupId!),
-  });
+export function useGroupMemberIds(groupId?: string, candidateProfileIds: string[] = []) {
+  const query = useSquadMatches(groupId, candidateProfileIds);
+  return { ...query, data: query.data?.matchedProfileIds };
 }

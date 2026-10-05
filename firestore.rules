@@ -610,15 +610,18 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     match /map_group_maps/{docId} {
-      allow read: if signedIn();
-      allow create: if signedIn() && willOwnUserField('owner_id');
-      allow update, delete: if ownsUserField('owner_id') || isAdmin();
+      // Legacy metadata is owner-reviewed through manageMapSquad, never membership authority.
+      allow read, write: if false;
     }
     match /map_group_members/{docId} {
-      allow read: if signedIn();
-      allow create: if signedIn() && willOwnUserField('user_id');
-      allow update, delete: if ownsUserField('user_id') || isAdmin();
+      allow read, write: if false;
     }
+    match /_map_squads/{docId} { allow read, write: if false; }
+    match /_map_squad_members/{docId} { allow read, write: if false; }
+    match /_map_squad_invites/{docId} { allow read, write: if false; }
+    match /_map_squad_receipts/{docId} { allow read, write: if false; }
+    match /_map_squad_cursors/{docId} { allow read, write: if false; }
+    match /_map_squad_recreations/{docId} { allow read, write: if false; }
     match /map_location_intel/{docId} {
       // Auth-scoped research can contain a private draft's coordinates/name.
       allow read, write: if false;

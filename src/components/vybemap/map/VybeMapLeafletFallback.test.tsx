@@ -11,7 +11,7 @@ vi.mock('leaflet', () => ({ default: {
 } }));
 import { DEFAULT_LAYERS } from '@/lib/vybemap/types';
 import { FALLBACK_TILES, VybeMapLeafletFallback } from './VybeMapLeafletFallback';
-function Host({ friends = [], onMapReady }: { friends?: any[]; onMapReady?: (map: any) => void }) { const ref = useRef<HTMLDivElement>(null); return <><div ref={ref} /><VybeMapLeafletFallback center={null} layers={DEFAULT_LAYERS} friends={friends} stories={[]} posts={[]} clips={[]} meetups={[]} places={[]} eventPins={[]} heatmap={[]} onFriendTap={() => {}} onPlaceTap={() => {}} mapElRef={ref} onMapReady={onMapReady} /></>; }
+function Host({ friends = [], onMapReady, squadMemberIds }: { friends?: any[]; onMapReady?: (map: any) => void; squadMemberIds?: Set<string> }) { const ref = useRef<HTMLDivElement>(null); return <><div ref={ref} /><VybeMapLeafletFallback center={null} layers={DEFAULT_LAYERS} friends={friends} stories={[]} posts={[]} clips={[]} meetups={[]} places={[]} eventPins={[]} heatmap={[]} squadMemberIds={squadMemberIds} onFriendTap={() => {}} onPlaceTap={() => {}} mapElRef={ref} onMapReady={onMapReady} /></>; }
 beforeEach(() => { vi.useFakeTimers(); state.maps.length = 0; state.tiles.length = 0; state.icons.length = 0; vi.stubGlobal('ResizeObserver', class { observe() {} disconnect = state.disconnect; }); });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 describe('keyless map tile lifecycle', () => {
@@ -45,5 +45,15 @@ describe('keyless map tile lifecycle', () => {
     render(<Host friends={[{ id: 'a', user_id: 'a', latitude: 1, longitude: 2, profile: { avatar_url: 'x" onload="evil()' } }]} />);
     const html = (state.icons[0] as { html: HTMLElement }).html; expect(html).toBeInstanceOf(HTMLElement);
     expect(html.querySelector('img')?.getAttribute('onload')).toBeNull(); expect(html.querySelector('script')).toBeNull();
+  });
+  it('highlights only admitted friends and removes a retired squad highlight', () => {
+    const friends = [{ id: 'a', user_id: 'a', latitude: 1, longitude: 2, profile: { display_name: 'Alice' } }];
+    const view = render(<Host friends={friends} squadMemberIds={new Set(['a', 'unshared'])} />);
+    expect(state.icons).toHaveLength(1);
+    const first = (state.icons[0] as { html: HTMLElement }).html;
+    expect(first.style.getPropertyValue('--ring')).toBe('#a855f7');
+    expect(first.textContent).toContain('A');
+    view.rerender(<Host friends={friends} squadMemberIds={new Set()} />);
+    expect((state.icons.at(-1) as { html: HTMLElement }).html.style.getPropertyValue('--ring')).not.toBe('#a855f7');
   });
 });

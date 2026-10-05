@@ -269,6 +269,17 @@
         { "fieldPath": "group_id", "order": "ASCENDING" },
         { "fieldPath": "user_id", "order": "ASCENDING" }
       ] },
+    { "collectionGroup": "_map_squad_members", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "owner_uid", "order": "ASCENDING" },
+        { "fieldPath": "account_created_at_ms", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "_map_squad_members", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "squad_id", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ] },
     { "collectionGroup": "messages", "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "conversation_id", "order": "ASCENDING" },
@@ -502,6 +513,8 @@
       ] }
   ],
   "fieldOverrides": [
+    {"collectionGroup":"_map_squad_invites","fieldPath":"expireAt","ttl":true,"indexes":[]},
+    {"collectionGroup":"_map_squad_cursors","fieldPath":"expireAt","ttl":true,"indexes":[]},
     {"collectionGroup":"_map_social_cursors","fieldPath":"expireAt","ttl":true,"indexes":[]},
     {"collectionGroup":"map_location_intel","fieldPath":"expireAt","ttl":true,"indexes":[]},
     {"collectionGroup":"_post_view_receipts","fieldPath":"expireAt","ttl":true,"indexes":[]},
