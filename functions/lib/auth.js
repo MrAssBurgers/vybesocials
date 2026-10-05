@@ -496,7 +496,7 @@ export async function runAuthLoginNotify(request, providers = { geo: resolveLogi
         device_label: parseDeviceLabel(userAgent), user_agent: userAgent || null,
         ip: geo.ip ?? null, city: geo.city ?? null, region: geo.region ?? null, country: geo.country ?? null,
         latitude: geo.latitude ?? null, longitude: geo.longitude ?? null, geo: safeGeo,
-    });
+    }, Date.now(), request.auth?.token || {});
     const receipt = { ownerUid: registered.ownerUid, authTime: registered.authTime, accountCreatedAt: registered.accountCreatedAt,
         profileId: registered.profileId, trackingDeferred: registered.trackingDeferred };
     if (registered.trackingDeferred)
@@ -505,6 +505,11 @@ export async function runAuthLoginNotify(request, providers = { geo: resolveLogi
     let sessionRef = db.collection('user_sessions').doc(registered.sessionId);
     const updateDevice = (patch, trust) => withCurrentLoginDevice(db, auth, registered, sessionHash, (tx, ref) => { tx.update(ref, patch); }, Date.now(), { trust, settingsVersion: loginDeviceVersion(settingsSnap.updateTime) });
     const finish = (result) => withCurrentLoginDevice(db, auth, registered, sessionHash, () => ({ ...receipt, ...result }), Date.now(), { confirmation: result.requiresApproval ? 'pending' : 'trusted' });
+    if (registered.emailConfirmation) {
+        await updateDevice({ trusted: true, pending_approval: false, email_confirmation_id: registered.emailConfirmation.challengeId }, 'email-confirmed');
+        return finish({ ok: true, sessionId: sessionRef.id, notified: false, requiresApproval: false,
+            reason: 'email_confirmed', confirmedEmailChallengeId: registered.emailConfirmation.challengeId });
+    }
     // Known session on this device. Trusted installs may heartbeat normally,
     // but an untrusted install with pending approval must stay gated on retry.
     if (!registered.created) {

@@ -1560,26 +1560,35 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           expiresAt={loginGate.expiresAt}
           approvalDevice={loginGate.approvalDevice}
           approvalLocation={loginGate.approvalLocation}
-          onSuccess={async (session, customToken) => {
+          onSuccess={async (session, customToken, confirmation, guard = () => {}) => {
             try {
+              guard();
               if (customToken) {
                 const { data, error } = await firebaseAuth.signInWithCustomToken(customToken);
+                guard();
                 if (error || !data.session?.user) {
                   throw error ?? new Error('Custom token sign-in failed');
                 }
-                await applyOAuthSession(data.session, 'login_approval');
+                await applyOAuthSession(data.session, confirmation ? 'email_2fa' : 'login_approval', { ...confirmation, guard });
+                guard();
               } else if (session?.access_token && session?.refresh_token) {
                 const { error: sessionError } = await db.auth.setSession({
                   access_token: session.access_token,
                   refresh_token: session.refresh_token,
                 });
+                guard();
                 if (sessionError) throw sessionError;
-                const { data: active, error: activeError } = await db.auth.getUser();
-                if (activeError || !active.user) throw activeError ?? new Error('Session was not established');
+                const { data: active, error: activeError } = await db.auth.getSession();
+                guard();
+                if (activeError || !active.session?.user) throw activeError ?? new Error('Session was not established');
+                await applyOAuthSession(active.session, confirmation ? 'email_2fa' : 'login_approval', { ...confirmation, guard });
+                guard();
               } else {
                 const { data: active } = await db.auth.getSession();
+                guard();
                 if (active.session?.user) {
-                  await applyOAuthSession(active.session, 'login_approval');
+                  await applyOAuthSession(active.session, confirmation ? 'email_2fa' : 'login_approval', { ...confirmation, guard });
+                  guard();
                 } else {
                   toast.error('Could not finish signing in. Try again.');
                   setLoginGate(null);
@@ -1588,12 +1597,14 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                 }
               }
             } catch (e) {
+              try { guard(); } catch { return; }
               console.warn('finish login after approval failed', e);
               toast.error('Could not finish signing in. Please try again.');
               setLoginGate(null);
               clearPendingLoginApproval();
               return;
             }
+            guard();
             clearPendingLoginApproval();
             setLoginGate(null);
             toast.success('Welcome back! ✨');

@@ -59,16 +59,16 @@ export function useSessionTracking() {
 }
 
 /** Interactive confirmation failures stay errors rather than claiming approval. */
-export async function notifyFreshLogin(method: string): Promise<FreshLoginNotifyResult> {
-  const signIn = await captureDeviceSignIn(), device = getOrCreateDeviceId();
-  const payload = await registerCurrentDevice(signIn, device, method);
+export async function notifyFreshLogin(method: string, guard: () => void = () => {}, expectedEmailChallengeId?: string, deferGateClear = false): Promise<FreshLoginNotifyResult> {
+  const signIn = await captureDeviceSignIn(undefined, guard), device = getOrCreateDeviceId();
+  const payload = await registerCurrentDevice(signIn, device, method, undefined, expectedEmailChallengeId);
   signIn.guard(); rememberCurrentSessionHash(signIn.uid, device);
   if (payload.sessionId) rememberId(signIn.uid, device, payload.sessionId);
   if (payload.requiresApproval) {
     rememberSelfLoginChallenge(signIn.uid, payload.challengeId!);
     setPendingLoginApproval({ challengeId: payload.challengeId!, expiresAt: payload.expiresAt, email: signIn.user.email || undefined,
       deviceLabel: payload.deviceLabel, location: payload.geo, userId: signIn.uid, method });
-  } else clearPendingLoginApproval();
+  } else if (!deferGateClear) clearPendingLoginApproval();
   return { requiresApproval: payload.requiresApproval, sessionId: payload.sessionId ?? undefined, challengeId: payload.challengeId,
     expiresAt: payload.expiresAt, deviceLabel: payload.deviceLabel, geo: payload.geo, reason: payload.reason };
 }

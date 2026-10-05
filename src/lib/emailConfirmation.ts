@@ -2,6 +2,29 @@ import { getDocumentFromServer } from '@/lib/firebase/firestoreDb';
 import { invokeFunction } from '@/lib/firebase/functionsService';
 import { tokenAccountGuard } from '@/lib/tokenMarketplaceService';
 
+export const SIGN_IN_CHECK_TIMEOUT_MS = 20_000;
+const confirmationError = (code: string, message: string) => Object.assign(new Error(message), { code });
+
+/** A timed-out check cannot dispatch another step or commit its late result. */
+export async function withSignInCheckDeadline<T>(guard: () => void, run: (guard: () => void) => Promise<T>): Promise<T> {
+  let retired = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const current = () => {
+    guard();
+    if (retired) throw confirmationError('auth/confirmation-timeout', 'Sign-in confirmation took too long. Please try again.');
+  };
+  try {
+    current();
+    return await Promise.race([
+      Promise.resolve().then(() => run(current)).then(value => { current(); return value; }),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => {
+        retired = true;
+        reject(confirmationError('auth/confirmation-timeout', 'Sign-in confirmation took too long. Please try again.'));
+      }, SIGN_IN_CHECK_TIMEOUT_MS); }),
+    ]);
+  } finally { retired = true; clearTimeout(timer); }
+}
+
 export function checkedEmailChallenge(value: unknown, expectedId?: string, expectedUid?: string) {
   const row = value as Record<string, unknown> | null;
   if (!row || row.ok !== true || typeof row.challengeId !== 'string'
@@ -10,7 +33,7 @@ export function checkedEmailChallenge(value: unknown, expectedId?: string, expec
     || (expectedUid !== undefined && row.ownerUid !== expectedUid)
     || typeof row.expiresAt !== 'string' || !Number.isFinite(Date.parse(row.expiresAt))
     || Date.parse(row.expiresAt) <= Date.now() || Date.parse(row.expiresAt) > Date.now() + 11 * 60_000) {
-    throw new Error('The email confirmation could not be started. Please sign in again.');
+    throw confirmationError('auth/confirmation-unavailable', 'Email confirmation is temporarily unavailable. Your account still requires a code. Please try again later.');
   }
   return { challengeId: row.challengeId, expiresAt: row.expiresAt };
 }

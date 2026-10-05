@@ -8,6 +8,7 @@ const receipt = z.object({ ok: z.literal(true), ownerUid: id, authTime: z.number
   profileId: id.nullable(), trackingDeferred: z.boolean(), sessionId: id.nullable(), requiresApproval: z.boolean(), reason: z.string().max(100),
   challengeId: id.optional(), expiresAt: z.string().datetime().optional(), deviceLabel: z.string().max(200).optional(),
   geo: z.object({ city: z.string().max(200).nullable().optional(), country: z.string().max(200).nullable().optional(), region: z.string().max(200).nullable().optional(), ip: z.string().max(100).nullable().optional() }).optional(),
+  confirmedEmailChallengeId: id.optional(),
 });
 export async function captureDeviceSignIn(expectedUid?: string, outer: () => void = () => {}) {
   const auth = getFirebaseAuth(), user = auth?.currentUser;
@@ -30,16 +31,19 @@ export async function signOutForDeviceConfirmation(signIn: DeviceSignIn) {
   const result = await db.auth.signOut({ scope: 'local', guard: signIn.guard });
   if (result.error) throw result.error;
 }
-export async function registerCurrentDevice(signIn: DeviceSignIn, deviceFingerprint: string, method: string, profileId?: string) {
+export async function registerCurrentDevice(signIn: DeviceSignIn, deviceFingerprint: string, method: string, profileId?: string, expectedEmailChallengeId?: string) {
   signIn.guard();
+  if (method === 'email_2fa' && (!expectedEmailChallengeId || !/^[A-Za-z0-9_-]{1,160}$/.test(expectedEmailChallengeId))) throw new Error('This email confirmation could not be verified. Please sign in again.');
   const result = await db.functions.invoke('auth-login-notify', { body: { expectedOwnerUid: signIn.uid, expectedAuthTime: signIn.authTime,
-    expectedAccountCreatedAt: signIn.created, method, deviceFingerprint, userAgent: navigator.userAgent } });
+    expectedAccountCreatedAt: signIn.created, method, deviceFingerprint, userAgent: navigator.userAgent,
+    ...(expectedEmailChallengeId ? { expectedEmailChallengeId } : {}) } });
   signIn.guard();
   if (result.error) throw result.error;
   const parsed = receipt.safeParse(result.data);
   if (!parsed.success) throw new Error('This device sign-in was not confirmed. Please retry.');
   const data = parsed.data;
   if (data.ownerUid !== signIn.uid || data.authTime !== signIn.authTime || data.accountCreatedAt !== signIn.created
+    || (method === 'email_2fa' && (data.confirmedEmailChallengeId !== expectedEmailChallengeId || data.requiresApproval || data.trackingDeferred || !data.sessionId))
     || (profileId && data.profileId !== profileId)
     || (data.trackingDeferred ? data.profileId !== null || data.sessionId !== null || data.requiresApproval || data.reason !== 'profile_setup_pending' : !data.profileId || !data.sessionId)
     || (data.requiresApproval && (!data.challengeId || !data.expiresAt || Date.parse(data.expiresAt) <= Date.now() || Date.parse(data.expiresAt) > Date.now() + 11 * 60_000))) throw new Error('This device sign-in was not confirmed. Please retry.');

@@ -28,14 +28,17 @@ const CHECKING_AT_KEY = 'vybe-login-gate-checking-at';
 const CHECKING_TTL_MS = 60_000;
 export const LOGIN_APPROVAL_PENDING_EVENT = 'vybe:login-approval-pending';
 export const LOGIN_APPROVAL_CLEARED_EVENT = 'vybe:login-approval-cleared';
+// Persistence restores the dialog across reloads; it is never required to hold
+// an active in-page gate (private browsing/storage quota may reject every write).
+let memoryPending: PendingLoginApproval | null | undefined;
+let memoryCheckingAt: number | null | undefined;
 
 function readStored(): PendingLoginApproval | null {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as PendingLoginApproval;
+    const parsed = memoryPending !== undefined ? memoryPending : JSON.parse(sessionStorage.getItem(STORAGE_KEY) || 'null') as PendingLoginApproval | null;
     if (!parsed?.challengeId) return null;
     if (parsed.expiresAt && Date.parse(parsed.expiresAt) <= Date.now()) {
+      memoryPending = null;
       sessionStorage.removeItem(STORAGE_KEY);
       return null;
     }
@@ -56,8 +59,8 @@ export function isLoginApprovalPending(): boolean {
 /** True while interactive sign-in is checking whether approval is required. */
 export function isLoginApprovalCheckInProgress(): boolean {
   try {
-    if (sessionStorage.getItem(CHECKING_KEY) !== '1') return false;
-    const startedAt = Number(sessionStorage.getItem(CHECKING_AT_KEY) || '0');
+    if (memoryCheckingAt === null || (memoryCheckingAt === undefined && sessionStorage.getItem(CHECKING_KEY) !== '1')) return false;
+    const startedAt = memoryCheckingAt ?? Number(sessionStorage.getItem(CHECKING_AT_KEY) || '0');
     if (startedAt > 0 && Date.now() - startedAt > CHECKING_TTL_MS) {
       endLoginApprovalCheck();
       return false;
@@ -69,6 +72,7 @@ export function isLoginApprovalCheckInProgress(): boolean {
 }
 
 export function beginLoginApprovalCheck(): void {
+  memoryCheckingAt = Date.now();
   try {
     sessionStorage.setItem(CHECKING_KEY, '1');
     sessionStorage.setItem(CHECKING_AT_KEY, String(Date.now()));
@@ -78,6 +82,7 @@ export function beginLoginApprovalCheck(): void {
 }
 
 export function endLoginApprovalCheck(): void {
+  memoryCheckingAt = null;
   try {
     sessionStorage.removeItem(CHECKING_KEY);
     sessionStorage.removeItem(CHECKING_AT_KEY);
@@ -96,6 +101,7 @@ export function shouldBlockPostLoginNavigation(): boolean {
 }
 
 export function setPendingLoginApproval(pending: PendingLoginApproval): void {
+  memoryPending = { ...pending };
   try {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(pending));
   } catch {
@@ -111,6 +117,7 @@ export function setPendingLoginApproval(pending: PendingLoginApproval): void {
 }
 
 export function clearPendingLoginApproval(): void {
+  memoryPending = null;
   try {
     sessionStorage.removeItem(STORAGE_KEY);
   } catch {

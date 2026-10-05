@@ -32,8 +32,19 @@ it('completes from a real token receipt once', async () => {
   mock.invoke.mockResolvedValue({ data: { ok: true, customToken: 'synthetic-token' }, error: null });
   const p = props(); render(<LoginGateModal {...p} />);
   fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } });
-  await waitFor(() => expect(p.onSuccess).toHaveBeenCalledWith(null, 'synthetic-token'));
+  await waitFor(() => expect(p.onSuccess).toHaveBeenCalledWith(null, 'synthetic-token', { emailChallengeId: p.challengeId }, expect.any(Function)));
   expect(mock.invoke).toHaveBeenCalledTimes(1);
+});
+it('keeps controls busy through checked device registration and retires its callback on close', async () => {
+  mock.invoke.mockResolvedValue({ data: { ok: true, customToken: 'synthetic-token' }, error: null });
+  let finish!: () => void; const completion = new Promise<void>(resolve => { finish = resolve; });
+  const p = props(); p.onSuccess.mockReturnValue(completion); const ui = render(<LoginGateModal {...p} />);
+  fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } });
+  await waitFor(() => expect(p.onSuccess).toHaveBeenCalledOnce());
+  expect(screen.getByRole('button', { name: 'Use a different account' })).toBeDisabled();
+  const guard = p.onSuccess.mock.calls[0][3]; expect(guard).not.toThrow();
+  ui.rerender(<LoginGateModal {...p} open={false} />); expect(guard).toThrow('view changed');
+  await act(async () => finish()); expect(mock.error).not.toHaveBeenCalled();
 });
 it('late verification cannot sign in after switching accounts away and back', async () => {
   let finish!: (value: unknown) => void; mock.invoke.mockReturnValue(new Promise(resolve => { finish = resolve; }));

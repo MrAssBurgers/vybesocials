@@ -26,7 +26,7 @@ interface Props {
   approvalDevice?: string;
   approvalLocation?: { city?: string | null; country?: string | null; ip?: string | null };
   /** Firebase path: custom token from approve poll. Supabase legacy: access/refresh pair. */
-  onSuccess: (session: SessionTokens | null, customToken?: string | null) => void;
+  onSuccess: (session: SessionTokens | null, customToken?: string | null, confirmation?: { emailChallengeId: string }, guard?: () => void) => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -116,7 +116,11 @@ export function LoginGateModal({
       if (retired || cancelledRef.current) return;
       cancelledRef.current = true;
       if (status === 'approved') {
-        onSuccess(session ?? null, customToken ?? null);
+        const guard = () => { if (!current(context)) throw new Error('This sign-in view changed.'); };
+        setBusy(true);
+        void Promise.resolve().then(() => { guard(); return onSuccess(session ?? null, customToken ?? null, undefined, guard); })
+          .catch(() => { if (current(context)) toast.error('Could not finish signing in. Please try again.'); })
+          .finally(() => { if (current(context)) setBusy(false); });
       } else if (status === 'denied') {
         toast.error('Sign-in was declined on your other device');
         onCancel();
@@ -203,13 +207,14 @@ export function LoginGateModal({
       document.removeEventListener('visibilitychange', onVisible);
       db.removeChannel(bc);
     };
-  }, [open, currentMode, activeChallengeId, onSuccess, onCancel]);
+  }, [open, currentMode, activeChallengeId, onSuccess, onCancel, context, current]);
 
   // ── Verify code (email or sms) ───────────────────────────
   const verifyCode = useCallback(async (codeStr: string) => {
     if (busy || optionBusy || submittedRef.current) return;
     if (!/^\d{6}$/.test(codeStr)) return;
     const captured = context;
+    const guard = () => { if (!current(captured)) throw new Error('This sign-in view changed.'); };
     submittedRef.current = true;
     setBusy(true);
     try {
@@ -233,13 +238,13 @@ export function LoginGateModal({
           ? (payload as { customToken: string }).customToken
           : null;
       if (customToken) {
-        onSuccess(null, customToken);
+        await onSuccess(null, customToken, currentMode === 'code' ? { emailChallengeId: activeChallengeId } : undefined, guard);
         return;
       }
 
       const session = (payload as { session?: SessionTokens | null }).session ?? null;
       if (session?.access_token && session?.refresh_token) {
-        onSuccess(session);
+        await onSuccess(session, undefined, currentMode === 'code' ? { emailChallengeId: activeChallengeId } : undefined, guard);
         return;
       }
 

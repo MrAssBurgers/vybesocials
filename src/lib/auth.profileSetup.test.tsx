@@ -11,11 +11,12 @@ const state = vi.hoisted(() => ({
   getSession: vi.fn(), unsubscribe: vi.fn(), refresh: vi.fn(), signOut: vi.fn(),
   restoreState: 'ready' as 'pending' | 'ready' | 'error', restoreSubscribers: new Set<() => void>(), firebaseUser: null as null | { uid: string },
   bans: [] as Array<{ reason: string; is_permanent: boolean; is_meme_ban: boolean }>, banLoad: null as null | Promise<void>,
+  confirmation: vi.fn(), notify: vi.fn(), password: vi.fn(), gate: false,
 }));
 vi.mock('@/lib/firebase', () => ({ db: {
   auth: {
     onAuthStateChange: (listener: typeof state.listener) => { state.listener = listener; return { data: { subscription: { unsubscribe: state.unsubscribe } } }; },
-    getSession: state.getSession, signUp: state.signup, signOut: state.signOut,
+    getSession: state.getSession, signUp: state.signup, signOut: state.signOut, signInWithPassword: state.password, refreshSession: vi.fn(async () => ({})),
   },
   realtime: { setAuth: vi.fn() }, removeChannel: vi.fn(),
   from: () => ({ select: () => ({ eq: () => ({ order: () => ({ limit: async () => ({ data: state.bans, error: null }) }) }) }) }),
@@ -60,7 +61,9 @@ vi.mock('@/lib/profileAvatarCache', () => ({ cacheProfileAvatar: vi.fn(), resolv
 vi.mock('@/lib/passwordRecoveryUrl', () => ({ isPasswordRecoveryUrl: () => false, redirectToPasswordRecoveryPage: vi.fn() }));
 vi.mock('@/lib/firebase/oauthRedirect', () => ({ awaitOAuthRedirectCapture: async () => ({ session: null, error: null }), clearOAuthRedirectPending: vi.fn(), isLikelyFirebaseOAuthReturnUrl: () => false, isOAuthRedirectInFlight: () => false, recoverOAuthSessionIfSignedIn: vi.fn() }));
 vi.mock('@/lib/despiaOAuth', () => ({ isDespiaOAuthInFlight: () => false }));
-vi.mock('@/lib/loginApprovalGate', () => ({ beginLoginApprovalCheck: vi.fn(), endLoginApprovalCheck: vi.fn() }));
+vi.mock('@/lib/loginApprovalGate', () => ({ beginLoginApprovalCheck: () => { state.gate = true; }, endLoginApprovalCheck: () => { state.gate = false; }, shouldBlockPostLoginNavigation: () => state.gate }));
+vi.mock('@/lib/emailConfirmation', async original => ({ ...await original<typeof import('@/lib/emailConfirmation')>(), beginEmailConfirmation: state.confirmation }));
+vi.mock('@/hooks/useSessionTracking', () => ({ notifyFreshLogin: state.notify }));
 vi.mock('@/lib/firebase/authService', () => ({
   getFirebaseAuth: () => { if (state.firebaseUser?.uid !== state.account.uid) state.firebaseUser = state.account.uid ? { uid: state.account.uid } : null; return { currentUser: state.firebaseUser }; },
   getAuthRestoreState: () => state.restoreState,
@@ -107,11 +110,76 @@ beforeEach(() => {
   state.account = { uid: undefined, epoch: 0 }; state.listener = null; state.subscribers.clear(); state.restoreSubscribers.clear(); state.restoreState = 'ready'; state.firebaseUser = null; state.refresh.mockReset(); state.signOut.mockReset();
   state.getSession.mockImplementation(() => new Promise(() => {}));
   state.bans = []; state.banLoad = null;
+  state.gate = false; state.confirmation.mockReset(); state.notify.mockReset(); state.password.mockReset(); state.confirmation.mockResolvedValue(null);
   localStorage.clear(); sessionStorage.clear();
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); delete (window as any).__REACT_QUERY_CLIENT__; document.body.style.backgroundImage = ''; });
 
 describe('AuthProvider checked profile setup', () => {
+  it('checks an existing account binding before device registration without exposing the profile', async () => {
+    const binding = deferred<ReturnType<typeof profile>>(); state.ensure.mockReturnValue(binding.promise); state.notify.mockResolvedValue({ requiresApproval: false });
+    mount(); act(() => { state.account = { uid: 'alice', epoch: 1 }; state.subscribers.forEach(notify => notify()); });
+    let login!: ReturnType<typeof current.applyOAuthSession>;
+    act(() => { login = current.applyOAuthSession(session('alice'), 'password'); });
+    await waitFor(() => expect(state.ensure).toHaveBeenCalledOnce());
+    expect(state.notify).not.toHaveBeenCalled(); expect(current.user).toBeNull(); expect(current.profile).toBeNull();
+    await act(async () => { binding.resolve(profile('alice', 'migrated', 'legacy-profile')); await login; });
+    expect(current.profile?.id).toBe('legacy-profile'); expect(state.ensure).toHaveBeenCalledOnce(); expect(state.notify).toHaveBeenCalledOnce();
+  });
+
+  it('surfaces an ownership-review failure without invoking device registration or caching an invented profile', async () => {
+    state.ensure.mockRejectedValue({ details: { reason: 'profile-recovery-required', recoveryAvailable: false } });
+    state.signOut.mockImplementation(async ({ guard }) => { guard(); state.account = { uid: undefined, epoch: 2 }; state.subscribers.forEach(notify => notify()); return { error: null }; });
+    mount(); act(() => { state.account = { uid: 'alice', epoch: 1 }; state.subscribers.forEach(notify => notify()); });
+    await act(async () => { await expect(current.applyOAuthSession(session('alice'), 'email_2fa', { emailChallengeId: 'email-challenge' })).rejects.toThrow('ownership review'); });
+    expect(state.notify).not.toHaveBeenCalled(); expect(state.cache).not.toHaveBeenCalled(); expect(current.user).toBeNull();
+  });
+
+  it('does not hydrate an email completion after its modal view retires during registration', async () => {
+    const pending = deferred<{ requiresApproval: false }>(); state.notify.mockReturnValue(pending.promise); state.ensure.mockResolvedValue(profile('alice', 'alice')); let viewCurrent = true;
+    mount(); act(() => { state.account = { uid: 'alice', epoch: 1 }; state.subscribers.forEach(notify => notify()); });
+    let completion!: ReturnType<typeof current.applyOAuthSession>;
+    act(() => { completion = current.applyOAuthSession(session('alice'), 'email_2fa', { emailChallengeId: 'email-challenge', guard: () => { if (!viewCurrent) throw Error('View retired'); } }); });
+    const rejected = expect(completion).rejects.toThrow('View retired');
+    await waitFor(() => expect(state.notify).toHaveBeenCalledOnce()); viewCurrent = false;
+    await act(async () => { pending.resolve({ requiresApproval: false }); await rejected; });
+    expect(current.user).toBeNull(); expect(state.cache).not.toHaveBeenCalled(); expect(state.signOut).not.toHaveBeenCalled();
+  });
+  it('waits for checked email-device completion before hydration and does not repeat the email challenge', async () => {
+    const pending = deferred<{ requiresApproval: false }>(); state.notify.mockReturnValue(pending.promise);
+    state.ensure.mockResolvedValue(profile('alice', 'alice')); mount();
+    act(() => { state.account = { uid: 'alice', epoch: 1 }; state.subscribers.forEach(notify => notify()); });
+    let completion!: ReturnType<typeof current.applyOAuthSession>;
+    act(() => { completion = current.applyOAuthSession(session('alice'), 'email_2fa', { emailChallengeId: 'email-challenge' }); });
+    await waitFor(() => expect(state.notify).toHaveBeenCalledWith('email_2fa', expect.any(Function), 'email-challenge', true));
+    await act(async () => { await state.listener?.('SIGNED_IN', session('alice')); });
+    expect(current.user).toBeNull(); expect(current.profile).toBeNull(); expect(state.ensure).toHaveBeenCalledOnce(); expect(state.cache).not.toHaveBeenCalled(); expect(state.confirmation).not.toHaveBeenCalled();
+    await act(async () => { pending.resolve({ requiresApproval: false }); await completion; });
+    await waitFor(() => expect(current.profile?.user_id).toBe('alice'));
+    expect(state.signOut).not.toHaveBeenCalled(); expect(state.notify).toHaveBeenCalledOnce(); expect(state.gate).toBe(false);
+    expect(state.ensure).toHaveBeenCalledOnce();
+  });
+
+  it('keeps failed email-device completion signed out with no premature profile setup', async () => {
+    state.notify.mockRejectedValue(Error('This device sign-in was not confirmed'));
+    state.ensure.mockResolvedValue(profile('alice', 'alice'));
+    state.signOut.mockImplementation(async ({ guard }) => { guard(); state.account = { uid: undefined, epoch: 2 }; state.subscribers.forEach(notify => notify()); return { error: null }; });
+    mount(); act(() => { state.account = { uid: 'alice', epoch: 1 }; state.subscribers.forEach(notify => notify()); });
+    await act(async () => { await expect(current.applyOAuthSession(session('alice'), 'email_2fa', { emailChallengeId: 'email-challenge' })).rejects.toThrow('not confirmed'); });
+    expect(state.signOut).toHaveBeenCalledOnce(); expect(state.ensure).toHaveBeenCalledOnce(); expect(state.cache).not.toHaveBeenCalled(); expect(current.user).toBeNull(); expect(state.gate).toBe(false);
+  });
+
+  it('does not let delayed email confirmation hydrate or sign out a replacement account', async () => {
+    const pending = deferred<{ requiresApproval: false }>(); state.notify.mockReturnValue(pending.promise); state.ensure.mockImplementation(async uid => profile(uid, uid));
+    mount(); act(() => { state.account = { uid: 'alice', epoch: 1 }; state.subscribers.forEach(notify => notify()); });
+    let completion!: ReturnType<typeof current.applyOAuthSession>;
+    act(() => { completion = current.applyOAuthSession(session('alice'), 'email_2fa', { emailChallengeId: 'email-challenge' }); });
+    const rejected = expect(completion).rejects.toMatchObject({ code: 'auth-attempt-retired' });
+    await waitFor(() => expect(state.notify).toHaveBeenCalledOnce());
+    state.gate = false; await switchAccount('bob'); await waitFor(() => expect(current.user?.id).toBe('bob'));
+    await act(async () => { pending.resolve({ requiresApproval: false }); await rejected; });
+    expect(current.user?.id).toBe('bob'); expect(state.signOut).not.toHaveBeenCalled();
+  });
   it.each([false, true])('blocks children while the lazy ban screen loads and preserves its Auth context (meme=%s)', async meme => {
     const moduleReady = deferred<void>(); state.banLoad = moduleReady.promise;
     state.bans = [{ reason: 'Account access is restricted', is_permanent: true, is_meme_ban: meme }];

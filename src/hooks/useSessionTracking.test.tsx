@@ -35,6 +35,32 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe('checked device sign-in and current revocation', () => {
+  it('requires the exact checked email completion before retaining a device session', async () => {
+    state.invoke.mockResolvedValue({ data: response({ confirmedEmailChallengeId: 'email-challenge' }), error: null });
+    await expect(notifyFreshLogin('email_2fa', () => {}, 'email-challenge')).resolves.toMatchObject({ requiresApproval: false, sessionId: 'fresh-device-generation' });
+    expect(state.invoke).toHaveBeenCalledWith('auth-login-notify', expect.objectContaining({ body: expect.objectContaining({ method: 'email_2fa', expectedEmailChallengeId: 'email-challenge' }) }));
+    expect(localStorage.getItem('vybe-app-session-id-alice-device-one')).toBe('fresh-device-generation');
+  });
+  it('lets the confirming modal clear its gate only after guarded hydration finishes', async () => {
+    state.invoke.mockResolvedValue({ data: response({ confirmedEmailChallengeId: 'email-challenge' }), error: null });
+    await notifyFreshLogin('email_2fa', () => {}, 'email-challenge', true);
+    expect(state.clearGate).not.toHaveBeenCalled();
+  });
+  it.each([{}, { confirmedEmailChallengeId: 'other' }, { confirmedEmailChallengeId: 'email-challenge', requiresApproval: true },
+    { confirmedEmailChallengeId: 'email-challenge', trackingDeferred: true, profileId: null, sessionId: null, reason: 'profile_setup_pending' }])('rejects email completion without its confirmed device receipt %j', async patch => {
+    state.invoke.mockResolvedValue({ data: response(patch), error: null });
+    await expect(notifyFreshLogin('email_2fa', () => {}, 'email-challenge')).rejects.toThrow('not confirmed');
+    expect(state.clearGate).not.toHaveBeenCalled();
+    expect(localStorage.getItem('vybe-app-session-id-alice-device-one')).toBeNull();
+  });
+  it('does not clear confirmation or save a device after its outer sign-in attempt retires', async () => {
+    const pending = deferred<unknown>(); state.invoke.mockReturnValue(pending.promise); let current = true;
+    const result = notifyFreshLogin('email_2fa', () => { if (!current) throw Error('Retired sign-in'); }, 'email-challenge');
+    const rejected = expect(result).rejects.toThrow('Retired sign-in');
+    await waitFor(() => expect(state.invoke).toHaveBeenCalledOnce()); current = false;
+    pending.resolve({ data: response({ confirmedEmailChallengeId: 'email-challenge' }), error: null }); await rejected;
+    expect(state.clearGate).not.toHaveBeenCalled(); expect(localStorage.getItem('vybe-app-session-id-alice-device-one')).toBeNull();
+  });
   it.each([{ ownerUid: 'bob' }, { authTime: 1 }, { accountCreatedAt: 1 }, { profileId: null }, { requiresApproval: true }, { trackingDeferred: true }])('rejects an incomplete or mismatched receipt %j', async patch => {
     state.invoke.mockResolvedValue({ data: response(patch), error: null });
     const signIn = await captureDeviceSignIn('alice');

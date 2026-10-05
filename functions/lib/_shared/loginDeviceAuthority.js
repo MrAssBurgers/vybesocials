@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { resolveIdentity } from './profileAudienceAuthority.js';
+import { emailCompletionId, invalidEmailCompletion, readEmailDeviceConfirmation, sameEmailDeviceConfirmation } from './emailDeviceConfirmation.js';
 const hash = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const date = (value) => typeof value === 'string' ? Date.parse(value) : NaN;
 const positive = (value) => typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
@@ -31,17 +32,21 @@ async function currentUser(auth, uid, input, authTime, now) {
 }
 /** Device bookkeeping cannot revive revoked credentials. A fresh interactive
  * sign-in creates a new generation; the old revoked row is never cleared. */
-export async function registerLoginDevice(db, auth, uid, authTime, raw, metadata = {}, now = Date.now()) {
+export async function registerLoginDevice(db, auth, uid, authTime, raw, metadata = {}, now = Date.now(), verifiedToken = {}) {
     const input = raw;
     if (!input || input.expectedOwnerUid !== uid || !positive(authTime) || input.expectedAuthTime !== authTime || !positive(input.expectedAccountCreatedAt))
         throw new HttpsError('failed-precondition', 'Your sign-in changed. Please retry.');
     if (typeof input.deviceFingerprint !== 'string' || !input.deviceFingerprint || input.deviceFingerprint.length > 160 || [...input.deviceFingerprint].some(char => char.charCodeAt(0) < 32)
         || !['password', 'oauth', 'login_approval', 'email_2fa', 'session_resume', 'app_open', 'heartbeat'].includes(input.method))
         throw new HttpsError('invalid-argument', 'Valid device details are required.');
-    await currentUser(auth, uid, input, authTime, now);
+    const account = await currentUser(auth, uid, input, authTime, now);
+    const emailId = input.method === 'email_2fa' ? input.expectedEmailChallengeId : null;
+    if (input.method === 'email_2fa' && (!emailCompletionId(emailId) || verifiedToken.email_2fa !== emailId))
+        throw invalidEmailCompletion();
     const headRef = db.doc(`_auth_device_session_heads/${loginDeviceHeadId(uid, input.expectedAccountCreatedAt, input.deviceFingerprint)}`);
     return db.runTransaction(async (tx) => {
         const identity = await resolveIdentity(db, tx, uid);
+        const emailConfirmation = emailId ? await readEmailDeviceConfirmation(db, tx, account, authTime, String(emailId), now) : null;
         const binding = (await tx.get(db.doc(`_account_profile_bindings/${uid}`))).data();
         const base = { ownerUid: uid, authTime, accountCreatedAt: input.expectedAccountCreatedAt };
         if (!identity || identity.uid !== uid || !binding) {
@@ -52,10 +57,10 @@ export async function registerLoginDevice(db, auth, uid, authTime, raw, metadata
                 tx.get(db.collection('user_sessions').where('user_id', '==', uid).limit(1)), tx.get(db.doc(`user_2fa_settings/${uid}`)),
                 tx.get(db.collection('auth_challenges').where('user_id', '==', uid).where('status', '==', 'pending').limit(1)),
             ]);
-            if (identity || binding || direct.exists || !profiles.empty || index.exists || !sessions.empty || settings.exists || !challenges.empty)
+            if (emailConfirmation || identity || binding || direct.exists || !profiles.empty || index.exists || !sessions.empty || settings.exists || !challenges.empty)
                 throw setupRequired();
             await currentUser(auth, uid, input, authTime, now);
-            return { ...base, profileId: null, trackingDeferred: true, sessionId: null, created: false, row: null };
+            return { ...base, profileId: null, trackingDeferred: true, sessionId: null, created: false, row: null, emailConfirmation: null };
         }
         if (binding.version !== 1 || binding.status !== 'active' || binding.owner_uid !== uid || binding.profile_id !== identity.profileId
             || binding.auth_created_at_ms !== input.expectedAccountCreatedAt || typeof binding.revision !== 'string' || !/^[a-f0-9]{48}$/.test(binding.revision))
@@ -124,13 +129,15 @@ export async function registerLoginDevice(db, auth, uid, authTime, raw, metadata
         const row = created ? { ...metadata, user_id: uid, profile_id: identity.profileId, session_token_hash: input.deviceFingerprint,
             auth_time: authTime, account_created_at_ms: input.expectedAccountCreatedAt, binding_revision: binding.revision, created_at: new Date(now).toISOString(), last_seen_at: new Date(now).toISOString(),
             trusted: resume(input.method), pending_approval: false, revoked_at: null } : previous.row;
-        await currentUser(auth, uid, input, authTime, now);
+        const freshAccount = await currentUser(auth, uid, input, authTime, now);
+        if (emailConfirmation && freshAccount.email !== account.email)
+            throw invalidEmailCompletion();
         if (created)
             tx.create(sessionRef, row);
         if (!head || created)
             tx.set(headRef, { version: 1, owner_uid: uid, profile_id: identity.profileId, account_created_at_ms: input.expectedAccountCreatedAt,
                 binding_revision: binding.revision, session_id: sessionId, session_origin: created ? 'created' : 'legacy', session_create_time: created ? null : previous.createTime });
-        return { ...base, profileId: identity.profileId, trackingDeferred: false, sessionId, created, row };
+        return { ...base, profileId: identity.profileId, trackingDeferred: false, sessionId, created, row, emailConfirmation };
     });
 }
 /** All later confirmation updates/receipts recheck the same registered row.
@@ -140,11 +147,16 @@ export async function withCurrentLoginDevice(db, auth, registered, fingerprint, 
     const raw = { expectedOwnerUid: uid, expectedAuthTime: authTime, expectedAccountCreatedAt: registered.accountCreatedAt, deviceFingerprint: fingerprint, method: 'checked' };
     if (registered.trackingDeferred || !registered.sessionId)
         throw setupRequired();
-    await currentUser(auth, uid, raw, authTime, now);
+    const account = await currentUser(auth, uid, raw, authTime, now);
     return db.runTransaction(async (tx) => {
         const identity = await resolveIdentity(db, tx, uid), ref = db.doc(`user_sessions/${registered.sessionId}`);
         const [session, head, binding, settings] = await tx.getAll(ref, db.doc(`_auth_device_session_heads/${loginDeviceHeadId(uid, raw.expectedAccountCreatedAt, raw.deviceFingerprint)}`), db.doc(`_account_profile_bindings/${uid}`), db.doc(`user_2fa_settings/${uid}`));
         const row = session.data(), current = head.data(), owner = binding.data();
+        if (registered.emailConfirmation) {
+            const proof = await readEmailDeviceConfirmation(db, tx, account, authTime, registered.emailConfirmation.challengeId, now);
+            if (!sameEmailDeviceConfirmation(proof, registered.emailConfirmation))
+                throw invalidEmailCompletion();
+        }
         if (!identity || identity.uid !== uid || identity.profileId !== registered.profileId || owner?.status !== 'active' || owner.owner_uid !== uid
             || owner.profile_id !== identity.profileId || owner.auth_created_at_ms !== raw.expectedAccountCreatedAt || !current || current.binding_revision !== owner.revision
             || current.owner_uid !== uid || current.profile_id !== identity.profileId || current.account_created_at_ms !== raw.expectedAccountCreatedAt
@@ -157,7 +169,11 @@ export async function withCurrentLoginDevice(db, auth, registered, fingerprint, 
         if (options.confirmation === 'pending' && (row.trusted !== false || row.pending_approval !== true))
             throw changedGate();
         if (options.trust) {
-            if (loginDeviceVersion(settings.updateTime) !== options.settingsVersion || row.trusted !== registered.row?.trusted || row.pending_approval !== registered.row?.pending_approval)
+            if (options.trust === 'email-confirmed') {
+                if (!registered.emailConfirmation)
+                    throw invalidEmailCompletion();
+            }
+            else if (loginDeviceVersion(settings.updateTime) !== options.settingsVersion || row.trusted !== registered.row?.trusted || row.pending_approval !== registered.row?.pending_approval)
                 throw changedGate();
             if (options.trust === 'approvals-disabled' && settings.data()?.login_approvals_enabled !== false && settings.data()?.login_approvals_enabled !== undefined)
                 throw changedGate();
@@ -167,7 +183,9 @@ export async function withCurrentLoginDevice(db, auth, registered, fingerprint, 
                     throw changedGate();
             }
         }
-        await currentUser(auth, uid, raw, authTime, now);
+        const freshAccount = await currentUser(auth, uid, raw, authTime, now);
+        if (registered.emailConfirmation && freshAccount.email !== account.email)
+            throw invalidEmailCompletion();
         return mutate(tx, ref, row);
     });
 }

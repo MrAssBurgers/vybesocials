@@ -33,10 +33,9 @@ import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/pas
 import { awaitOAuthRedirectCapture, clearOAuthRedirectPending, isLikelyFirebaseOAuthReturnUrl, isOAuthRedirectInFlight, recoverOAuthSessionIfSignedIn } from '@/lib/firebase/oauthRedirect';
 import { isDespiaOAuthInFlight } from '@/lib/despiaOAuth';
 import { tokenAccountGuard, tokenAccountSnapshot } from '@/lib/tokenMarketplaceService';
-import { beginLoginApprovalCheck, endLoginApprovalCheck } from '@/lib/loginApprovalGate';
+import { beginLoginApprovalCheck, endLoginApprovalCheck, shouldBlockPostLoginNavigation } from '@/lib/loginApprovalGate';
 import { captureAuthSnapshotGuard, completeAuthConfirmation, createAuthAttemptController, isRetiredAuthAttempt, type AuthSessionAttempt } from '@/lib/authSessionAttempt';
 import { getFirebaseAuth, getAuthRestoreState, subscribeAuthRestoreState } from '@/lib/firebase/authService';
-import { clearMirroredAuth } from '@/lib/authSessionMirror';
 
 const BannedScreen = lazy(() => import('@/components/auth/BannedScreen').then(module => ({ default: module.BannedScreen })));
 const MemeBanScreen = lazy(() => import('@/components/auth/MemeBanScreen').then(module => ({ default: module.MemeBanScreen })));
@@ -118,6 +117,7 @@ export interface ApplySessionResult {
     ip?: string | null;
   };
 }
+export type SignInConfirmation = { emailChallengeId?: string; guard?: () => void };
 
 interface AuthContextType {
   user: User | null;
@@ -137,7 +137,7 @@ interface AuthContextType {
   }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null; requiresApproval?: boolean; requiresEmail2fa?: boolean } & Partial<ApplySessionResult>>;
   /** Apply Firebase OAuth session immediately (popup / redirect completion). */
-  applyOAuthSession: (session: Session, method?: string) => Promise<ApplySessionResult>;
+  applyOAuthSession: (session: Session, method?: string, confirmation?: SignInConfirmation) => Promise<ApplySessionResult>;
   resendVerification: (email: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>;
@@ -373,6 +373,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Note: Referral/invite popup is now handled entirely by InvitePopup component
   // using the referral.ts utilities with localStorage persistence
 
+  const acceptConfirmedProfile = (profileData: import('@/lib/firebase/types').UserProfile, userId: string, guard: () => void) => {
+    guard();
+    if (profileData.user_id !== userId || !profileData.id) throw new Error('Profile ownership could not be confirmed.');
+    const confirmed = { ...profileData, ...(!profileData.username ? { onboarding_completed: false } : {}), avatar_url: profileData.avatar_url ?? null, bio: profileData.bio ?? '', created_at: profileData.created_at ?? '' } as Profile;
+    profileScopeRef.current = { uid: userId, epoch: reportAccountSnapshot().epoch };
+    setProfile(confirmed);
+    setSetupState({ ...profileScopeRef.current, loading: false, error: null });
+    resetSessionProfileMemo();
+    persistCurrentProfile(confirmed, guard);
+    void checkBanStatus(confirmed.id, guard);
+    subscribeToBanChanges(confirmed.id, guard);
+    return confirmed;
+  };
+
   const fetchProfile = async (userId: string, _retryCount = 0, outerGuard: () => void = profileAccountGuard(userId), action: 'ensure' | 'recover' = 'ensure', defaults?: Partial<import('@/lib/firebase/types').UserProfile>, preserveConfirmedOnFailure = false) => {
     try { outerGuard(); } catch { return null; }
     if (!mountedRef.current) return null;
@@ -395,16 +409,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           : await ensureUserProfile(userId, defaults, current);
       }, guard);
       guard();
-      if (profileData.user_id !== userId || !profileData.id) throw new Error('Profile ownership could not be confirmed.');
-      const confirmed = { ...profileData, ...(!profileData.username ? { onboarding_completed: false } : {}), avatar_url: profileData.avatar_url ?? null, bio: profileData.bio ?? '', created_at: profileData.created_at ?? '' } as Profile;
-      profileScopeRef.current = { uid: userId, epoch: captured.epoch };
-      setProfile(confirmed);
-      setSetupState({ uid: userId, epoch: captured.epoch, loading: false, error: null });
-      resetSessionProfileMemo();
-      persistCurrentProfile(confirmed, guard);
-      void checkBanStatus(confirmed.id, guard);
-      subscribeToBanChanges(confirmed.id, guard);
-      return confirmed;
+      return acceptConfirmedProfile(profileData, userId, guard);
     } catch (error) {
       try { guard(); } catch { return null; }
       const failure = error as { code?: string; name?: string; message?: string };
@@ -444,68 +449,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearCachedCurrentProfile();
     clearCachedUserLevel();
     stopHeartbeat();
-    try {
-      const auth = getFirebaseAuth();
-      if (!auth) throw new Error('Sign-out is unavailable.');
-      // The compatibility adapter clears persistence after its await without an
-      // attempt guard. Keep that cleanup below our ownership check instead.
-      await auth.signOut();
-    } catch {
-      /* ignore */
-    }
+    const result = await db.auth.signOut({ scope: 'local', guard: attempt.guard });
+    if (result.error) throw result.error;
     // Firebase sign-out intentionally changes the account epoch. Only this
     // attempt may continue cleanup, and it must still be signed out.
     attempt.signedOut();
-    try {
-      clearMirroredAuth(localStorage, attempt.guard);
-      for (const key of Object.keys(localStorage)) {
-        if (key.startsWith('firebase:authUser:') || key.startsWith('sb-')) {
-          localStorage.removeItem(key);
-        }
-      }
-    } catch {
-      /* ignore */
-    }
     // Allow a later custom-token sign-in after approval.
     window.setTimeout(() => {
       if (attempt.isCurrent()) explicitSignOutRef.current = false;
     }, 1500);
   }, []);
 
-  const applyOAuthSession = useCallback(async (oauthSession: Session, method = 'oauth', existingAttempt?: AuthSessionAttempt): Promise<ApplySessionResult> => {
+  const applyOAuthSession = useCallback(async (oauthSession: Session, method = 'oauth', existingAttempt?: AuthSessionAttempt, confirmation?: SignInConfirmation): Promise<ApplySessionResult> => {
     const needsConfirmation = method !== 'login_approval' && method !== 'email_2fa';
-    const attempt = existingAttempt ?? authAttempts.start(oauthSession.user.id, needsConfirmation);
+    confirmation?.guard?.();
+    const baseAttempt = existingAttempt ?? authAttempts.start(oauthSession.user.id);
+    const guard = () => { confirmation?.guard?.(); baseAttempt.guard(); };
+    const attempt: AuthSessionAttempt = { ...baseAttempt, guard, isCurrent: () => { try { guard(); return true; } catch { return false; } } };
     attempt.guard();
     explicitSignOutRef.current = false;
     clearOAuthRedirectPending();
+    let confirmedProfile: import('@/lib/firebase/types').UserProfile | null = null;
 
     // Interactive sign-ins: check login confirmation BEFORE hydrating React auth
     // so Landing / RootGate cannot navigate into the app early.
     const gate = await completeAuthConfirmation<ApplySessionResult>(attempt, {
       check: async guard => {
-        if (!needsConfirmation) return null;
-        const { beginEmailConfirmation } = await import('@/lib/emailConfirmation');
+        const { beginEmailConfirmation, withSignInCheckDeadline } = await import('@/lib/emailConfirmation');
         guard();
-        const emailGate = await beginEmailConfirmation(oauthSession.user.id, guard);
-        guard();
-        if (emailGate) {
-          return { requiresApproval: false, requiresEmail2fa: true, ...emailGate };
-        }
+        return withSignInCheckDeadline(guard, async current => {
+          if (needsConfirmation) {
+            const emailGate = await beginEmailConfirmation(oauthSession.user.id, current);
+            current();
+            if (emailGate) return { requiresApproval: false, requiresEmail2fa: true, ...emailGate };
+          }
 
-        const { notifyFreshLogin } = await import('@/hooks/useSessionTracking');
-        guard();
-        const result = await notifyFreshLogin(method);
-        guard();
-        if (result.requiresApproval) {
-          return {
-            requiresApproval: true,
-            challengeId: result.challengeId,
-            expiresAt: result.expiresAt,
-            deviceLabel: result.deviceLabel,
-            geo: result.geo,
-          };
-        }
-        return null;
+          // Existing migrated accounts need a checked canonical binding before
+          // device registration. Keep this result private until confirmation.
+          try { confirmedProfile = await ensureUserProfile(oauthSession.user.id, undefined, current); }
+          catch (error) {
+            current();
+            const failure = error as { details?: { reason?: unknown } };
+            if (failure.details?.reason === 'profile-recovery-required') throw Object.assign(new Error('Your profile needs an account ownership review before sign-in can finish. Contact support, or retry after the review is complete.'), { code: 'auth/profile-recovery-required' });
+            throw error;
+          }
+          current();
+          if (!confirmedProfile?.id || confirmedProfile.user_id !== oauthSession.user.id) throw new Error('Profile ownership could not be confirmed.');
+
+          const { notifyFreshLogin } = await import('@/hooks/useSessionTracking');
+          current();
+          // The modal owns clearing its pending gate after this entire guarded
+          // completion. Clearing it here would unmount a switched-to-email view.
+          const result = await notifyFreshLogin(method, current, confirmation?.emailChallengeId, true);
+          current();
+          if (result.requiresApproval) {
+            if (!needsConfirmation) throw new Error('This sign-in has not been confirmed. Please sign in again.');
+            return { requiresApproval: true, challengeId: result.challengeId, expiresAt: result.expiresAt, deviceLabel: result.deviceLabel, geo: result.geo };
+          }
+          return null;
+        });
       },
       signOut: () => softSignOutForLoginApproval(attempt),
       hydrate: () => {
@@ -519,19 +521,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsInitialized(true);
         startHeartbeat();
         if (oauthSession.expires_at) scheduleTokenRefresh(oauthSession.expires_at);
-        bootstrapSessionData(oauthSession.user.id, 'SIGNED_IN', attempt.guard);
+        if (!confirmedProfile) throw new Error('Profile ownership could not be confirmed.');
+        ++profileAttemptRef.current;
+        bootstrapUserRef.current = `${oauthSession.user.id}:${reportAccountSnapshot().epoch}`;
+        acceptConfirmedProfile(confirmedProfile, oauthSession.user.id, attempt.guard);
         void db.auth.refreshSession().catch(() => {});
       },
     });
     attempt.guard();
     if (gate) return gate;
-
-    if (method === 'login_approval') {
-      void import('@/hooks/useSessionTracking').then(({ notifyFreshLogin }) => {
-        attempt.guard();
-        void notifyFreshLogin('login_approval');
-      }).catch(() => {});
-    }
 
     return { requiresApproval: false };
   }, [authAttempts, softSignOutForLoginApproval]);
@@ -635,6 +633,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const eventGuard = captureAuthSnapshotGuard(tokenAccountSnapshot, session?.user?.id);
         try { eventGuard(); } catch { return; }
+
+        // First-factor/custom-token SDK events arrive before the interactive
+        // confirmation receipt. Only its guarded completion may hydrate them.
+        if (session?.user && shouldBlockPostLoginNavigation()) return;
 
         if (event === 'SIGNED_IN' && session?.user) {
           stripStaleOnboardingFlagFromDisk();
@@ -1298,7 +1300,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       signUp: (email: string, password: string, username: string) => apiRef.current.signUp(email, password, username),
       signIn: (email: string, password: string) => apiRef.current.signIn(email, password),
-      applyOAuthSession: (s: Session, method?: string) => apiRef.current.applyOAuthSession(s, method),
+      applyOAuthSession: (s: Session, method?: string, confirmation?: SignInConfirmation) => apiRef.current.applyOAuthSession(s, method, undefined, confirmation),
       resendVerification: (email: string) => apiRef.current.resendVerification(email),
       signOut: () => apiRef.current.signOut(),
       updateProfile: (updates: Partial<Profile>) => apiRef.current.updateProfile(updates),
