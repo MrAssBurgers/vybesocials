@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-05) - Live signed-in profile service restored
+
+### Release and scope
+- The user completed Firebase reconnection after the PowerShell launcher issue (`npx.cmd` works). Selected authenticated CLI access to `vybe-daaab` was verified. The live inventory confirmed missing `ensureAccountProfile` and the older claiming endpoint. Built unchanged Functions source from `e77a0681162274bdbc037aa032704023afb270f7` and deployed **only `ensureAccountProfile` and strict `claimProfileByEmail`** in `us-central1`. Both are ACTIVE with artifact hash `5c78c3454ea577f7b5a3724330904f485b67a8b1`; before/after inventories show only these two named versions changed.
+- Read the exact live Firestore baseline: ruleset `e301c95c-44b4-4d06-97a5-e268cd3711d2`, SHA-256 `857eca934725e9cf94be42af601cf7a1c7a742960f84e9fe1f7cfb154dc045a3`. Prepared and reviewed only canonical account/staff identity helpers, server-owned profile/index setup, immutable identity/email, private account namespaces and the recursive profile-child overlap fix. Other collection blocks retain that baseline; the repository's many unrelated pending Rules cutovers were not released. Config: firebase.profile-bootstrap.json; source and record: releases/profile-bootstrap-20261005/.
+- Rechecked the unchanged baseline immediately before Rules release. The CLI compiled/uploaded the candidate but reported duplicate-release 409. An independent authenticated GET showed the exact tested candidate already active at ruleset `4583d3f4-8f6c-42fa-80b9-c2d0cc1dc41e`, SHA-256 `f421cde69d505389a1665404601e5ba32f8cc5e5815fd00b49ac7b204b544d69`. No blind retry, replacement baseline or broader release was performed. No production account/profile rows were manually edited, no recovery evidence was approved and no identity was reassigned.
+
+### Verification
+- Functions build passed. Actual live-baseline Rules comparison: **96 checks passed**, with the same 2 unbound migrated staff operations requiring checked setup; corresponding bound cases all pass. A separate real Auth/Firestore emulator walkthrough passed **6 backend groups + 40 Rules checks**, including unique migrated-profile ID/content preservation, exact replay/current content, conflict rejection without replacement, strict old wrapper, raw/private denial, owner edits and existing DM/feed access. Logs: work/live-profile-release/{build,compat,candidate-test,deploy-functions,deploy-rules,finalize-rules}.log. Separate test emulators stopped; identified leftover test-only Java listeners were cleaned up, with retained preview untouched.
+- Public empty-request probes now return callable **401 UNAUTHENTICATED** for both profile endpoints, replacing the missing-service response. That proves live reachability and basic auth rejection, not this user's successful receipt. All preceding 4,357 app tests/build/lint/typecheck results remain applicable because product code is unchanged in this release. No extra frontend publish was needed for the already-shipped profile contract.
+- Requested that the user choose Try again in the existing signed-in phone session to confirm the original profile. Physical phone recovery and close/reopen remain pending user verification; do not claim them from emulator tests or public probes. No external email/SMS/push/AI provider, secret, Auth setting, Storage rule, index, TTL or Lovable Publish action occurred.
+
+### Remaining / next 3 tasks
+1. Verify the original phone profile after Try again, then close/reopen. If recovery still fails, diagnose the exact checked error/current ownership without creating a replacement profile or using public email as ownership proof. Changed-UID recovery remains a separately reviewed operation with required server-consumer rollout.
+2. Review the coordinated fresh email sign-in release in docs/SIGN_IN_RECOVERY.md. Existing blockers remain: auth2faVerify/authSessionRevoke platform 403, manageSignInPreferences 404, plus authenticated receipt/provider compatibility. The historical auth2faRequest restriction remains; no bare-success bypass or account flag change. A frontend-only publish cannot complete this boundary.
+3. Continue existing-feature stability after auth parity. Track the CLI's observed Node 20 decommission date of 2026-10-30 as a separate runtime upgrade task. New SDK/mini-app expansion stays deferred; preserve original 3D globe and retained preview data. No overall readiness claim.
+
+---
+
 ## ACTIVE (2026-10-05) - Stability: signed-in phone blocked on profile loading
 
 ### Diagnosis and repairs

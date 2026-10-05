@@ -4,9 +4,11 @@ This is a release inventory and read-only diagnosis from 2026-10-05. It does not
 
 ## Observed production state
 
+**Profile bootstrap update, 2026-10-05:** Firebase access was reconnected and the narrow already-signed-in profile release was deployed. `ensureAccountProfile` and strict `claimProfileByEmail` are active and both reject empty public requests with callable `401 UNAUTHENTICATED`. The reviewed Rules slice from the actual deployed baseline is active with SHA-256 `f421cde69d505389a1665404601e5ba32f8cc5e5815fd00b49ac7b204b544d69`; see [the release record](../releases/profile-bootstrap-20261005/README.md). This removes the missing endpoint blocker. The original account on the physical phone still needs a successful retry. The fresh email sign-in and Security settings gaps below remain: `auth2faVerify` and `authSessionRevoke` platform 403, `manageSignInPreferences` 404. No frontend publish, provider request, secret or Auth setting change occurred.
+
 `https://vybehub.app/version.json` reported commit `ea52a9bf2ec7bee3f2773c3eb174f151af23d757`, built at `2026-10-05T09:28:29.012Z`. `/login` served its matching `app-BsTRIiE_.js` entry. The lazy `emailConfirmation-D6Y6-Ep3.js` module contains the screenshot's exact error, “The email confirmation could not be started. Please sign in again.” Its validation requires an acknowledged challenge ID, matching owner UID and a current expiry. The new client is live; an authenticated server receipt mismatch is the immediate failure indicated by that message. An unauthenticated probe cannot establish which field was missing.
 
-Empty callable requests contained only `{"data":{}}`; no account identifier, credential, code or provider request was supplied. Results:
+Before the profile release, empty callable requests contained only `{"data":{}}`; no account identifier, credential, code or provider request was supplied. Initial results:
 
 | Named endpoint | Observed response | What it establishes |
 |---|---|---|
@@ -21,7 +23,7 @@ Empty callable requests contained only `{"data":{}}`; no account identifier, cre
 
 `node scripts/check-auth-release.mjs --project vybe-daaab` repeats these non-mutating protocol checks. A passing result proves reachability and basic rejection only, not code delivery, authenticated response compatibility, Rules, indexes, custom-token minting or phone persistence.
 
-The Firebase CLI's read-only Functions inventory failed authentication. Deployed source versions, invoker policy, runtime service-account permissions and secret bindings therefore remain unverified. Reconnecting deployment access is required before reviewing a concrete rollout. Do not inspect or print credential files or secret values.
+The initial Firebase CLI inventory failed authentication. Access has since been reconnected and the named profile release verified as recorded above. Other authenticated response contracts, provider delivery and runtime signing permissions remain unverified. Do not inspect or print credential files or secret values.
 
 ## Minimum sign-in to owned-profile release
 

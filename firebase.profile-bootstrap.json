@@ -1,0 +1,12 @@
+{
+  "firestore": {
+    "rules": "releases/profile-bootstrap-20261005/firestore.rules"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": ["node_modules", ".git", "firebase-debug.log", "firebase-debug.*.log"]
+    }
+  ]
+}
