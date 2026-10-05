@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, memo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Globe, Sparkles, LayoutGrid, Eye, Plus } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Loader2, Globe, Sparkles, LayoutGrid, Eye } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { useInfiniteFollowingPosts, usePersonalizedFeed } from '@/hooks/useInfinitePosts';
 import { useSocialFeed } from '@/hooks/useSocialFeed';
@@ -20,7 +20,7 @@ import { mergedFeedPending, shouldShowFeedRefreshing, shouldShowFeedSkeleton } f
 import { hasActiveReferral, isInviteEntryMode } from '@/lib/referral';
 import { Button } from '@/components/ui/button';
 import { GlobalEventBanner } from '@/components/events/GlobalEventBanner';
-import { HomeEditModeProvider, useEditMode } from '@/components/home/HomeEditMode';
+import { HomeEditModeProvider } from '@/components/home/HomeEditMode';
 import { HomeWidgetRenderer } from '@/components/home/HomeWidgetRenderer';
 import { useGridLayout } from '@/hooks/useGridLayout';
 import { scrollAppTo } from '@/lib/appScrollContainer';
@@ -448,8 +448,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             loadMoreRef={loadMoreRef}
           />
 
-          {/* Widget add FAB in edit mode */}
-          {customizerOpen && <WidgetAddFAB />}
+
         </div>
       </HomeEditModeProvider>
 
@@ -458,64 +457,5 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         <WeeklyRecapModal />
       </Suspense>
     </AppLayout>
-  );
-}
-
-/* ── FAB + button for adding widgets in edit mode ── */
-function WidgetAddFAB() {
-  const { localWidgets, handleToggle } = useEditMode();
-  const [open, setOpen] = useState(false);
-  const hidden = localWidgets.filter(w => !w.enabled);
-
-  if (hidden.length === 0) return null;
-
-  return (
-    <>
-      <motion.button
-        onClick={() => {
-          scrollAppTo(0, 'smooth');
-          setOpen(!open);
-        }}
-        className="fixed left-4 bottom-24 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 lg:left-64 lg:top-24 lg:bottom-auto"
-        whileTap={{ scale: 0.9 }}
-        animate={{ rotate: open ? 45 : 0 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-      >
-        <Plus className="h-7 w-7" />
-      </motion.button>
-
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-            className="fixed left-4 bottom-40 z-50 w-64 rounded-2xl border border-border/30 bg-card/95 p-3 space-y-1 shadow-2xl backdrop-blur-xl lg:left-64 lg:top-40 lg:bottom-auto"
-          >
-            <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Add Widget
-            </p>
-            {hidden.map((w, i) => (
-              <motion.button
-                key={w.id}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.04 }}
-                onClick={() => {
-                  handleToggle(w.id);
-                  if (hidden.length <= 1) setOpen(false);
-                }}
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-primary/10"
-              >
-                <span className="text-lg">{w.icon}</span>
-                <span className="flex-1 text-sm font-medium text-foreground">{w.label}</span>
-                <Plus className="h-4 w-4 text-primary" />
-              </motion.button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
   );
 }

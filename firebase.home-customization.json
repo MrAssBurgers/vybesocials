@@ -1,0 +1,5 @@
+{
+  "firestore": {
+    "rules": "releases/home-customization-20261005/firestore.rules"
+  }
+}

@@ -23,7 +23,7 @@ let inEditMode = false;
 let inImmersiveView = false;
 
 function updateVisibility() {
-  const shouldBeVisible = !communityInputFocused && !inCommunityChat && !inStoryViewer && !inDesigner && !inImmersiveView;
+  const shouldBeVisible = !communityInputFocused && !inCommunityChat && !inStoryViewer && !inDesigner && !inEditMode && !inImmersiveView;
   if (navVisible !== shouldBeVisible) {
     navVisible = shouldBeVisible;
     listeners.forEach(fn => fn(navVisible));

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useUserPreferences, useUpdatePreferences } from './useUserPreferences';
 import { ALL_WIDGETS, type WidgetDef } from './useHomeLayout';
 import { useIsMobileOrTablet } from './use-mobile';
@@ -26,90 +26,73 @@ export type LayoutVariant = 'mobile' | 'desktop';
 // the Customize flow; saved layouts in user prefs are untouched.
 const DEFAULT_ENABLED = new Set(['greeting', 'stories', 'feed']);
 
-function parseConfig(saved: Partial<GridLayoutConfig> | undefined): GridLayoutConfig {
-  const savedWidgets = saved?.widgets;
+export function parseGridConfig(saved: Partial<GridLayoutConfig> | undefined, legacy?: { order?: string[]; hidden?: string[] }): GridLayoutConfig {
+  const savedWidgets = Array.isArray(saved?.widgets) ? saved.widgets : [];
+  const order = Array.isArray(legacy?.order) ? legacy.order : [];
+  const hidden = Array.isArray(legacy?.hidden) ? legacy.hidden : [];
+  const hasLegacy = Array.isArray(legacy?.order) || Array.isArray(legacy?.hidden);
 
-  const widgets: GridWidgetState[] = ALL_WIDGETS.map((def, i) => {
-    const sw = savedWidgets?.find((w: any) => w.id === def.id);
-    if (sw) return { ...def, ...sw };
+  const widgets: GridWidgetState[] = ALL_WIDGETS.map((def, i): GridWidgetState => {
+    const sw = savedWidgets.find(w => w?.id === def.id);
     return {
       ...def,
-      enabled: DEFAULT_ENABLED.has(def.id),
-      colSpan: (def.defaultCol ?? 1) as 1 | 2,
-      rowSpan: 1 as const,
-      order: i,
+      enabled: typeof sw?.enabled === 'boolean' ? sw.enabled : hasLegacy ? order.includes(def.id) && !hidden.includes(def.id) : DEFAULT_ENABLED.has(def.id),
+      colSpan: sw?.colSpan === 1 || sw?.colSpan === 2 ? sw.colSpan : def.defaultCol ?? 1,
+      rowSpan: sw?.rowSpan === 2 ? 2 : 1,
+      order: Number.isFinite(sw?.order) ? sw!.order : order.includes(def.id) ? order.indexOf(def.id) : order.length + i,
     };
   }).sort((a, b) => a.order - b.order);
 
   return {
     widgets,
-    background_url: saved?.background_url ?? null,
-    background_opacity: saved?.background_opacity ?? 80,
-    font_heading: saved?.font_heading ?? 'system-ui',
-    font_body: saved?.font_body ?? 'system-ui',
-    corner_style: saved?.corner_style ?? 'rounded',
-    motion_intensity: saved?.motion_intensity ?? 'normal',
+    background_url: typeof saved?.background_url === 'string' ? saved.background_url : null,
+    background_opacity: Number.isFinite(saved?.background_opacity) ? Math.max(0, Math.min(100, saved!.background_opacity!)) : 80,
+    font_heading: typeof saved?.font_heading === 'string' ? saved.font_heading : 'system-ui',
+    font_body: typeof saved?.font_body === 'string' ? saved.font_body : 'system-ui',
+    corner_style: saved?.corner_style === 'sharp' || saved?.corner_style === 'pill' ? saved.corner_style : 'rounded',
+    motion_intensity: saved?.motion_intensity === 'none' || saved?.motion_intensity === 'subtle' || saved?.motion_intensity === 'extra' ? saved.motion_intensity : 'normal',
   };
 }
 
 export function useGridLayout() {
-  const { data: prefs } = useUserPreferences();
+  const preferences = useUserPreferences();
+  const prefs = preferences.data;
   const update = useUpdatePreferences();
   const { isMobileOrTablet } = useIsMobileOrTablet();
-  const [autoOverride, setAutoOverride] = useState<{ order?: string[]; hidden?: string[] } | null>(null);
 
   const variant: LayoutVariant = isMobileOrTablet ? 'mobile' : 'desktop';
-
-  const fetchAutoOverride = useCallback(async () => {
-    // Auto-Pilot must NEVER reorder/hide widgets — layout is user-controlled only.
-    setAutoOverride(null);
-  }, []);
-
-  useEffect(() => {
-    fetchAutoOverride();
-  }, [fetchAutoOverride]);
 
   const config = useMemo((): GridLayoutConfig => {
     const gridRoot = (prefs?.extra as any)?.grid_layout;
     const saved = gridRoot?.[variant] ?? gridRoot;
-    const base = parseConfig(saved as Partial<GridLayoutConfig> | undefined);
-    if (!autoOverride) return base;
-    const order = autoOverride.order ?? [];
-    const hidden = new Set(autoOverride.hidden ?? []);
-    const widgets = base.widgets.map((w, i) => {
-      const idx = order.indexOf(w.id);
-      return {
-        ...w,
-        enabled: order.length ? (idx !== -1 && !hidden.has(w.id)) : (!hidden.has(w.id) && w.enabled),
-        order: idx !== -1 ? idx : (order.length + i),
-      };
-    }).sort((a, b) => a.order - b.order);
-    return { ...base, widgets };
-  }, [prefs?.extra, variant, autoOverride]);
+    return parseGridConfig(saved, (prefs?.extra as any)?.home_layout);
+  }, [prefs?.extra, variant]);
 
   const saveGridLayout = useCallback(async (newConfig: Partial<GridLayoutConfig>, allDevices = false) => {
-    const currentExtra = (prefs?.extra as any) ?? {};
-    const currentGrid = currentExtra.grid_layout ?? {};
-    const currentVariant = currentGrid[variant] ?? currentGrid;
-    const merged = { ...currentVariant, ...newConfig };
+    if (!preferences.isSuccess || preferences.isPlaceholderData || preferences.isError) throw new Error('Your layout is still loading. Try again in a moment.');
+    await update.mutateAsync(current => {
+      const currentExtra = current.extra as any;
+      const currentGrid = currentExtra.grid_layout ?? {};
+      const currentVariant = currentGrid[variant] ?? currentGrid;
+      const merged = { ...parseGridConfig(currentVariant, currentExtra.home_layout), ...newConfig };
 
-    const homeLayout = {
-      order: (newConfig.widgets ?? config.widgets).filter(w => w.enabled).map(w => w.id),
-      hidden: (newConfig.widgets ?? config.widgets).filter(w => !w.enabled).map(w => w.id),
-    };
+      const homeLayout = {
+        order: (newConfig.widgets ?? config.widgets).filter(w => w.enabled).sort((a,b) => a.order-b.order).map(w => w.id),
+        hidden: (newConfig.widgets ?? config.widgets).filter(w => !w.enabled).map(w => w.id),
+      };
 
-    const gridLayout = allDevices
-      ? { ...currentGrid, mobile: merged, desktop: merged }
-      : { ...currentGrid, [variant]: merged };
+      const gridLayout = allDevices
+        ? { mobile: { ...parseGridConfig(currentGrid.mobile ?? currentGrid, currentExtra.home_layout), ...newConfig }, desktop: { ...parseGridConfig(currentGrid.desktop ?? currentGrid, currentExtra.home_layout), ...newConfig } }
+        : { ...currentGrid, [variant]: merged };
 
-    await update.mutateAsync({
-      extra: {
-        ...currentExtra,
-        grid_layout: gridLayout,
-        home_layout: homeLayout,
-      },
+      return {
+        extra: {
+          grid_layout: gridLayout,
+          home_layout: homeLayout,
+        },
+      };
     });
-  }, [prefs?.extra, update, config.widgets, variant]);
+  }, [preferences.isSuccess, preferences.isPlaceholderData, preferences.isError, update, config.widgets, variant]);
 
   const toggleWidget = useCallback(async (id: string) => {
     const updated = config.widgets.map(w =>
@@ -128,13 +111,14 @@ export function useGridLayout() {
   const reorderWidgets = useCallback(async (newOrder: string[]) => {
     const updated = config.widgets.map(w => ({
       ...w,
-      order: newOrder.indexOf(w.id),
+      order: newOrder.includes(w.id) ? newOrder.indexOf(w.id) : newOrder.length + w.order,
     })).sort((a, b) => a.order - b.order);
     await saveGridLayout({ widgets: updated });
   }, [config.widgets, saveGridLayout]);
 
   return {
     config,
+    preferences,
     variant,
     saveGridLayout,
     toggleWidget,

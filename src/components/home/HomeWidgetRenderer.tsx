@@ -724,7 +724,7 @@ export function HomeWidgetRenderer(props: Props) {
       <EditableWidgetList>
         {enabledIds.map(id => (
           <EditableWidgetWrapper key={id} widgetId={id}>
-            <div data-widget-id={id}>
+            <div>
               <WidgetContent id={id} props={props} />
             </div>
           </EditableWidgetWrapper>
@@ -752,6 +752,7 @@ export function HomeWidgetRenderer(props: Props) {
               w?.rowSpan === 2 && id !== 'stories' ? 'row-span-2' : 'row-span-1',
               id === 'stories' && 'h-fit self-start',
             )}
+            style={{ minHeight: w?.rowSpan === 2 ? 200 : undefined }}
           >
             {isEager ? content : <LazyWidget>{content}</LazyWidget>}
           </motion.div>

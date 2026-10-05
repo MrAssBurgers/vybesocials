@@ -18,9 +18,6 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ---------- helpers ----------
-    function signedIn() {
-      return request.auth != null && accountBindingActive();
-    }
     function accountBindingActive() {
       let binding = get(/databases/$(database)/documents/_account_profile_bindings/$(request.auth.uid));
       // Imported accounts without a binding remain usable. Retired identities
@@ -29,26 +26,12 @@ service cloud.firestore {
         binding.data.get('owner_uid', '') == request.auth.uid && binding.data.get('status', '') == 'active' &&
         binding.data.get('profile_id', '') is string && binding.data.get('profile_id', '').size() > 0);
     }
-    // Some legacy rules compare docId directly to uid() without signedIn().
-    // An empty (invalid document-id) alias keeps retired tokens out there too.
-    function uid() { return signedIn() ? request.auth.uid : ''; }
-    function isAdmin() {
-      return signedIn() && request.auth.token.admin == true;
-    }
     function activeStaffRoleAt(col, identity, role) {
       let rolePath = /databases/$(database)/documents/$(col)/$(identity + '_' + role);
       let grant = get(rolePath);
       // Imported grants predate enabled. Only a missing flag or boolean true
       // grants authority; disabled or malformed rows must not revive a role.
       return identity is string && identity.size() > 0 && grant != null && grant.data.get('enabled', true) == true;
-    }
-    function staffRoleDoc(col, role, profile, authUid) {
-      // A UID grant needs no profile alias. For a migrated alias, validate its
-      // owner only after finding a grant, so failed lookups do not consume an
-      // extra document access before the legitimate UID fallback.
-      return (activeStaffRoleAt(col, profile, role) &&
-          (profile == authUid ? staffUidUnambiguous(authUid) : staffProfileOwnedBy(profile, authUid))) ||
-        (profile != authUid && activeStaffRoleAt(col, authUid, role) && staffUidUnambiguous(authUid));
     }
     function staffUidUnambiguous(authUid) {
       let row = get(/databases/$(database)/documents/profiles/$(authUid));
@@ -84,6 +67,21 @@ service cloud.firestore {
         staffRoleDoc('user_roles_auth', 'owner', profile, authUid) ||
         staffRoleDoc('user_roles_auth', 'admin', profile, authUid);
     }
+    function signedIn() {
+      return request.auth != null && accountBindingActive();
+    }
+    function uid() { return signedIn() ? request.auth.uid : ''; }
+    function isAdmin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+    function staffRoleDoc(col, role, profile, authUid) {
+      // A UID grant needs no profile alias. For a migrated alias, validate its
+      // owner only after finding a grant, so failed lookups do not consume an
+      // extra document access before the legitimate UID fallback.
+      return (activeStaffRoleAt(col, profile, role) &&
+          (profile == authUid ? staffUidUnambiguous(authUid) : staffProfileOwnedBy(profile, authUid))) ||
+        (profile != authUid && activeStaffRoleAt(col, authUid, role) && staffUidUnambiguous(authUid));
+    }
     function isStaffModerator() {
       // Checked setup supplies the protected candidate without an extra index
       // lookup. Legacy unbound staff should finish setup before using late role
@@ -114,9 +112,6 @@ service cloud.firestore {
         (profile != null && profile.data.get('user_id', '') == uid()
           && profile.data.get('is_deleted', false) == false && profile.data.get('deleted_at', null) == null)
       );
-    }
-    function isCanonicalProfile(value) {
-      return value is string && value.size() > 0 && value == profileId();
     }
     function isParticipantInPair(pairId) {
       return signedIn() && pairId is string && profileId() != '' && (
@@ -150,78 +145,39 @@ service cloud.firestore {
     function willOwnUserField(field) {
       return willOwn(field) || willOwnProfile(field);
     }
-    function validFlatMember(cid, identity) {
-      let member = get(/databases/$(database)/documents/conversation_members/$(cid + '_' + identity));
-      return identity is string && identity.size() > 0 && member != null && member.data.get('conversation_id', '') == cid &&
-        member.data.get('user_id', '') == identity;
-    }
-    function validNestedMember(cid, identity) {
-      let member = get(/databases/$(database)/documents/conversations/$(cid)/members/$(identity));
-      return identity is string && identity.size() > 0 && member != null && member.data.get('user_id', '') == identity &&
-        member.data.get('conversation_id', cid) == cid;
-    }
     function isFlatConversationMember(cid) {
-      return signedIn() && (validFlatMember(cid, uid()) || validFlatMember(cid, profileId()));
+      return signedIn() && (
+        exists(/databases/$(database)/documents/conversation_members/$(cid + '_' + profileId())) ||
+        exists(/databases/$(database)/documents/conversation_members/$(cid + '_' + uid()))
+      );
     }
     function isMemberViaConversationDoc(cid) {
       return signedIn() &&
         exists(/databases/$(database)/documents/conversations/$(cid)) && (
-          (profileId() != '' && profileId() in get(/databases/$(database)/documents/conversations/$(cid)).data.get('member_ids', [])) ||
+          profileId() in get(/databases/$(database)/documents/conversations/$(cid)).data.get('member_ids', []) ||
           uid() in get(/databases/$(database)/documents/conversations/$(cid)).data.get('member_ids', [])
         );
     }
     function isMember(cid) {
       return signedIn() && (
-        isMemberViaConversationDoc(cid) ||
         isFlatConversationMember(cid) ||
-        validNestedMember(cid, uid()) || validNestedMember(cid, profileId())
+        isMemberViaConversationDoc(cid) ||
+        exists(/databases/$(database)/documents/conversations/$(cid)/members/$(uid())) ||
+        exists(/databases/$(database)/documents/conversations/$(cid)/members/$(profileId()))
       );
     }
     function isConversationParticipant(cid) {
       return isMember(cid) || isConversationCreatorOf(cid);
     }
-    function messageIdentityUnchanged() {
-      return !request.resource.data.diff(resource.data).affectedKeys()
-        .hasAny(['sender_id', 'conversation_id']);
-    }
-    // A save belongs to one participant. Neither side may clear the other
-    // participant's keep flag and make their message eligible for expiry.
-    function otherMessageSaveUnchanged() {
-      let changed = request.resource.data.diff(resource.data).affectedKeys();
-      return (
-        ownsProfileId(resource.data.get('sender_id', '')) &&
-        !changed.hasAny(['saved_by_recipient'])
-      ) || (
-        !ownsProfileId(resource.data.get('sender_id', '')) &&
-        !changed.hasAny(['saved_by_sender'])
-      );
-    }
-    function changedMessageSaveFlagsValid() {
-      let changed = request.resource.data.diff(resource.data).affectedKeys();
-      return (
-        !changed.hasAny(['saved_by_sender']) ||
-        request.resource.data.get('saved_by_sender', null) is bool
-      ) && (
-        !changed.hasAny(['saved_by_recipient']) ||
-        request.resource.data.get('saved_by_recipient', null) is bool
-      );
-    }
     function safetyOverrideConversationId(overrideId) {
       return get(/databases/$(database)/documents/conversation_safety_overrides/$(overrideId)).data.conversation_id;
     }
     function isFriendRequestParty() {
-      // Resolve the actor once. Repeating ownership resolution for each party
-      // exceeds the Rules expression limit on incoming friend-list queries.
-      return signedIn() && friendRequestPartyFor(profileId(), request.auth.uid);
-    }
-    function friendRequestPartyFor(profile, authUid) {
-      let direct = get(/databases/$(database)/documents/profiles/$(authUid));
-      return profile is string && profile.size() > 0 &&
-        (direct == null || direct.data.get('user_id', '') == authUid) && (
-          resource.data.get('sender_id', '') in [profile, authUid] ||
-          resource.data.get('receiver_id', '') in [profile, authUid] ||
-          resource.data.get('recipient_id', '') in [profile, authUid]
-        );
+      return signedIn() && (
+        ownsProfileId(resource.data.sender_id) ||
+        ownsProfileId(resource.data.get('receiver_id', '')) ||
+        ownsProfileId(resource.data.get('recipient_id', ''))
+      );
     }
     // Canonical friend_requests schema:
     // deterministic id `${sender_id}_${receiver_id}`; immutable parties/timestamps;
@@ -262,75 +218,42 @@ service cloud.firestore {
     function conversationData(cid) {
       return get(/databases/$(database)/documents/conversations/$(cid)).data;
     }
-    function profileAuthIdentity(identity) {
-      let profile = get(/databases/$(database)/documents/profiles/$(identity));
-      return profile == null ? identity : profile.data.get('user_id', identity);
+    function canSeedFlatConversationMember(cid) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/conversations/$(cid)) && (
+          profileId() in conversationData(cid).get('member_ids', []) ||
+          uid() in conversationData(cid).get('member_ids', []) ||
+          ownsProfileId(conversationData(cid).get('created_by', '')) ||
+          conversationData(cid).get('created_by', '') == uid()
+        );
     }
-    // Only a deterministic pair containing the caller can be created by clients.
-    // Random/group parents may have orphaned private messages: restore on the server.
-    function canCreateConversation(cid) {
-      let pair = cid.split('_');
-      let data = request.resource.data;
-      return signedIn() && pair.size() == 2 && pair[0] != pair[1] &&
-        (ownsProfileId(pair[0]) || ownsProfileId(pair[1])) &&
-        willOwnProfile('created_by') && data.get('is_group', false) == false &&
-        data.get('type', 'dm') != 'group' && data.get('member_ids', []) is list &&
-        data.member_ids.hasAll(pair) && data.member_ids.hasOnly([
-          pair[0], pair[1], profileAuthIdentity(pair[0]), profileAuthIdentity(pair[1])
-        ]);
-    }
-    function conversationIdentityUnchanged() {
-      let before = resource.data.get('member_ids', []);
-      let after = request.resource.data.get('member_ids', []);
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['created_by', 'id', 'is_group', 'type']) &&
-        after is list && after.hasAll(before) &&
-        after.toSet().difference(before.toSet()).hasOnly([uid(), profileId()]);
-    }
-    function membershipIdentityUnchanged() {
-      return !request.resource.data.diff(resource.data).affectedKeys()
-        .hasAny(['id', 'user_id', 'conversation_id', 'role', 'legacy_membership_id']);
-    }
-    function canBackfillMember(cid, identity) {
-      return isConversationParticipant(cid) && (
-        ownsProfileId(identity) || (
-          exists(/databases/$(database)/documents/conversations/$(cid)) &&
-          identity in conversationData(cid).get('member_ids', [])
-        )
-      );
-    }
-    // A random-ID imported row can prove only its owner's aliases in that same
-    // conversation. The referenced identity/conversation/role cannot be rewritten.
-    function validLegacyMembershipProof(data) {
-      let source = get(/databases/$(database)/documents/conversation_members/$(data.legacy_membership_id));
-      return source != null && ownsProfileId(data.user_id) &&
-        ownsProfileId(source.data.get('user_id', '')) &&
-        source.data.get('conversation_id', '') == data.conversation_id &&
-        data.get('role', 'member') == source.data.get('role', 'member');
-    }
-    function canCreateFlatMember(data, docId) {
-      return signedIn() && data.conversation_id is string && data.user_id is string &&
-        docId == data.conversation_id + '_' + data.user_id && data.get('id', docId) == docId && (
-          (data.get('role', 'member') == 'member' &&
-            canBackfillMember(data.conversation_id, data.user_id)) ||
-          (data.get('legacy_membership_id', '') is string &&
-            data.get('legacy_membership_id', '').size() > 0 && validLegacyMembershipProof(data))
+    // Self-seed composite `${cid}_${profileId}` for legacy DMs missing member_ids on conv doc.
+    function isSelfCompositeMembershipCreate() {
+      return signedIn() &&
+        request.resource.data.conversation_id is string &&
+        request.resource.data.user_id is string &&
+        (
+          (
+            request.resource.id == request.resource.data.conversation_id + '_' + profileId() &&
+            ownsProfileId(request.resource.data.user_id)
+          ) ||
+          (
+            request.resource.id == request.resource.data.conversation_id + '_' + uid() &&
+            request.resource.data.user_id == uid()
+          )
         );
     }
 
-    // Canonical setup and syncIndex own this mapping transactionally.
+    // Auth uid → profiles.id lookup. Write only when the target profile.user_id matches caller.
+    // Canonical profile setup owns this mapping.
     match /user_auth_index/{authUid} {
       allow read: if signedIn() && authUid == uid();
       allow write: if false;
     }
-    match /_account_profile_bindings/{docId} {
-      allow read, write: if false;
-    }
-    match /_account_profile_recovery/{docId} {
-      allow read, write: if false;
-    }
-    match /_account_profile_receipts/{docId} {
-      allow read, write: if false;
-    }
+    match /_account_profile_bindings/{docId} { allow read, write: if false; }
+    match /_account_profile_receipts/{docId} { allow read, write: if false; }
+    match /_account_profile_recovery/{docId} { allow read, write: if false; }
+
 
 
     match /legal_acceptances/{docId} {
@@ -348,35 +271,11 @@ service cloud.firestore {
       allow update: if signedIn() && (ownsProfileId(userId) || isAdmin())
         && request.resource.data.get('user_id', userId) == resource.data.get('user_id', userId)
         && request.resource.data.get('id', userId) == resource.data.get('id', userId)
-        && !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['email', 'stripe_customer_id', 'stripe_account_id',
-            'is_verified', 'is_premium', 'premium_status', 'premium_expires_at', 'coins_balance',
-            'equipped_title', 'equipped_effect', 'equipped_frame', 'equipped_name_color',
-            'equipped_profile_theme', 'equipped_badge_id']);
-      allow delete: if isAdmin();
-    }
-    // Sensitive owner-only profile fields. Public profile documents are broadly
-    // readable, so DOB and similar PII must live here instead of /profiles.
-    match /profile_private/{profileId} {
-      allow read: if signedIn() && (ownsProfileId(profileId) || isAdmin());
-      allow create, update: if signedIn()
-        && ownsProfileId(profileId)
-        && request.resource.data.keys().hasOnly([
-          'id',
-          'profile_id',
-          'user_id',
-          'date_of_birth',
-          'created_at',
-          'updated_at'
-        ])
-        && request.resource.data.profile_id == profileId
-        && request.resource.data.user_id == uid();
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['email']);
       allow delete: if isAdmin();
     }
 
     // Profile-scoped subcollections (settings, prefs, etc.)
-    // Rules v2 recursive wildcards also match zero segments. Require a full
-    // child document so this rule cannot bypass the profile's own field guards.
     match /profiles/{userId}/{collectionId}/{documentId}/{sub=**} {
       allow read, write: if signedIn() && (ownsProfileId(userId) || isAdmin());
     }
@@ -403,31 +302,27 @@ service cloud.firestore {
       // Prefer direct uid match so list queries `.eq('user_id', authUid)` validate.
       allow read: if signedIn() && (
         resource.data.user_id == uid() ||
-        isCanonicalProfile(resource.data.user_id) ||
+        resource.data.user_id == profileId() ||
         ownsProfileId(docId) ||
         docId == uid()
       );
-      // Existing client bootstrap can create only its canonical zero balance.
-      // Earned XP, level changes, and migrations belong to trusted functions.
-      allow create: if signedIn() && docId == profileId()
-        && request.resource.data.keys().hasOnly([
-          'id', 'user_id', 'profile_id', 'current_level', 'total_xp',
-          'unclaimed_rewards', 'created_at', 'updated_at'
-        ]) && request.resource.data.id == docId
-        && request.resource.data.user_id == uid()
-        && request.resource.data.profile_id == profileId()
-        && request.resource.data.current_level == 1
-        && request.resource.data.total_xp == 0
-        && request.resource.data.unclaimed_rewards == [];
-      allow update, delete: if false;
+      allow create: if signedIn() && (willOwnUserField('user_id') || willOwnProfile('user_id'));
+      allow update: if signedIn() && (
+        resource.data.user_id == uid() ||
+        resource.data.user_id == profileId() ||
+        ownsProfileId(docId)
+      );
+      allow delete: if isAdmin();
     }
     match /login_streaks/{docId} {
-      // Historical caller-writable values are display history only. The checked
-      // endpoint preserves them without granting restore or reward authority.
-      allow read, write: if false;
+      allow read, write: if signedIn() && (
+        ownsUserField('user_id') || willOwnUserField('user_id') ||
+        ownsProfileId(docId) || docId == uid() || docId == profileId() ||
+        resource.data.get('profile_id', '') == profileId() ||
+        request.resource.data.get('profile_id', '') == profileId() ||
+        isAdmin()
+      );
     }
-    match /_login_streak_state/{docId} { allow read, write: if false; }
-    match /_login_streak_receipts/{docId} { allow read, write: if false; }
     match /streaks/{docId} {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
@@ -436,16 +331,18 @@ service cloud.firestore {
       allow write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
     match /challenge_progress/{docId} {
-      allow read: if ownsUserField('user_id') || isAdmin();
-      allow write: if false;
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
     match /challenge_rewards/{docId} {
       allow read: if signedIn() && (
         resource.data.user_id == uid() ||
-        isCanonicalProfile(resource.data.user_id) ||
+        resource.data.user_id == profileId() ||
         isAdmin()
       );
-      allow write: if false;
+      allow create, update: if signedIn() && (
+        willOwnUserField('user_id') || ownsUserField('user_id') || isAdmin()
+      );
+      allow delete: if isAdmin();
     }
     // VYBE Score (Snapscore-style) — public read for authed users; writes via triggers/Functions only
     match /vybe_scores/{docId} {
@@ -519,43 +416,24 @@ service cloud.firestore {
     // ---------- user badges / locations / prefs ----------
     match /user_badges/{docId} {
       allow read: if signedIn();
-      allow create, delete: if false;
-      allow update: if ownsUserField('user_id')
-        && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['is_pinned', 'pin_order', 'is_primary', 'show_effect', 'updated_at'])
-        && request.resource.data.get('is_pinned', false) is bool
-        && request.resource.data.get('is_primary', false) is bool
-        && request.resource.data.get('show_effect', true) is bool
-        && (request.resource.data.get('pin_order', null) == null ||
-          (request.resource.data.pin_order is int && request.resource.data.pin_order >= 0
-            && request.resource.data.pin_order <= 100));
+      allow create: if willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
     }
     match /user_locations/{docId} {
-      // Orphaned legacy coordinate rows have no current sharing authority.
-      allow read, write: if false;
-    }
-    function ownsLocationAlias(value) {
-      let canonical = profileId();
-      let profile = get(/databases/$(database)/documents/profiles/$(canonical));
-      let uidProfile = get(/databases/$(database)/documents/profiles/$(uid()));
-      return signedIn() && value in [uid(), canonical] && profile != null && profile.data.user_id == uid()
-        && profile.data.get('is_deleted', false) == false && profile.data.get('deleted_at', null) == null
-        && (uidProfile == null || canonical == uid());
+      allow read: if signedIn();
+      allow write: if ownsUserField('user_id') || willOwnUserField('user_id') || ownsProfileId(docId) || isAdmin();
     }
     // VybeMap — canonical live location (doc id = profiles.id)
     match /user_live_locations/{profileDocId} {
-      // Checked callables project grant precision and recheck current consent.
-      allow read, write: if false;
+      allow read: if signedIn() && ownsProfileId(profileDocId);
+      allow read: if signedIn() && hasActiveLocationShareFrom(profileDocId);
+      allow create, update: if signedIn() && ownsProfileId(profileDocId);
+      allow delete: if ownsProfileId(profileDocId) || isAdmin();
     }
     match /location_history/{docId} {
-      allow read: if ownsLocationAlias(resource.data.get('user_id', ''));
-      allow create: if ownsLocationAlias(request.resource.data.get('user_id', ''))
-        && request.resource.data.keys().hasOnly(['id', 'user_id', 'latitude', 'longitude', 'accuracy', 'speed', 'heading', 'activity_type', 'geohash', 'recorded_at'])
-        && request.resource.data.latitude is number && request.resource.data.latitude >= -90 && request.resource.data.latitude <= 90
-        && request.resource.data.longitude is number && request.resource.data.longitude >= -180 && request.resource.data.longitude <= 180
-        && request.resource.data.recorded_at is string;
-      allow update: if false;
-      allow delete: if ownsLocationAlias(resource.data.get('user_id', ''));
+      allow read: if signedIn() && (ownsUserField('user_id') || isAdmin());
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update, delete: if isAdmin();
     }
     match /location_access_logs/{docId} {
       allow read: if signedIn() && (ownsUserField('viewer_id') || ownsUserField('target_id') || isAdmin());
@@ -566,66 +444,71 @@ service cloud.firestore {
       allow read, write: if signedIn() && (ownsUserField('owner_id') || willOwnUserField('owner_id') || isAdmin());
     }
     match /map_places/{docId} {
-      // Current friendship, blocks and reviewed publication are checked by the
-      // callable; raw location documents never establish their own audience.
-      allow read, write: if false;
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update: if signedIn() && (
+        resource.data.created_by == profileId() ||
+        isAdmin()
+      );
+      allow delete: if isAdmin() || (signedIn() && resource.data.created_by == profileId());
     }
     match /map_place_posts/{docId} {
-      allow read, write: if false;
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
     }
     match /map_place_post_comments/{docId} {
-      allow read, write: if false;
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
     }
     match /map_check_ins/{docId} {
-      allow read, write: if false;
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
     }
     match /map_meetups/{docId} {
-      allow read, write: if false;
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('host_id');
+      allow update, delete: if ownsUserField('host_id') || isAdmin();
     }
     match /map_meetup_members/{docId} {
-      allow read, write: if false;
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
     }
-    match /_map_social_publications/{docId} { allow read, write: if false; }
-    match /_map_social_memberships/{docId} { allow read, write: if false; }
-    match /_map_social_receipts/{docId} { allow read, write: if false; }
-    match /_map_social_cursors/{docId} { allow read, write: if false; }
-    match /_map_social_notifications/{docId} { allow read, write: if false; }
     match /map_story_pins/{docId} {
       allow read: if signedIn();
       allow create: if signedIn() && willOwnUserField('user_id');
       allow update, delete: if ownsUserField('user_id') || isAdmin();
     }
     match /map_post_pins/{docId} {
-      allow read, write: if false;
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
     }
     match /map_clip_pins/{docId} {
-      allow read, write: if false;
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
     }
-    match /_map_pins/{docId} { allow read, write: if false; }
-    match /_map_pin_receipts/{docId} { allow read, write: if false; }
-    match /_map_pin_cursors/{docId} { allow read, write: if false; }
     match /map_event_pins/{docId} {
       allow read: if signedIn();
       allow write: if isAdmin();
     }
     match /map_group_maps/{docId} {
-      // Legacy metadata is owner-reviewed through manageMapSquad, never membership authority.
-      allow read, write: if false;
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('owner_id');
+      allow update, delete: if ownsUserField('owner_id') || isAdmin();
     }
     match /map_group_members/{docId} {
-      allow read, write: if false;
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
     }
-    match /_map_squads/{docId} { allow read, write: if false; }
-    match /_map_squad_members/{docId} { allow read, write: if false; }
-    match /_map_squad_invites/{docId} { allow read, write: if false; }
-    match /_map_squad_receipts/{docId} { allow read, write: if false; }
-    match /_map_squad_cursors/{docId} { allow read, write: if false; }
-    match /_map_squad_recreations/{docId} { allow read, write: if false; }
-    match /_map_wave_receipts/{docId} { allow read, write: if false; }
-    match /_map_wave_cooldowns/{docId} { allow read, write: if false; }
     match /map_location_intel/{docId} {
-      // Auth-scoped research can contain a private draft's coordinates/name.
-      allow read, write: if false;
+      allow read: if signedIn();
+      allow write: if false;
     }
     match /friend_finder_sessions/{docId} {
       allow read: if signedIn() && (ownsUserField('seeker_id') || ownsUserField('target_id'));
@@ -637,7 +520,8 @@ service cloud.firestore {
       allow read, write: if signedIn() && (ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin());
     }
     match /heatmap_tiles/{cellId} {
-      allow read, write: if false;
+      allow read: if signedIn();
+      allow write: if false;
     }
     match /map_access_rate/{docId} {
       allow read, write: if false;
@@ -675,23 +559,13 @@ service cloud.firestore {
       allow delete: if ownsProfileId(resource.data.user_id) || ownsUserField('user_id');
     }
     match /notification_preferences/{docId} {
-      allow read: if ownsUserField('user_id') || isAdmin();
-      allow write: if false; // Checked canonical preferences preserve existing opt-outs.
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
-    match /_notification_preferences/{docId} { allow read, write: if false; }
-    match /_notification_preference_requests/{docId} { allow read, write: if false; }
     match /music_settings/{docId} {
-      allow read: if ownsUserField('user_id') || isAdmin();
-      allow create: if willOwnUserField('user_id') && docId == request.resource.data.user_id;
-      allow update: if (ownsUserField('user_id') || isAdmin())
-        && request.resource.data.user_id == resource.data.user_id;
-      allow delete: if ownsUserField('user_id') || isAdmin();
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
     match /spotify_connections/{docId} {
-      allow read: if ownsUserField('user_id') || isAdmin();
-      // OAuth exchange, token refresh, and disconnect use the Admin SDK.
-      // Client preferences live in music_settings, never in this credential row.
-      allow create, update, delete: if false;
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
     match /live_music_presence/{docId} {
       allow read: if signedIn();
@@ -729,15 +603,12 @@ service cloud.firestore {
       allow delete: if ownsPreferences(resource.data.get('user_id', ''));
     }
     match /dna_content_preferences/{docId} {
-      allow read: if ownsUserField('user_id') || docId == uid() || ownsProfileId(docId);
-      // Adaptation state is server-owned. Old client writes must not restore
-      // preferences after a checked reset or reassign another user's row.
-      allow write: if false;
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || docId == uid() || ownsProfileId(docId);
     }
     match /user_active_boosts/{docId} {
       allow read: if signedIn() && (ownsUserField('user_id') || ownsProfileId(docId));
-      // Historical rows are retained for reconciliation, never new authority.
-      allow create, update, delete: if false;
+      allow create, update: if signedIn() && (willOwnUserField('user_id') || ownsUserField('user_id'));
+      allow delete: if ownsUserField('user_id') || isAdmin();
     }
     match /screen_time_sessions/{docId} {
       allow read: if signedIn() && (ownsUserField('user_id') || ownsProfileId(docId));
@@ -762,7 +633,6 @@ service cloud.firestore {
     match /message_reactions/{docId} {
       allow read: if signedIn();
       allow create: if willOwnUserField('user_id');
-      allow update: if ownsUserField('user_id') && willOwnUserField('user_id');
       allow delete: if ownsUserField('user_id') || isAdmin();
     }
     match /message_views/{docId} {
@@ -817,45 +687,15 @@ service cloud.firestore {
       allow delete: if ownsUserField('user_id') || isAdmin();
     }
     match /reports/{docId} {
-      // Submission, staff reads/review and mini-app removal use the verified
-      // callable. Retained browser-authored reports remain untrusted leads.
-      allow read, write: if false;
+      allow create: if signedIn();
+      allow read, update, delete: if isStaffModerator();
     }
-    // Report attribution, review actions, delivery and mini-app holds are
-    // maintained by authenticated server APIs. Browser staff have no bypass.
-    match /_report_authority/{id}             { allow read, write: if false; }
-    match /_message_report_evidence/{document=**} { allow read, write: if false; }
-    match /_report_requests/{id}              { allow read, write: if false; }
-    match /_report_audit/{id}                 { allow read, write: if false; }
-    match /_report_quotas/{id}                { allow read, write: if false; }
-    match /_mini_app_moderation/{id}          { allow read, write: if false; }
-    match /report_notification_deliveries/{id} { allow read, write: if false; }
-    match /admin_alerts/{id}                 { allow read, write: if false; }
 
     // ---------- social: follows / blocks / friend requests ----------
-    // Feed preferences are private to the Firebase account. Muting is not a
-    // block, moderation action or permission change for the target account.
-    match /feed_mutes/{ownerUid}/authors/{targetProfileId} {
-      allow read, delete: if signedIn() && uid() == ownerUid;
-      allow create: if signedIn() && uid() == ownerUid &&
-        request.resource.data.keys().hasAll(['schema_version', 'owner_uid', 'target_profile_id', 'target_uid', 'created_at']) &&
-        request.resource.data.keys().hasOnly(['schema_version', 'owner_uid', 'target_profile_id', 'target_uid', 'created_at']) &&
-        request.resource.data.schema_version == 1 &&
-        request.resource.data.owner_uid == ownerUid &&
-        request.resource.data.target_profile_id == targetProfileId &&
-        request.resource.data.target_uid is string &&
-        request.resource.data.target_uid.size() > 0 &&
-        request.resource.data.target_uid.size() <= 200 &&
-        request.resource.data.target_uid != ownerUid &&
-        request.resource.data.created_at == request.time &&
-        exists(/databases/$(database)/documents/profiles/$(targetProfileId)) &&
-        get(/databases/$(database)/documents/profiles/$(targetProfileId)).data.user_id == request.resource.data.target_uid;
-      allow update: if false;
-    }
     match /follows/{docId} {
       allow read: if signedIn();
-      // manageFollow maintains this count/list projection and its approval proof.
-      allow write: if false;
+      allow create: if willOwnProfile('follower_id');
+      allow delete: if isOwnerProfile('follower_id') || isAdmin();
     }
     match /blocked_users/{docId} {
       allow read: if isOwnerProfile('blocker_id') || isAdmin();
@@ -884,18 +724,7 @@ service cloud.firestore {
       );
     }
     match /close_friends/{docId} {
-      function ownsCloseFriendList(identity) {
-        let profile = /databases/$(database)/documents/profiles/$(identity);
-        // A UID that also names somebody else's profile is never an alias.
-        return signedIn() && identity is string && (
-          (exists(profile) && get(profile).data.user_id == uid())
-          || (identity == uid() && !exists(profile))
-        );
-      }
-      allow read: if ownsCloseFriendList(resource.data.user_id);
-      // Historical rows are reference-only, never a private-story grant.
-      // New selections use server-owned _close_friend_authority proofs.
-      allow create, update, delete: if false;
+      allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
     }
     match /dismissed_profiles/{docId} {
       allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
@@ -911,6 +740,20 @@ service cloud.firestore {
         ownsProfileId(resource.data.user_b)
       );
     }
+    function isLocationShareMember() {
+      return signedIn() && (
+        ownsProfileId(resource.data.sharer_id) ||
+        ownsProfileId(resource.data.viewer_id)
+      );
+    }
+    function hasActiveLocationShareFrom(sharerProfileId) {
+      let pairId = friendshipPairDocId(profileId(), sharerProfileId);
+      return signedIn() &&
+        exists(/databases/$(database)/documents/location_shares/$(pairId)) &&
+        get(/databases/$(database)/documents/location_shares/$(pairId)).data.active == true &&
+        get(/databases/$(database)/documents/location_shares/$(pairId)).data.sharer_id == sharerProfileId &&
+        get(/databases/$(database)/documents/location_shares/$(pairId)).data.viewer_id == profileId();
+    }
     match /friendship_pairs/{pairId} {
       allow read: if isFriendshipPairMember();
       allow write: if false;
@@ -919,44 +762,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /location_shares/{pairId} {
-      allow read, write: if false;
-    }
-    match /_location_grants/{docId} {
-      allow read, write: if false;
-    }
-    match /_location_requests/{docId} {
-      allow read, write: if false;
-    }
-    match /_location_state/{docId} {
-      allow read, write: if false;
-    }
-    match /_location_receipts/{docId} {
-      allow read, write: if false;
+      allow read: if isLocationShareMember();
+      allow write: if false;
     }
     match /profile_visibility/{ownerId} {
-      function ownsVisibility() {
-        let profile = /databases/$(database)/documents/profiles/$(ownerId);
-        // An Auth UID cannot borrow a different person's legacy profile ID.
-        return signedIn() && ((exists(profile) && get(profile).data.user_id == uid())
-          || (ownerId == uid() && !exists(profile)));
-      }
-      function validVisibility() {
-        let row = request.resource.data;
-        return row.keys().hasOnly(['id', 'user_id', 'fields', 'created_at', 'updated_at'])
-          && row.get('id', ownerId) == ownerId && row.get('user_id', ownerId) == ownerId
-          && row.fields is map
-          && row.fields.keys().hasOnly(['bio', 'followers', 'following', 'level', 'activity',
-            'location', 'posts', 'clips', 'stories', 'mutual_friends', 'vybe_dna'])
-          && row.fields.values().hasOnly(['public', 'everyone', 'friends', 'close_friends', 'only_me', 'private'])
-          && (!('created_at' in row) || row.created_at is timestamp || (row.created_at is string && row.created_at.size() <= 64))
-          && (!('updated_at' in row) || row.updated_at is timestamp || (row.updated_at is string && row.updated_at.size() <= 64));
-      }
-      // Owners can inspect and deliberately repair malformed historical rows.
-      allow read, delete: if ownsVisibility();
-      allow create, update: if ownsVisibility() && validVisibility();
+      allow read, write: if ownsProfileId(ownerId);
     }
-    match /_community_attachments/{assetId} { allow read, write: if false; }
-    match /_community_attachment_limits/{ownerUid} { allow read, write: if false; }
     match /shared_content_index/{docId} {
       allow read: if signedIn() && (
         ownsProfileId(resource.data.user_a) ||
@@ -968,56 +779,25 @@ service cloud.firestore {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
     match /user_notes/{docId} {
-      // Current friends/blocks/expiry and immutable owner writes are checked by
-      // getFriendsNotes/manageUserNote. Old snapshots never grant friend access.
-      allow read, write: if false;
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
 
     // ---------- posts / comments / reactions ----------
     match /posts/{postId} {
-      function ownsPostRead() {
-        let canonical = profileId();
-        let profile = get(/databases/$(database)/documents/profiles/$(canonical));
-        let uidProfile = get(/databases/$(database)/documents/profiles/$(uid()));
-        return signedIn() && resource.data.author_id in [uid(), canonical]
-          && profile != null && profile.data.user_id == uid()
-          && (uidProfile == null || canonical == uid());
-      }
-      // Other viewers receive current audience/block/deletion checked DTOs
-      // from readSocialFeed/readSocialPostPreviews/readSocialPostList.
-      allow read: if ownsPostRead() || isStaffModerator();
-      // Publication ownership, revision checks and retry tombstones are server-owned.
-      // Staff post removal also uses managePost rather than bypassing its receipt.
-      allow create, update, delete: if false;
+      allow read: if signedIn();
+      allow create: if willOwnProfile('author_id');
+      allow update, delete: if isOwnerProfile('author_id') || isStaffModerator();
     }
-    match /_post_publications/{postId} { allow read, write: if false; }
-    match /_post_publication_receipts/{receiptId} { allow read, write: if false; }
-    match /_post_pin_state/{ownerUid} { allow read, write: if false; }
-    match /_post_view_receipts/{receiptId} { allow read, write: if false; }
-    match /_post_view_limits/{limitId} { allow read, write: if false; }
     match /comments/{commentId} {
-      function ownAlias(value) {
-        let canonical = profileId();
-        let profile = get(/databases/$(database)/documents/profiles/$(canonical));
-        let uidProfile = get(/databases/$(database)/documents/profiles/$(uid()));
-        return signedIn() && value in [uid(), canonical] && profile != null && profile.data.user_id == uid()
-          && (uidProfile == null || canonical == uid());
-      }
-      // Other-user content is projected by readPostComments under fresh parent
-      // audience/block authority. Own learning history and staff tools remain.
-      allow read: if ownAlias(resource.data.get('user_id', '')) || ownAlias(resource.data.get('author_id', '')) || isStaffModerator();
-      allow create: if false;
-      allow update: if isStaffModerator()
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['user_id', 'author_id', 'post_id']);
-      allow delete: if isStaffModerator();
+      allow read: if signedIn();
+      allow create: if willOwnUserField('user_id') || willOwnUserField('author_id');
+      allow update, delete: if ownsUserField('user_id') || ownsUserField('author_id') || isStaffModerator();
     }
     match /comment_likes/{docId} {
-      allow read: if isOwnerProfile('user_id') || isStaffModerator();
-      allow write: if false;
+      allow read: if signedIn();
+      allow create: if willOwnProfile('user_id');
+      allow delete: if isOwnerProfile('user_id');
     }
-    match /_comment_authority/{docId} { allow read, write: if false; }
-    match /_comment_receipts/{docId} { allow read, write: if false; }
-    match /_comment_cursors/{docId} { allow read, write: if false; }
     match /bookmarks/{docId} {
       allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
     }
@@ -1052,27 +832,32 @@ service cloud.firestore {
     match /conversations/{cid} {
       allow read: if isAdmin() || canReadMissingDoc(/databases/$(database)/documents/conversations/$(cid)) || (
         signedIn() && (
-          (profileId() != '' && profileId() in resource.data.get('member_ids', [])) ||
+          profileId() in resource.data.get('member_ids', []) ||
           uid() in resource.data.get('member_ids', []) ||
           isFlatConversationMember(cid) ||
           isMemberViaConversationDoc(cid) ||
-          validNestedMember(cid, uid()) || validNestedMember(cid, profileId()) ||
           isConversationCreatorOf(cid)
         )
       );
-      allow create: if canCreateConversation(cid);
-      allow update: if (isConversationParticipant(cid) || isAdmin()) && conversationIdentityUnchanged();
+      allow create: if signedIn() &&
+        willOwnProfile('created_by') &&
+        (
+          profileId() in request.resource.data.get('member_ids', []) ||
+          uid() in request.resource.data.get('member_ids', [])
+        );
+      allow update: if isMember(cid) || isAdmin() || (
+        signedIn() && (
+          ownsProfileId(resource.data.get('created_by', '')) ||
+          resource.data.get('created_by', '') == uid() ||
+          profileId() in request.resource.data.get('member_ids', []) ||
+          uid() in request.resource.data.get('member_ids', [])
+        )
+      );
       allow delete: if isAdmin();
 
       match /members/{memberId} {
         allow read: if isMember(cid);
-        allow create: if request.resource.data.get('user_id', '') == memberId &&
-          request.resource.data.get('conversation_id', cid) == cid &&
-          request.resource.data.get('role', 'member') == 'member' && canBackfillMember(cid, memberId);
-        allow update: if (ownsProfileId(resource.data.get('user_id', '')) || isAdmin()) &&
-          membershipIdentityUnchanged();
-        allow delete: if ownsProfileId(resource.data.get('user_id', '')) ||
-          isConversationCreatorOf(cid) || isAdmin();
+        allow write: if isMember(cid) || isAdmin();
       }
       match /messages/{messageId} {
         allow read: if isMember(cid);
@@ -1082,14 +867,10 @@ service cloud.firestore {
           (ownsProfileId(resource.data.sender_id) || isAdmin());
         // Sender full update; other members may only touch view/save/expiry fields
         // (needed for 24h timer + keep on save when the recipient is not the sender).
-        allow update: if isAdmin() || (
-          signedIn() &&
-          messageIdentityUnchanged() &&
-          otherMessageSaveUnchanged() &&
-          changedMessageSaveFlagsValid() &&
+        allow update: if signedIn() && (
+          ownsProfileId(resource.data.sender_id) ||
+          isAdmin() ||
           (
-            ownsProfileId(resource.data.sender_id) ||
-            (
             isMember(cid) &&
             request.resource.data.diff(resource.data).affectedKeys().hasOnly([
               'expires_at',
@@ -1102,7 +883,6 @@ service cloud.firestore {
               'vybe_replay_exhausted',
               'view_mode'
             ])
-            )
           )
         );
       }
@@ -1118,8 +898,18 @@ service cloud.firestore {
           ownsProfileId(resource.data.user_id) ||
           isConversationParticipant(resource.data.conversation_id)
         );
-      allow create: if canCreateFlatMember(request.resource.data, docId);
-      allow update: if ownsProfileId(resource.data.user_id) && membershipIdentityUnchanged();
+      allow create: if signedIn() && (
+        willOwnProfile('user_id') ||
+        isSelfCompositeMembershipCreate() ||
+        (
+          request.resource.data.conversation_id is string &&
+          (
+            canSeedFlatConversationMember(request.resource.data.conversation_id) ||
+            isConversationCreatorOf(request.resource.data.conversation_id)
+          )
+        )
+      );
+      allow update: if ownsProfileId(resource.data.user_id);
       allow delete: if isOwnerProfile('user_id') || isAdmin();
     }
     match /messages/{messageId} {
@@ -1128,27 +918,19 @@ service cloud.firestore {
       // (blocked-user checks, rate limits, schema/media/membership validation).
       allow create: if false;
       allow delete: if ownsProfileId(resource.data.sender_id) || isAdmin();
-      allow update: if isAdmin() || (
-        messageIdentityUnchanged() &&
-        otherMessageSaveUnchanged() &&
-        changedMessageSaveFlagsValid() &&
-        (
-          ownsProfileId(resource.data.sender_id) ||
-          (
-            isConversationParticipant(resource.data.conversation_id) &&
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              'expires_at',
-              'viewed_at',
-              'saved_by_sender',
-              'saved_by_recipient',
-              'saved_at',
-              'updated_at',
-              'replay_count',
-              'vybe_replay_exhausted',
-              'view_mode'
-            ])
-          )
-        )
+      allow update: if ownsProfileId(resource.data.sender_id) || isAdmin() || (
+        isConversationParticipant(resource.data.conversation_id) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'expires_at',
+          'viewed_at',
+          'saved_by_sender',
+          'saved_by_recipient',
+          'saved_at',
+          'updated_at',
+          'replay_count',
+          'vybe_replay_exhausted',
+          'view_mode'
+        ])
       );
     }
 
@@ -1266,23 +1048,16 @@ service cloud.firestore {
 
     // ---------- calls / signaling ----------
     match /calls/{callId} {
-      function canUseCallConversation(data) {
-        let cid = data.get('conversation_id', null);
-        return cid == null || cid == '' || (cid is string && isMember(cid));
-      }
       allow read: if signedIn() && (
         ownsProfileId(resource.data.caller_id) ||
         ownsProfileId(resource.data.receiver_id) ||
         resource.data.caller_id == uid() ||
         resource.data.receiver_id == uid() ||
-        (profileId() != '' && profileId() in resource.data.get('participant_ids', [])) ||
+        profileId() in resource.data.get('participant_ids', []) ||
         uid() in resource.data.get('participant_ids', [])
       );
-      allow create: if signedIn() && willOwnProfile('caller_id') &&
-        canUseCallConversation(request.resource.data);
-      allow update: if signedIn() && canUseCallConversation(resource.data) &&
-        !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['conversation_id', 'caller_id', 'receiver_id', 'participant_ids']) && (
+      allow create: if signedIn() && willOwnProfile('caller_id');
+      allow update: if signedIn() && (
         ownsProfileId(resource.data.caller_id) ||
         ownsProfileId(resource.data.receiver_id) ||
         resource.data.caller_id == uid() ||
@@ -1326,27 +1101,10 @@ service cloud.firestore {
 
     // ---------- stories ----------
     match /stories/{id} {
-      // The callable evaluates current friendship and Close Friends membership.
-      allow read: if false;
-      // Publishing and immutable identity belong to the authenticated callable.
-      // Keeping the receipt after deletion prevents a lost-ack retry reposting.
-      allow create, update: if false;
-      function ownsPublishedStory() {
-        let receiptId = resource.data.get('publish_receipt_id', null);
-        let receipt = /databases/$(database)/documents/_story_publish_receipts/$(receiptId);
-        return signedIn() && receiptId is string && exists(receipt)
-          && get(receipt).data.version == 1
-          && get(receipt).data.owner_uid == uid()
-          && get(receipt).data.profile_id == resource.data.author_id
-          && get(receipt).data.story_id == id;
-      }
-      allow delete: if ownsPublishedStory()
-        || (resource.data.get('publish_receipt_id', null) == null && isOwnerProfile('author_id'))
-        || isStaffModerator();
+      allow read: if signedIn();
+      allow create: if willOwnProfile('author_id');
+      allow update, delete: if isOwnerProfile('author_id') || isStaffModerator();
     }
-    match /_story_publish_receipts/{id} { allow read, write: if false; }
-    match /_story_publish_limits/{id} { allow read, write: if false; }
-    match /_close_friend_authority/{id} { allow read, write: if false; }
     match /story_views/{id} {
       allow read: if signedIn() && (ownsProfileId(resource.data.viewer_id) || isAdmin());
       allow create: if willOwnProfile('viewer_id');
@@ -1354,21 +1112,10 @@ service cloud.firestore {
 
     // ---------- story highlights (saved story collections) ----------
     match /story_highlights/{id} {
-      function ownsHighlightOwner(identity) {
-        let profile = /databases/$(database)/documents/profiles/$(identity);
-        return signedIn() && identity is string && (
-          (exists(profile) && get(profile).data.user_id == uid())
-          || (identity == uid() && !exists(profile))
-        );
-      }
-      // Legacy covers can include private story URLs. They are owner-only
-      // until a server reader can evaluate the audience of every saved story.
-      allow read: if ownsHighlightOwner(resource.data.owner_id);
-      allow create: if ownsHighlightOwner(request.resource.data.owner_id);
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnProfile('owner_id');
       allow update, delete: if signedIn() && (
-        (ownsHighlightOwner(resource.data.owner_id)
-          && (request.method == 'delete' || request.resource.data.owner_id == resource.data.owner_id))
-        || isStaffModerator()
+        isOwnerProfile('owner_id') || isStaffModerator()
       );
     }
 
@@ -1452,16 +1199,13 @@ service cloud.firestore {
       allow update, delete: if isOwner('owner_id') || isAdmin();
     }
     match /channels/{id} {
-      allow read: if communityChannelVisible(id);
-      allow write: if false;
+      allow read: if signedIn();
+      allow write: if isAdmin();
     }
     match /channel_messages/{id} {
-      allow read: if communityChannelVisible(resource.data.channel_id);
-      allow write: if false;
-    }
-    match /channel_permissions/{id} {
-      allow read: if communityChannelVisible(resource.data.channel_id);
-      allow write: if false;
+      allow read: if signedIn();
+      allow create: if willOwn('author_id');
+      allow update, delete: if isOwner('author_id') || isAdmin();
     }
     match /group_members/{id} {
       allow read: if signedIn();
@@ -1484,77 +1228,31 @@ service cloud.firestore {
 
     // ---------- Discord-style servers ----------
     function isServerMember(serverId) {
-      let server = get(/databases/$(database)/documents/servers/$(serverId));
-      let grant = get(/databases/$(database)/documents/community_admissions/$(uid())/grants/$(serverId));
-      return signedIn() && server != null && server.data.get('deleted_at', null) == null && (
-        ownsProfileId(server.data.owner_id) ||
-        (grant != null && grant.data.get('server_id', '') == serverId &&
-          grant.data.get('auth_uid', '') == uid() && grant.data.get('active', false) == true &&
-          grant.data.get('role', '') in ['owner', 'admin', 'moderator', 'member'])
+      return signedIn() && (
+        exists(/databases/$(database)/documents/server_members/$(serverId + '_' + profileId())) ||
+        exists(/databases/$(database)/documents/server_members/$(serverId + '_' + uid()))
       );
-    }
-    function communityRole(serverId) {
-      let server = get(/databases/$(database)/documents/servers/$(serverId));
-      let grant = get(/databases/$(database)/documents/community_admissions/$(uid())/grants/$(serverId));
-      return ownsProfileId(server.data.owner_id) ? 'owner' :
-        (grant != null && grant.data.get('role', '') in ['admin', 'moderator'] ? grant.data.role : 'member');
-    }
-    function communityChannelVisible(channelId) {
-      let channel = get(/databases/$(database)/documents/channels/$(channelId));
-      return signedIn() && channel != null && channel.data.get('deleted_at', null) == null &&
-        isServerMember(channel.data.server_id) && communityChannelRoleVisible(channelId, channel.data);
-    }
-    function communityChannelRoleVisible(channelId, channel) {
-      let role = communityRole(channel.server_id);
-      let permission = get(/databases/$(database)/documents/channel_permissions/$(channelId + '_' + role));
-      let scoped = permission != null && permission.data.get('channel_id', '') == channelId && permission.data.get('role', '') == role;
-      return role in ['owner', 'admin'] ||
-        (scoped && 'can_view' in permission.data ? permission.data.can_view == true : channel.get('is_private', false) == false);
     }
     match /servers/{docId} {
       allow read: if signedIn() && (
-        (resource.data.get('is_public', false) == true && resource.data.get('deleted_at', null) == null) ||
+        resource.data.get('is_public', false) == true ||
         ownsProfileId(resource.data.owner_id) ||
-        isServerMember(docId)
+        isServerMember(docId) ||
+        isStaffModerator()
       );
-      allow write: if false;
+      allow create: if willOwnProfile('owner_id');
+      allow update, delete: if ownsProfileId(resource.data.owner_id) || isStaffModerator();
     }
     match /server_members/{docId} {
-      // Legacy client-mutable admissions are quarantined, never upgraded by a
-      // browser write. Owners recover and members rejoin through the service.
-      allow read, write: if false;
-    }
-    match /community_admissions/{authUid}/grants/{serverId} {
-      allow read: if signedIn() && authUid == uid();
-      allow write: if false;
-    }
-    match /community_rosters/{serverId}/members/{authUid} {
-      allow read: if signedIn() && isServerMember(serverId);
-      allow write: if false;
-    }
-    match /community_invites/{hash} {
-      allow read, write: if false;
+      allow read: if signedIn();
+      allow create: if willOwnProfile('user_id');
+      allow update, delete: if ownsProfileId(resource.data.user_id) || isStaffModerator();
     }
 
     // ---------- commerce ----------
     match /creator_profiles/{id} {
       allow read: if signedIn();
-      // Applications are client-editable. Payment mappings and balances are
-      // written only by trusted payment functions, including for staff clients.
-      allow create: if willOwn('user_id') && id == uid()
-        && request.resource.data.keys().hasOnly(['id', 'user_id', 'applied_at', 'is_approved', 'created_at', 'updated_at'])
-        && request.resource.data.get('id', id) == id
-        && request.resource.data.get('is_approved', false) == false;
-      allow update: if request.resource.data.user_id == resource.data.user_id
-        && request.resource.data.get('id', id) == resource.data.get('id', id)
-        && (
-          (isOwner('user_id') && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['applied_at', 'updated_at', 'is_approved'])
-            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['is_approved']) ||
-              (!resource.data.keys().hasAny(['is_approved']) && request.resource.data.is_approved == false))) ||
-          (isStaffAdmin() && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['is_approved', 'approved_at', 'tier', 'admin_notes', 'updated_at']))
-        );
+      allow create, update: if isOwner('user_id') || willOwn('user_id');
       allow delete: if isAdmin();
     }
     match /creator_earnings/{id}   { allow read: if isOwner('creator_id') || isAdmin(); allow write: if isAdmin(); }
@@ -1562,155 +1260,56 @@ service cloud.firestore {
     match /creator_daily_stats/{id} { allow read: if isOwner('creator_id') || isAdmin(); allow write: if isAdmin(); }
     match /business_profiles/{id} {
       allow read: if signedIn();
-      allow create: if willOwnUserField('owner_id')
-        && request.resource.data.keys().hasOnly([
-          'id', 'owner_id', 'name', 'slug', 'description', 'logo_url', 'banner_url',
-          'category', 'website', 'email', 'phone', 'location', 'social_links',
-          'business_hours', 'is_active', 'created_at', 'updated_at'
-        ]) && request.resource.data.get('id', id) == id;
-      allow update: if (ownsUserField('owner_id') || isAdmin())
-        && request.resource.data.owner_id == resource.data.owner_id
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'name', 'slug', 'description', 'logo_url', 'banner_url', 'category',
-          'website', 'email', 'phone', 'location', 'social_links', 'business_hours',
-          'is_active', 'updated_at'
-        ]);
-      // Keep parent ownership stable while products refer to this ID. Owners
-      // can archive via is_active; physical cleanup needs server tombstones.
-      allow delete: if false;
+      allow write: if isOwner('owner_id') || willOwn('owner_id') || isAdmin();
     }
-    function ownsBusiness(businessId) {
-      return signedIn() && businessId is string &&
-        exists(/databases/$(database)/documents/business_profiles/$(businessId)) &&
-        ownsProfileId(get(/databases/$(database)/documents/business_profiles/$(businessId)).data.owner_id);
-    }
-    match /business_products/{id} {
-      allow read: if signedIn();
-      allow create: if ownsBusiness(request.resource.data.business_id)
-        && request.resource.data.keys().hasOnly([
-          'id', 'business_id', 'title', 'description', 'price', 'compare_at_price',
-          'images', 'category', 'sku', 'inventory_count', 'is_digital',
-          'digital_file_url', 'is_active', 'is_featured', 'created_at', 'updated_at'
-        ]) && request.resource.data.get('id', id) == id;
-      allow update: if (ownsBusiness(resource.data.business_id) || isAdmin())
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'title', 'description', 'price', 'compare_at_price', 'images', 'category',
-          'sku', 'inventory_count', 'is_digital', 'digital_file_url', 'is_active',
-          'is_featured', 'updated_at'
-        ]) && (
-          resource.data.get('stripe_price_id', null) == null ||
-          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['price', 'compare_at_price'])
-        );
-      allow delete: if resource.data.get('stripe_price_id', null) == null
-        && (ownsBusiness(resource.data.business_id) || isAdmin());
-    }
+    match /business_products/{id}  { allow read: if signedIn(); allow write: if isOwner('owner_id') || willOwn('owner_id') || isAdmin(); }
     match /business_orders/{id}    { allow read: if isOwner('buyer_id') || isOwner('seller_id') || isAdmin(); allow write: if isAdmin(); }
     match /gifted_premium/{id} {
       allow read: if ownsUserField('user_id') || ownsUserField('gifted_by') || isAdmin();
-      // Historical records require review; they no longer authorize benefits.
-      allow create, update, delete: if false;
+      allow create: if willOwnUserField('gifted_by') || isAdmin();
+      allow update: if ownsUserField('user_id') || ownsUserField('gifted_by') || isAdmin();
+      allow delete: if isAdmin();
     }
-    match /premium_grants/{id} { allow read, write: if false; }
-    match /_premium_gift_requests/{id} { allow read, write: if false; }
-    match /subscriptions/{id} { allow read, write: if false; }
     match /vybe_tokens/{docId} {
       allow read: if ownsUserField('user_id') || ownsProfileId(docId) || isAdmin();
-      // Historical balances require reconciliation. Browser staff cannot mint.
-      allow create, update, delete: if false;
+      // Balance writes restricted to Cloud Functions (admin SDK) to prevent self-minting.
+      allow create, update, delete: if isAdmin();
     }
     match /token_transactions/{docId} {
       allow read: if ownsUserField('user_id') || isAdmin();
       // Transaction ledger writes restricted to Cloud Functions only.
-      allow create, update, delete: if false;
+      allow create, update, delete: if isAdmin();
     }
 
     match /marketplace_purchases/{docId} {
       allow read: if ownsUserField('user_id') || isAdmin();
-      allow create, update, delete: if false;
+      allow create: if willOwnUserField('user_id') || isAdmin();
+      allow update, delete: if isAdmin();
     }
-    // Wallet state, receipts, entitlement and boosts are returned by verified
-    // callables. Keeping browser reads closed prevents broad-list data leaks.
-    match /token_wallets/{id} { allow read, write: if false; }
-    match /token_entitlements/{id} { allow read, write: if false; }
-    match /token_boosts/{id} { allow read, write: if false; }
-    match /token_events/{id} { allow read, write: if false; }
-    match /_token_purchase_requests/{id} { allow read, write: if false; }
-    match /_token_credit_receipts/{id} { allow read, write: if false; }
-    match /_token_credit_day_limits/{id} { allow read, write: if false; }
-    match /_verified_xp_authority/{id} { allow read, write: if false; }
-    match /_badge_grant_authority/{id} { allow read, write: if false; }
     match /sounds/{id} {
-      // The checked library binds these rows to protected decoded-media proof.
-      // Historical caller-writable approval/owner flags are not authority.
-      allow read, write: if false;
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if isAdmin() ||
+        isOwnerProfile('uploader_id') || isOwnerProfile('original_creator_id');
     }
-    match /_sound_uploads/{id} { allow read, write: if false; }
-    match /_sound_upload_limits/{id} { allow read, write: if false; }
-    match /_sound_library_cursors/{id} { allow read, write: if false; }
-    match /user_saved_sounds/{id} { allow read, write: if false; }
-    match /_saved_sound_refs/{id} { allow read, write: if false; }
-    match /_saved_sound_requests/{id} { allow read, write: if false; }
-    match /_saved_sound_limits/{id} { allow read, write: if false; }
-    match /_social_post_list_cursors/{id} { allow read, write: if false; }
     match /vybe_dna/{id} {
       allow read: if ownsUserField('user_id') || isAdmin();
       allow create, update: if willOwnUserField('user_id') || isAdmin();
       allow delete: if isAdmin();
     }
     match /dna_agent_settings/{id} {
-      allow read: if ownsUserField('user_id');
-      allow write: if false; // Checked settings receipts and reset/action serialization.
-    }
-    match /_dna_action_plans/{id} { allow read, write: if false; }
-    match /_dna_action_receipts/{id} { allow read, write: if false; }
-    match /_dna_action_limits/{id} { allow read, write: if false; }
-    match /dna_agent_actions/{id} {
-      allow read: if isOwner('user_id');
-      allow write: if false;
-    }
-    match /dna_auto_theme/{id} {
-      allow read: if isOwner('user_id');
-      allow write: if false;
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
     match /user_backgrounds/{id} {
-      // Profile covers query only active backgrounds. The rest of a user's
-      // upload library is private, including inactive image URLs and filenames.
-      allow read: if signedIn() && (
-        ownsUserField('user_id') || resource.data.get('is_active', false) == true || isAdmin()
-      );
+      allow read: if signedIn();
       allow create: if willOwnUserField('user_id');
-      allow update: if (ownsUserField('user_id') || isAdmin())
-        && request.resource.data.user_id == resource.data.user_id;
-      allow delete: if ownsUserField('user_id') || isAdmin();
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
     }
     match /user_custom_sounds/{id} {
-      function soundFields() {
-        return ['id', 'user_id', 'sound_type', 'file_url', 'file_name', 'duration_seconds', 'created_at', 'updated_at'];
-      }
-      function validSound() {
-        let sound = request.resource.data;
-        return sound.user_id is string
-          && sound.sound_type in ['message_tone', 'call_ringtone']
-          && sound.file_url is string && sound.file_url.size() > 0 && sound.file_url.size() <= 4096
-          && sound.file_name is string && sound.file_name.size() > 0 && sound.file_name.size() <= 255
-          && sound.duration_seconds is number && sound.duration_seconds > 0
-          && (sound.sound_type == 'call_ringtone' || sound.duration_seconds <= 5)
-          && sound.get('id', id) == id
-          && (!('created_at' in sound) || (sound.created_at is string && sound.created_at.size() <= 40))
-          && (!('updated_at' in sound) || (sound.updated_at is string && sound.updated_at.size() <= 40));
-      }
-      allow read: if ownsUserField('user_id') || isAdmin();
-      // Compatibility upsert uses owner + type for new documents, but resolves
-      // an existing migrated row by an owner-filtered query before writing.
-      allow create: if willOwnUserField('user_id')
-        && id == request.resource.data.user_id + '_' + request.resource.data.sound_type
-        && request.resource.data.keys().hasOnly(soundFields()) && validSound();
-      allow update: if (ownsUserField('user_id') || isAdmin())
-        && request.resource.data.user_id == resource.data.user_id
-        && request.resource.data.sound_type == resource.data.sound_type
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(soundFields())
-        && validSound();
-      allow delete: if ownsUserField('user_id') || isAdmin();
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /user_active_boosts/{id} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
     match /screen_time_sessions/{id} {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
@@ -1735,14 +1334,8 @@ service cloud.firestore {
 
     // ---------- security / sessions ----------
     match /user_2fa_settings/{userId} {
-      allow read: if signedIn() && userId == uid();
-      allow write: if false;
+      allow read, write: if signedIn() && (userId == uid() || ownsProfileId(userId));
     }
-    match /_sign_in_preference_receipts/{id} { allow read, write: if false; }
-    match /_sign_in_preference_limits/{id} { allow read, write: if false; }
-    match /_auth_session_revocations/{id} { allow read, write: if false; }
-    match /_auth_session_revoke_limits/{id} { allow read, write: if false; }
-    match /_auth_device_session_heads/{id} { allow read, write: if false; }
     match /user_passkeys/{id} {
       allow read: if signedIn() && (
         resource.data.user_id == uid() || ownsProfileId(resource.data.user_id)
@@ -1768,49 +1361,26 @@ service cloud.firestore {
     // ---------- themes (user customization + marketplace) ----------
     match /user_themes/{id} {
       allow read: if signedIn() && ownsUserField('user_id');
-      // New account themes use the owner's canonical ID. Existing migrated
-      // documents keep their IDs, but an update can never claim another owner.
-      allow create: if signedIn() && willOwnUserField('user_id')
-        && id == request.resource.data.user_id;
-      allow update: if signedIn() && ownsUserField('user_id')
-        && request.resource.data.user_id == resource.data.user_id;
+      allow create, update: if signedIn() && willOwnUserField('user_id');
       allow delete: if signedIn() && ownsUserField('user_id');
     }
-    // Discovery proofs/phone indexes/quota records are server-owned.
-    match /_contact_discovery/{id} { allow read, write: if false; }
-    match /_contact_discovery_phones/{id} { allow read, write: if false; }
-    match /_contact_discovery_limits/{id} { allow read, write: if false; }
-
     match /shared_themes/{id} {
       allow read: if signedIn() && (
+        resource.data.is_public == true ||
         isOwnerProfile('creator_id') ||
         resource.data.creator_id == uid()
       );
-      // Audience grants and immutable theme snapshots are issued by the callable.
-      allow create: if false;
-      allow update: if signedIn() && (
-        isOwnerProfile('creator_id') || isStaffModerator()
-      ) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['theme_name', 'description'])
-        && request.resource.data.theme_name is string && request.resource.data.theme_name.size() > 0
-        && request.resource.data.theme_name.size() <= 80
-        && (request.resource.data.get('description', null) == null || (request.resource.data.description is string && request.resource.data.description.size() <= 1000));
-      allow delete: if signedIn() && (
+      allow create: if signedIn() && willOwnProfile('creator_id');
+      allow update, delete: if signedIn() && (
         isOwnerProfile('creator_id') || isStaffModerator()
       );
     }
     match /saved_themes/{id} {
-      allow read: if signedIn() && isOwnerProfile('user_id');
-      allow write: if false;
+      allow read: if signedIn() && willOwnProfile('user_id');
+      allow create: if signedIn() && willOwnProfile('user_id');
+      allow delete: if signedIn() && isOwnerProfile('user_id');
+      allow update: if false;
     }
-    match /theme_likes/{id} {
-      allow read: if signedIn() && isOwnerProfile('user_id');
-      allow write: if false;
-    }
-    match /_shared_theme_authority/{id} { allow read, write: if false; }
-    match /_shared_theme_receipts/{id} { allow read, write: if false; }
-    match /_shared_theme_cursors/{id} { allow read, write: if false; }
-    match /_theme_codes/{id} { allow read, write: if false; }
-    match /_theme_code_receipts/{id} { allow read, write: if false; }
 
     // ---------- explicit deny-all admin-only tables (Cloud Functions handle these) ----------
     match /app_secrets/{id}                   { allow read, write: if false; }
@@ -1829,16 +1399,17 @@ service cloud.firestore {
     match /email_send_log/{id}                { allow read, write: if isAdmin(); }
     match /email_send_state/{id}              { allow read, write: if isAdmin(); }
     match /email_unsubscribe_tokens/{id}      { allow read, write: if false; }
-    match /_auth_email_challenges/{id} { allow read, write: if false; }
-    match /_auth_email_limits/{id} { allow read, write: if false; }
     match /auth_challenges/{id} {
-      // Only non-secret device/QR status rows may be watched. Reject legacy
-      // public OTP/token material regardless of the document's name.
+      // Clients may listen for their own login-approval / QR challenges,
+      // BUT never for email-2FA challenges (docId ends in `_2fa`) — those
+      // hold the verification secret and must only be read by the
+      // auth2faVerify Cloud Function (Admin SDK bypasses rules).
       allow read: if signedIn()
-        && resource.data.get('challenge_type', '') != 'email_2fa'
-        && !resource.data.keys().hasAny(['code_hash', 'code_salt'])
-        && !resource.data.get('metadata', {}).keys().hasAny(['code_hash', 'code_salt', 'custom_token', 'pending_session'])
-        && resource.data.user_id == uid();
+        && !id.matches('.*_2fa$')
+        && (
+          resource.data.user_id == uid() ||
+          resource.data.user_id == profileId()
+        );
       allow create, update, delete: if false;
     }
     match /account_deletion_requests/{id}     { allow create: if willOwn('user_id'); allow read, update, delete: if isAdmin(); }
@@ -1863,69 +1434,6 @@ service cloud.firestore {
       allow delete: if signedIn() && ownsUserField('user_id');
       allow update: if false;
     }
-
-    // Mini-app source never runs in the VYBE origin. Private drafts and published
-    // snapshots are separate so saving an edit cannot silently change a live app.
-    function validMiniApp(data, published) {
-      return data.keys().hasAll(['schema_version', 'owner_id', 'title', 'description',
-          'category', 'html', 'css', 'javascript', 'created_at', 'updated_at'])
-        && data.keys().hasOnly(published
-          ? ['schema_version', 'owner_id', 'title', 'description', 'category', 'html', 'css', 'javascript', 'created_at', 'updated_at', 'status']
-          : ['schema_version', 'owner_id', 'title', 'description', 'category', 'html', 'css', 'javascript', 'created_at', 'updated_at'])
-        && data.schema_version == 1
-        && data.owner_id == uid()
-        && data.title is string && data.title.size() > 0 && data.title.size() <= 60
-        && data.description is string && data.description.size() <= 240
-        && data.category in ['game', 'tool', 'art']
-        && data.html is string && data.css is string && data.javascript is string
-        && data.html.size() + data.css.size() + data.javascript.size() <= 100000
-        && data.created_at is timestamp && data.updated_at == request.time
-        && (!published || data.status == 'published');
-    }
-    function miniAppMayPublish(id) {
-      let holdPath = /databases/$(database)/documents/_mini_app_moderation/$(id);
-      // A released hold must retain the server-bound app and owner. Missing or
-      // malformed flags cannot turn an active/unknown hold into permission.
-      return !exists(holdPath) || (
-        get(holdPath).data.get('version', null) == 1
-        && get(holdPath).data.get('app_id', null) == id
-        && get(holdPath).data.get('owner_uid', null) == uid()
-        && get(holdPath).data.get('active', null) == false
-      );
-    }
-    match /mini_app_drafts/{id} {
-      // Transactions must distinguish an unused draft identity from an existing
-      // owned draft. Existing private source remains owner-only.
-      allow get: if signedIn() && (!exists(/databases/$(database)/documents/mini_app_drafts/$(id)) || resource.data.owner_id == uid());
-      allow list: if signedIn() && resource.data.owner_id == uid();
-      // Checked callables own admission and permanent identity retirement.
-      allow create, update, delete: if false;
-    }
-    match /mini_apps/{id} {
-      allow get: if signedIn() && (!exists(/databases/$(database)/documents/mini_apps/$(id))
-        || resource.data.status == 'published' || resource.data.owner_id == uid());
-      allow list: if signedIn()
-        && (resource.data.status == 'published' || resource.data.owner_id == uid());
-      // Publication snapshots are written only by the checked callable.
-      allow create, update: if false;
-      // Owner unpublishing never releases a server hold. Staff removals must
-      // use the audited callable, which removes the snapshot and sets its hold.
-      allow delete: if signedIn() && resource.data.owner_id == uid();
-    }
-
-    match /_mini_app_publish_quotas/{id} { allow read, write: if false; }
-    match /_mini_app_publish_operations/{id} { allow read, write: if false; }
-
-    // Partner credentials, device approvals, and upload manifests are server-only.
-    // Even app administrators manage connections through the authenticated API.
-    match /game_partner_devices/{id}     { allow read, write: if false; }
-    match /game_partner_codes/{id}       { allow read, write: if false; }
-    match /game_partner_tokens/{id}      { allow read, write: if false; }
-    match /game_partner_connections/{id} { allow read, write: if false; }
-    match /game_partner_uploads/{id}     { allow read, write: if false; }
-    match /_post_local_areas/{id}       { allow read, write: if false; }
-    match /_social_feed_cursors/{id}     { allow read, write: if false; }
-    match /_follow_authority/{id}        { allow read, write: if false; }
 
     // ---------- catch-all: deny by default ----------
     match /{document=**} {

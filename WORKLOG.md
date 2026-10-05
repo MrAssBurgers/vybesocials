@@ -2,6 +2,28 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-05) - Home customization usability and reliable saving
+
+### Changes
+- Addressed the user's moving/resizing, appearance and add-at-the-bottom complaints. The editor now uses compact inert previews, 44px controls, a dedicated drag grip, Up/Down buttons and clear Half/Full and Auto/Tall selectors. The bounded, keyboard-accessible widget picker explains placement and inserts every addition/re-addition at the top. Position-only spring animation avoids stretching labels; reduced-motion preferences are respected. Navigation hides during editing and returns on exit; scroll gestures outside the grip remain usable.
+- Drafts initialize once per editing/account/device session instead of resetting after every preferences refresh. Cancel restores saved state. Save locks controls, retains rejected drafts for retry, suppresses completion after account changes/unmount, and preserves each device's existing fonts/background when synchronizing widget placement. Legacy layouts, empty layouts and corrupt saved widget metadata are handled safely.
+- Preferences now cache per account/profile, use checked session keys, roll back the exact migrated-profile key, preserve imported document IDs rather than creating duplicate preference rows, serialize local writes and patch only requested server fields. Cached/default layouts cannot overwrite server state while the authoritative read is unavailable.
+- Real SDK/manual testing uncovered a first-save denial: repeated preference ownership helpers exhaust Firestore's 1,000-expression limit. Simplified only `user_preferences`, retaining checked ownership/binding, deleted-profile and UID collision rejection, legacy row access and immutable ownership. Prepared a narrow live-baseline candidate/config in releases/home-customization-20261005/ and firebase.home-customization.json; no whole pending Rules/Functions release.
+
+### Verification / release status
+- **460 app files / 4,370 tests passed**, 6 existing opt-in tests skipped. Build, typecheck, lint, boot/distribution and bundle checks passed; lint retains the same 5 existing warnings, 0 errors. Boot entry: **1,102.8 KB raw / 335.0 KB gzip**, within 1,125 / 335 limits. Logs: work/home-customization-{build,tests}.log. The 13 new client tests cover real editing, save rejection, cancellation, migrated rollback, legacy row identity and account lifecycle paths. Generated public release files restored.
+- **33 exact baseline/current/candidate Rules checks + 15 real Auth/Firestore SDK checks passed**. The actual live baseline reproduces the missing migrated-preference read failure; candidate changes only that collection block. Anonymous/foreign, reassignment, deleted-profile, retired-account and colliding-UID cases deny; legitimate owner/legacy operations pass. Test namespaces never reset the retained preview.
+- Browser: Alice additions appeared at the top; native pointer dragging reordered Shop/Wallet, selectors resized previews, Cancel restored the saved layout, and saved Shop/Wallet order survived reload/reopening. The desktop email QA account retained its own default layout. Screenshot: outputs/home-customization-mobile.png. Retained Auth/Firestore/Storage export: work/local-preview/home-customization-final-export. No actual account layout, profile or preference was edited.
+- User requested live login at vybehub.io, which did not resolve, then explicitly selected vybehub.app. Tried the provided email with the password already entered in that live page; did not read it. Login remained blocked by **“The email confirmation could not be started.”** Left the page open. This is the existing coordinated sign-in/provider boundary, not a successful account login.
+- Three official narrow Firebase Rules deployment attempts returned Google service HTTP **503** (first after compilation during upload; later during test). Independent authenticated inspection afterward confirms the unchanged active ruleset **4583d3f4-8f6c-42fa-80b9-c2d0cc1dc41e**, hash **f421cde69d505389a1665404601e5ba32f8cc5e5815fd00b49ac7b204b544d69**. Candidate hash **8a8e05c4f38abfa1a905b60e0f5ee0fc49f287015c22b1169e6970577f7db596**. This preference repair is **not deployed**. No Functions, secrets, Auth settings, indexes, Storage policies or Lovable Publish changed.
+
+### Next 3 tasks
+1. When Google's Rules service recovers, re-read the exact baseline and rebase/retest if changed; release only firebase.home-customization.json, then independently verify its active source/hash. See the adjacent release README for the exact command and failed-attempt logs.
+2. Finish the existing coordinated fresh email sign-in compatibility/provider release in docs/SIGN_IN_RECOVERY.md, preserving the auth2faRequest restriction. Recheck the user's live login and original phone close/reopen; no frontend-only publish can complete that boundary.
+3. Publish the verified combined main commit through Lovable Share → Publish once matching backend prerequisites are ready, then verify Home customization on the actual phone. New SDK/mini-app expansion remains deferred and the original 3D globe/retained data stay intact.
+
+---
+
 ## ACTIVE (2026-10-05) - Live signed-in profile service restored
 
 ### Release and scope

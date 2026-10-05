@@ -1,766 +1,303 @@
-import { useState, useCallback, useEffect, useRef, createContext, useContext, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
-import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
-import { X, Eye, Check, Smartphone, Monitor, Maximize2 } from 'lucide-react';
+import { useState, useCallback, useEffect, useRef, createContext, useContext, type ReactNode, type PointerEvent } from 'react';
+import { motion, LayoutGroup, useReducedMotion } from 'framer-motion';
+import { ArrowUp, ArrowDown, GripVertical, X, Check, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useGridLayout, type GridWidgetState } from '@/hooks/useGridLayout';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 import { toast } from 'sonner';
-import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
-
-/* ── Types ── */
-interface DragState {
-  isDragging: boolean;
-  dragId: string | null;
-  ghostX: number;
-  ghostY: number;
-  offsetX: number;
-  offsetY: number;
-  ghostWidth: number;
-  ghostHeight: number;
-}
-
-interface ResizeDragState {
-  isResizing: boolean;
-  widgetId: string | null;
-  direction: 'right' | 'bottom' | 'corner';
-  previewCol: 1 | 2;
-  previewRow: 1 | 2;
-  overlayRect: { x: number; y: number; w: number; h: number } | null;
-}
+import { scrollAppTo } from '@/lib/appScrollContainer';
 
 interface EditModeCtx {
   isEditing: boolean;
+  saving: boolean;
   localWidgets: GridWidgetState[];
   selectedWidget: string | null;
   setSelectedWidget: (id: string | null) => void;
   handleToggle: (id: string) => void;
   handleResize: (id: string, col: 1 | 2, row: 1 | 2) => void;
   orderedEnabledIds: string[];
-  handleReorder: (draggedId: string, targetIndex: number) => void;
-  dragState: DragState;
-  resizeState: ResizeDragState;
-  startDrag: (id: string, e: React.PointerEvent) => void;
+  handleReorder: (id: string, index: number) => void;
+  startDrag: (id: string, e: PointerEvent<HTMLButtonElement>) => void;
+  dragId: string | null;
+  dropId: string | null;
   gridRef: React.RefObject<HTMLDivElement | null>;
 }
-
-const defaultDrag: DragState = {
-  isDragging: false, dragId: null, ghostX: 0, ghostY: 0,
-  offsetX: 0, offsetY: 0, ghostWidth: 0, ghostHeight: 0,
-};
-
-const defaultResize: ResizeDragState = {
-  isResizing: false, widgetId: null, direction: 'corner',
-  previewCol: 1, previewRow: 1, overlayRect: null,
-};
-
 const EditModeContext = createContext<EditModeCtx>({
-  isEditing: false, localWidgets: [], selectedWidget: null,
-  setSelectedWidget: () => {}, handleToggle: () => {},
-  handleResize: () => {}, orderedEnabledIds: [],
-  handleReorder: () => {}, dragState: defaultDrag,
-  resizeState: defaultResize, startDrag: () => {},
-  gridRef: { current: null },
+  isEditing: false, saving: false, localWidgets: [], selectedWidget: null,
+  setSelectedWidget: () => {}, handleToggle: () => {}, handleResize: () => {},
+  orderedEnabledIds: [], handleReorder: () => {}, startDrag: () => {},
+  dragId: null, dropId: null, gridRef: { current: null },
 });
-
 export const useEditMode = () => useContext(EditModeContext);
 
-/* ── Jiggle CSS ── */
-const jiggleCSS = `
-@keyframes widget-jiggle {
-  0%   { transform: rotate(0deg); }
-  100% { transform: rotate(0deg); }
+function ordered(widgets: GridWidgetState[]) {
+  return [...widgets].sort((a, b) => a.order - b.order);
 }
-.widget-jiggle { animation: none; }
-.widget-placeholder {
-  opacity: 0.3;
-  border: 2px dashed hsl(var(--primary) / 0.5);
-  border-radius: 16px;
-  animation: none !important;
-}
-`;
-
-const layoutSpring = { type: 'spring' as const, damping: 28, stiffness: 350, mass: 0.6 };
-
-/* ── Grid measurement helper ── */
-function measureGrid(gridEl: HTMLElement | null) {
-  if (!gridEl) return { colWidth: 0, rowHeight: 56, gap: 12 };
-  const style = getComputedStyle(gridEl);
-  const gap = parseFloat(style.gap) || 12;
-  const cols = style.gridTemplateColumns.split(' ');
-  const colWidth = cols.length > 0 ? parseFloat(cols[0]) : gridEl.clientWidth / 2;
-  // Measure actual row height from first widget
-  const firstChild = gridEl.querySelector('[data-widget-id]') as HTMLElement | null;
-  const rowHeight = firstChild ? firstChild.getBoundingClientRect().height : 80;
-  return { colWidth, rowHeight, gap };
+function move(widgets: GridWidgetState[], id: string, index: number) {
+  const enabled = ordered(widgets.filter(w => w.enabled));
+  const from = enabled.findIndex(w => w.id === id);
+  if (from < 0) return widgets;
+  const [item] = enabled.splice(from, 1);
+  enabled.splice(Math.max(0, Math.min(index, enabled.length)), 0, item);
+  return [...enabled, ...ordered(widgets.filter(w => !w.enabled))].map((w, order) => ({ ...w, order }));
 }
 
-/* ── Resize handle component ── */
-function ResizeHandle({
-  widgetId, direction, widget, onResizeStart,
-}: {
-  widgetId: string;
-  direction: 'right' | 'bottom' | 'corner';
-  widget: GridWidgetState;
-  onResizeStart: (id: string, dir: 'right' | 'bottom' | 'corner', e: React.PointerEvent) => void;
-}) {
-  const onPointerDown = (e: React.PointerEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    onResizeStart(widgetId, direction, e);
-  };
-
-  const base = "absolute z-40";
-
-  if (direction === 'right') {
-    return (
-      <div
-        data-resize-handle
-        onPointerDown={onPointerDown}
-        style={{ touchAction: 'none' }}
-        className={cn(base, "top-1/2 -right-3 -translate-y-1/2 w-6 h-12 rounded-full bg-primary shadow-lg shadow-primary/30 flex items-center justify-center cursor-ew-resize")}
-      >
-        <div className="w-[2px] h-5 rounded-full bg-primary-foreground/80" />
-      </div>
-    );
-  }
-
-  if (direction === 'bottom') {
-    return (
-      <div
-        data-resize-handle
-        onPointerDown={onPointerDown}
-        style={{ touchAction: 'none' }}
-        className={cn(base, "-bottom-3 left-1/2 -translate-x-1/2 h-6 w-12 rounded-full bg-primary shadow-lg shadow-primary/30 flex items-center justify-center cursor-ns-resize")}
-      >
-        <div className="h-[2px] w-5 rounded-full bg-primary-foreground/80" />
-      </div>
-    );
-  }
-
-  return (
-    <div
-      data-resize-handle
-      onPointerDown={onPointerDown}
-      style={{ touchAction: 'none' }}
-      className={cn(base, "-bottom-3 -right-3 w-7 h-7 rounded-full bg-primary shadow-lg shadow-primary/30 flex items-center justify-center cursor-nwse-resize border-2 border-background")}
-    >
-      <Maximize2 className="h-2.5 w-2.5 text-primary-foreground/80 rotate-90" />
-    </div>
-  );
-}
-
-/* ── Editable widget wrapper ── */
-export function EditableWidgetWrapper({
-  widgetId, children, className,
-}: {
+export function EditableWidgetWrapper({ widgetId, children, className }: {
   widgetId: string; children: ReactNode; className?: string;
 }) {
-  const {
-    isEditing, localWidgets, selectedWidget, setSelectedWidget,
-    handleToggle, dragState, startDrag, resizeState,
-  } = useEditMode();
-  const widget = localWidgets.find(w => w.id === widgetId);
-  const didDragRef = useRef(false);
-  const startPosRef = useRef({ x: 0, y: 0 });
-
-  if (!isEditing || !widget) return <>{children}</>;
-
-  const isSelected = selectedWidget === widgetId;
-  const isBeingDragged = dragState.dragId === widgetId;
-  const isBeingResized = resizeState.widgetId === widgetId && resizeState.isResizing;
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    const target = e.target as HTMLElement;
-    if (target.closest('[data-resize-handle]') || target.closest('[data-widget-control]')) return;
-
-    didDragRef.current = false;
-    startPosRef.current = { x: e.clientX, y: e.clientY };
-    const savedEvent = { ...e, clientX: e.clientX, clientY: e.clientY, preventDefault: () => {} } as React.PointerEvent;
-
-    const onMoveCheck = (ev: PointerEvent) => {
-      const dx = ev.clientX - startPosRef.current.x;
-      const dy = ev.clientY - startPosRef.current.y;
-      if (Math.abs(dx) + Math.abs(dy) > 15) {
-        didDragRef.current = true;
-        cleanup();
-        startDrag(widgetId, savedEvent);
-      }
-    };
-
-    const onUpCheck = () => {
-      cleanup();
-      if (!didDragRef.current) {
-        setSelectedWidget(isSelected ? null : widgetId);
-        triggerHaptic('light');
-      }
-    };
-
-    const cleanup = () => {
-      window.removeEventListener('pointermove', onMoveCheck);
-      window.removeEventListener('pointerup', onUpCheck);
-      window.removeEventListener('pointercancel', onUpCheck);
-    };
-
-    window.addEventListener('pointermove', onMoveCheck);
-    window.addEventListener('pointerup', onUpCheck);
-    window.addEventListener('pointercancel', onUpCheck);
-  };
-
+  const ctx = useEditMode();
+  const reducedMotion = useReducedMotion();
+  const widget = ctx.localWidgets.find(w => w.id === widgetId);
+  if (!ctx.isEditing || !widget) return <>{children}</>;
+  const index = ctx.orderedEnabledIds.indexOf(widgetId);
+  const selected = ctx.selectedWidget === widgetId;
   return (
-    <motion.div
-      layout
-      layoutId={`widget-${widgetId}`}
-      transition={layoutSpring}
+    <motion.section
+      layout={reducedMotion ? false : 'position'}
       data-widget-id={widgetId}
-      onPointerDown={onPointerDown}
-      className={cn(
-        'relative select-none cursor-grab active:cursor-grabbing',
+      aria-label={widget.label + ' widget'}
+      transition={{ type: 'spring', damping: 30, stiffness: 320 }}
+      className={cn('relative min-w-0 rounded-2xl border bg-card/90 shadow-sm overflow-hidden',
         widget.colSpan === 2 ? 'col-span-2' : 'col-span-1',
-        widget.rowSpan === 2 ? 'row-span-2' : 'row-span-1',
-        isBeingDragged && 'widget-placeholder',
-        !isBeingDragged && !isBeingResized && 'widget-jiggle',
-        className,
-      )}
-      style={{
-        animationDelay: `${(widget.order % 5) * 0.05}s`,
-        zIndex: isSelected ? 20 : isBeingDragged ? 0 : 1,
-        touchAction: 'pan-y',
-      }}
+        selected ? 'border-primary/70 ring-2 ring-primary/15' : 'border-border/60',
+        ctx.dragId === widgetId && 'opacity-50',
+        ctx.dropId === widgetId && 'ring-2 ring-primary', className)}
     >
-      {/* Content card */}
-      <motion.div
-        layout
-        transition={layoutSpring}
-        className={cn(
-          'relative rounded-2xl overflow-hidden h-full transition-shadow duration-200',
-          isSelected
-            ? 'ring-2 ring-primary ring-offset-2 ring-offset-background shadow-lg shadow-primary/20'
-            : 'ring-1 ring-border/30',
-          !widget.enabled && 'opacity-30 grayscale',
-        )}
-        style={{ pointerEvents: 'none' }}
-      >
+      <div className="flex items-center gap-1 border-b border-border/40 p-1">
+        <button type="button" aria-label={'Drag ' + widget.label} disabled={ctx.saving}
+          onPointerDown={e => ctx.startDrag(widgetId, e)}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary cursor-grab active:cursor-grabbing"
+          style={{ touchAction: 'none' }}>
+          <GripVertical className="h-5 w-5" />
+        </button>
+        <button type="button" disabled={ctx.saving} aria-pressed={selected}
+          onClick={() => ctx.setSelectedWidget(selected ? null : widgetId)}
+          className="min-w-0 flex-1 text-left text-sm font-semibold leading-tight py-3 focus-visible:ring-2 focus-visible:ring-primary rounded-lg">
+          <span aria-hidden="true">{widget.icon} </span>{widget.label}
+        </button>
+        <button type="button" aria-label={'Remove ' + widget.label} disabled={ctx.saving}
+          onClick={() => ctx.handleToggle(widgetId)}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-primary">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      {/* A clipped, inert preview keeps editing fast and prevents accidental post actions. */}
+      <div aria-hidden="true" ref={node => { if (node) node.setAttribute('inert', ''); }}
+        className={cn('relative overflow-hidden pointer-events-none select-none p-2', widget.rowSpan === 2 ? 'h-48' : 'h-24')}>
         {children}
-      </motion.div>
-
-      {/* Toggle button */}
-      <motion.button
-        data-widget-control
-        whileTap={{ scale: 0.85 }}
-        onClick={e => { e.stopPropagation(); triggerHaptic('medium'); handleToggle(widgetId); }}
-        className={cn(
-          'absolute top-1 right-1 z-40',
-          widget.enabled ? 'text-destructive' : 'text-primary',
-        )}
-      >
-        {widget.enabled ? <X className="h-3.5 w-3.5" strokeWidth={3} /> : <Eye className="h-3.5 w-3.5" strokeWidth={3} />}
-      </motion.button>
-
-      {/* Size badge */}
-      <div className="absolute -top-1.5 -left-1.5 z-40">
-        <span className="text-[8px] font-bold bg-card/90 backdrop-blur border border-border/40 rounded-md px-1.5 py-0.5 shadow-sm text-muted-foreground">
-          {widget.colSpan}×{widget.rowSpan}
-        </span>
+        <div className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-card to-transparent" />
       </div>
-
-      {/* Resize handles */}
-      <AnimatePresence>
-        {isSelected && widget.enabled && (
-          <ResizeHandles widgetId={widgetId} widget={widget} />
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-}
-
-/* ── Extracted resize handles group ── */
-function ResizeHandles({ widgetId, widget }: { widgetId: string; widget: GridWidgetState }) {
-  const { handleResizeStart } = useResizeContext();
-  return (
-    <>
-      {(['right', 'bottom', 'corner'] as const).map((dir, i) => (
-        <motion.div
-          key={dir}
-          data-resize-handle
-          initial={{ opacity: 0, scale: 0 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0 }}
-          transition={{ duration: 0.12, delay: i * 0.02 }}
-        >
-          <ResizeHandle widgetId={widgetId} direction={dir} widget={widget} onResizeStart={handleResizeStart} />
-        </motion.div>
-      ))}
-    </>
-  );
-}
-
-// Tiny context to pass resize start handler without prop drilling
-const ResizeCtx = createContext<{ handleResizeStart: (id: string, dir: 'right' | 'bottom' | 'corner', e: React.PointerEvent) => void }>({
-  handleResizeStart: () => {},
-});
-const useResizeContext = () => useContext(ResizeCtx);
-
-/* ── Edit grid wrapper ── */
-export function EditableWidgetList({ children }: { children: ReactNode }) {
-  const { isEditing, gridRef } = useEditMode();
-  if (!isEditing) return <>{children}</>;
-  return (
-    <LayoutGroup>
-      <div ref={gridRef} className="grid grid-cols-2 gap-3 px-3" style={{ gridAutoRows: 'minmax(56px, auto)' }}>
-        {children}
-      </div>
-    </LayoutGroup>
-  );
-}
-
-/* ── Non-edit grid wrapper ── */
-export function WidgetGrid({ children }: { children: ReactNode }) {
-  return (
-    <div className="grid grid-cols-2 gap-3 px-3" style={{ gridAutoRows: 'minmax(56px, auto)' }}>
-      {children}
-    </div>
-  );
-}
-
-/* ── Drag Ghost (portal-based, renders actual widget clone) ── */
-function DragGhost({ dragState, dragCloneRef }: { dragState: DragState; dragCloneRef: React.RefObject<HTMLElement | null> }) {
-  if (!dragState.isDragging || !dragCloneRef.current) return null;
-
-  return createPortal(
-    <div
-      className="fixed z-[200] pointer-events-none"
-      style={{
-        left: dragState.ghostX - dragState.offsetX,
-        top: dragState.ghostY - dragState.offsetY,
-        width: dragState.ghostWidth,
-        height: dragState.ghostHeight,
-        transition: 'transform 0.08s ease-out',
-        transform: 'scale(1.05)',
-        filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.25))',
-        borderRadius: 16,
-        overflow: 'hidden',
-      }}
-      dangerouslySetInnerHTML={{ __html: dragCloneRef.current.innerHTML }}
-    />,
-    document.body,
-  );
-}
-
-/* ── Resize Preview Overlay ── */
-function ResizeOverlay({ resizeState }: { resizeState: ResizeDragState }) {
-  if (!resizeState.isResizing || !resizeState.overlayRect) return null;
-
-  return createPortal(
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="fixed z-[150] pointer-events-none rounded-2xl border-2 border-primary/60"
-      style={{
-        left: resizeState.overlayRect.x,
-        top: resizeState.overlayRect.y,
-        width: resizeState.overlayRect.w,
-        height: resizeState.overlayRect.h,
-        background: 'hsl(var(--primary) / 0.12)',
-      }}
-    >
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-xs font-bold text-primary bg-background/80 rounded-md px-2 py-0.5">
-          {resizeState.previewCol}×{resizeState.previewRow}
-        </span>
-      </div>
-    </motion.div>,
-    document.body,
-  );
-}
-
-/* ── Floating toolbar ── */
-function EditToolbar({
-  saving, variant, onSave, onCancel,
-}: {
-  saving: boolean; variant: string; onSave: () => void; onCancel: () => void;
-}) {
-  return (
-    <motion.div
-      initial={{ y: -60, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      exit={{ y: -60, opacity: 0 }}
-      transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-      className="fixed top-0 left-0 right-0 z-[100] px-3 pt-[max(var(--sat,0px),8px)] pb-2 bg-card/95 backdrop-blur-xl border-b border-primary/30 shadow-xl shadow-primary/10"
-    >
-      <div className="max-w-xl mx-auto flex items-center justify-between gap-3">
-        <Button variant="ghost" size="sm" onClick={onCancel} className="text-sm font-medium text-muted-foreground">
-          Cancel
-        </Button>
-        <div className="flex items-center gap-0.5 bg-muted/60 rounded-lg px-1 py-0.5">
-          <span className={cn(
-            'text-[10px] font-medium px-1.5 py-0.5 rounded-md flex items-center gap-1',
-            variant === 'mobile' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground',
-          )}>
-            <Smartphone className="h-2.5 w-2.5" /> Mobile
-          </span>
-          <span className={cn(
-            'text-[10px] font-medium px-1.5 py-0.5 rounded-md flex items-center gap-1',
-            variant === 'desktop' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground',
-          )}>
-            <Monitor className="h-2.5 w-2.5" /> Desktop
-          </span>
+      <div className="border-t border-border/40 p-2 space-y-2">
+        <div className="flex gap-1" aria-label={widget.label + ' position'}>
+          <Button type="button" variant="ghost" className="min-h-11 flex-1 px-1 gap-1 text-xs" disabled={ctx.saving || index === 0}
+            aria-label={'Move ' + widget.label + ' up'} onClick={() => ctx.handleReorder(widgetId, index - 1)}>
+            <ArrowUp className="h-4 w-4" />Up
+          </Button>
+          <Button type="button" variant="ghost" className="min-h-11 flex-1 px-1 gap-1 text-xs" disabled={ctx.saving || index === ctx.orderedEnabledIds.length - 1}
+            aria-label={'Move ' + widget.label + ' down'} onClick={() => ctx.handleReorder(widgetId, index + 1)}>
+            <ArrowDown className="h-4 w-4" />Down
+          </Button>
         </div>
-        <Button size="sm" onClick={onSave} disabled={saving} className="gradient-animated text-white text-sm font-semibold gap-1.5">
-          <Check className="h-3.5 w-3.5" />
-          {saving ? 'Saving...' : 'Done'}
-        </Button>
+        <label className="flex items-center justify-between gap-1 text-xs text-muted-foreground">
+          Width
+          <select aria-label={widget.label + ' width'} disabled={ctx.saving} value={widget.colSpan}
+            onChange={e => ctx.handleResize(widgetId, Number(e.target.value) as 1 | 2, widget.rowSpan)}
+            className="min-h-11 min-w-0 rounded-lg border border-border/60 bg-background px-2 text-foreground">
+            <option value="1">Half</option><option value="2">Full</option>
+          </select>
+        </label>
+        <label className="flex items-center justify-between gap-1 text-xs text-muted-foreground">
+          Height
+          <select aria-label={widget.label + ' height'} disabled={ctx.saving} value={widget.rowSpan}
+            onChange={e => ctx.handleResize(widgetId, widget.colSpan, Number(e.target.value) as 1 | 2)}
+            className="min-h-11 min-w-0 rounded-lg border border-border/60 bg-background px-2 text-foreground">
+            <option value="1">Auto</option><option value="2">Tall</option>
+          </select>
+        </label>
       </div>
-      <p className="text-center text-[10px] text-muted-foreground mt-1">
-        Tap to select · Drag to move · Drag handles to resize
-      </p>
-    </motion.div>
+    </motion.section>
   );
 }
 
-/* ── Provider ── */
-export function HomeEditModeProvider({
-  editing, onEditingChange, children,
-}: {
-  editing: boolean; onEditingChange: (v: boolean) => void; children: ReactNode;
+export function EditableWidgetList({ children }: { children: ReactNode }) {
+  const { gridRef } = useEditMode();
+  return <LayoutGroup><div ref={gridRef} className="grid grid-cols-2 items-start gap-3 px-3 pb-8">{children}</div></LayoutGroup>;
+}
+export function WidgetGrid({ children }: { children: ReactNode }) {
+  return <div className="grid grid-cols-2 gap-3 px-3" style={{ gridAutoRows: 'minmax(56px, auto)' }}>{children}</div>;
+}
+
+export function HomeEditModeProvider({ editing, onEditingChange, children }: {
+  editing: boolean; onEditingChange: (value: boolean) => void; children: ReactNode;
 }) {
-  const { config, variant, saveGridLayout } = useGridLayout();
-  const [localWidgets, setLocalWidgets] = useState<GridWidgetState[]>(config.widgets);
+  const { config, variant, saveGridLayout, preferences } = useGridLayout();
+  const session = useReportAccountSession();
+  const [localWidgets, setLocalWidgets] = useState(config.widgets);
   const [selectedWidget, setSelectedWidget] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [dragState, setDragState] = useState<DragState>(defaultDrag);
-  const [resizeState, setResizeState] = useState<ResizeDragState>(defaultResize);
-
+  const [addOpen, setAddOpen] = useState(false);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropId, setDropId] = useState<string | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
-  const dragCloneRef = useRef<HTMLElement | null>(null);
-  const rafRef = useRef<number>(0);
-  const swapTimerRef = useRef<number>(0);
-  const lastHoverRef = useRef<string | null>(null);
+  const busy = useRef(false);
+  const mounted = useRef(true);
+  const cleanupDrag = useRef<(() => void) | null>(null);
+  const draftKey = useRef('');
+  const key = session.uid + ':' + session.epoch + ':' + variant;
+  const ready = preferences.isSuccess && !preferences.isPlaceholderData && !preferences.isError;
+  const latest = useRef({ config, key, editing, localWidgets });
+  latest.current = { config, key, editing, localWidgets };
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   useEffect(() => {
-    if (editing) {
-      setLocalWidgets(config.widgets);
-      setSelectedWidget(null);
-      navVisibility.setInEditMode(true);
-    } else {
-      navVisibility.setInEditMode(false);
+    if (!editing) { draftKey.current = ''; setAddOpen(false); return; }
+    if (draftKey.current && draftKey.current !== key) {
+      cleanupDrag.current?.(); busy.current = false; setSaving(false); setAddOpen(false);
+      draftKey.current = '';
     }
-    return () => navVisibility.setInEditMode(false);
-  }, [editing, config.widgets]);
+    if (ready && draftKey.current !== key) {
+      setLocalWidgets(latest.current.config.widgets);
+      setSelectedWidget(null);
+      draftKey.current = key;
+    }
+  }, [editing, key, ready]);
 
-  const orderedEnabledIds = localWidgets
-    .filter(w => w.enabled)
-    .sort((a, b) => a.order - b.order)
-    .map(w => w.id);
+  useEffect(() => {
+    navVisibility.setInEditMode(editing);
+    return () => { navVisibility.setInEditMode(false); cleanupDrag.current?.(); };
+  }, [editing]);
 
+  const orderedEnabledIds = ordered((editing ? localWidgets : config.widgets).filter(w => w.enabled)).map(w => w.id);
   const handleToggle = useCallback((id: string) => {
-    setLocalWidgets(prev => prev.map(w => w.id === id ? { ...w, enabled: !w.enabled } : w));
-  }, []);
-
-  const handleResize = useCallback((id: string, col: 1 | 2, row: 1 | 2) => {
-    setLocalWidgets(prev => prev.map(w => w.id === id ? { ...w, colSpan: col, rowSpan: row } : w));
-  }, []);
-
-  // Apple-style insertion reorder: remove dragged item, insert at target index
-  const handleReorder = useCallback((draggedId: string, targetIndex: number) => {
+    if (busy.current) return;
     setLocalWidgets(prev => {
-      const enabled = prev.filter(w => w.enabled).sort((a, b) => a.order - b.order);
-      const disabled = prev.filter(w => !w.enabled);
-      const dragIdx = enabled.findIndex(w => w.id === draggedId);
-      if (dragIdx === -1 || targetIndex === dragIdx) return prev;
-
-      // Remove from old position, insert at new position
-      const item = enabled[dragIdx];
-      const without = [...enabled];
-      without.splice(dragIdx, 1);
-      const clampedTarget = Math.max(0, Math.min(without.length, targetIndex));
-      without.splice(clampedTarget, 0, item);
-
-      // Reassign sequential orders
-      const reordered = without.map((w, i) => ({ ...w, order: i }));
-      return [...reordered, ...disabled];
+      const target = prev.find(w => w.id === id);
+      if (!target) return prev;
+      const next = prev.map(w => w.id === id ? { ...w, enabled: !w.enabled } : w);
+      // Every addition is inserted above the existing layout, including the feed.
+      return target.enabled ? next : move(next, id, 0);
     });
-    triggerHaptic('light');
+    setSelectedWidget(id);
   }, []);
-
-  // Store original widget order at drag start for snap-back
-  const dragOriginalRef = useRef<GridWidgetState[] | null>(null);
-
-  // Keep a ref of localWidgets for the drag closure to avoid stale reads
-  const localWidgetsRef = useRef(localWidgets);
-  useEffect(() => { localWidgetsRef.current = localWidgets; }, [localWidgets]);
-
-  /* ── DRAG ENGINE: Apple-style insertion reorder ── */
-  const startDrag = useCallback((id: string, e: React.PointerEvent) => {
-    try {
-      e.preventDefault();
-      triggerHaptic('medium');
-
-      const el = document.querySelector(`[data-widget-id="${id}"]`) as HTMLElement | null;
-      if (!el) return;
-
-      // Disable scrolling during drag
-      document.body.style.touchAction = 'none';
-      document.body.style.overflow = 'hidden';
-
-      const rect = el.getBoundingClientRect();
-      dragCloneRef.current = el;
-
-      // Snapshot current order for snap-back
-      dragOriginalRef.current = [...localWidgetsRef.current];
-
-      const offsetX = e.clientX - rect.left;
-      const offsetY = e.clientY - rect.top;
-
-      setDragState({
-        isDragging: true,
-        dragId: id,
-        ghostX: e.clientX,
-        ghostY: e.clientY,
-        offsetX,
-        offsetY,
-        ghostWidth: rect.width,
-        ghostHeight: rect.height,
+  const handleResize = useCallback((id: string, colSpan: 1 | 2, rowSpan: 1 | 2) => {
+    if (!busy.current) setLocalWidgets(prev => prev.map(w => w.id === id ? { ...w, colSpan, rowSpan } : w));
+  }, []);
+  const handleReorder = useCallback((id: string, index: number) => {
+    if (!busy.current) setLocalWidgets(prev => move(prev, id, index));
+  }, []);
+  const startDrag = useCallback((id: string, event: PointerEvent<HTMLButtonElement>) => {
+    if (busy.current || event.button !== 0) return;
+    event.preventDefault();
+    cleanupDrag.current?.();
+    const pointerId = event.pointerId;
+    const startX = event.clientX, startY = event.clientY;
+    let targetId: string | null = null;
+    let moved = false;
+    const onMove = (e: globalThis.PointerEvent) => {
+      if (e.pointerId !== pointerId) return;
+      if (Math.hypot(e.clientX - startX, e.clientY - startY) < 6 && !moved) return;
+      moved = true;
+      setDragId(id);
+      const nodes = gridRef.current?.querySelectorAll<HTMLElement>('[data-widget-id]');
+      let distance = Infinity;
+      targetId = null;
+      nodes?.forEach(node => {
+        const rect = node.getBoundingClientRect();
+        const d = Math.hypot(e.clientX - (rect.left + rect.width / 2), e.clientY - (rect.top + rect.height / 2));
+        if (d < distance) { distance = d; targetId = node.dataset.widgetId!; }
       });
-      setSelectedWidget(null);
-      lastHoverRef.current = null;
-
-      let lastInsertIndex = -1;
-
-      const onMove = (ev: PointerEvent) => {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = requestAnimationFrame(() => {
-          try {
-            setDragState(prev => ({ ...prev, ghostX: ev.clientX, ghostY: ev.clientY }));
-
-            const currentWidgets = localWidgetsRef.current;
-            const enabled = currentWidgets
-              .filter(w => w.enabled)
-              .sort((a, b) => a.order - b.order);
-            const enabledWithoutDrag = enabled.filter(w => w.id !== id);
-
-            const entries: { id: string; rect: DOMRect; idx: number }[] = [];
-            enabledWithoutDrag.forEach((w, idx) => {
-              const node = document.querySelector(`[data-widget-id="${w.id}"]`) as HTMLElement | null;
-              if (node) {
-                entries.push({ id: w.id, rect: node.getBoundingClientRect(), idx });
-              }
-            });
-
-            if (entries.length === 0) return;
-
-            const ghostCenterX = ev.clientX - offsetX + rect.width / 2;
-            const ghostCenterY = ev.clientY - offsetY + rect.height / 2;
-
-            let insertIndex = entries.length;
-            for (let i = 0; i < entries.length; i++) {
-              const r = entries[i].rect;
-              const cy = (r.top + r.bottom) / 2;
-              const cx = (r.left + r.right) / 2;
-
-              if (ghostCenterY < cy) {
-                insertIndex = i;
-                break;
-              }
-              if (Math.abs(ghostCenterY - cy) < r.height * 0.4 && ghostCenterX < cx) {
-                insertIndex = i;
-                break;
-              }
-            }
-
-            if (insertIndex !== lastInsertIndex) {
-              lastInsertIndex = insertIndex;
-              clearTimeout(swapTimerRef.current);
-              swapTimerRef.current = window.setTimeout(() => {
-                setLocalWidgets(prev => {
-                  const en = prev.filter(w => w.enabled).sort((a, b) => a.order - b.order);
-                  const dis = prev.filter(w => !w.enabled);
-                  const dragIdx = en.findIndex(w => w.id === id);
-                  if (dragIdx === -1) return prev;
-
-                  const without = [...en];
-                  const [item] = without.splice(dragIdx, 1);
-                  const clamped = Math.max(0, Math.min(without.length, insertIndex));
-                  without.splice(clamped, 0, item);
-
-                  return [...without.map((w, i) => ({ ...w, order: i })), ...dis];
-                });
-                triggerHaptic('light');
-              }, 60);
-            }
-          } catch (err) {
-            console.warn('[EditMode] drag move error:', err);
-          }
-        });
-      };
-
-      const onUp = () => {
-        cancelAnimationFrame(rafRef.current);
-        clearTimeout(swapTimerRef.current);
-        lastHoverRef.current = null;
-        lastInsertIndex = -1;
-        dragOriginalRef.current = null;
-        setDragState(defaultDrag);
-        dragCloneRef.current = null;
-        // Re-enable scrolling
-        document.body.style.touchAction = '';
-        document.body.style.overflow = '';
-        window.removeEventListener('pointermove', onMove);
-        window.removeEventListener('pointerup', onUp);
-        window.removeEventListener('pointercancel', onUp);
-      };
-
-      window.addEventListener('pointermove', onMove);
-      window.addEventListener('pointerup', onUp);
-      window.addEventListener('pointercancel', onUp);
-    } catch (err) {
-      console.warn('[EditMode] drag start error:', err);
-      document.body.style.touchAction = '';
-      document.body.style.overflow = '';
-      setDragState(defaultDrag);
-    }
+      setDropId(targetId === id ? null : targetId);
+    };
+    const cleanup = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+      cleanupDrag.current = null;
+      setDragId(null); setDropId(null);
+    };
+    const onUp = (e: globalThis.PointerEvent) => {
+      if (e.pointerId !== pointerId) return;
+      if (moved && targetId && targetId !== id) {
+        const ids = ordered(latest.current.localWidgets.filter(w => w.enabled)).map(w => w.id);
+        handleReorder(id, ids.indexOf(targetId));
+      }
+      cleanup();
+    };
+    const onCancel = (e: globalThis.PointerEvent) => { if (e.pointerId === pointerId) cleanup(); };
+    cleanupDrag.current = cleanup;
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
   }, [handleReorder]);
 
-  /* ── RESIZE ENGINE: grid-snapped preview overlay ── */
-  const handleResizeStart = useCallback((id: string, direction: 'right' | 'bottom' | 'corner', e: React.PointerEvent) => {
-    try {
-      e.preventDefault();
-      triggerHaptic('light');
-
-      const widget = localWidgets.find(w => w.id === id);
-      if (!widget) return;
-
-      const el = document.querySelector(`[data-widget-id="${id}"]`) as HTMLElement | null;
-      if (!el) return;
-
-      // Disable scrolling during resize
-      document.body.style.touchAction = 'none';
-      document.body.style.overflow = 'hidden';
-
-      const originRect = el.getBoundingClientRect();
-      const { colWidth, rowHeight, gap } = measureGrid(gridRef.current);
-
-      setResizeState({
-        isResizing: true,
-        widgetId: id,
-        direction,
-        previewCol: widget.colSpan,
-        previewRow: widget.rowSpan,
-        overlayRect: { x: originRect.left, y: originRect.top, w: originRect.width, h: originRect.height },
-      });
-
-      const startCol = widget.colSpan;
-      const startRow = widget.rowSpan;
-
-      const onMove = (ev: PointerEvent) => {
-        const dx = ev.clientX - e.clientX;
-        const dy = ev.clientY - e.clientY;
-
-        let newCol = startCol as 1 | 2;
-        let newRow = startRow as 1 | 2;
-
-        if (direction === 'right' || direction === 'corner') {
-          const totalW = originRect.width + dx;
-          newCol = totalW > colWidth + gap * 0.5 ? 2 : 1;
-        }
-        if (direction === 'bottom' || direction === 'corner') {
-          const totalH = originRect.height + dy;
-          newRow = totalH > rowHeight + gap * 0.5 ? 2 : 1;
-        }
-
-        const previewW = newCol * colWidth + (newCol - 1) * gap;
-        const previewH = newRow * rowHeight + (newRow - 1) * gap;
-
-        setResizeState(prev => ({
-          ...prev,
-          previewCol: newCol,
-          previewRow: newRow,
-          overlayRect: { x: originRect.left, y: originRect.top, w: previewW, h: previewH },
-        }));
-      };
-
-      const onUp = () => {
-        setResizeState(prev => {
-          handleResize(id, prev.previewCol, prev.previewRow);
-          triggerHaptic('medium');
-          return defaultResize;
-        });
-        // Re-enable scrolling
-        document.body.style.touchAction = '';
-        document.body.style.overflow = '';
-        window.removeEventListener('pointermove', onMove);
-        window.removeEventListener('pointerup', onUp);
-        window.removeEventListener('pointercancel', onUp);
-      };
-
-      window.addEventListener('pointermove', onMove);
-      window.addEventListener('pointerup', onUp);
-      window.addEventListener('pointercancel', onUp);
-    } catch (err) {
-      console.warn('[EditMode] resize error:', err);
-      document.body.style.touchAction = '';
-      document.body.style.overflow = '';
-      setResizeState(defaultResize);
-    }
-  }, [localWidgets, handleResize]);
-
-  /* ── Save / Cancel ── */
   const handleSave = async () => {
-    setSaving(true);
+    if (busy.current || !ready || draftKey.current !== key) return;
+    cleanupDrag.current?.();
+    busy.current = true; setSaving(true);
+    const startedKey = key;
     try {
-      // Save to ALL devices so layout persists everywhere
       await saveGridLayout({ widgets: localWidgets }, true);
-      toast.success('Layout saved for all devices! 🎨');
+      if (!mounted.current || latest.current.key !== startedKey || !latest.current.editing) return;
+      toast.success('Home layout saved on all devices');
       onEditingChange(false);
-    } catch (err) {
-      console.error('Failed to save:', err);
-      toast.error('Failed to save layout');
+    } catch (error) {
+      if (mounted.current && latest.current.key === startedKey && latest.current.editing) {
+        toast.error(error instanceof Error ? error.message : 'Could not save your layout. Your changes are still here—try again.');
+      }
     } finally {
-      setSaving(false);
+      if (mounted.current && latest.current.key === startedKey) { busy.current = false; setSaving(false); }
     }
   };
-
-  const handleCancel = () => {
-    setLocalWidgets(config.widgets);
-    onEditingChange(false);
-  };
-
-  const ctx: EditModeCtx = {
-    isEditing: editing,
-    localWidgets: editing ? localWidgets : config.widgets,
-    selectedWidget,
-    setSelectedWidget,
-    handleToggle,
-    handleResize,
-    orderedEnabledIds,
-    handleReorder,
-    dragState,
-    resizeState,
-    startDrag,
-    gridRef,
-  };
-
+  const hidden = localWidgets.filter(w => !w.enabled);
   return (
-    <EditModeContext.Provider value={ctx}>
-      <ResizeCtx.Provider value={{ handleResizeStart }}>
-        {editing && <style>{jiggleCSS}</style>}
-        <AnimatePresence>
-          {editing && <EditToolbar saving={saving} variant={variant} onSave={handleSave} onCancel={handleCancel} />}
-        </AnimatePresence>
-        {editing && <div className="h-24" />}
-        <div onPointerDown={editing ? (e) => {
-          // Only deselect if tapping the background, not a widget
-          const target = e.target as HTMLElement;
-          if (!target.closest('[data-widget-id]') && !target.closest('[data-widget-control]') && !target.closest('[data-resize-handle]')) {
-            setSelectedWidget(null);
-          }
-        } : undefined}>
-          {children}
+    <EditModeContext.Provider value={{
+      isEditing: editing, saving, localWidgets: editing ? localWidgets : config.widgets,
+      selectedWidget, setSelectedWidget, handleToggle, handleResize, orderedEnabledIds,
+      handleReorder, startDrag, dragId, dropId, gridRef,
+    }}>
+      {editing && <>
+        <div className="fixed inset-x-0 top-0 z-[100] border-b border-border/50 bg-card/95 backdrop-blur-xl px-3 pt-[max(var(--sat,0px),8px)] pb-3 shadow-lg">
+          <div className="mx-auto max-w-xl space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <Button type="button" variant="ghost" disabled={saving} onClick={() => onEditingChange(false)} className="min-h-11">Cancel</Button>
+              <span className="font-semibold text-sm">Your Home</span>
+              <Button type="button" disabled={saving || !ready} onClick={handleSave} className="min-h-11 gap-1.5 gradient-animated text-white">
+                <Check className="h-4 w-4" />{saving ? 'Saving…' : 'Save'}
+              </Button>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground">Drag the grip or use Up / Down.<br />Changes apply to all devices.</p>
+              <Button type="button" variant="outline" disabled={saving || !ready || hidden.length === 0} onClick={() => setAddOpen(true)} className="min-h-11 shrink-0 gap-1.5 rounded-xl">
+                <Plus className="h-4 w-4" />Add widget
+              </Button>
+            </div>
+            {!ready && <p role="status" className="text-xs text-muted-foreground">
+              {preferences.isError ? <>Could not load your layout. <button type="button" className="underline" onClick={() => preferences.refetch()}>Try again</button></> : 'Loading your saved layout…'}
+            </p>}
+          </div>
         </div>
-        <DragGhost dragState={dragState} dragCloneRef={dragCloneRef} />
-        <ResizeOverlay resizeState={resizeState} />
-      </ResizeCtx.Provider>
+        <div className="h-24" />
+        <Dialog open={addOpen} onOpenChange={setAddOpen}>
+          <DialogContent onEscapeKeyDown={() => setAddOpen(false)} onPointerDownOutside={() => setAddOpen(false)}>
+            <DialogTitle>Add to your Home</DialogTitle>
+            <DialogDescription className="mt-1 mb-4">New widgets appear at the top. Arrange them however you like.</DialogDescription>
+            <div className="space-y-2">
+              {hidden.map(w => <button key={w.id} type="button" aria-label={'Add ' + w.label}
+                onClick={() => { handleToggle(w.id); setAddOpen(false); scrollAppTo(0, 'smooth'); }}
+                className="flex w-full min-h-16 items-center gap-3 rounded-2xl border border-border/50 p-3 text-left hover:border-primary/50 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-xl" aria-hidden="true">{w.icon}</span>
+                <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{w.label}</span><span className="block text-xs text-muted-foreground">{w.description}</span></span>
+                <Plus className="h-4 w-4 shrink-0 text-primary" />
+              </button>)}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </>}
+      {editing && !ready && !draftKey.current ? null : children}
+      {editing && orderedEnabledIds.length === 0 && <p className="px-6 py-10 text-center text-sm text-muted-foreground">Start with Add widget to build your Home.</p>}
     </EditModeContext.Provider>
   );
 }

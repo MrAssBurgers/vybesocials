@@ -3,12 +3,16 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useCallback } from 'react';
+import { useReportAccountSession } from './useReportAccountSession';
+import { reportAccountSnapshot } from '@/lib/reportModerationService';
 
 /**
  * Canonical shape of user preferences persisted to DB.
  * localStorage is used ONLY as a fast cache; DB is the source of truth.
  */
 export interface UserPreferences {
+  /** Imported preference rows can have a document ID different from the profile. */
+  id?: string;
   clips_muted: boolean;
   explore_view_mode: 'clips' | 'videos';
   button_sound: string;
@@ -30,20 +34,20 @@ const DEFAULTS: UserPreferences = {
   extra: {},
 };
 
-const CACHE_KEY = 'vybe_user_prefs_cache';
+const cacheKey = (uid: string, profileId: string) => `vybe_user_prefs_cache:${uid}:${profileId}`;
 
-function getCached(): Partial<UserPreferences> | null {
+function getCached(key: string): Partial<UserPreferences> | null {
   try {
-    const raw = localStorage.getItem(CACHE_KEY);
+    const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }
 }
 
-function setCache(prefs: UserPreferences) {
+function setCache(key: string, prefs: UserPreferences) {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(prefs));
+    localStorage.setItem(key, JSON.stringify(prefs));
   } catch { /* noop */ }
 }
 
@@ -51,14 +55,13 @@ function setCache(prefs: UserPreferences) {
 export function useUserPreferences() {
   const { user } = useAuth();
   const profileId = useAuthProfileId();
-  const userId = profileId || user?.id;
+  const session = useReportAccountSession();
+  const userId = session.uid === user?.id ? profileId : undefined;
 
   return useQuery({
-    queryKey: ['user-preferences', userId],
+    queryKey: ['user-preferences', session.uid, userId, session.epoch],
     queryFn: async (): Promise<UserPreferences> => {
-      const cached = getCached();
-
-      if (!userId) return { ...DEFAULTS, ...cached };
+      if (!userId || !session.uid) throw new Error('Account is still loading');
 
       const { data, error } = await db
         .from('user_preferences' as any)
@@ -66,24 +69,25 @@ export function useUserPreferences() {
         .eq('user_id', userId)
         .maybeSingle();
 
-      if (error || !data) return { ...DEFAULTS, ...cached };
+      if (reportAccountSnapshot() !== session) throw new Error('Account changed');
+      if (error) throw new Error(error.message);
+      if (!data) { setCache(cacheKey(session.uid, userId), DEFAULTS); return DEFAULTS; }
 
-      const prefs: UserPreferences = {
-        clips_muted: (data as any).clips_muted ?? DEFAULTS.clips_muted,
-        explore_view_mode: (data as any).explore_view_mode ?? DEFAULTS.explore_view_mode,
-        button_sound: (data as any).button_sound ?? DEFAULTS.button_sound,
-        dismissed_quick_add_ids: (data as any).dismissed_quick_add_ids ?? DEFAULTS.dismissed_quick_add_ids,
-        unlocked_easter_eggs: (data as any).unlocked_easter_eggs ?? DEFAULTS.unlocked_easter_eggs,
-        intro_completed: (data as any).intro_completed ?? DEFAULTS.intro_completed,
-        referral_confirmed: (data as any).referral_confirmed ?? DEFAULTS.referral_confirmed,
-        extra: (data as any).extra ?? DEFAULTS.extra,
-      };
+      // Pick canonical fields while retaining the existing document identity.
+      const prefs = Object.fromEntries(Object.entries(DEFAULTS).map(([key, fallback]) =>
+        [key, (data as Record<string, unknown>)[key] ?? fallback],
+      )) as UserPreferences;
+      if (typeof (data as any).id === 'string') prefs.id = (data as any).id;
 
-      setCache(prefs);
+      setCache(cacheKey(session.uid, userId), prefs);
       return prefs;
     },
     staleTime: 60_000,
     enabled: !!userId,
+    placeholderData: userId && session.uid ? () => {
+      const cached = getCached(cacheKey(session.uid!, userId));
+      return cached ? { ...DEFAULTS, ...cached } : undefined;
+    } : undefined,
   });
 }
 
@@ -92,43 +96,52 @@ export function useUpdatePreferences() {
   const { user } = useAuth();
   const profileId = useAuthProfileId();
   const qc = useQueryClient();
+  const session = useReportAccountSession();
+  const userId = session.uid === user?.id ? profileId : undefined;
+  const key = ['user-preferences', session.uid, userId, session.epoch];
+  const assertCurrent = () => {
+    if (!userId || !session.uid || reportAccountSnapshot() !== session) throw new Error('Account changed');
+  };
 
   return useMutation({
-    mutationFn: async (patch: Partial<UserPreferences>) => {
-      const userId = profileId || user?.id;
-      if (!userId) throw new Error('Not authenticated');
+    scope: { id: `preferences:${session.uid}:${userId}` },
+    mutationFn: async (input: Partial<UserPreferences> | ((current: UserPreferences) => Partial<UserPreferences>)) => {
+      assertCurrent();
 
-      const current = (qc.getQueryData(['user-preferences', userId]) as UserPreferences) ?? { ...DEFAULTS };
-      const merged = { ...current, ...patch };
+      const current = (qc.getQueryData(key) as UserPreferences) ?? DEFAULTS;
+      const patch = typeof input === 'function' ? input(current) : input;
+      const merged = { ...current, ...patch, extra: { ...current.extra, ...patch.extra } };
 
       const { error } = await db
         .from('user_preferences' as any)
         .upsert({
+          ...(current.id ? { id: current.id } : {}),
           user_id: userId,
-          ...merged,
+          ...patch,
           updated_at: new Date().toISOString(),
         } as any, { onConflict: 'user_id' });
 
-      if (error) throw error;
-
-      setCache(merged);
+      if (error) throw new Error(error.message);
+      assertCurrent();
+      setCache(cacheKey(session.uid!, userId!), merged);
+      qc.setQueryData(key, merged);
       return merged;
     },
     onMutate: async (patch) => {
-      const userId = profileId || user?.id;
-      const key = ['user-preferences', userId];
+      assertCurrent();
       await qc.cancelQueries({ queryKey: key });
+      assertCurrent();
       const prev = qc.getQueryData(key) as UserPreferences | undefined;
-      qc.setQueryData(key, { ...DEFAULTS, ...prev, ...patch });
-      return { prev };
+      if (typeof patch !== 'function') qc.setQueryData(key, { ...DEFAULTS, ...prev, ...patch, extra: { ...prev?.extra, ...patch.extra } });
+      return { prev, key };
     },
     onError: (_err, _patch, ctx) => {
-      if (ctx?.prev) {
-        qc.setQueryData(['user-preferences', user?.id], ctx.prev);
-      }
+      if (!ctx || reportAccountSnapshot() !== session) return;
+      if (ctx.prev) qc.setQueryData(ctx.key, ctx.prev);
+      else qc.removeQueries({ queryKey: ctx.key, exact: true });
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: ['user-preferences', profileId || user?.id] });
+      if (reportAccountSnapshot() === session) qc.invalidateQueries({ queryKey: key });
     },
   });
 }
