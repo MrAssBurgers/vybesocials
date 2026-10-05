@@ -60,4 +60,3 @@ for (const [name, rules] of [['demo-home-before',before],['demo-home-candidate',
   } finally { await env.cleanup(); }
 }
 console.log('Exact baseline/current/candidate preferences:', checks, 'checks passed');
-

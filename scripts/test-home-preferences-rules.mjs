@@ -59,4 +59,3 @@ try {
   await admin.doc('user_preferences/preview-profile-alice').update({'extra.home_customization_qa':FieldValue.delete()});
   await Promise.all(dbs.map(terminate)); await Promise.all(apps.map(deleteApp));
 }
-
