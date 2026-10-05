@@ -44,7 +44,7 @@ function showNativeNotification(title: string, body: string, url?: string) {
   };
 }
 
-export type NotificationType = 'like' | 'comment' | 'follow' | 'follow_request' | 'friend_request' | 'friend_accepted' | 'friend_declined' | 'message' | 'mention' | 'missed_call' | 'announcement' | 'content_removed' | 'smart_ping';
+export type NotificationType = 'like' | 'comment' | 'follow' | 'follow_request' | 'friend_request' | 'friend_accepted' | 'friend_declined' | 'message' | 'mention' | 'missed_call' | 'announcement' | 'content_removed' | 'smart_ping' | 'map_wave';
 
 /** Types handled elsewhere — no bell toast (DMs → chat list; missed calls → DM thread). */
 const SKIP_BELL_TOAST_TYPES = new Set<NotificationType>([
@@ -257,11 +257,12 @@ export function useNotifications() {
             announcement: 'posted an announcement',
             content_removed: 'removed your content',
             smart_ping: 'sent you a smart ping',
+            map_wave: 'waved at you on VybeMap 👋',
           };
 
           const message = `${actor?.username || 'Someone'} ${messages[type] || 'interacted with you'}`;
 
-          const route = buildNotificationRoute(
+          const route = type === 'map_wave' ? '/map' : buildNotificationRoute(
             normalizeNotificationPayload({
               type,
               postId: payload.new.post_id,

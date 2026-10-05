@@ -361,6 +361,10 @@ async function notifySocialPush(notification, notificationId) {
         || isRetiredUpgradeNotice({ type: notification.type, id: notificationId }))
         return;
     const type = (asString(notification.type) || 'general').toLowerCase();
+    // Wave receipts confirm the in-app notification only. Existing device registrations
+    // do not prove recipient ownership, so waves must not reach the generic push path.
+    if (type === 'map_wave')
+        return;
     if (SKIP_BELL_PUSH_TYPES.has(type))
         return;
     if (!SOCIAL_PUSH_TYPES.has(type) && type !== 'general')

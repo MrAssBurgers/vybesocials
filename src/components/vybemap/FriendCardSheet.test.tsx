@@ -19,4 +19,17 @@ describe('map friend card controls', () => {
     view.rerender(<FriendCardSheet {...p} messageError="Opening the chat took too long. Please retry." />);
     expect(screen.getByRole('alert')).toHaveTextContent('Please retry'); expect(screen.getByRole('button', { name: 'Chat' })).toBeEnabled();
   });
+  it('never substitutes Chat when Wave is unavailable', () => {
+    const p = props(); render(<FriendCardSheet {...p} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Wave' })); expect(p.onMessage).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Wave' })).toBeDisabled();
+  });
+  it('keeps a real wave usable with own GPS off and exposes pending/error/cooldown feedback', () => {
+    const p = props(), wave = vi.fn(); const view = render(<FriendCardSheet {...p} onWave={wave} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Wave' })); expect(wave).toHaveBeenCalledOnce();
+    view.rerender(<FriendCardSheet {...p} onWave={wave} wavePending />); expect(screen.getByRole('button', { name: 'Sending…' })).toBeDisabled(); expect(screen.queryByRole('status')).toBeNull();
+    view.rerender(<FriendCardSheet {...p} onWave={wave} waveError="Offline. Please retry." />); expect(screen.getByRole('alert')).toHaveTextContent('Offline'); fireEvent.click(screen.getByRole('button', { name: 'Retry wave' })); expect(wave).toHaveBeenCalledTimes(2);
+    view.rerender(<FriendCardSheet {...p} onWave={wave} waveMessage="Wave sent." waveCooldownSeconds={42} />); expect(screen.getByRole('status')).toHaveTextContent('in-app notification'); expect(screen.getByRole('button', { name: 'Wave in 42s' })).toBeDisabled();
+    view.rerender(<FriendCardSheet {...p} onWave={wave} waveAvailable={false} />); expect(screen.getByRole('button', { name: 'Wave' })).toBeDisabled(); expect(screen.getByText(/map access is refreshed/)).toBeInTheDocument();
+  });
 });

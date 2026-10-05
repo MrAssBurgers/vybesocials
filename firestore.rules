@@ -622,6 +622,8 @@ service cloud.firestore {
     match /_map_squad_receipts/{docId} { allow read, write: if false; }
     match /_map_squad_cursors/{docId} { allow read, write: if false; }
     match /_map_squad_recreations/{docId} { allow read, write: if false; }
+    match /_map_wave_receipts/{docId} { allow read, write: if false; }
+    match /_map_wave_cooldowns/{docId} { allow read, write: if false; }
     match /map_location_intel/{docId} {
       // Auth-scoped research can contain a private draft's coordinates/name.
       allow read, write: if false;

@@ -1,10 +1,13 @@
-import { useState } from 'react';
-import { ChevronLeft, Search, SlidersHorizontal } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ChevronLeft, Search, SlidersHorizontal, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface MapSnapTopBarProps {
   onBack: () => void;
-  onSearch: (query: string) => void;
+  onSearch: (query: string) => Promise<boolean>;
+  onCancelSearch: () => void;
+  searchPending?: boolean;
+  searchError?: string;
   onOpenSettings: () => void;
   radarLabel?: string;
   squadChip?: { label: string; onClear: () => void } | null;
@@ -18,6 +21,9 @@ interface MapSnapTopBarProps {
 export function MapSnapTopBar({
   onBack,
   onSearch,
+  onCancelSearch,
+  searchPending,
+  searchError,
   onOpenSettings,
   radarLabel,
   squadChip,
@@ -28,11 +34,15 @@ export function MapSnapTopBar({
 }: MapSnapTopBarProps) {
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const generation = useRef(0);
+  useEffect(() => () => { generation.current++; }, []);
+  const closeSearch = () => { generation.current++; onCancelSearch(); setSearchOpen(false); };
 
-  const submit = () => {
-    if (!query.trim()) return;
-    onSearch(query.trim());
-    setSearchOpen(false);
+  const submit = async () => {
+    if (!query.trim() || searchPending) return;
+    const attempt = ++generation.current;
+    const found = await onSearch(query.trim());
+    if (found && attempt === generation.current) setSearchOpen(false);
   };
 
   return (
@@ -54,26 +64,35 @@ export function MapSnapTopBar({
               <input
                 autoFocus
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => { generation.current++; onCancelSearch(); setQuery(e.target.value); }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') submit();
-                  if (e.key === 'Escape') setSearchOpen(false);
+                  if (e.key === 'Escape') closeSearch();
                 }}
+                aria-label="Search map places"
+                aria-describedby={searchError ? 'map-search-error' : undefined}
+                maxLength={240}
+                autoComplete="off"
                 placeholder="City, address, or place…"
                 className="flex-1 bg-transparent text-sm outline-none min-w-0"
               />
               <button
                 type="button"
                 onClick={submit}
+                disabled={searchPending || !query.trim()}
                 className="text-[11px] font-bold uppercase tracking-wide opacity-90 px-1"
               >
-                Go
+                {searchPending ? 'Searching…' : 'Go'}
+              </button>
+              <button type="button" aria-label="Close map search" onClick={closeSearch} className="shrink-0 rounded-full p-1">
+                <X className="h-4 w-4" />
               </button>
             </div>
           ) : (
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
+              aria-label="Search map places"
               className="pointer-events-auto flex flex-1 items-center gap-2.5 vybe-map-pill h-10 px-3.5 min-w-0"
             >
               <Search className="h-4 w-4 shrink-0 opacity-50" />
@@ -91,6 +110,8 @@ export function MapSnapTopBar({
             <SlidersHorizontal className="h-[17px] w-[17px]" />
           </button>
         </div>
+
+        {searchOpen && searchError && <p id="map-search-error" role="status" className="pointer-events-auto mt-2 rounded-2xl bg-background/95 px-3 py-2 text-xs text-foreground">{searchError}</p>}
 
         {(radarLabel || squadChip || liveSharing !== undefined) && (
           <div className="mt-2 flex flex-wrap gap-1.5">

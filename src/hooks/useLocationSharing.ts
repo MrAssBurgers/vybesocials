@@ -25,7 +25,9 @@ export function useLocationSharing(targetId?: string, enabled = true) {
       const elapsed = Math.max(0, performance.now() - started);
       return { ...received, receivedAt: receivedAt - elapsed, validUntil: receivedAt + Math.max(0, Math.min(15_000, received.leaseUntil - received.serverTime) - elapsed) };
     },
-    staleTime: 0, gcTime: 0, retry: false, placeholderData: undefined, refetchOnMount: 'always', refetchOnWindowFocus: 'always', refetchInterval: 15_000,
+    // Refresh before the 15-second lease expires. Waiting 15 seconds after the
+    // reply guarantees a gap because the lease already subtracts round-trip time.
+    staleTime: 0, gcTime: 0, retry: false, placeholderData: undefined, refetchOnMount: 'always', refetchOnWindowFocus: 'always', refetchInterval: 10_000,
   });
   useEffect(() => {
     const change = () => {

@@ -513,6 +513,7 @@
       ] }
   ],
   "fieldOverrides": [
+    {"collectionGroup":"_map_wave_cooldowns","fieldPath":"expireAt","ttl":true,"indexes":[]},
     {"collectionGroup":"_map_squad_invites","fieldPath":"expireAt","ttl":true,"indexes":[]},
     {"collectionGroup":"_map_squad_cursors","fieldPath":"expireAt","ttl":true,"indexes":[]},
     {"collectionGroup":"_map_social_cursors","fieldPath":"expireAt","ttl":true,"indexes":[]},

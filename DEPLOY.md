@@ -12,6 +12,12 @@ Production web hosting is **Lovable**, with custom domain **`vybehub.app`**. Lov
 | Firebase Hosting staging frontend | https://vybe-daaab.web.app — shares the production Firebase project; not an isolated data environment |
 | Isolated local QA | `demo-vybe-preview`; follow [LOCAL_PREVIEW_QA.md](docs/LOCAL_PREVIEW_QA.md). Never deploy its configuration or fixtures. |
 
+## Map Wave repair checkpoint (2026-10-05)
+
+Deploy only the exact new callable **`manageMapWave`** and the changed **`onSocialNotificationCreated`** with the matching tested client and private Rules. Checked account-profile binding and location-sharing authority are prerequisites. Raw `map_wave` notification creation stays denied. `_map_wave_receipts` is durable without TTL; `_map_wave_cooldowns.expireAt` is eligible for cleanup after 24 hours, independent of its enforced 60-second pair cooldown. No new composite index, secret, Auth setting or Storage change is required. See [Map Wave stability](docs/MAP_WAVE_STABILITY.md).
+
+Wave creates a confirmed **in-app bell notification only**. The changed trigger skips device lookup and external push for this type until a separate device-registration repair proves recipient ownership. Existing mutable token rows and client-controlled provider aliases are not that proof; generic push is unchanged and remains unverified. Roll out the trigger restriction before enabling the callable. This guidance is pending, does not publish production and does not lift the `auth2faRequest` deployment restriction.
+
 ## Squad Maps repair checkpoint (2026-10-05)
 
 The exact new callable is **`manageMapSquad`**, dependent on checked account-profile binding and the existing location-sharing admission used by map highlights. Deploy its matching client and raw squad restrictions together; old direct `map_group_maps`/`map_group_members` clients are incompatible. Provision the two `_map_squad_members` indexes and `expireAt` TTL on `_map_squad_invites` (24 hours) and `_map_squad_cursors` (10 minutes), as specified in [Squad Maps stability](docs/MAP_SQUAD_STABILITY.md). Retain `_map_squads`, `_map_squad_members`, `_map_squad_receipts` and `_map_squad_recreations` without TTL. All six protected namespaces deny raw client access. Legacy owner review creates a new owner-only squad and preserves historical rows; do not bulk-adopt old membership. No new secrets, Auth settings or Storage changes. This is pending coordinated rollout guidance, not a deployment, and does not lift the `auth2faRequest` restriction.

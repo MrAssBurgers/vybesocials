@@ -34,10 +34,10 @@ import { RouteOriginPicker, type RouteOriginChoice } from '@/components/vybemap/
 import { useLocationIntel } from '@/hooks/vybemap/useLocationIntel';
 import { hasMapbox } from '@/lib/vybemap/mapbox/config';
 import { fetchMapboxRoute } from '@/lib/vybemap/mapbox/directions';
-import { resolveTeleportQuery } from '@/lib/vybemap/mapbox/geocode';
+import { useMapSearch } from '@/hooks/vybemap/useMapSearch';
 import { externalDirectionsUrl } from '@/lib/vybemap/mapNavigation';
 import { isHeadingTowardYou } from '@/lib/vybemap/headingToward';
-import { sendMapWave } from '@/lib/vybemap/mapSocial';
+import { useMapWave } from '@/hooks/vybemap/useMapWave';
 import { useSquadDetail, useSquadMatches } from '@/hooks/vybemap/useMapSquads';
 import { useVybeMapFlyTo } from '@/components/vybemap/map/useVybeMapFlyTo';
 import { GhostModeSheet } from '@/components/vybemap/hud/GhostModeSheet';
@@ -142,7 +142,6 @@ function VybeMapInner() {
   const startFind = useStartFindFriend();
   const createSpot = useCreateMapSpot();
   const createMeetup = useCreateMeetup();
-  const effectiveId = profileId ?? profile?.id;
   const logAccess = useLogLocationAccess();
   const { mapViewMode, setMapViewMode } = useMapViewMode();
   const { setMap, flyTo, flyToUser, startWander, resetBearing } = useVybeMapFlyTo(mapViewMode);
@@ -227,6 +226,7 @@ function VybeMapInner() {
   const effectiveLiveSharing = sharing && locationAvailable && !!safeMyCoords && !locationDenied;
   const sel = useMemo(() => friends.find((f) => f.user_id === selId) || null, [friends, selId]);
   const friendChat = useMapFriendChat(sel, id => navigate(`/messages/${encodeURIComponent(id)}`));
+  const friendWave = useMapWave(sel, selId);
   const squadSet = useMemo(
     () => (layers.groups && activeSquad && squadMatches.data ? new Set(squadMatches.data.matchedProfileIds) : undefined),
     [layers.groups, activeSquad, squadMatches.data],
@@ -444,16 +444,11 @@ function VybeMapInner() {
   const handleGhostDuration = (ms: number) => confirmSharing(() => enableTemporaryGhost(ms), `Ghost Mode confirmed for ${Math.round(ms / 60_000)} minutes while this app remains open.`);
   const handleStatusChip = () => { setGhostOpen(true); };
 
-  const handleSearch = async (query: string) => {
-    trackMapEvent('teleport', { q: query });
-    const hit = await resolveTeleportQuery(query);
-    if (hit) {
-      mapFlyTo(hit.lat, hit.lng, 12);
-      toast.success(`Jumped to ${hit.label}`);
-      return;
-    }
-    toast.error('Could not find that place');
-  };
+  const mapSearch = useMapSearch(hit => {
+    mapFlyTo(hit.lat, hit.lng, 12);
+    trackMapEvent('teleport');
+    toast.success(`Jumped to ${hit.label}`);
+  }, `${useMapbox}:${mapViewMode}`);
 
   const handleWander = useCallback(() => {
     setFollowHeading(false);
@@ -532,7 +527,10 @@ function VybeMapInner() {
 
       <MapSnapTopBar
         onBack={() => navigate(-1)}
-        onSearch={(q) => void handleSearch(q)}
+        onSearch={mapSearch.search}
+        onCancelSearch={mapSearch.cancel}
+        searchPending={mapSearch.isPending}
+        searchError={mapSearch.error}
         onOpenSettings={() => setSettingsOpen(true)}
         radarLabel={radar.label}
         liveSharing={effectiveLiveSharing}
@@ -681,12 +679,12 @@ function VybeMapInner() {
               const name = sel.profile?.display_name || sel.profile?.username || 'Friend';
               void startLiveRoute(`Route to ${name}`, [lat, lng], { friendLease: captureMapLocationLease(sel, locationScope, true) });
             }}
-            onWave={async () => {
-              if (!effectiveId) return;
-              const name = profile?.display_name || profile?.username || 'Someone';
-              await sendMapWave(effectiveId, sel.user_id, name);
-              trackMapEvent('map_wave' as any, { to: sel.user_id });
-            }}
+            onWave={() => void friendWave.send()}
+            wavePending={friendWave.isPending}
+            waveError={friendWave.error}
+            waveMessage={friendWave.message}
+            waveCooldownSeconds={friendWave.cooldownSeconds}
+            waveAvailable={friendWave.isAvailable}
             onFind={() => handleFindFriend(sel)}
             onProfile={() => { const u = sel.profile?.username; if (u) openFriendProfile(navigate, { username: u, friendshipStatus: 'friends' }); }}
           />

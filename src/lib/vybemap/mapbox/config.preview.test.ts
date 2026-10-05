@@ -8,7 +8,7 @@ describe('map preview renderer isolation', () => {
     const config = await import('./config'); expect(config.hasMapbox()).toBe(true); expect(config.MAPBOX_TOKEN.startsWith('pk.')).toBe(true);
     expect(config.readStoredMapViewMode()).toBe('3d'); expect(config.pitchForMode('3d')).toBe(52);
     const { resolveTeleportQuery } = await import('./geocode'), { fetchMapboxRoute } = await import('./directions');
-    expect(await resolveTeleportQuery('Austin')).toBeNull(); expect(await fetchMapboxRoute([1, 2], [3, 4])).toBeNull(); expect(fetch).not.toHaveBeenCalled();
+    await expect(resolveTeleportQuery('Austin')).rejects.toThrow(/local preview/); expect(await fetchMapboxRoute([1, 2], [3, 4])).toBeNull(); expect(fetch).not.toHaveBeenCalled();
   });
   it('preserves configured production Mapbox availability', async () => {
     state.local = false; const config = await import('./config'); expect(config.hasMapbox()).toBe(true); expect(config.MAPBOX_TOKEN.startsWith('pk.')).toBe(true);

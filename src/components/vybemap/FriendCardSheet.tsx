@@ -18,6 +18,11 @@ interface FriendCardSheetProps {
   onFind: () => void;
   onProfile: () => void;
   onWave?: () => void;
+  wavePending?: boolean;
+  waveError?: string;
+  waveMessage?: string;
+  waveCooldownSeconds?: number;
+  waveAvailable?: boolean;
   onLiveRoute?: () => void;
   onCall?: () => void;
 }
@@ -32,6 +37,7 @@ function timeSince(iso: string): string {
 
 export function FriendCardSheet({
   friend, myCoords, headingToward, routeEtaMinutes, onClose, onMessage, messagePending, messageError, onNavigate, onFind, onProfile, onWave, onLiveRoute,
+  wavePending, waveError, waveMessage, waveCooldownSeconds = 0, waveAvailable = true,
 }: FriendCardSheetProps) {
   const name = friend.profile?.display_name || friend.profile?.username || 'Friend';
   const username = friend.profile?.username;
@@ -115,10 +121,13 @@ export function FriendCardSheet({
         </motion.button>
 
         {messageError && <p role="alert" className="mt-3 text-sm text-white/80">{messageError}</p>}
+        {waveError && <p role="alert" className="mt-3 text-sm text-white/80">{waveError}</p>}
+        {waveMessage && <p role="status" className="mt-3 text-sm text-white/80">{waveMessage} An in-app notification was created.</p>}
+        {!waveAvailable && onWave && <p className="mt-3 text-xs text-white/60">Wave is unavailable until this friend’s map access is refreshed.</p>}
         <div className="grid grid-cols-4 gap-2 mt-3">
           <ActionBtn icon={MessageCircle} label={messagePending ? 'Opening…' : 'Chat'} onClick={messagePending ? undefined : onMessage} />
           <ActionBtn icon={Navigation} label="Route" onClick={onLiveRoute ?? onNavigate} />
-          <ActionBtn icon={Hand} label="Wave" onClick={onWave ?? onMessage} />
+          <ActionBtn icon={Hand} label={wavePending ? 'Sending…' : waveCooldownSeconds > 0 ? `Wave in ${waveCooldownSeconds}s` : waveError ? 'Retry wave' : 'Wave'} onClick={wavePending || waveCooldownSeconds > 0 || !waveAvailable ? undefined : onWave} />
           <ActionBtn icon={User} label="Profile" onClick={onProfile} />
         </div>
       </div>

@@ -1,17 +1,9 @@
-import { db } from '@/lib/firebase';
+import type { MapWaveActor, MapWaveTarget } from './mapWaveService';
 
-export async function sendMapWave(
-  fromProfileId: string,
-  toProfileId: string,
-  fromName: string,
-): Promise<void> {
-  await db.from('notifications').insert({
-    user_id: toProfileId,
-    actor_id: fromProfileId,
-    type: 'map_wave',
-    title: fromName,
-    body: 'waved at you on VybeMap 👋',
-    deep_link: '/map',
-    read: false,
-  });
+/** Wave uses server-owned notification content and current map admission. */
+export async function sendMapWave(actor: MapWaveActor, target: MapWaveTarget, guard: () => void) {
+  guard();
+  const { sendCheckedMapWave } = await import('./mapWaveService');
+  guard();
+  return sendCheckedMapWave(actor, target, guard);
 }

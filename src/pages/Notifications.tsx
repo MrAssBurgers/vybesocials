@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { 
   Heart, MessageCircle, UserPlus, UserCheck, Check, X, 
-  Users, PhoneMissed, Bell, RefreshCw, Sparkles, ShieldAlert, BellRing, Gift
+  Users, PhoneMissed, Bell, RefreshCw, Sparkles, ShieldAlert, BellRing, Gift, Hand
 } from 'lucide-react';
 import { useNotifications, useMarkNotificationsRead, NotificationType } from '@/hooks/useNotifications';
 import { useRecentAnnouncements } from '@/hooks/useAnnouncements';
@@ -44,6 +44,7 @@ const ICON_CONFIG: Record<NotificationType, { icon: React.ElementType; color: st
   announcement: { icon: BellRing, color: 'text-primary', bg: 'bg-primary/10' },
   content_removed: { icon: ShieldAlert, color: 'text-destructive', bg: 'bg-destructive/10' },
   smart_ping: { icon: Sparkles, color: 'text-primary', bg: 'bg-primary/10' },
+  map_wave: { icon: Hand, color: 'text-violet-500', bg: 'bg-violet-500/10' },
 };
 
 const NOTIFICATION_TEXT: Record<NotificationType, string> = {
@@ -60,6 +61,7 @@ const NOTIFICATION_TEXT: Record<NotificationType, string> = {
   announcement: 'posted an announcement',
   content_removed: 'removed your content',
   smart_ping: '',
+  map_wave: 'waved at you on VybeMap 👋',
 };
 
 function compactTime(dateStr: string): string {
@@ -755,6 +757,7 @@ function NotificationRow({ notification, index, isRead, isLast }: NotificationRo
     e.preventDefault();
     e.stopPropagation();
 
+    if (notification.type === 'map_wave') { navigate('/map'); return; }
     if (notification.type === 'follow_request') { navigate('/settings?tab=privacy'); return; }
     if (notification.type === 'friend_request' && actor.username) {
       navigate(`/u/${actor.username}`);
@@ -816,6 +819,27 @@ function NotificationRow({ notification, index, isRead, isLast }: NotificationRo
   }, [shouldGoToChat, actor.id, onHover]);
 
   // Smart pings get their own rich card UI
+  if (notification.type === 'map_wave') {
+    const name = notification.title?.trim().slice(0, 120) || actor.display_name || actor.username || 'A friend';
+    return (
+      <motion.button
+        type="button"
+        initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: index * 0.03, duration: 0.28 }}
+        onClick={handleClick}
+        aria-label={`${name} ${NOTIFICATION_TEXT.map_wave}. Open map`}
+        className={cn('flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary', !isLast && 'border-b border-border/20', isRead && 'opacity-60')}
+      >
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-violet-500/10 text-violet-500"><Hand aria-hidden="true" className="h-5 w-5" /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] leading-snug"><span className="font-semibold">{name}</span>{' '}<span className="text-muted-foreground">{NOTIFICATION_TEXT.map_wave}</span></span>
+          <span className="mt-0.5 block text-[11px] text-muted-foreground/60">{compactTime(notification.created_at)} · Open map</span>
+        </span>
+        {!notification.read && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />}
+      </motion.button>
+    );
+  }
+
   if (notification.type === 'smart_ping') {
     return (
       <div className="px-2 py-1.5">

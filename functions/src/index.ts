@@ -112,3 +112,4 @@ export { manageSharedTheme, generateThemeCode, useThemeCode } from './sharedThem
 export { manageLoginStreak } from './loginStreak.js';
 export { manageMapSocial } from './mapSocial.js';
 export { manageMapSquad } from './mapSquads.js';
+export { manageMapWave } from './mapWaves.js';
