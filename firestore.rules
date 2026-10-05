@@ -596,15 +596,14 @@ service cloud.firestore {
       allow update, delete: if ownsUserField('user_id') || isAdmin();
     }
     match /map_post_pins/{docId} {
-      allow read: if signedIn();
-      allow create: if signedIn() && willOwnUserField('user_id');
-      allow update, delete: if ownsUserField('user_id') || isAdmin();
+      allow read, write: if false;
     }
     match /map_clip_pins/{docId} {
-      allow read: if signedIn();
-      allow create: if signedIn() && willOwnUserField('user_id');
-      allow update, delete: if ownsUserField('user_id') || isAdmin();
+      allow read, write: if false;
     }
+    match /_map_pins/{docId} { allow read, write: if false; }
+    match /_map_pin_receipts/{docId} { allow read, write: if false; }
+    match /_map_pin_cursors/{docId} { allow read, write: if false; }
     match /map_event_pins/{docId} {
       allow read: if signedIn();
       allow write: if isAdmin();

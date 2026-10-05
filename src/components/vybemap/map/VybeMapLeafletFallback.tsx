@@ -6,6 +6,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { LiveFriend, MapStoryPin, MapPostPin, MapClipPin, MapMeetup, MapPlace, MapEventPin, HeatmapCell, MapLayer } from '@/lib/vybemap/types';
 import { activityMeta } from '@/lib/vybemap/activity';
+import { createMapContentMarker } from './mapContentMarker';
 
 const DEFAULT_CENTER: [number, number] = [39.8283, -98.5795];
 export const FALLBACK_TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -24,13 +25,14 @@ export interface VybeMapLeafletProps {
   squadMemberIds?: Set<string>;
   onFriendTap: (f: LiveFriend) => void;
   onPlaceTap: (p: MapPlace) => void;
+  onContentTap?: (pin: MapPostPin | MapClipPin) => void;
   mapElRef: React.RefObject<HTMLDivElement | null>;
   onMapReady?: (map: L.Map | null) => void;
 }
 
 export function VybeMapLeafletFallback({
   center, layers, friends, stories, posts, clips, meetups, places, eventPins, heatmap,
-  onFriendTap, onPlaceTap, mapElRef, onMapReady, squadMemberIds,
+  onFriendTap, onPlaceTap, onContentTap, mapElRef, onMapReady, squadMemberIds,
 }: VybeMapLeafletProps) {
   const mapRef = useRef<L.Map | null>(null);
   const readyCallback = useRef(onMapReady);
@@ -93,6 +95,13 @@ export function VybeMapLeafletFallback({
     if (layers.stories) stories.forEach((s) => {
       L.circleMarker([s.latitude, s.longitude], { radius: 8, color: '#ec4899', fillColor: '#f472b6', fillOpacity: 0.9, weight: 2 }).addTo(layer);
     });
+    const contentControls: ReturnType<typeof createMapContentMarker>[] = [];
+    if (onContentTap) for (const pin of [...(layers.posts ? posts : []), ...(layers.clips ? clips : [])]) {
+      const control = createMapContentMarker(pin, onContentTap); contentControls.push(control);
+      const icon = L.divIcon({ html: control.element, className: '', iconSize: [46, 46], iconAnchor: [23, 23] });
+      // The inner native button owns click/keyboard activation, avoiding double sends.
+      L.marker([pin.latitude, pin.longitude], { icon, keyboard: false }).addTo(layer);
+    }
     if (layers.trending || layers.hotspots) {
       places.slice(0, 40).forEach((p) => {
         const size = 36 + Math.min(p.check_in_count, 24);
@@ -106,7 +115,8 @@ export function VybeMapLeafletFallback({
         });
       });
     }
-  }, [friends, stories, places, layers, onFriendTap, onPlaceTap, attempt, squadMemberIds]);
+    return () => { contentControls.forEach(control => control.dispose()); };
+  }, [friends, stories, posts, clips, places, layers, onFriendTap, onPlaceTap, onContentTap, attempt, squadMemberIds]);
 
   useEffect(() => {
     const hLayer = heatLayerRef.current;

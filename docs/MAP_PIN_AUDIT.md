@@ -1,8 +1,8 @@
-# Map content pins: read-only audit
+# Map content pins: baseline audit and staged repair
 
-Initial audit baseline: `43f80ac5`; follow-up source audit: `fa4c06fc`, 2026-10-05. This document records unfinished existing story, post, clip, and event pin paths. **No pin producer, reader, rule, or interaction was repaired in either audit.** Wave and Search are the current implementation checkpoint. Content pins are planned for later continuations. The original Mapbox 3D renderer must remain intact.
+Initial audit baseline: `43f80ac5`; follow-up source audit: `fa4c06fc`, 2026-10-05. The findings below describe those historical baselines. **The posts/clips stage is now implemented and verified in [MAP_PIN_STABILITY.md](MAP_PIN_STABILITY.md); it supersedes the old post/clip readers, rules, producer and interaction findings here.** Story and event source/pin repairs remain pending. Neither audit itself changed implementation. The original Mapbox 3D renderer remains intact.
 
-## What the repository actually does
+## What the repository did at the audit baseline
 
 | Layer | Current reader | Source and consent evidence | Opening behavior |
 | --- | --- | --- | --- |

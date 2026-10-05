@@ -1,5 +1,6 @@
 import { applyConfirmedPostView } from '@/lib/postViewService';
 import { usePostMutations } from '@/hooks/usePostMutations';
+import { MapPinDialogLoader } from '@/components/vybemap/MapPinDialogLoader';
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { ProfileLink } from '@/components/profile/ProfileLink';
@@ -114,9 +115,10 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const [showCommentSheet, setShowCommentSheet] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [mapPinOpen, setMapPinOpen] = useState(false);
   const [deleteRevision, setDeleteRevision] = useState<string | undefined>();
   const [isDeleting, setIsDeleting] = useState(false);
-  useEffect(() => { setDeleteDialogOpen(false); setIsDeleting(false); setDeleteRevision(undefined); }, [postActions.contextKey]);
+  useEffect(() => { setDeleteDialogOpen(false); setIsDeleting(false); setDeleteRevision(undefined); setMapPinOpen(false); }, [postActions.contextKey]);
 
   const [showShareSheet, setShowShareSheet] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -586,6 +588,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
+            {isOwnPost && <DropdownMenuItem onSelect={() => setMapPinOpen(true)}>Map sharing</DropdownMenuItem>}
             {isOwnPost && (
               <DropdownMenuItem onClick={() => setEditDialogOpen(true)}>
                 <Pencil className="mr-2 h-4 w-4" />
@@ -686,6 +689,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       />
 
       {/* Edit Dialog */}
+      {mapPinOpen && isOwnPost && <MapPinDialogLoader sourceId={post.id} kind="clip" onClose={() => setMapPinOpen(false)} />}
       {isOwnPost && post.needs_owner_confirmation && <div className="absolute bottom-24 left-4 right-20 z-20 rounded-2xl bg-background/90 p-3 text-sm"><p>Only you can see this older clip.</p><Button variant="link" className="h-auto p-0" onClick={() => setEditDialogOpen(true)}>Review and share</Button></div>}
       {isOwnPost && (
         <EditPostDialog

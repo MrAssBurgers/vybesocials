@@ -12,6 +12,12 @@ Production web hosting is **Lovable**, with custom domain **`vybehub.app`**. Lov
 | Firebase Hosting staging frontend | https://vybe-daaab.web.app — shares the production Firebase project; not an isolated data environment |
 | Isolated local QA | `demo-vybe-preview`; follow [LOCAL_PREVIEW_QA.md](docs/LOCAL_PREVIEW_QA.md). Never deploy its configuration or fixtures. |
 
+## Post/clip map-pin repair checkpoint (2026-10-05)
+
+The exact new callable is **`manageMapPin`**, dependent on checked account-profile binding and post publication. Release its explicit owner area-sharing/removal controls, checked list/read consumers and both renderer opening paths with the matching Rules. Direct `map_post_pins`, `map_clip_pins`, `_map_pins`, `_map_pin_receipts` and `_map_pin_cursors` access is denied, including raw staff access. Old copied pin rows do not grant consent and are not auto-adopted. Story/event paths remain outside this stage.
+
+Provision the `_map_pins` index `(kind ASC, status ASC, shared_at DESC, __name__ DESC)` and `_map_pin_cursors.expireAt` TTL (10-minute authority lifetime). Keep pin consent/tombstones and receipts durable without TTL. No new secret, Auth configuration, Storage change or provider call is required. See [Post/clip map-pin stability](docs/MAP_PIN_STABILITY.md) for source creation-version checks, current audience/location admission, exact retry semantics and remaining limits. Coordinate the complete client cutover before narrowing raw reads; this section does not deploy or publish production and does not lift the `auth2faRequest` restriction.
+
 ## Map Wave repair checkpoint (2026-10-05)
 
 Deploy only the exact new callable **`manageMapWave`** and the changed **`onSocialNotificationCreated`** with the matching tested client and private Rules. Checked account-profile binding and location-sharing authority are prerequisites. Raw `map_wave` notification creation stays denied. `_map_wave_receipts` is durable without TTL; `_map_wave_cooldowns.expireAt` is eligible for cleanup after 24 hours, independent of its enforced 60-second pair cooldown. No new composite index, secret, Auth setting or Storage change is required. See [Map Wave stability](docs/MAP_WAVE_STABILITY.md).

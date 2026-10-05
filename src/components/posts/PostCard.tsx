@@ -1,4 +1,5 @@
 import { usePostMutations } from '@/hooks/usePostMutations';
+import { MapPinDialogLoader } from '@/components/vybemap/MapPinDialogLoader';
 import { useState, useRef, memo, lazy, Suspense, useCallback, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ProfileLink } from '@/components/profile/ProfileLink';
@@ -453,6 +454,7 @@ export const PostCard = memo(function PostCard({
   const [showCommentSheet, setShowCommentSheet] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [mapPinOpen, setMapPinOpen] = useState(false);
   const [deleteRevision, setDeleteRevision] = useState<string | undefined>();
   const [isDeleting, setIsDeleting] = useState(false);
   const [whyOpen, setWhyOpen] = useState(false);
@@ -580,7 +582,7 @@ export const PostCard = memo(function PostCard({
     }
   }, [post.id]);
 
-  useEffect(() => { setDeleteDialogOpen(false); setIsDeleting(false); setDeleteRevision(undefined); }, [postActions.contextKey]);
+  useEffect(() => { setDeleteDialogOpen(false); setIsDeleting(false); setDeleteRevision(undefined); setMapPinOpen(false); }, [postActions.contextKey]);
 
   const handleDelete = useCallback(async () => {
     setIsDeleting(true);
@@ -711,6 +713,7 @@ export const PostCard = memo(function PostCard({
                     )}
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => setLocalSharingOpen(true)}><MapPin className="h-4 w-4 mr-2" />Local sharing</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setMapPinOpen(true)}><MapPin className="h-4 w-4 mr-2" />Map sharing</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setIsEditOpen(true)}>
                     <Pencil className="h-4 w-4 mr-2" />
                     Edit Post
@@ -1054,6 +1057,7 @@ export const PostCard = memo(function PostCard({
       {(!post.tags || post.tags.length === 0) && <div className="pb-4" />}
 
       {localSharingOpen && isOwnPost && <Suspense fallback={null}><PostLocalAreaDialog postId={post.id} onClose={() => setLocalSharingOpen(false)} /></Suspense>}
+      {mapPinOpen && isOwnPost && <MapPinDialogLoader sourceId={post.id} kind={post.type === 'short' ? 'clip' : 'post'} onClose={() => setMapPinOpen(false)} />}
 
       {/* Edit Post Dialog */}
       <DeleteContentDialog

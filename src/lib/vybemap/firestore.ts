@@ -11,7 +11,7 @@ import {
   orderBy,
   firestoreLimit,
 } from '@/lib/firebase/firestoreDb';
-import type { MapStoryPin, MapPostPin, MapClipPin, MapEventPin } from './types';
+import type { MapStoryPin, MapEventPin } from './types';
 
 export const COLLECTIONS = {
   history: 'location_history',
@@ -77,18 +77,6 @@ export async function fetchMapStories(): Promise<MapStoryPin[]> {
   ]);
   return rows;
 }
-
-export async function fetchMapPosts(): Promise<MapPostPin[]> {
-  return getDocuments<MapPostPin>(COLLECTIONS.posts, [orderBy('created_at', 'desc'), firestoreLimit(60)]);
-}
-
-export async function fetchMapClips(): Promise<MapClipPin[]> {
-  return getDocuments<MapClipPin>(COLLECTIONS.clips, [orderBy('created_at', 'desc'), firestoreLimit(60)]);
-}
-
-
-
-
 
 export async function fetchEventPins(): Promise<MapEventPin[]> {
   return getDocuments<MapEventPin>(COLLECTIONS.eventPins, [firestoreLimit(80)]);

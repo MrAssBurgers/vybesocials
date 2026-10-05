@@ -225,24 +225,9 @@ export interface MapStoryPin {
   profile?: { username: string | null; avatar_url: string | null };
 }
 
-export interface MapPostPin {
-  id: string;
-  user_id: string;
-  caption?: string | null;
-  media_url?: string | null;
-  latitude: number;
-  longitude: number;
-  profile?: { username: string | null; avatar_url: string | null };
-}
-
-export interface MapClipPin {
-  id: string;
-  user_id: string;
-  media_url: string;
-  thumbnail_url?: string | null;
-  latitude: number;
-  longitude: number;
-}
+/** Checked source-backed pins; never copied raw pin documents. */
+export type MapPostPin = import('./mapPinService').MapContentPin;
+export type MapClipPin = import('./mapPinService').MapContentPin;
 
 export interface HeatmapCell {
   geohash_prefix: string;

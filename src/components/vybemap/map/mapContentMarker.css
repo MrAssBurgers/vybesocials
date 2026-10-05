@@ -1,0 +1,13 @@
+.vybe-content-pin {
+  position: relative; display: grid; place-items: center; overflow: hidden;
+  width: 46px; height: 46px; border-radius: 18px; border: 2px solid #ede9fe;
+  background: radial-gradient(circle at 25% 20%, #a78bfa, #6d28d9);
+  color: white; box-shadow: 0 4px 20px #1e103a66; cursor: pointer;
+  font: 700 22px/1 system-ui; transition: scale 160ms ease;
+}
+.vybe-content-pin[data-kind="clip"] { background: radial-gradient(circle at 25% 20%, #67e8f9, #0e7490); }
+.vybe-content-pin img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.vybe-content-pin img[hidden] { display: none; }
+.vybe-content-pin:focus-visible { outline: 3px solid white; outline-offset: 4px; }
+.vybe-content-pin:active { scale: .94; }
+@media (prefers-reduced-motion: reduce) { .vybe-content-pin { transition: none; } }

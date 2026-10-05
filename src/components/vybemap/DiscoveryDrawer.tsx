@@ -6,8 +6,9 @@ import {
   useMotionValue,
   type PanInfo,
 } from 'framer-motion';
-import { ChevronUp, Flame, MapPin, Users, Video, Calendar, Radio } from 'lucide-react';
-import type { LiveFriend, MapStoryPin, MapClipPin, MapMeetup, MapPlace, FriendCheckIn } from '@/lib/vybemap/types';
+import { ChevronUp, Flame, MapPin, Users, Video, Calendar, Radio, ImageIcon } from 'lucide-react';
+import type { LiveFriend, MapStoryPin, MapPostPin, MapClipPin, MapMeetup, MapPlace, FriendCheckIn } from '@/lib/vybemap/types';
+import { mapPinContentLabel, mapPinLabel } from './map/mapContentMarker';
 import { MapReadNotice } from './MapReadNotice';
 import { cn } from '@/lib/utils';
 
@@ -17,6 +18,8 @@ interface DiscoveryDrawerProps {
   meetupsState?: LoadState;
   placesState?: LoadState;
   checkInsState?: LoadState;
+  postsState?: LoadState;
+  clipsState?: LoadState;
   open: boolean;
   onToggle: () => void;
   friends: LiveFriend[];
@@ -25,6 +28,7 @@ interface DiscoveryDrawerProps {
   onRetryFriends?: () => void;
   mapAttribution?: ReactNode;
   stories: MapStoryPin[];
+  posts?: MapPostPin[];
   clips: MapClipPin[];
   meetups: MapMeetup[];
   places: MapPlace[];
@@ -34,14 +38,15 @@ interface DiscoveryDrawerProps {
   onMeetupTap: (m: MapMeetup) => void;
   onPlaceTap: (p: MapPlace) => void;
   onCreateMeetup?: () => void;
+  onContentTap?: (pin: MapPostPin | MapClipPin) => void;
 }
 
 /** Peek chrome: handle + title + friends rail. */
 const PEEK_PX = 84;
 
 export function DiscoveryDrawer({
-  meetupsState, placesState, checkInsState, open, onToggle, friends, stories, clips, meetups, places, radarLabel, friendCheckIns = [],
-  onFriendTap, onMeetupTap, onPlaceTap, onCreateMeetup, friendsLoading, friendsError, onRetryFriends, mapAttribution,
+  meetupsState, placesState, checkInsState, postsState, clipsState, open, onToggle, friends, stories, posts = [], clips, meetups, places, radarLabel, friendCheckIns = [],
+  onFriendTap, onMeetupTap, onPlaceTap, onCreateMeetup, onContentTap, friendsLoading, friendsError, onRetryFriends, mapAttribution,
 }: DiscoveryDrawerProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
@@ -65,7 +70,7 @@ export function DiscoveryDrawer({
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [friends.length, stories.length, clips.length, meetups.length, places.length, friendCheckIns.length]);
+  }, [friends.length, stories.length, posts.length, clips.length, meetups.length, places.length, friendCheckIns.length]);
 
   // Sync snap position when open/collapsedY change (skip while finger is down).
   useEffect(() => {
@@ -214,6 +219,7 @@ export function DiscoveryDrawer({
           !open && 'pointer-events-none',
         )}
         aria-hidden={!open}
+        {...(!open ? { inert: '' } : {})}
       >
         {(friendCheckIns.length > 0 || checkInsState) && (
           <Section icon={MapPin} title="Recent activity" count={friendCheckIns.length}>
@@ -257,17 +263,24 @@ export function DiscoveryDrawer({
           </Section>
         )}
 
-        {clips.length > 0 && (
-          <Section icon={Video} title="Clips nearby" count={clips.length}>
-            <HorizScroll>
-              {clips.map((c) => (
-                <div key={c.id} className="shrink-0 w-20 h-28 rounded-2xl overflow-hidden bg-white/5 ring-1 ring-white/10">
-                  {c.thumbnail_url && <img src={c.thumbnail_url} alt="" className="w-full h-full object-cover" loading="lazy" />}
+        {[{ title: 'Posts on the map', label: 'Posts', icon: ImageIcon, rows: posts, state: postsState }, { title: 'Clips on the map', label: 'Clips', icon: Video, rows: clips, state: clipsState }].map(section => (section.rows.length > 0 || section.state) && (
+          <Section key={section.label} icon={section.icon} title={section.title} count={section.rows.length}>
+            {loadNotice(section.label, section.state)}
+            {!section.rows.length && section.state && !section.state.isLoading && !section.state.isError && <p className="text-xs text-white/50 pb-2">{section.state.hasNextPage ? 'No shared content in this group. Keep browsing to see more.' : 'No shared content in this group yet.'}</p>}
+            <HorizScroll>{section.rows.map(pin => (
+              <button key={pin.id} type="button" disabled={!onContentTap} aria-label={mapPinLabel(pin)} onClick={() => onContentTap?.(pin)} className="shrink-0 w-36 overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300">
+                <div className="h-20 flex items-center justify-center bg-gradient-to-br from-violet-500/20 to-cyan-500/15">
+                  {pin.thumbnailUrl ? <img src={pin.thumbnailUrl} alt="" className="w-full h-full object-cover" loading="lazy" referrerPolicy="no-referrer" /> : <section.icon className="h-6 w-6 text-white/60" />}
                 </div>
-              ))}
-            </HorizScroll>
+                <div className="p-2.5">
+                  <p className="text-xs font-semibold text-white truncate">{pin.author.displayName || pin.author.username}</p>
+                  <p className="text-xs text-white/65 line-clamp-2 mt-1">{pin.caption || `View ${mapPinContentLabel(pin)}`}</p>
+                  <p className="text-[10px] text-sky-200/80 truncate mt-1.5">{pin.areaLabel} · approximate area</p>
+                </div>
+              </button>
+            ))}</HorizScroll>
           </Section>
-        )}
+        ))}
 
         {(meetups.length > 0 || onCreateMeetup) && (
           <Section icon={Calendar} title="Meetups" count={meetups.length}>

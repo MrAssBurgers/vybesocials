@@ -48,6 +48,7 @@ import { MapViewport } from '@/components/vybemap/MapViewport';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMapSocialRouteAdmission } from '@/hooks/vybemap/useMapSocial';
 import { useMapFriendChat } from '@/hooks/vybemap/useMapFriendChat';
+import { useOpenMapPin } from '@/hooks/vybemap/useOpenMapPin';
 import { currentMapSocialRoute, mapRouteAccountScope, type MapSocialRouteLease } from '@/lib/vybemap/mapSocialRouteLease';
 
 // Use the existing 3D renderer by default in both preview and production.
@@ -129,8 +130,12 @@ function VybeMapInner() {
   const checkInsQuery = useFriendCheckIns(friendIds);
   const friendCheckIns = checkInsQuery.data || [];
   const { data: stories = [] } = useMapStories(layers.stories);
-  const { data: posts = [] } = useMapPosts(layers.posts);
-  const { data: clips = [] } = useMapClips(layers.clips);
+  const postsQuery = useMapPosts(layers.posts);
+  const posts = postsQuery.data || [];
+  const clipsQuery = useMapClips(layers.clips);
+  const clips = clipsQuery.data || [];
+  const contentPins = useMemo(() => [...posts, ...clips], [posts, clips]);
+  const contentOpen = useOpenMapPin(contentPins, useMapbox ? '3d' : 'fallback', navigate);
   const meetupsQuery = useMapMeetups(layers.meetups);
   const meetups = meetupsQuery.data || [];
   const { data: heatmap = [] } = useMapHeatmap(layers.heatmap);
@@ -378,7 +383,8 @@ function VybeMapInner() {
     heatmap,
     onFriendTap,
     onPlaceTap,
-  }), [safeMyCoords, layers, friends, stories, posts, clips, meetups, places, eventPins, heatmap, onFriendTap, onPlaceTap]);
+    onContentTap: contentOpen.open,
+  }), [safeMyCoords, layers, friends, stories, posts, clips, meetups, places, eventPins, heatmap, onFriendTap, onPlaceTap, contentOpen.open]);
 
   useEffect(() => {
     trackMapEvent('map_open');
@@ -524,6 +530,12 @@ function VybeMapInner() {
       )}
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-36 vybe-map-bottom-fade z-[500]" />
+
+      {(contentOpen.isPending || contentOpen.error) && <div className="absolute inset-x-3 top-28 z-[1700] mx-auto flex max-w-lg items-center gap-2 rounded-2xl border border-white/15 bg-zinc-900/95 p-3 text-sm text-white shadow-xl" role={contentOpen.error ? 'alert' : 'status'}>
+        <span className="flex-1">{contentOpen.isPending ? 'Opening shared content…' : contentOpen.error}</span>
+        {contentOpen.error && contentOpen.canRetry && <button type="button" className="rounded-xl px-3 py-2 bg-white/10 font-semibold" onClick={() => void contentOpen.retry()}>Retry content</button>}
+        <button type="button" className="rounded-xl px-3 py-2 bg-white/10" onClick={contentOpen.dismiss}>{contentOpen.isPending ? 'Cancel' : 'Dismiss'}</button>
+      </div>}
 
       <MapSnapTopBar
         onBack={() => navigate(-1)}
@@ -783,12 +795,16 @@ function VybeMapInner() {
         meetupsState={layers.meetups ? meetupsQuery : undefined}
         placesState={layers.trending || layers.hotspots ? placesQuery : undefined}
         checkInsState={checkInsQuery}
+        postsState={layers.posts ? postsQuery : undefined}
+        clipsState={layers.clips ? clipsQuery : undefined}
         friendsLoading={friendQuery.isLoading || liveQuery.isLoading}
         mapAttribution={<>{useMapbox && <><a href="https://www.mapbox.com/about/maps/" target="_blank" rel="noopener" className="underline">© Mapbox</a>{' · '}</>}<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" className="underline">© OpenStreetMap contributors</a>{useMapbox && <>{' · '}<a href="https://apps.mapbox.com/feedback/" target="_blank" rel="noopener" className="underline">Improve this map</a></>}</>}
         friendsError={friendQuery.isError || liveQuery.isError}
         onRetryFriends={() => { void friendQuery.refetch(); void liveQuery.refetch(); }}
         stories={stories}
+        posts={posts}
         clips={clips}
+        onContentTap={contentOpen.open}
         meetups={meetups}
         places={places}
         radarLabel={radar.label}

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { ProfileLink } from '@/components/profile/ProfileLink';
+import { MapPinDialogLoader } from '@/components/vybemap/MapPinDialogLoader';
 import { Heart, MessageCircle, Send, Bookmark, Play, Eye } from 'lucide-react';
 import { ReactionPicker } from '@/components/reactions/ReactionPicker';
 import { ReactionType } from '@/lib/reactions';
@@ -87,6 +88,8 @@ export const MobileShortCard = memo(function MobileShortCard({
   const [isHolding, setIsHolding] = useState(false);
   const [showCommentSheet, setShowCommentSheet] = useState(false);
   const [showShareSheet, setShowShareSheet] = useState(false);
+  const [mapPinOpen, setMapPinOpen] = useState(false);
+  useEffect(() => { setMapPinOpen(false); }, [profile?.id, post.id]);
   const [showHeart, setShowHeart] = useState(false);
   const [captionExpanded, setCaptionExpanded] = useState(false);
   const nativePerf = isNativePerfMode();
@@ -637,6 +640,8 @@ export const MobileShortCard = memo(function MobileShortCard({
       </div>
 
       {/* Instagram-style comment bottom sheet */}
+      {profile?.id === post.author.id && <Button size="sm" variant="secondary" className="absolute right-3 top-20 z-20" onClick={() => setMapPinOpen(true)}>Map sharing</Button>}
+      {mapPinOpen && profile?.id === post.author.id && <MapPinDialogLoader sourceId={post.id} kind="clip" onClose={() => setMapPinOpen(false)} />}
       <CommentSheet
         postId={post.id}
         authorId={post.author.id}

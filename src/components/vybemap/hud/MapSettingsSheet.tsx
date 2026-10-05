@@ -61,7 +61,7 @@ export function MapSettingsSheet({
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/20" />
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-base font-bold text-white tracking-tight">Map settings</h3>
-          <button type="button" onClick={onClose} className="h-9 w-9 rounded-full bg-white/8 flex items-center justify-center text-white/70">
+          <button type="button" aria-label="Close map settings" onClick={onClose} className="h-9 w-9 rounded-full bg-white/8 flex items-center justify-center text-white/70">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -134,6 +134,7 @@ export function MapSettingsSheet({
                     key={m.id}
                     type="button"
                     onClick={() => onMapMode(m.id)}
+                    aria-pressed={mapMode === m.id}
                     className={cn(
                       'shrink-0 flex flex-col items-center gap-1.5 min-w-[4.5rem] px-3 py-2.5 rounded-2xl border text-center transition-colors',
                       mapMode === m.id
@@ -159,6 +160,7 @@ export function MapSettingsSheet({
                   key={key}
                   type="button"
                   onClick={() => onToggleLayer(key)}
+                  aria-pressed={layers[key]}
                   className={cn(
                     'flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors',
                     layers[key] ? 'bg-white/14 text-white' : 'bg-white/4 text-white/45',

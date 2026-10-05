@@ -32,6 +32,7 @@ import { InlineComments } from '@/components/comments/InlineComments';
 import { ShareSheet } from '@/components/share/ShareSheet';
 import { HoldToShare } from '@/components/share/HoldToShare';
 import { PostListReadStatus } from '@/components/posts/PostListReadStatus';
+import { MapPinDialogLoader } from '@/components/vybemap/MapPinDialogLoader';
 
 export default function WatchPage() {
   const { id = '' } = useParams<{ id: string }>();
@@ -54,8 +55,10 @@ function WatchContent() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [showShareSheet, setShowShareSheet] = useState(false);
+  const [mapPinOpen, setMapPinOpen] = useState(false);
 
   const account = useProfileAccount();
+  useEffect(() => { setMapPinOpen(false); }, [account.session.epoch, account.session.uid, id]);
   const { entry, retry: retryVideo } = useActivePostPreview(id || '');
   const checked = entry.post;
   const isLoading = entry.status === 'queued' || entry.status === 'loading';
@@ -361,6 +364,7 @@ function WatchContent() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {account.ready && profile?.id === video.author.id && <Button variant="secondary" size="sm" onClick={() => setMapPinOpen(true)}>Map sharing</Button>}
                   <Button
                     variant="secondary"
                     size="sm"
@@ -462,6 +466,7 @@ function WatchContent() {
       </div>
 
       {/* Share Sheet */}
+      {mapPinOpen && account.ready && profile?.id === video.author.id && <MapPinDialogLoader sourceId={video.id} kind="post" onClose={() => setMapPinOpen(false)} />}
       <ShareSheet
         isOpen={showShareSheet}
         onClose={() => setShowShareSheet(false)}

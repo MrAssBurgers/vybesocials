@@ -10,8 +10,10 @@ vi.mock('leaflet', () => ({ default: {
   marker: () => ({ addTo: () => ({ on: vi.fn() }) }), circleMarker: () => ({ addTo: vi.fn() }), circle: () => ({ addTo: vi.fn() }), DomEvent: { stopPropagation: vi.fn() },
 } }));
 import { DEFAULT_LAYERS } from '@/lib/vybemap/types';
+import { mapPinFixture } from '@/test/mapPinFixture';
+import type { MapContentPin } from '@/lib/vybemap/mapPinService';
 import { FALLBACK_TILES, VybeMapLeafletFallback } from './VybeMapLeafletFallback';
-function Host({ friends = [], onMapReady, squadMemberIds }: { friends?: any[]; onMapReady?: (map: any) => void; squadMemberIds?: Set<string> }) { const ref = useRef<HTMLDivElement>(null); return <><div ref={ref} /><VybeMapLeafletFallback center={null} layers={DEFAULT_LAYERS} friends={friends} stories={[]} posts={[]} clips={[]} meetups={[]} places={[]} eventPins={[]} heatmap={[]} squadMemberIds={squadMemberIds} onFriendTap={() => {}} onPlaceTap={() => {}} mapElRef={ref} onMapReady={onMapReady} /></>; }
+function Host({ friends = [], posts = [], clips = [], onContentTap, onMapReady, squadMemberIds }: { friends?: any[]; posts?: MapContentPin[]; clips?: MapContentPin[]; onContentTap?: (pin: MapContentPin) => void; onMapReady?: (map: any) => void; squadMemberIds?: Set<string> }) { const ref = useRef<HTMLDivElement>(null); return <><div ref={ref} /><VybeMapLeafletFallback center={null} layers={{ ...DEFAULT_LAYERS, posts: true, clips: true }} friends={friends} stories={[]} posts={posts} clips={clips} meetups={[]} places={[]} eventPins={[]} heatmap={[]} squadMemberIds={squadMemberIds} onFriendTap={() => {}} onPlaceTap={() => {}} onContentTap={onContentTap} mapElRef={ref} onMapReady={onMapReady} /></>; }
 beforeEach(() => { vi.useFakeTimers(); state.maps.length = 0; state.tiles.length = 0; state.icons.length = 0; vi.stubGlobal('ResizeObserver', class { observe() {} disconnect = state.disconnect; }); });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 describe('keyless map tile lifecycle', () => {
@@ -55,5 +57,15 @@ describe('keyless map tile lifecycle', () => {
     expect(first.textContent).toContain('A');
     view.rerender(<Host friends={friends} squadMemberIds={new Set()} />);
     expect((state.icons.at(-1) as { html: HTMLElement }).html.style.getPropertyValue('--ring')).not.toBe('#a855f7');
+  });
+  it('opens both checked content kinds and retires old marker listeners after removal or unmount', () => {
+    const post = mapPinFixture(), clip = mapPinFixture({ id: 'd'.repeat(64), kind: 'clip', sourceType: 'short' }), open = vi.fn();
+    const view = render(<Host posts={[post]} clips={[clip]} onContentTap={open} />);
+    const buttons = state.icons.map(icon => (icon as { html: HTMLElement }).html.querySelector('button')!);
+    expect(buttons).toHaveLength(2); fireEvent.click(buttons[0]); expect(open).toHaveBeenLastCalledWith(post); fireEvent.click(buttons[1]); expect(open).toHaveBeenLastCalledWith(clip);
+    view.rerender(<Host posts={[]} clips={[clip]} onContentTap={open} />);
+    fireEvent.click(buttons[0]); fireEvent.click(buttons[1]); expect(open).toHaveBeenCalledTimes(2);
+    const current = (state.icons.at(-1) as { html: HTMLElement }).html.querySelector('button')!;
+    fireEvent.click(current); expect(open).toHaveBeenCalledTimes(3); view.unmount(); fireEvent.click(current); expect(open).toHaveBeenCalledTimes(3);
   });
 });

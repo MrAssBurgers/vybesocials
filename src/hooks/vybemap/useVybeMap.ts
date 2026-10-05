@@ -12,14 +12,13 @@ import {
 import {
   fetchFriendIds,
   fetchMapStories,
-  fetchMapPosts,
-  fetchMapClips,
   fetchEventPins,
   logLocationAccess,
   startFinderSession,
   fetchLocationHistory,
 } from '@/lib/vybemap/firestore';
 import { useMapSocialList, useMapSocialMutation } from './useMapSocial';
+import { useMapPinList } from '@/hooks/useMapPins';
 import { useLocationSharing } from '@/hooks/useLocationSharing';
 import { isValidLatLng } from '@/lib/vybemap/geo';
 import { useSquadList, useSquadAction, useSquadMatches } from './useMapSquads';
@@ -116,11 +115,11 @@ export function useMapStories(enabled: boolean) {
 }
 
 export function useMapPosts(enabled: boolean) {
-  return useQuery({ queryKey: ['vybemap-posts'], enabled, staleTime: 30_000, queryFn: fetchMapPosts });
+  return useMapPinList('post', enabled);
 }
 
 export function useMapClips(enabled: boolean) {
-  return useQuery({ queryKey: ['vybemap-clips'], enabled, staleTime: 30_000, queryFn: fetchMapClips });
+  return useMapPinList('clip', enabled);
 }
 
 export function useMapMeetups(enabled: boolean) { return useMapSocialList('meetups', undefined, enabled); }

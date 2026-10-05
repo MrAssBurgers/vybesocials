@@ -17,6 +17,7 @@ import {
   subscribeDeviceHeading,
 } from '@/lib/vybemap/deviceHeading';
 import { getRuntimeOs } from '@/lib/despiaBridge';
+import { createMapContentMarker } from './mapContentMarker';
 import type {
   LiveFriend,
   MapStoryPin,
@@ -48,6 +49,7 @@ export interface VybeMapboxCanvasProps {
   onFriendTap: (f: LiveFriend) => void;
   onPlaceTap: (p: MapPlace) => void;
   onMeetupTap?: (m: MapMeetup) => void;
+  onContentTap?: (pin: MapPostPin | MapClipPin) => void;
   onMapReady?: (map: mapboxgl.Map | null) => void;
   onUseFlatFallback?: () => void;
   routeGeometry?: GeoJSON.LineString | null;
@@ -154,6 +156,7 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   onFriendTap,
   onPlaceTap,
   onMeetupTap,
+  onContentTap,
   onMapReady,
   onUseFlatFallback,
   routeGeometry,
@@ -166,6 +169,7 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   const friendMarkers = useRef(new Map<string, mapboxgl.Marker>());
   const spotMarkers = useRef(new Map<string, mapboxgl.Marker>());
   const meetupMarkers = useRef(new Map<string, mapboxgl.Marker>());
+  const contentMarkers = useRef(new Map<string, { marker: mapboxgl.Marker; control: ReturnType<typeof createMapContentMarker> }>());
   const selfMarker = useRef<mapboxgl.Marker | null>(null);
   const styleLoaded = useRef(false);
   const styleGeneration = useRef(0);
@@ -253,6 +257,8 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
         markers.current.clear();
       }
       selfMarker.current?.remove(); selfMarker.current = null;
+      contentMarkers.current.forEach(({ marker, control }) => { control.dispose(); marker.remove(); });
+      contentMarkers.current.clear();
     };
     const beginStyle = (mode: MapViewMode, replace: boolean) => {
       disposeStyle();
@@ -745,24 +751,36 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
       layers.stories,
     );
     pinLayer(
-      'posts',
-      posts.map((p) => [p.longitude, p.latitude]),
-      '#8b5cf6',
-      layers.posts,
-    );
-    pinLayer(
-      'clips',
-      clips.map((c) => [c.longitude, c.latitude]),
-      '#06b6d4',
-      layers.clips,
-    );
-    pinLayer(
       'events',
       eventPins.map((e) => [e.longitude, e.latitude]),
       '#f59e0b',
       layers.events,
     );
-  }, [stories, posts, clips, eventPins, layers, readyGeneration]);
+  }, [stories, eventPins, layers, readyGeneration]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !styleLoaded.current) return;
+    const seen = new Set<string>();
+    if (onContentTap) {
+      const pins = [...(layers.posts ? posts : []), ...(layers.clips ? clips : [])];
+      for (const pin of pins) {
+        seen.add(pin.id);
+        let entry = contentMarkers.current.get(pin.id);
+        if (!entry) {
+          const control = createMapContentMarker(pin, onContentTap);
+          const marker = new mapboxgl.Marker({ element: control.element, anchor: 'center' }).setLngLat([pin.longitude, pin.latitude]).addTo(map);
+          entry = { marker, control }; contentMarkers.current.set(pin.id, entry);
+        } else {
+          entry.control.update(pin, onContentTap);
+          entry.marker.setLngLat([pin.longitude, pin.latitude]);
+        }
+      }
+    }
+    contentMarkers.current.forEach(({ marker, control }, id) => {
+      if (!seen.has(id)) { control.dispose(); marker.remove(); contentMarkers.current.delete(id); }
+    });
+  }, [posts, clips, layers.posts, layers.clips, onContentTap, readyGeneration]);
 
   useEffect(() => {
     const map = mapRef.current;

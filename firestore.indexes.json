@@ -1,5 +1,6 @@
 {
   "indexes": [
+    {"collectionGroup":"_map_pins","queryScope":"COLLECTION","fields":[{"fieldPath":"kind","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"shared_at","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}]},
     {"collectionGroup":"_location_requests","queryScope":"COLLECTION","fields":[{"fieldPath":"participant_uids","arrayConfig":"CONTAINS"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"expires_at_ms","order":"ASCENDING"}]},
     {"collectionGroup":"_location_requests","queryScope":"COLLECTION","fields":[{"fieldPath":"pair_id","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"expires_at_ms","order":"ASCENDING"}]},
     {"collectionGroup":"_location_grants","queryScope":"COLLECTION","fields":[{"fieldPath":"active","order":"ASCENDING"},{"fieldPath":"expires_at_ms","order":"ASCENDING"}]},
@@ -513,6 +514,7 @@
       ] }
   ],
   "fieldOverrides": [
+    {"collectionGroup":"_map_pin_cursors","fieldPath":"expireAt","ttl":true,"indexes":[]},
     {"collectionGroup":"_map_wave_cooldowns","fieldPath":"expireAt","ttl":true,"indexes":[]},
     {"collectionGroup":"_map_squad_invites","fieldPath":"expireAt","ttl":true,"indexes":[]},
     {"collectionGroup":"_map_squad_cursors","fieldPath":"expireAt","ttl":true,"indexes":[]},

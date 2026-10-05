@@ -35,6 +35,7 @@ vi.mock('@/lib/mediaUrl', () => ({ normalizeMediaUrl: (url: string) => url }));
 vi.mock('@/lib/vybemap/deviceHeading', () => ({ subscribeDeviceHeading: () => () => {}, lerpHeading: () => 0 }));
 vi.mock('@/lib/despiaBridge', () => ({ getRuntimeOs: () => 'web' }));
 import { DEFAULT_LAYERS } from '@/lib/vybemap/types';
+import { mapPinFixture } from '@/test/mapPinFixture';
 import { VybeMapboxCanvas, type VybeMapboxCanvasProps } from './VybeMapboxCanvas';
 const props = { center: null, mapMode: '3d' as const, layers: DEFAULT_LAYERS, friends: [], stories: [], posts: [], clips: [], meetups: [], places: [], eventPins: [], heatmap: [], onFriendTap: vi.fn(), onPlaceTap: vi.fn() };
 beforeEach(() => { vi.useFakeTimers(); state.maps.length = 0; state.markers.length = 0; state.fail = false; vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} }); });
@@ -90,16 +91,16 @@ describe('3D world map remains the requested renderer', () => {
       places: [{ id: 'place', name: 'Park', latitude: 30.2, longitude: -97.2, check_in_count: 1 }],
       meetups: [{ id: 'meet', title: 'Walk', dest_latitude: 30.3, dest_longitude: -97.3 }],
       heatmap: [{ cell_latitude: 30.4, cell_longitude: -97.4, intensity: 20 }],
-      posts: [{ id: 'post', latitude: 30.5, longitude: -97.5 }],
+      posts: [mapPinFixture({ latitude: 30.5, longitude: -97.5 })], onContentTap: vi.fn(),
       routeGeometry: { type: 'LineString', coordinates: [[-97, 30], [-97.5, 30.5]] }, onMeetupTap: vi.fn(),
     } as unknown as VybeMapboxCanvasProps;
     const ready = vi.fn(); const view = render(<VybeMapboxCanvas {...populated} onMapReady={ready} />);
     const map = state.maps[0]; expect(state.markers).toHaveLength(0);
     const assertHydrated = (target: Record<string, any>) => {
-      expect(state.markers.filter(marker => marker.map === target && !marker.removed)).toHaveLength(4);
+      expect(state.markers.filter(marker => marker.map === target && !marker.removed)).toHaveLength(5);
       expect(target.sources.get('vybe-route').data.geometry).toEqual(populated.routeGeometry);
       expect(target.sources.get('vybe-heatmap').data.features).toHaveLength(1);
-      expect(target.sources.get('vybe-posts').data.features).toHaveLength(1);
+      expect(state.markers.filter(marker => marker.map === target && !marker.removed).some(marker => marker.element.querySelector('button[aria-label="Open post by Alice · Chicago · approximate area"]'))).toBe(true);
       expect(target.layers.has('vybe-route-line')).toBe(true);
     };
     act(() => map.emit('style.load')); assertHydrated(map);
@@ -140,5 +141,18 @@ describe('3D world map remains the requested renderer', () => {
     act(() => map.emit('vybe:resume-follow'));
     view.rerender(<VybeMapboxCanvas {...props} center={[30.2, -97.2]} mapMode="satellite" />);
     expect(map.easeTo).toHaveBeenLastCalledWith(expect.objectContaining({ center: [-97.2, 30.2] }));
+  });
+  it('updates admitted marker callbacks and removes buttons when their layer or admission ends', () => {
+    const pin = mapPinFixture(), clip = mapPinFixture({ id: 'd'.repeat(64), sourceType: 'short', kind: 'clip' }), open = vi.fn();
+    const content = { ...props, layers: { ...DEFAULT_LAYERS, posts: true, clips: true }, posts: [pin], clips: [clip], onContentTap: open };
+    const view = render(<VybeMapboxCanvas {...content} />); act(() => state.maps[0].emit('style.load'));
+    const markers = state.markers.filter(marker => !marker.removed);
+    expect(markers).toHaveLength(2); const button = markers[0].element.querySelector('button');
+    fireEvent.click(button); expect(open).toHaveBeenLastCalledWith(pin);
+    const updated = { ...pin, areaLabel: 'Updated area', revision: 'e'.repeat(48) };
+    view.rerender(<VybeMapboxCanvas {...content} posts={[updated]} />);
+    fireEvent.click(button); expect(open).toHaveBeenLastCalledWith(updated); expect(state.markers).toHaveLength(2);
+    view.rerender(<VybeMapboxCanvas {...content} layers={{ ...content.layers, posts: false }} clips={[]} />);
+    expect(markers.every(marker => marker.removed)).toBe(true); fireEvent.click(button); expect(open).toHaveBeenCalledTimes(2);
   });
 });

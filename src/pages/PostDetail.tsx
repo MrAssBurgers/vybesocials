@@ -1,4 +1,5 @@
 import { usePostMutations } from '@/hooks/usePostMutations';
+import { MapPinDialogLoader } from '@/components/vybemap/MapPinDialogLoader';
 import { useDraftContinuationGuard } from '@/hooks/useDraftContinuationGuard';
 import { CommentLoadError } from '@/components/comments/CommentLoadError';
 import { useParams, Link, useNavigate } from 'react-router-dom';
@@ -285,6 +286,7 @@ function PostDetailContent() {
   const [premiumMemeBanOpen, setPremiumMemeBanOpen] = useState(false);
   const [deleteContentDialog, setDeleteContentDialog] = useState<{ type: 'post' | 'comment' | 'listing'; id: string } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [mapPinOpen, setMapPinOpen] = useState(false);
   const [deleteRevision, setDeleteRevision] = useState<string | undefined>();
   const [isDeleting, setIsDeleting] = useState(false);
   const queryClient = useQueryClient();
@@ -373,7 +375,7 @@ function PostDetailContent() {
     } : undefined,
   });
 
-  useEffect(() => { setDeleteDialogOpen(false); setIsDeleting(false); setDeleteRevision(undefined); }, [postActions.contextKey]);
+  useEffect(() => { setDeleteDialogOpen(false); setIsDeleting(false); setDeleteRevision(undefined); setMapPinOpen(false); }, [postActions.contextKey]);
 
   const handleDelete = async () => {
     if (!post) return;
@@ -575,6 +577,7 @@ function PostDetailContent() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 liquid-glass-card">
+                {isOwnPost && <DropdownMenuItem onSelect={() => setMapPinOpen(true)}>Map sharing</DropdownMenuItem>}
                 {isOwnPost && (
                   <DropdownMenuItem onClick={() => setIsEditOpen(true)}>
                     <Pencil className="h-4 w-4 mr-2" />
@@ -672,6 +675,7 @@ function PostDetailContent() {
                 post={{ id: post.id, caption: post.caption || '', tags: post.tags || [] }}
               />
             )}
+            {mapPinOpen && isOwnPost && <MapPinDialogLoader sourceId={post.id} kind={post.type === 'short' ? 'clip' : 'post'} onClose={() => setMapPinOpen(false)} />}
           </div>
         </div>
 
