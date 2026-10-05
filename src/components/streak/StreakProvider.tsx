@@ -3,6 +3,7 @@ import { useLoginStreak } from '@/hooks/useLoginStreak';
 import { StreakPopup } from './StreakPopup';
 import { useAuth } from '@/lib/auth';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
+import { useProfileAccount } from '@/hooks/useProfileAccount';
 import LocalErrorBoundary from '@/components/error/LocalErrorBoundary';
 
 interface StreakProviderProps {
@@ -57,11 +58,12 @@ function StreakPopupMount() {
  * the app tree it wraps keeps rendering (streaks just turn off).
  */
 export function StreakProvider({ children }: StreakProviderProps) {
+  const account = useProfileAccount();
   return (
     <>
       {children}
       <LocalErrorBoundary label="StreakPopup">
-        <StreakPopupMount />
+        {account.ready && <StreakPopupMount key={`${account.user!.id}:${account.profile!.id}:${account.session.epoch}`} />}
       </LocalErrorBoundary>
     </>
   );

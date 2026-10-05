@@ -2,9 +2,9 @@ import { useCallback, useRef } from 'react';
 // Type-only import — erased at build so this module never pulls mapbox-gl
 // (~1MB) into the page chunk. The canvas itself is lazy-loaded.
 import type mapboxgl from 'mapbox-gl';
-import { pitchForMode } from '@/lib/vybemap/mapbox/config';
+import { pitchForMode, type MapViewMode } from '@/lib/vybemap/mapbox/config';
 
-export function useVybeMapFlyTo() {
+export function useVybeMapFlyTo(mode: MapViewMode) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const setMap = useCallback((map: mapboxgl.Map | null) => { mapRef.current = map; }, []);
   /** Instant jump to a point of interest — no slow fly animation (Teleport / search). */
@@ -20,8 +20,8 @@ export function useVybeMapFlyTo() {
     const map = mapRef.current;
     if (!map) return;
     try { map.fire('vybe:resume-follow'); } catch { /* custom event */ }
-    map.easeTo({ center: [lng, lat], zoom, duration: 220, essential: true });
-  }, []);
+    map.easeTo({ center: [lng, lat], zoom, pitch: pitchForMode(mode), duration: 220, essential: true });
+  }, [mode]);
   /** Wander: unlock camera, widen slightly for free exploration. */
   const startWander = useCallback((lat?: number, lng?: number) => {
     const map = mapRef.current;
@@ -33,13 +33,13 @@ export function useVybeMapFlyTo() {
       center,
       zoom,
       bearing: 0,
-      pitch: 0,
+      pitch: pitchForMode(mode),
       duration: 180,
       essential: true,
     });
-  }, []);
+  }, [mode]);
   const resetBearing = useCallback(() => {
-    mapRef.current?.easeTo({ bearing: 0, pitch: pitchForMode('2d'), duration: 180 });
-  }, []);
+    mapRef.current?.easeTo({ bearing: 0, pitch: pitchForMode(mode), duration: 180 });
+  }, [mode]);
   return { setMap, flyTo, flyToUser, startWander, resetBearing };
 }

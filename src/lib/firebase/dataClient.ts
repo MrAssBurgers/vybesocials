@@ -23,15 +23,14 @@ import type { VybeAuthError } from './types';
 import type { UserProfile } from './types';
 import type { QueryConstraint } from 'firebase/firestore';
 import {
-  isPreviewFounderUser,
   isFounderAuthId,
 } from '@/lib/previewSandbox';
 import { isFeedRpc, normalizeRpcFeedRows, runFeedRpc } from './feedRpc';
 import { readFeedResult } from '@/lib/feedReliability';
 import { isSocialRpc, runSocialRpc } from './socialRpc';
 import { isNotYetPortedPayload } from './functionsService';
+import { profileAccountGuard } from '@/lib/profileAccountGuard';
 import { getProfileByAuthUid, resolveProfileIdFromAuthUid } from './profileResolve';
-import { getUserProfile } from './users';
 import {
   rpcEarnVybeTokens,
   rpcCheckRateLimit,
@@ -39,13 +38,6 @@ import {
 } from './tokenRpc';
 import { rpcComputeVybeDna } from './dnaRpc';
 import { isGeneratedUsername, normalizeUsername } from '@/lib/username';
-import {
-  normalizeToProfileId,
-  findExistingDmBetweenProfiles,
-  ensureConversationMembershipVariants,
-  getConversationDoc,
-  mergeConversationMemberIds,
-} from '@/lib/dmMembershipRepair';
 import { syncProfileUsername } from './syncProfileUsername';
 import {
   applyIlikeFilters,
@@ -792,131 +784,19 @@ function toQueryError(err: unknown, context?: string): VybeAuthError {
   return { message: 'Database error' };
 }
 
-async function ensureFounderOwnerRoles(profileId: string): Promise<void> {
-  const { data: { user } } = await firebaseAuth.getUser();
-  if (!user || !isPreviewFounderUser(user)) return;
-
-  const now = new Date().toISOString();
-  for (const table of ['user_roles', 'user_roles_auth'] as const) {
-    const existing = await getDocuments<{ role?: string }>(table, [where('user_id', '==', profileId)]);
-    if (existing.some((r) => r.role === 'owner')) continue;
-    await setDocument(table, `${profileId}_owner`, {
-      id: `${profileId}_owner`,
-      user_id: profileId,
-      role: 'owner',
-      created_at: now,
-    });
-  }
+async function rpcEnsureProfile(): Promise<string> {
+  const uid = firebaseAuth.auth?.currentUser?.uid || '';
+  const guard = profileAccountGuard(uid);
+  const { provisionAccountProfile } = await import('@/lib/accountProfileService');
+  guard();
+  const result = await provisionAccountProfile(uid, {}, guard);
+  guard();
+  return result.profileId;
 }
 
-async function rpcClaimProfileByEmailLocal(authUid: string, email: string): Promise<string | null> {
-  const index = await getDocument<{ profile_id?: string }>('user_auth_index', authUid);
-  if (index?.profile_id) {
-    const prof = await getDocument<UserProfile>('profiles', index.profile_id);
-    if (prof?.id) return prof.id;
-  }
-
-  const byUserId = await getDocuments<UserProfile>('profiles', [
-    where('user_id', '==', authUid),
-    firestoreLimit(1),
-  ]);
-  if (byUserId[0]?.id) return byUserId[0].id;
-
-  const normalizedEmail = email.trim().toLowerCase();
-  if (normalizedEmail) {
-    const byEmail = await getDocuments<UserProfile>('profiles', [
-      where('email', '==', normalizedEmail),
-      firestoreLimit(5),
-    ]);
-    if (byEmail[0]?.id) return byEmail[0].id;
-
-    for (const username of ['mrassburgers', 'bakrix']) {
-      if (normalizedEmail !== 'barron.bakic@gmail.com') break;
-      const byUsername = await getDocuments<UserProfile>('profiles', [
-        where('username', '==', username),
-        firestoreLimit(1),
-      ]);
-      if (byUsername[0]?.id) return byUsername[0].id;
-    }
-  }
-
-  return null;
-}
-
-async function rpcClaimProfileByEmail(): Promise<string | null> {
-  const { data: { user } } = await firebaseAuth.getUser();
-  if (!user) return null;
-
-  const { data, error } = await invokeFunction<{ profileId?: string | null; claimed?: boolean }>(
-    'claimProfileByEmail',
-  );
-  if (!error && data?.profileId) return data.profileId;
-
-  if (error) {
-    console.warn('[rpc] claimProfileByEmail failed:', error.message);
-  }
-
-  return rpcClaimProfileByEmailLocal(user.id, user.email || '');
-}
-
-async function rpcEnsureProfile(): Promise<string | null> {
-  const { data: { user } } = await firebaseAuth.getUser();
-  if (!user) return null;
-
-  const claimedId = await rpcClaimProfileByEmail();
-  if (claimedId) {
-    const claimed = await getDocument<UserProfile & { email?: string | null }>('profiles', claimedId);
-    if (claimed?.id) {
-      await setDocument('user_auth_index', user.id, {
-        profile_id: claimed.id,
-        username: claimed.username || null,
-        email: (user as any).email || claimed.email || null,
-        updated_at: new Date().toISOString(),
-      }, true);
-      if (claimed.user_id !== user.id) {
-        await setDocument('profiles', claimed.id, {
-          user_id: user.id,
-          email: (user as any).email || claimed.email || null,
-          updated_at: new Date().toISOString(),
-        }, true);
-      }
-      await ensureFounderOwnerRoles(claimed.id);
-      return claimed.id;
-    }
-  }
-
-  const existing = await getProfileByAuthUid(user.id);
-  if (existing?.id) {
-    await ensureFounderOwnerRoles(existing.id);
-    return existing.id;
-  }
-
-  const username =
-    (user.user_metadata?.username as string) ||
-    (user.user_metadata?.display_name as string) ||
-    `user_${user.id.slice(0, 8)}`;
-
-  await setDocument('profiles', user.id, {
-    id: user.id,
-    user_id: user.id,
-    username,
-    display_name: user.user_metadata?.display_name || username,
-    avatar_url: null,
-    bio: '',
-    onboarding_completed: false,
-    email: user.email || null,
-    created_at: new Date().toISOString(),
-  });
-
-  await setDocument('user_auth_index', user.id, {
-    profile_id: user.id,
-    username,
-    email: user.email || null,
-    updated_at: new Date().toISOString(),
-  }, true);
-
-  await ensureFounderOwnerRoles(user.id);
-  return user.id;
+// Compatibility name only: email is never identity or recovery authority.
+async function rpcClaimProfileByEmail(): Promise<string> {
+  return rpcEnsureProfile();
 }
 
 async function rpcGetMyHighestRole(): Promise<string | null> {
@@ -973,102 +853,13 @@ async function rpcUpdate2faSettings(_params: Record<string, unknown>): Promise<n
   throw new Error('Reopen Security settings to change your sign-in preferences.');
 }
 
-async function rpcCreateDmConversation(otherProfileId: string): Promise<string | null> {
-  const { data: { user } } = await firebaseAuth.getUser();
-  if (!user) return null;
-
-  const myProfileId = (await resolveProfileIdFromAuthUid(user.id)) || user.id;
-  const resolvedOtherId = (await normalizeToProfileId(otherProfileId)) || otherProfileId;
-
-  const otherProfile = await getUserProfile(resolvedOtherId);
-  if (!otherProfile?.id) throw new Error('User not found');
-  if (myProfileId === otherProfile.id) throw new Error('Cannot message yourself');
-
-  const resolvedOtherProfileId = otherProfile.id;
-  const otherAuthUid = otherProfile.user_id || null;
-
-  const now = new Date().toISOString();
-  await setDocument('user_auth_index', user.id, {
-    profile_id: myProfileId,
-    updated_at: now,
-  }, true);
-
-  const profileMemberIds = [myProfileId, resolvedOtherProfileId].sort();
-  const chatId = profileMemberIds.join('_');
-  const memberIds = [
-    ...new Set([myProfileId, resolvedOtherProfileId, user.id, otherAuthUid].filter(Boolean)),
-  ] as string[];
-
-  const existing = await findExistingDmBetweenProfiles(myProfileId, resolvedOtherProfileId).catch((err) => {
-    console.warn('[DM] findExistingDmBetweenProfiles failed:', err);
-    return null;
-  });
-  if (existing) {
-    await mergeConversationMemberIds(existing, memberIds);
-    await ensureConversationMembershipVariants(
-      existing,
-      myProfileId,
-      resolvedOtherProfileId,
-      user.id,
-      otherAuthUid,
-    );
-
-    if (existing !== chatId) {
-      const canonical = await getConversationDoc(chatId);
-      if (!canonical) {
-        try {
-          await setDocument('conversations', chatId, {
-            id: chatId,
-            is_group: false,
-            member_ids: memberIds,
-            name: null,
-            avatar_url: null,
-            created_by: myProfileId,
-            created_at: now,
-            updated_at: now,
-          });
-        } catch (err) {
-          console.warn('[DM] canonical conversation create skipped:', err);
-        }
-      } else {
-        await mergeConversationMemberIds(chatId, memberIds);
-      }
-      await ensureConversationMembershipVariants(
-        chatId,
-        myProfileId,
-        resolvedOtherProfileId,
-        user.id,
-        otherAuthUid,
-      );
-    }
-    return existing;
-  }
-
-  const existingConv = await getConversationDoc(chatId);
-  if (!existingConv) {
-    await setDocument('conversations', chatId, {
-      id: chatId,
-      is_group: false,
-      member_ids: memberIds,
-      name: null,
-      avatar_url: null,
-      created_by: myProfileId,
-      created_at: now,
-      updated_at: now,
-    });
-  } else {
-    await mergeConversationMemberIds(chatId, memberIds);
-  }
-
-  await ensureConversationMembershipVariants(
-    chatId,
-    myProfileId,
-    resolvedOtherProfileId,
-    user.id,
-    otherAuthUid,
-  );
-
-  return chatId;
+async function rpcCreateDmConversation(otherProfileId: string): Promise<string> {
+  const guard = profileAccountGuard(firebaseAuth.auth?.currentUser?.uid || '');
+  const { createDmChat } = await import('./chats');
+  guard();
+  const id = await createDmChat(otherProfileId, guard);
+  guard();
+  return id;
 }
 
 async function authUserIdForProfileLookup(profileOrAuthId: string): Promise<string> {
@@ -1167,39 +958,25 @@ async function rpcGetPublicUserCount(): Promise<number> {
 const CLIENT_RPC: Record<string, (params: Record<string, unknown>) => Promise<unknown>> = {
   ensure_profile: async () => rpcEnsureProfile(),
   sync_signup_username: async () => {
+    const uid = firebaseAuth.auth?.currentUser?.uid || '';
+    const guard = profileAccountGuard(uid);
     const profileId = await rpcEnsureProfile();
+    guard();
     const { data: { user } } = await firebaseAuth.getUser();
-    if (!user) return null;
-
-    const profile = profileId ? await getDocument<UserProfile>('profiles', profileId) : null;
-    const current = profile?.username ?? null;
-
+    guard();
+    if (!user || user.id !== uid) throw new Error('Your account changed.');
+    const profile = await getProfileByAuthUid(uid, guard);
+    guard();
+    if (profile?.id !== profileId) throw new Error('Profile confirmation changed.');
+    const current = profile.username;
     const meta = user.user_metadata || {};
-    const desired = normalizeUsername(
-      (meta.username as string) || (meta.display_name as string) || '',
-    );
-
-    if (!desired || isGeneratedUsername(desired)) {
-      return current;
-    }
-
-    if (current && !isGeneratedUsername(current) && normalizeUsername(current) !== desired) {
-      return current;
-    }
-
-    if (current && normalizeUsername(current) === desired) {
-      return current;
-    }
-
-    const available = await rpcIsUsernameAvailable(desired);
-    const takenByOther =
-      !available &&
-      normalizeUsername(current || '') !== desired;
-    if (takenByOther) {
-      return current;
-    }
-
-    await syncProfileUsername(user.id, desired);
+    const desired = normalizeUsername((meta.username as string) || (meta.display_name as string) || '');
+    if (!desired || isGeneratedUsername(desired) || (current && !isGeneratedUsername(current)) || normalizeUsername(current || '') === desired) return current;
+    const available = await rpcIsUsernameAvailable(desired, uid);
+    guard();
+    if (!available) return current;
+    await syncProfileUsername(uid, desired, guard);
+    guard();
     return desired;
   },
   claim_profile_by_email: async () => rpcClaimProfileByEmail(),

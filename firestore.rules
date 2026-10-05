@@ -18,8 +18,20 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ---------- helpers ----------
-    function signedIn() { return request.auth != null; }
-    function uid() { return request.auth.uid; }
+    function signedIn() {
+      return request.auth != null && accountBindingActive();
+    }
+    function accountBindingActive() {
+      let binding = get(/databases/$(database)/documents/_account_profile_bindings/$(request.auth.uid));
+      // Imported accounts without a binding remain usable. Retired identities
+      // must not regain direct UID aliases through a still-valid old token.
+      return binding == null || (binding.data.get('version', 0) == 1 &&
+        binding.data.get('owner_uid', '') == request.auth.uid && binding.data.get('status', '') == 'active' &&
+        binding.data.get('profile_id', '') is string && binding.data.get('profile_id', '').size() > 0);
+    }
+    // Some legacy rules compare docId directly to uid() without signedIn().
+    // An empty (invalid document-id) alias keeps retired tokens out there too.
+    function uid() { return signedIn() ? request.auth.uid : ''; }
     function isAdmin() {
       return signedIn() && request.auth.token.admin == true;
     }
@@ -28,49 +40,86 @@ service cloud.firestore {
       let grant = get(rolePath);
       // Imported grants predate enabled. Only a missing flag or boolean true
       // grants authority; disabled or malformed rows must not revive a role.
-      return grant != null && grant.data.get('enabled', true) == true;
+      return identity is string && identity.size() > 0 && grant != null && grant.data.get('enabled', true) == true;
     }
-    function staffRoleDoc(col, role) {
-      return signedIn() && (
-        activeStaffRoleAt(col, profileId(), role) ||
-        activeStaffRoleAt(col, uid(), role)
-      );
+    function staffRoleDoc(col, role, profile, authUid) {
+      // A UID grant needs no profile alias. For a migrated alias, validate its
+      // owner only after finding a grant, so failed lookups do not consume an
+      // extra document access before the legitimate UID fallback.
+      return (activeStaffRoleAt(col, profile, role) &&
+          (profile == authUid ? staffUidUnambiguous(authUid) : staffProfileOwnedBy(profile, authUid))) ||
+        (profile != authUid && activeStaffRoleAt(col, authUid, role) && staffUidUnambiguous(authUid));
+    }
+    function staffUidUnambiguous(authUid) {
+      let row = get(/databases/$(database)/documents/profiles/$(authUid));
+      return row == null || (row.data.get('user_id', '') == authUid &&
+        row.data.get('is_deleted', false) == false && row.data.get('deleted_at', null) == null);
+    }
+    function staffProfileOwnedBy(profile, authUid) {
+      let row = get(/databases/$(database)/documents/profiles/$(profile));
+      return row != null && row.data.get('user_id', '') == authUid &&
+        row.data.get('is_deleted', false) == false && row.data.get('deleted_at', null) == null;
+    }
+    function staffProfileCandidate(authUid) {
+      let binding = get(/databases/$(database)/documents/_account_profile_bindings/$(authUid));
+      return binding != null && binding.data.get('profile_id', '') is string && binding.data.get('profile_id', '').size() > 0
+        ? binding.data.get('profile_id', '') : legacyStaffProfileCandidate(authUid);
+    }
+    function legacyStaffProfileCandidate(authUid) {
+      let index = get(/databases/$(database)/documents/user_auth_index/$(authUid));
+      let candidate = index == null ? authUid : index.data.get('profile_id', '');
+      return candidate is string ? candidate : '';
+    }
+    function staffModeratorFor(profile, authUid) {
+      return staffRoleDoc('user_roles', 'owner', profile, authUid) ||
+        staffRoleDoc('user_roles', 'admin', profile, authUid) ||
+        staffRoleDoc('user_roles', 'moderator', profile, authUid) ||
+        staffRoleDoc('user_roles_auth', 'owner', profile, authUid) ||
+        staffRoleDoc('user_roles_auth', 'admin', profile, authUid) ||
+        staffRoleDoc('user_roles_auth', 'moderator', profile, authUid);
+    }
+    function staffAdminFor(profile, authUid) {
+      return staffRoleDoc('user_roles', 'owner', profile, authUid) ||
+        staffRoleDoc('user_roles', 'admin', profile, authUid) ||
+        staffRoleDoc('user_roles_auth', 'owner', profile, authUid) ||
+        staffRoleDoc('user_roles_auth', 'admin', profile, authUid);
     }
     function isStaffModerator() {
-      // Keep the legacy lookup order. A migrated account with only a late
-      // user_roles_auth admin/moderator alias can exceed the Rules read budget;
-      // the isolated authority regression script records this inherited limit.
-      return isAdmin() ||
-        staffRoleDoc('user_roles', 'owner') ||
-        staffRoleDoc('user_roles', 'admin') ||
-        staffRoleDoc('user_roles', 'moderator') ||
-        staffRoleDoc('user_roles_auth', 'owner') ||
-        staffRoleDoc('user_roles_auth', 'admin') ||
-        staffRoleDoc('user_roles_auth', 'moderator');
+      // Checked setup supplies the protected candidate without an extra index
+      // lookup. Legacy unbound staff should finish setup before using late role
+      // fallbacks. The exact-baseline test covers every supported bound case.
+      // Resolve canonical identity once, rather than repeating its binding and
+      // ownership predicates for every possible role (Rules expression limit).
+      return isAdmin() || (signedIn() && staffModeratorFor(staffProfileCandidate(request.auth.uid), request.auth.uid));
     }
     // Owner/admin can manage roles (moderators cannot grant roles).
     function isStaffAdmin() {
-      return isAdmin() ||
-        staffRoleDoc('user_roles', 'owner') ||
-        staffRoleDoc('user_roles', 'admin') ||
-        staffRoleDoc('user_roles_auth', 'owner') ||
-        staffRoleDoc('user_roles_auth', 'admin');
+      return isAdmin() || (signedIn() && staffAdminFor(staffProfileCandidate(request.auth.uid), request.auth.uid));
     }
     // Migrated rows use profiles.id (legacy UUID) while user_id holds Firebase Auth uid.
     function profileId() {
-      return exists(/databases/$(database)/documents/user_auth_index/$(uid()))
-        ? get(/databases/$(database)/documents/user_auth_index/$(uid())).data.profile_id
-        : uid();
+      let index = get(/databases/$(database)/documents/user_auth_index/$(uid()));
+      let candidate = index == null ? uid() : index.data.get('profile_id', '');
+      let profile = candidate is string && candidate.size() > 0
+        ? get(/databases/$(database)/documents/profiles/$(candidate)) : null;
+      return profile != null && profile.data.get('user_id', '') == uid()
+        && profile.data.get('is_deleted', false) == false && profile.data.get('deleted_at', null) == null
+        ? candidate : '';
     }
     function ownsProfileId(pid) {
-      return signedIn() && (
-        pid == uid() ||
-        (pid != null && exists(/databases/$(database)/documents/profiles/$(pid)) &&
-          get(/databases/$(database)/documents/profiles/$(pid)).data.user_id == uid())
+      let profile = pid is string && pid.size() > 0 ? get(/databases/$(database)/documents/profiles/$(pid)) : null;
+      let direct = get(/databases/$(database)/documents/profiles/$(uid()));
+      return signedIn() && (direct == null || direct.data.get('user_id', '') == uid()) && (
+        (pid == uid() && profileId() != '') ||
+        (profile != null && profile.data.get('user_id', '') == uid()
+          && profile.data.get('is_deleted', false) == false && profile.data.get('deleted_at', null) == null)
       );
     }
+    function isCanonicalProfile(value) {
+      return value is string && value.size() > 0 && value == profileId();
+    }
     function isParticipantInPair(pairId) {
-      return signedIn() && pairId is string && (
+      return signedIn() && pairId is string && profileId() != '' && (
         pairId.matches('.*' + profileId() + '.*')
       );
     }
@@ -103,12 +152,12 @@ service cloud.firestore {
     }
     function validFlatMember(cid, identity) {
       let member = get(/databases/$(database)/documents/conversation_members/$(cid + '_' + identity));
-      return member != null && member.data.get('conversation_id', '') == cid &&
+      return identity is string && identity.size() > 0 && member != null && member.data.get('conversation_id', '') == cid &&
         member.data.get('user_id', '') == identity;
     }
     function validNestedMember(cid, identity) {
       let member = get(/databases/$(database)/documents/conversations/$(cid)/members/$(identity));
-      return member != null && member.data.get('user_id', '') == identity &&
+      return identity is string && identity.size() > 0 && member != null && member.data.get('user_id', '') == identity &&
         member.data.get('conversation_id', cid) == cid;
     }
     function isFlatConversationMember(cid) {
@@ -117,7 +166,7 @@ service cloud.firestore {
     function isMemberViaConversationDoc(cid) {
       return signedIn() &&
         exists(/databases/$(database)/documents/conversations/$(cid)) && (
-          profileId() in get(/databases/$(database)/documents/conversations/$(cid)).data.get('member_ids', []) ||
+          (profileId() != '' && profileId() in get(/databases/$(database)/documents/conversations/$(cid)).data.get('member_ids', [])) ||
           uid() in get(/databases/$(database)/documents/conversations/$(cid)).data.get('member_ids', [])
         );
     }
@@ -161,11 +210,18 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/conversation_safety_overrides/$(overrideId)).data.conversation_id;
     }
     function isFriendRequestParty() {
-      return signedIn() && (
-        ownsProfileId(resource.data.sender_id) ||
-        ownsProfileId(resource.data.get('receiver_id', '')) ||
-        ownsProfileId(resource.data.get('recipient_id', ''))
-      );
+      // Resolve the actor once. Repeating ownership resolution for each party
+      // exceeds the Rules expression limit on incoming friend-list queries.
+      return signedIn() && friendRequestPartyFor(profileId(), request.auth.uid);
+    }
+    function friendRequestPartyFor(profile, authUid) {
+      let direct = get(/databases/$(database)/documents/profiles/$(authUid));
+      return profile is string && profile.size() > 0 &&
+        (direct == null || direct.data.get('user_id', '') == authUid) && (
+          resource.data.get('sender_id', '') in [profile, authUid] ||
+          resource.data.get('receiver_id', '') in [profile, authUid] ||
+          resource.data.get('recipient_id', '') in [profile, authUid]
+        );
     }
     // Canonical friend_requests schema:
     // deterministic id `${sender_id}_${receiver_id}`; immutable parties/timestamps;
@@ -261,15 +317,19 @@ service cloud.firestore {
         );
     }
 
-    // Auth uid → profiles.id lookup. Write only when the target profile.user_id matches caller.
+    // Canonical setup and syncIndex own this mapping transactionally.
     match /user_auth_index/{authUid} {
       allow read: if signedIn() && authUid == uid();
-      allow create, update: if signedIn()
-        && authUid == uid()
-        && request.resource.data.profile_id is string
-        && exists(/databases/$(database)/documents/profiles/$(request.resource.data.profile_id))
-        && get(/databases/$(database)/documents/profiles/$(request.resource.data.profile_id)).data.user_id == uid();
-      allow delete: if false;
+      allow write: if false;
+    }
+    match /_account_profile_bindings/{docId} {
+      allow read, write: if false;
+    }
+    match /_account_profile_recovery/{docId} {
+      allow read, write: if false;
+    }
+    match /_account_profile_receipts/{docId} {
+      allow read, write: if false;
     }
 
 
@@ -284,18 +344,12 @@ service cloud.firestore {
     // Public-ish read for any authed user (prevents "Unknown User" bug).
     match /profiles/{userId} {
       allow read: if signedIn();
-      allow create: if signedIn() && userId == uid()
-        && request.resource.data.user_id == uid()
-        && request.resource.data.get('id', userId) == userId
-        && !request.resource.data.keys().hasAny(['stripe_customer_id', 'stripe_account_id',
-          'is_verified', 'is_premium', 'premium_status', 'premium_expires_at', 'coins_balance',
-          'equipped_title', 'equipped_effect', 'equipped_frame', 'equipped_name_color',
-          'equipped_profile_theme', 'equipped_badge_id']);
+      allow create: if false;
       allow update: if signedIn() && (ownsProfileId(userId) || isAdmin())
         && request.resource.data.get('user_id', userId) == resource.data.get('user_id', userId)
         && request.resource.data.get('id', userId) == resource.data.get('id', userId)
         && !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['stripe_customer_id', 'stripe_account_id',
+          .hasAny(['email', 'stripe_customer_id', 'stripe_account_id',
             'is_verified', 'is_premium', 'premium_status', 'premium_expires_at', 'coins_balance',
             'equipped_title', 'equipped_effect', 'equipped_frame', 'equipped_name_color',
             'equipped_profile_theme', 'equipped_badge_id']);
@@ -349,7 +403,7 @@ service cloud.firestore {
       // Prefer direct uid match so list queries `.eq('user_id', authUid)` validate.
       allow read: if signedIn() && (
         resource.data.user_id == uid() ||
-        resource.data.user_id == profileId() ||
+        isCanonicalProfile(resource.data.user_id) ||
         ownsProfileId(docId) ||
         docId == uid()
       );
@@ -371,8 +425,8 @@ service cloud.firestore {
       allow read, write: if signedIn() && (
         ownsUserField('user_id') || willOwnUserField('user_id') ||
         ownsProfileId(docId) || docId == uid() || docId == profileId() ||
-        resource.data.get('profile_id', '') == profileId() ||
-        request.resource.data.get('profile_id', '') == profileId() ||
+        isCanonicalProfile(resource.data.get('profile_id', '')) ||
+        isCanonicalProfile(request.resource.data.get('profile_id', '')) ||
         isAdmin()
       );
     }
@@ -390,7 +444,7 @@ service cloud.firestore {
     match /challenge_rewards/{docId} {
       allow read: if signedIn() && (
         resource.data.user_id == uid() ||
-        resource.data.user_id == profileId() ||
+        isCanonicalProfile(resource.data.user_id) ||
         isAdmin()
       );
       allow write: if false;
@@ -517,10 +571,10 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create: if signedIn();
       allow update: if signedIn() && (
-        resource.data.created_by == profileId() ||
+        isCanonicalProfile(resource.data.created_by) ||
         isAdmin()
       );
-      allow delete: if isAdmin() || (signedIn() && resource.data.created_by == profileId());
+      allow delete: if isAdmin() || (signedIn() && isCanonicalProfile(resource.data.created_by));
     }
     match /map_place_posts/{docId} {
       allow read: if signedIn();
@@ -988,7 +1042,7 @@ service cloud.firestore {
     match /conversations/{cid} {
       allow read: if isAdmin() || canReadMissingDoc(/databases/$(database)/documents/conversations/$(cid)) || (
         signedIn() && (
-          profileId() in resource.data.get('member_ids', []) ||
+          (profileId() != '' && profileId() in resource.data.get('member_ids', [])) ||
           uid() in resource.data.get('member_ids', []) ||
           isFlatConversationMember(cid) ||
           isMemberViaConversationDoc(cid) ||
@@ -1211,7 +1265,7 @@ service cloud.firestore {
         ownsProfileId(resource.data.receiver_id) ||
         resource.data.caller_id == uid() ||
         resource.data.receiver_id == uid() ||
-        profileId() in resource.data.get('participant_ids', []) ||
+        (profileId() != '' && profileId() in resource.data.get('participant_ids', [])) ||
         uid() in resource.data.get('participant_ids', [])
       );
       allow create: if signedIn() && willOwnProfile('caller_id') &&

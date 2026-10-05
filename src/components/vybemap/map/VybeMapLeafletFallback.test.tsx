@@ -11,10 +11,21 @@ vi.mock('leaflet', () => ({ default: {
 } }));
 import { DEFAULT_LAYERS } from '@/lib/vybemap/types';
 import { FALLBACK_TILES, VybeMapLeafletFallback } from './VybeMapLeafletFallback';
-function Host({ friends = [] }: { friends?: any[] }) { const ref = useRef<HTMLDivElement>(null); return <><div ref={ref} /><VybeMapLeafletFallback center={null} layers={DEFAULT_LAYERS} friends={friends} stories={[]} posts={[]} clips={[]} meetups={[]} places={[]} eventPins={[]} heatmap={[]} onFriendTap={() => {}} onPlaceTap={() => {}} mapElRef={ref} /></>; }
+function Host({ friends = [], onMapReady }: { friends?: any[]; onMapReady?: (map: any) => void }) { const ref = useRef<HTMLDivElement>(null); return <><div ref={ref} /><VybeMapLeafletFallback center={null} layers={DEFAULT_LAYERS} friends={friends} stories={[]} posts={[]} clips={[]} meetups={[]} places={[]} eventPins={[]} heatmap={[]} onFriendTap={() => {}} onPlaceTap={() => {}} mapElRef={ref} onMapReady={onMapReady} /></>; }
 beforeEach(() => { vi.useFakeTimers(); state.maps.length = 0; state.tiles.length = 0; state.icons.length = 0; vi.stubGlobal('ResizeObserver', class { observe() {} disconnect = state.disconnect; }); });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 describe('keyless map tile lifecycle', () => {
+  it('retires the parent camera reference when returning to the globe', () => {
+    const ready = vi.fn(), latestReady = vi.fn();
+    const view = render(<Host onMapReady={ready} />);
+    expect(ready).toHaveBeenLastCalledWith(state.maps[0]);
+    view.rerender(<Host onMapReady={latestReady} />);
+    view.unmount();
+    expect(latestReady).toHaveBeenLastCalledWith(null);
+    expect(state.maps[0].remove).toHaveBeenCalledOnce();
+    act(() => state.tiles[0].handlers.tileload());
+    expect(latestReady).toHaveBeenCalledOnce();
+  });
   it('loads only viewport OpenStreetMap tiles with normal browser caching and a referrer', () => {
     render(<Host />); expect(screen.getByRole('status')).toHaveTextContent('Loading map');
     expect(state.tiles[0].url).toBe(FALLBACK_TILES);

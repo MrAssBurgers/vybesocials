@@ -14,7 +14,11 @@ import { LegalAcceptance } from '@/components/onboarding/LegalAcceptance';
 import { useAuth } from '@/lib/auth';
 import { getPostLoginPath } from '@/lib/authReturnPath';
 import { db, firebaseStorage } from '@/lib/firebase';
-import { updateUserProfile, getProfileByAuthUid } from '@/lib/firebase/users';
+import { updateUserProfile, ensureUserProfile } from '@/lib/firebase/users';
+import { batchSet } from '@/lib/firebase/firestoreDb';
+import { profileAccountGuard } from '@/lib/profileAccountGuard';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
+import AccountProfileStatus from '@/components/auth/AccountProfileStatus';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { toast } from 'sonner';
@@ -26,12 +30,10 @@ import {
   isGeneratedUsername,
   isValidUsernameFormat,
   normalizeUsername,
-  resolveSignupUsername,
 } from '@/lib/username';
 import {
   clearAppleProvidedName,
   isAppleAuthUser,
-  readAppleProvidedName,
 } from '@/lib/appleNameCapture';
 import { savePrivateProfileDateOfBirth } from '@/lib/profilePrivate';
 
@@ -61,16 +63,6 @@ function useOnboardingShell() {
 
 const EASE_OUT_EXPO: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
-async function ensureProfileRow(userId: string): Promise<void> {
-  await db.rpc('ensure_profile');
-  await db.rpc('claim_profile_by_email');
-
-  const profile = await getProfileByAuthUid(userId);
-  if (!profile?.id) {
-    throw new Error('Could not create your profile. Please try again.');
-  }
-}
-
 function buildSkipUsername(
   userId: string,
   usernameValid: boolean,
@@ -94,54 +86,22 @@ function buildSkipUsername(
 async function persistOnboardingSkip(
   userId: string,
   desiredUsername: string,
-): Promise<{ username: string; error: Error | null }> {
-  await ensureProfileRow(userId);
-
-  const { data: syncedUsername } = await (db as any).rpc('sync_signup_username');
+  guard: () => void,
+): Promise<void> {
+  await ensureUserProfile(userId, undefined, guard);
+  guard();
   let finalUsername = desiredUsername;
-  if (
-    typeof syncedUsername === 'string' &&
-    syncedUsername &&
-    !isGeneratedUsername(syncedUsername) &&
-    isValidUsernameFormat(normalizeUsername(syncedUsername))
-  ) {
-    finalUsername = normalizeUsername(syncedUsername);
-  }
-
-  const runUpdate = async (uname: string) => {
-    try {
-      await updateUserProfile(userId, { onboarding_completed: true, username: uname });
-      return { data: { username: uname }, error: null };
-    } catch (err) {
-      return { data: null, error: err as Error };
-    }
-  };
-
-  let { data, error } = await runUpdate(finalUsername);
-
-  if (error?.code === '23505') {
+  try {
+    await updateUserProfile(userId, { onboarding_completed: true, username: finalUsername }, guard);
+  } catch (error) {
+    guard();
+    if (!(error && typeof error === 'object' && 'code' in error && error.code === '23505')) throw error;
     finalUsername = normalizeUsername(
       `vybe_${userId.replace(/-/g, '').slice(0, 8)}${Math.floor(Math.random() * 9000 + 1000)}`,
     );
-    ({ data, error } = await runUpdate(finalUsername));
+    await updateUserProfile(userId, { onboarding_completed: true, username: finalUsername }, guard);
   }
-
-  if (error) {
-    return { username: finalUsername, error: error as Error };
-  }
-
-  if (!data) {
-    return {
-      username: finalUsername,
-      error: new Error('Profile update did not apply. Please try again.'),
-    };
-  }
-
-  if (data.username) {
-    finalUsername = normalizeUsername(data.username);
-  }
-
-  return { username: finalUsername, error: null };
+  guard();
 }
 
 // Invite mode stage type - must match InviteRedeem state machine
@@ -162,7 +122,16 @@ interface OnboardingProps {
  * 
  * Post-onboarding (moved to Settings): Sensitivity, Privacy, Permissions, Email verification
  */
-export default function Onboarding({ onInviteNavigate, isInviteMode = false }: OnboardingProps) {
+export default function Onboarding(props: OnboardingProps) {
+  const { user, profile, profileSetupError } = useAuth();
+  const session = useReportAccountSession();
+  if (!user || session.uid !== user.id || !profile?.id || profile.user_id !== user.id || profileSetupError) {
+    return <AccountProfileStatus />;
+  }
+  return <OnboardingFlow key={`${session.uid}:${session.epoch}`} {...props} />;
+}
+
+function OnboardingFlow({ onInviteNavigate, isInviteMode = false }: OnboardingProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { profile, user, refreshProfile } = useAuth();
@@ -170,7 +139,9 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   // iOS WebView: drop y/scale step motion + looping blur glows (cause rubber-band jank).
   const calmIos = isIOSAppShell() || isNativePerfMode();
 
-  const signupUsername = resolveSignupUsername(user?.user_metadata);
+  // The browser-wide legacy stashes have no account provenance. Only seed this
+  // form from the current Auth account or its verified owned profile.
+  const signupUsername = normalizeUsername(typeof user?.user_metadata?.username === 'string' ? user.user_metadata.username : '');
   // Latch needsUsername once profile first hydrates — flipping mid-flow remaps
   // getActualStep() and makes Next look like a flicker to the wrong screen.
   const needsUsernameLatchRef = useRef<boolean | null>(null);
@@ -186,6 +157,14 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const activeRef = useRef(true);
+  const busyRef = useRef(false);
+  const avatarAttemptRef = useRef<{ file: File; path: string; url?: string }>();
+  useEffect(() => { activeRef.current = true; return () => { activeRef.current = false; }; }, []);
+  const captureGuard = () => profileAccountGuard(user?.id || '', () => {
+    if (!activeRef.current) throw new Error('Profile setup closed.');
+  });
   const [usernameValid, setUsernameValid] = useState(false);
   const [showAIDesigner, setShowAIDesigner] = useState(false);
   const [showCreators, setShowCreators] = useState(false);
@@ -208,20 +187,17 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   const [legalAccepted, setLegalAccepted] = useState(false);
   const pendingDesignerRef = useRef(false);
 
-  // Stale disk cache can show onboarding_completed=false while DB is true — re-fetch before trapping user here.
-  // Never redirect away while "Design your VYBE" (AI designer) is showing or about to show.
+  // This form only mounts with a checked current profile. Re-reading it here
+  // would duplicate bootstrap and delay returning users on every sign-in.
   useEffect(() => {
-    if (!user || showAIDesigner || pendingDesignerRef.current) return;
-    let cancelled = false;
-    void (async () => {
-      const fresh = await refreshProfile();
-      if (cancelled || !fresh) return;
-      if (fresh.onboarding_completed === true) {
+    if (!user || showAIDesigner || pendingDesignerRef.current || busyRef.current) return;
+    try {
+      captureGuard()();
+      if (profile?.user_id === user.id && profile.onboarding_completed === true) {
         navigate(getPostLoginPath('/home'), { replace: true });
       }
-    })();
-    return () => { cancelled = true; };
-  }, [user?.id, refreshProfile, navigate, showAIDesigner]);
+    } catch { /* The account gate owns replacement sessions. */ }
+  }, [user?.id, profile?.user_id, profile?.onboarding_completed, navigate, showAIDesigner]);
 
   // Pre-fill username from signup metadata when profile got a generated placeholder.
   useEffect(() => {
@@ -234,21 +210,19 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   const seededDisplayNameRef = useRef(false);
   useEffect(() => {
     if (seededDisplayNameRef.current) return;
-    const appleName = readAppleProvidedName();
     const existingDisplay = profile?.display_name?.trim();
     const existingFirst = (profile as { first_name?: string } | null)?.first_name?.trim() || '';
     const existingLast = (profile as { last_name?: string } | null)?.last_name?.trim() || '';
     const metaName = String(user?.user_metadata?.full_name || user?.user_metadata?.name || '').trim();
 
-    if (appleName || existingDisplay || existingFirst || existingLast || metaName) {
+    if (existingDisplay || existingFirst || existingLast || metaName) {
       seededDisplayNameRef.current = true;
       setProfileData((prev) => ({
         ...prev,
-        firstName: prev.firstName || appleName?.firstName || existingFirst || '',
-        lastName: prev.lastName || appleName?.lastName || existingLast || '',
+        firstName: prev.firstName || existingFirst || '',
+        lastName: prev.lastName || existingLast || '',
         displayName:
           prev.displayName ||
-          appleName?.displayName ||
           existingDisplay ||
           metaName ||
           '',
@@ -307,6 +281,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   ]);
 
   const handleNext = () => {
+    if (busyRef.current || !canProceed()) return;
     haptics.impact();
     if (step < TOTAL_STEPS) {
       setStep(step + 1);
@@ -314,6 +289,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   };
 
   const handleBack = () => {
+    if (busyRef.current) return;
     haptics.tap();
     if (step > 1) {
       setStep(step - 1);
@@ -321,28 +297,14 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   };
 
   const handleFinish = async () => {
-    if (!user) return;
-    
+    if (!user || busyRef.current || !legalAccepted || !canProceed()) return;
+    let guard: () => void;
+    try { guard = captureGuard(); } catch { return; }
+    busyRef.current = true;
     setLoading(true);
+    setSaveError('');
     haptics.impact();
     try {
-      let avatarUrl = profile?.avatar_url || null;
-      if (profileData.avatarFile) {
-        const fileExt = profileData.avatarFile.name.split('.').pop();
-        const fileName = `${Date.now()}.${fileExt}`;
-        const storagePath = `${user.id}/${fileName}`;
-
-        const { error: uploadError } = await db.storage
-          .from('avatars')
-          .upload(storagePath, profileData.avatarFile);
-
-        if (uploadError) {
-          console.warn('[Onboarding] Avatar upload failed:', uploadError.message);
-        } else {
-          avatarUrl = await firebaseStorage.resolveDownloadUrl('avatars', storagePath);
-        }
-      }
-
       const chosenUsername = normalizeUsername(
         usernameValid && username
           ? username
@@ -351,28 +313,44 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
             : normalizeUsername(profile?.username || signupUsername),
       );
 
-      if (!chosenUsername || isGeneratedUsername(chosenUsername)) {
-        toast.error('Please choose a username before continuing.');
-        setLoading(false);
-        return;
+      if (!chosenUsername || isGeneratedUsername(chosenUsername) || !isValidUsernameFormat(chosenUsername)) {
+        throw new Error('Please choose a valid username before continuing.');
       }
 
       const finalUsername = chosenUsername;
-      const appleStash = readAppleProvidedName();
       const trimmedDisplay = profileData.displayName.trim();
       const finalDisplayName =
         trimmedDisplay ||
-        appleStash?.displayName ||
-        [profileData.firstName || appleStash?.firstName, profileData.lastName || appleStash?.lastName]
+        [profileData.firstName, profileData.lastName]
           .filter(Boolean)
           .join(' ')
           .trim() ||
         finalUsername;
 
-      await ensureProfileRow(user.id);
-      const ensuredProfile = await getProfileByAuthUid(user.id);
-      if (!ensuredProfile?.id) {
+      const ensuredProfile = await ensureUserProfile(user.id, undefined, guard);
+      guard();
+      if (!ensuredProfile?.id || ensuredProfile.user_id !== user.id) {
         throw new Error('Could not load your profile. Please try again.');
+      }
+      let avatarUrl = profile?.avatar_url || null;
+      if (profileData.avatarFile) {
+        const file = profileData.avatarFile;
+        if (avatarAttemptRef.current?.file !== file) {
+          const extension = file.name.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'jpg';
+          avatarAttemptRef.current = { file, path: `${user.id}/${crypto.randomUUID()}.${extension}` };
+        }
+        const attempt = avatarAttemptRef.current;
+        if (!attempt.url) {
+          guard();
+          const { error } = await db.storage.from('avatars').upload(attempt.path, file);
+          guard();
+          if (error) throw new Error('Your photo could not be uploaded. Please try again.');
+          const url = await firebaseStorage.resolveDownloadUrl('avatars', attempt.path);
+          guard();
+          if (!url) throw new Error('Your photo could not be loaded. Please try again.');
+          attempt.url = url;
+        }
+        avatarUrl = attempt.url;
       }
       const privateDateOfBirth = dateOfBirth?.toISOString().split('T')[0] || '';
       if (privateDateOfBirth) {
@@ -380,55 +358,68 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
           profileId: ensuredProfile.id,
           authUid: user.id,
           dateOfBirth: privateDateOfBirth,
-        });
+        }, guard);
+        guard();
       }
 
+      // Completion is written last. Failed photo/private/legal saves must not
+      // redirect a user into Home with an unfinished profile.
+      guard();
+      await batchSet('legal_acceptances', ['tos', 'privacy'].map(documentType => ({
+        id: `${user.id}_${documentType}_2.0`,
+        data: { user_id: user.id, document_type: documentType, document_version: '2.0' },
+      })));
+      guard();
+      pendingDesignerRef.current = true;
       await updateUserProfile(user.id, {
         username: finalUsername?.toLowerCase(),
-        first_name: profileData.firstName || appleStash?.firstName || '',
-        last_name: profileData.lastName || appleStash?.lastName || '',
+        first_name: profileData.firstName || '',
+        last_name: profileData.lastName || '',
         display_name: finalDisplayName,
         bio: profileData.bio,
         link_url: profileData.linkUrl,
         avatar_url: avatarUrl,
         interests: interests,
         onboarding_completed: true,
-      } as any);
-
-      if (legalAccepted) {
-        const { error: legalError } = await db.from('legal_acceptances').upsert([
-          { user_id: user.id, document_type: 'tos', document_version: '2.0' },
-          { user_id: user.id, document_type: 'privacy', document_version: '2.0' },
-        ], { onConflict: 'user_id,document_type,document_version' });
-        if (legalError) {
-          console.warn('[Onboarding] Legal acceptance save failed:', legalError.message);
-        }
-      }
-
+      }, guard);
+      guard();
       clearAppleProvidedName();
       clearSignupUsername();
 
-      await refreshProfile();
-
-      setLoading(false);
+      const fresh = await refreshProfile();
+      guard();
+      if (fresh?.user_id !== user.id || fresh.onboarding_completed !== true) throw new Error('Profile confirmation failed.');
       haptics.success();
-      pendingDesignerRef.current = true;
       setShowAIDesigner(true);
     } catch (error) {
-      console.error('Onboarding error:', error);
+      try { guard(); } catch { return; }
+      pendingDesignerRef.current = false;
       haptics.error();
-      const message = error instanceof Error ? error.message : 'Something went wrong. Please try again.';
-      toast.error(
-        import.meta.env.DEV ? message : 'Something went wrong. Please try again.',
-      );
-      setLoading(false);
+      const message = error instanceof Error && /^(Please choose|Your photo|Could not load)/.test(error.message)
+        ? error.message : 'Your profile could not be saved. Your choices are still here — please try again.';
+      setSaveError(message);
+      toast.error(message);
+    } finally {
+      busyRef.current = false;
+      if (activeRef.current) setLoading(false);
     }
   };
 
   const handleDesignerComplete = async () => {
+    if (busyRef.current) return;
+    let guard: () => void;
+    try { guard = captureGuard(); } catch { return; }
+    busyRef.current = true;
+    try {
+      const fresh = await refreshProfile();
+      guard();
+      if (fresh?.user_id !== user?.id || fresh?.onboarding_completed !== true) throw new Error('Profile confirmation failed.');
+    } catch {
+      busyRef.current = false;
+      try { guard(); toast.error('Your profile could not be confirmed. Please try again.'); } catch { /* retired */ }
+      return;
+    }
     pendingDesignerRef.current = false;
-    await refreshProfile();
-    console.log('[Onboarding] Completed, dispatching event');
     window.dispatchEvent(new CustomEvent('onboarding-completed'));
     toast.success('Welcome to VYBE! 🎉');
     
@@ -440,20 +431,13 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   };
 
   const handleSkip = async () => {
-    if (loading) return;
-    
-    if (!user) {
-      if (isInviteMode && onInviteNavigate) {
-        onInviteNavigate('home');
-      } else {
-        navigate('/home');
-      }
-      return;
-    }
-
+    if (!user || busyRef.current) return;
+    let guard: () => void;
+    try { guard = captureGuard(); } catch { return; }
+    busyRef.current = true;
     setLoading(true);
+    setSaveError('');
     haptics.tap();
-    toast.info('You can finish your profile anytime in Settings.');
     try {
       const desiredUsername = buildSkipUsername(
         user.id,
@@ -463,32 +447,27 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
         profile?.username,
       );
 
-      const { username: finalUsername, error } = await persistOnboardingSkip(user.id, desiredUsername);
-
-      if (error) {
-        console.error('Skip save error:', error);
-        toast.error(
-          import.meta.env.DEV
-            ? `Could not save profile: ${error.message}`
-            : 'Could not save profile. Please try again.',
-        );
-        return;
-      }
-
+      await persistOnboardingSkip(user.id, desiredUsername, guard);
+      guard();
       clearSignupUsername();
-      await refreshProfile();
+      const fresh = await refreshProfile();
+      guard();
+      if (fresh?.user_id !== user.id || fresh.onboarding_completed !== true) throw new Error('Profile confirmation failed.');
       window.dispatchEvent(new CustomEvent('onboarding-completed'));
+      toast.info('You can finish your profile anytime in Settings.');
 
       if (isInviteMode && onInviteNavigate) {
         onInviteNavigate('home');
       } else {
         navigate(getPostLoginPath('/home'), { replace: true });
       }
-    } catch (err) {
-      console.error('Skip error:', err);
-      toast.error('Something went wrong. Please try again.');
+    } catch {
+      try { guard(); } catch { return; }
+      setSaveError('Your profile could not be saved. Please try again.');
+      toast.error('Your profile could not be saved. Please try again.');
     } finally {
-      setLoading(false);
+      busyRef.current = false;
+      if (activeRef.current) setLoading(false);
     }
   };
 
@@ -655,6 +634,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       >
         <div className="p-3 sm:p-4">
           <div className="max-w-lg mx-auto pb-4">
+            {saveError && <p role="alert" className="mb-4 rounded-2xl border border-destructive/25 bg-destructive/10 p-3 text-sm">{saveError}</p>}
             {calmIos ? (
               // Instant swap in Despia/iOS — exit+enter AnimatePresence blanks a frame.
               <div key={step}>{renderStep()}</div>
@@ -680,7 +660,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
           <Button
             variant="outline"
             onClick={handleBack}
-            disabled={step === 1}
+            disabled={loading || step === 1}
             className="flex items-center gap-1.5 text-sm"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -690,7 +670,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
           {step < TOTAL_STEPS ? (
             <Button
               onClick={handleNext}
-              disabled={!canProceed()}
+              disabled={loading || !canProceed()}
               className="flex items-center gap-1.5 gradient-animated text-sm"
             >
               Next

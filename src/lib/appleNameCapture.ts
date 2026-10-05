@@ -3,6 +3,8 @@
  * Apple only returns name once — stash immediately and never re-require it in onboarding.
  */
 import { updateProfile } from 'firebase/auth';
+import { getFirebaseAuth } from '@/lib/firebase/authService';
+import { profileAccountGuard } from '@/lib/profileAccountGuard';
 import type { VybeUser } from '@/lib/firebase/types';
 
 const STORAGE_KEY = 'vybe_apple_name_v1';
@@ -107,8 +109,6 @@ export function hasAppleSatisfiedName(opts: {
   profileLastName?: string | null;
 }): boolean {
   if (!isAppleAuthUser(opts.user)) return false;
-  const stashed = readAppleProvidedName();
-  if (stashed?.displayName) return true;
   if (opts.profileDisplayName?.trim()) return true;
   if (opts.profileFirstName?.trim() || opts.profileLastName?.trim()) return true;
   const metaName = String(opts.user?.user_metadata?.full_name || opts.user?.user_metadata?.name || '').trim();
@@ -125,31 +125,32 @@ export async function applyAppleProvidedName(opts: {
   name: AppleProvidedName;
   profileId?: string | null;
 }): Promise<void> {
+  const guard = profileAccountGuard(opts.authUid);
+  const current = getFirebaseAuth()?.currentUser;
+  if (!current || current.uid !== opts.authUid) throw new Error('Your account changed.');
   stashAppleProvidedName(opts.name);
-
   try {
-    const { firebaseAuth } = await import('@/lib/firebase');
-    const current = firebaseAuth.auth?.currentUser;
-    if (current && !current.displayName && opts.name.displayName) {
-      await updateProfile(current, { displayName: opts.name.displayName });
-    }
+    guard();
+    if (!current.displayName && opts.name.displayName) await updateProfile(current, { displayName: opts.name.displayName });
+    guard();
   } catch {
-    /* ignore — profile write below still helps */
+    guard(); // An ordinary Auth metadata failure must not let a retired actor continue.
   }
-
-  if (!opts.profileId && !opts.authUid) return;
-
   try {
     const { updateUserProfile } = await import('@/lib/firebase/users');
-    const id = opts.profileId || opts.authUid;
-    await updateUserProfile(id, {
-      first_name: opts.name.firstName || undefined,
-      last_name: opts.name.lastName || undefined,
+    guard();
+    if (getFirebaseAuth()?.currentUser !== current) throw new Error('Your account changed.');
+    await updateUserProfile(opts.authUid, {
+      ...(opts.name.firstName ? { first_name: opts.name.firstName } : {}),
+      ...(opts.name.lastName ? { last_name: opts.name.lastName } : {}),
       display_name: opts.name.displayName,
-    } as Record<string, unknown>);
+    }, guard);
+    guard();
   } catch {
-    /* profile may not exist yet — onboarding will apply stashed name */
+    guard();
+    // A new profile may not exist yet. Current Auth metadata retains the name.
   }
+
 }
 
 /** Parse Apple JS / native payload and persist if name present. */

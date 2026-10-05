@@ -1,39 +1,41 @@
-import { getDocument, getDocuments, setDocument, where, firestoreLimit } from './firestoreDb';
+import { getDocument, getDocuments, getDocumentFromServer, getDocumentsFromServer, where, firestoreLimit } from './firestoreDb';
+import { reportAccountSnapshot } from '@/lib/reportModerationService';
+import { profileAccountGuard } from '@/lib/profileAccountGuard';
 import type { UserProfile } from './types';
 
-type AuthIndexRow = { profile_id?: string };
+type AuthIndexRow = { profile_id?: string; user_id?: string; owner_uid?: string };
+const conflict = () => Object.assign(new Error('Your profile needs an account ownership review.'), { code: 'failed-precondition', details: { reason: 'profile-recovery-required', recoveryAvailable: false } });
 
-/** Migrated rows use profiles.id as doc id; user_auth_index maps auth uid → profile id. */
-export async function getProfileByAuthUid(authUid: string): Promise<UserProfile | null> {
-  if (!authUid) return null;
-
-  const index = await getDocument<AuthIndexRow>('user_auth_index', authUid);
-  if (index?.profile_id) {
-    const byIndex = await getDocument<UserProfile>('profiles', index.profile_id);
-    if (byIndex) return byIndex;
-  }
-
-  const byUserId = await getDocuments<UserProfile>('profiles', [
-    where('user_id', '==', authUid),
-    firestoreLimit(1),
-  ]);
-  if (byUserId[0]) return byUserId[0];
-
-  return getDocument<UserProfile>('profiles', authUid);
+/** Read-only resolution: a legacy document ID is never evidence of Auth ownership. */
+export async function getProfileByAuthUid(authUid: string, extraGuard?: () => void): Promise<UserProfile | null> {
+  if (!authUid || authUid.includes('/')) return null;
+  const actor = reportAccountSnapshot();
+  const guard = actor.uid ? profileAccountGuard(actor.uid, extraGuard) : () => { extraGuard?.(); if (reportAccountSnapshot().epoch !== actor.epoch) throw new Error('Your account changed.'); };
+  const own = actor.uid === authUid;
+  const index = own ? await getDocumentFromServer<AuthIndexRow>('user_auth_index', authUid) : null;
+  guard();
+  const rows = await getDocumentsFromServer<UserProfile>('profiles', [where('user_id', '==', authUid), firestoreLimit(2)]);
+  guard();
+  const direct = await getDocumentFromServer<UserProfile>('profiles', authUid);
+  guard();
+  if (rows.length > 1 || rows.some(row => row.user_id !== authUid) || (direct && (direct.user_id !== authUid || direct.id !== authUid))) throw conflict();
+  const profile = rows[0] ?? null;
+  if (direct && (!profile || profile.id !== direct.id)) throw conflict();
+  if (index && (!profile || index.profile_id !== profile.id || (index.user_id !== undefined && index.user_id !== authUid) || (index.owner_uid !== undefined && index.owner_uid !== authUid))) throw conflict();
+  return profile;
 }
 
 export async function resolveProfileIdFromAuthUid(authUid: string): Promise<string | null> {
-  const profile = await getProfileByAuthUid(authUid);
-  return profile?.id ?? null;
+  return (await getProfileByAuthUid(authUid))?.id ?? null;
 }
 
-/** Keep user_auth_index aligned so Firestore rules profileId() matches profiles.id. */
-export async function syncUserAuthIndex(authUid: string, profileId: string): Promise<void> {
-  if (!authUid || !profileId) return;
-  await setDocument('user_auth_index', authUid, {
-    profile_id: profileId,
-    updated_at: new Date().toISOString(),
-  }, true);
+/** Only the checked server authority may repair an existing owned index. */
+export async function syncUserAuthIndex(authUid: string, profileId: string, extraGuard?: () => void): Promise<void> {
+  const guard = profileAccountGuard(authUid, extraGuard);
+  const { provisionAccountProfile } = await import('@/lib/accountProfileService');
+  guard();
+  await provisionAccountProfile(authUid, { action: 'syncIndex', expectedProfileId: profileId }, guard);
+  guard();
 }
 
 export async function getProfilesByIds(ids: string[]): Promise<Map<string, UserProfile>> {

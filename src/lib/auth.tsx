@@ -1,16 +1,18 @@
 import { createContext, useContext, useEffect, useMemo, useState, useRef, useCallback, ReactNode } from 'react';
 import type { User, Session } from '@/lib/firebase';
 import { db } from '@/lib/firebase';
-import { updateUserProfile, getProfileByAuthUid, ensureUserProfile } from '@/lib/firebase/users';
-import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
+import { updateUserProfile, ensureUserProfile } from '@/lib/firebase/users';
+import { profileAccountGuard, withProfileSetupDeadline, profileSetupFailure } from '@/lib/profileAccountGuard';
+import { reportAccountSnapshot } from '@/lib/reportModerationService';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
+import type { ProfileSetupError } from '@/lib/accountProfileService';
 import { BannedScreen } from '@/components/auth/BannedScreen';
 import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
-import { setCachedProfile, setCachedCurrentProfile, getCachedCurrentProfile, clearCachedCurrentProfile, clearProfileCache, setActiveAuthUserId, isRawId, stripStaleOnboardingFlagFromDisk, type CachedProfile } from '@/lib/profileCache';
+import { setCachedProfile, setCachedCurrentProfile, clearCachedCurrentProfile, clearProfileCache, setActiveAuthUserId, stripStaleOnboardingFlagFromDisk } from '@/lib/profileCache';
 import { clearCachedUserLevel } from '@/lib/userLevelCache';
 import { prefetchDMConversationsFromNav } from '@/lib/loadDMConversations';
 import { warmHomeCachesForProfile } from '@/lib/warmHomeCaches';
-import { prefetchAndApplyUserTheme } from '@/lib/themeHydration';
-import { resolveSessionProfileId, resetSessionProfileMemo } from '@/lib/resolveSessionProfileId';
+import { resetSessionProfileMemo } from '@/lib/resolveSessionProfileId';
 import { resetThemeToDefault } from '@/lib/themeReset';
 import { hasStoredAuthSession, getStoredAuthUserId, clearObsoleteAuthStorage } from '@/lib/legacyAuthStorage';
 import { setWasLoggedIn } from '@/lib/wasLoggedIn';
@@ -20,8 +22,6 @@ import { refreshFirebaseSession } from '@/lib/firebaseAuthRefresh';
 import { clearFunctionAuthHeadersCache } from '@/lib/functionAuth';
 import { logEvent } from '@/lib/debugLogger';
 import {
-  clearSignupUsername,
-  isGeneratedUsername,
   normalizeUsername,
   stashSignupUsername,
 } from '@/lib/username';
@@ -40,17 +40,6 @@ import { beginLoginApprovalCheck, endLoginApprovalCheck } from '@/lib/loginAppro
 import { captureAuthSnapshotGuard, completeAuthConfirmation, createAuthAttemptController, isRetiredAuthAttempt, type AuthSessionAttempt } from '@/lib/authSessionAttempt';
 import { getFirebaseAuth } from '@/lib/firebase/authService';
 import { clearMirroredAuth } from '@/lib/authSessionMirror';
-
-/** Fail-soft — production may not have deployed sync_signup_username yet. */
-async function trySyncSignupUsername(): Promise<string | null> {
-  try {
-    const { data, error } = await db.rpc('sync_signup_username');
-    if (error) return null;
-    return typeof data === 'string' ? data : null;
-  } catch {
-    return null;
-  }
-}
 
 // Token refresh interval - refresh 5 minutes before expiry
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
@@ -137,6 +126,10 @@ interface AuthContextType {
   loading: boolean;
   authReady: boolean;
   banInfo: BanInfo | null;
+  profileSetupError: ProfileSetupError | null;
+  profileSetupLoading: boolean;
+  retryProfileSetup: () => Promise<void>;
+  recoverProfileSetup: () => Promise<void>;
   signUp: (email: string, password: string, username: string) => Promise<{
     error: Error | null;
     needsEmailConfirmation?: boolean;
@@ -153,40 +146,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function cachedProfileToProfile(cached: CachedProfile, userId = ''): Profile {
-  return {
-    id: cached.id,
-    user_id: cached.user_id || userId,
-    username: cached.username,
-    display_name: cached.display_name,
-    avatar_url: cached.avatar_url,
-    bio: cached.bio || '',
-    created_at: new Date().toISOString(),
-    // Only trust cached true; false/undefined requires a fresh DB fetch before redirect decisions.
-    onboarding_completed: cached.onboarding_completed === true ? true : undefined,
-  };
-}
-
-/** Keep disk-cached profile visible when live fetch fails — never flash to skeleton. */
-function retainCachedProfile(
-  setProfile: (updater: (prev: Profile | null) => Profile | null) => void,
-  userId = '',
-): boolean {
-  const cached = getCachedCurrentProfile();
-  if (!cached || isRawId(cached.username)) return false;
-  if (userId && cached.user_id && cached.user_id !== userId) return false;
-  setProfile((prev) => {
-    const cachedProfile = cachedProfileToProfile(cached, userId);
-    if (!prev) return cachedProfile;
-    if (prev.user_id && userId && prev.user_id !== userId) return cachedProfile;
-    if (!prev.avatar_url && cachedProfile.avatar_url) {
-      return { ...prev, avatar_url: cachedProfile.avatar_url };
-    }
-    return prev;
-  });
-  return true;
-}
-
 function persistCurrentProfile(profileData: Profile, guard: () => void = () => {}) {
   guard();
   cacheProfileAvatar(profileData.id, profileData.avatar_url);
@@ -201,9 +160,6 @@ function persistCurrentProfile(profileData: Profile, guard: () => void = () => {
   };
   setCachedProfile(payload);
   setCachedCurrentProfile(payload);
-  if (profileData.user_id && profileData.id) {
-    void syncUserAuthIndex(profileData.user_id, profileData.id).catch(() => {});
-  }
   requestAnimationFrame(() => {
     try { guard(); } catch { return; }
     prefetchDMConversationsFromNav();
@@ -245,12 +201,14 @@ export async function waitForAuthSession(timeoutMs = 2500): Promise<Session | nu
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(() => {
-    if (typeof window === 'undefined' || !hasStoredAuthSession()) return null;
-    const cached = getCachedCurrentProfile();
-    if (!cached || isRawId(cached.username)) return null;
-    return cachedProfileToProfile(cached);
-  });
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const accountSession = useReportAccountSession();
+  const [setupState, setSetupState] = useState<{ uid: string; epoch: number; loading: boolean; error: ProfileSetupError | null } | null>(null);
+  const profileScopeRef = useRef<{ uid: string; epoch: number } | null>(null);
+  const profileAttemptRef = useRef(0);
+  const mountedRef = useRef(true);
+  const providerLifetimeRef = useRef(0);
+  const pendingSignupRef = useRef<symbol | null>(null);
   const [loading, setLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
   const [banInfo, setBanInfo] = useState<BanInfo | null>(null);
@@ -274,11 +232,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setProfile((prev) => {
       if (!prev) return prev;
-      if (!prev.user_id) return { ...prev, user_id: user.id };
-      if (prev.user_id !== user.id) return null;
+      if (prev.user_id !== user.id || profileScopeRef.current?.epoch !== accountSession.epoch) return null;
       return prev;
     });
-  }, [user?.id]);
+  }, [user?.id, accountSession.epoch]);
 
   // Clear ban expiry timer
   const clearBanExpiryTimer = () => {
@@ -401,173 +358,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Note: Referral/invite popup is now handled entirely by InvitePopup component
   // using the referral.ts utilities with localStorage persistence
 
-  const fetchProfile = async (userId: string, retryCount = 0, guard: () => void = tokenAccountGuard(userId)) => {
-    const maxRetries = 1;
-
-    const applyProfile = (profileData: Profile) => {
-      guard();
-      setProfile(profileData);
-      persistCurrentProfile(profileData, guard);
-      void checkBanStatus(profileData.id, guard);
-      subscribeToBanChanges(profileData.id, guard);
-      return profileData;
+  const fetchProfile = async (userId: string, _retryCount = 0, outerGuard: () => void = profileAccountGuard(userId), action: 'ensure' | 'recover' = 'ensure', defaults?: Partial<import('@/lib/firebase/types').UserProfile>, preserveConfirmedOnFailure = false) => {
+    try { outerGuard(); } catch { return null; }
+    if (!mountedRef.current) return null;
+    const captured = reportAccountSnapshot();
+    const lifetime = providerLifetimeRef.current;
+    const attempt = ++profileAttemptRef.current;
+    const accountGuard = profileAccountGuard(userId);
+    const guard = () => {
+      outerGuard(); accountGuard();
+      if (!mountedRef.current || lifetime !== providerLifetimeRef.current || attempt !== profileAttemptRef.current) throw Object.assign(new Error('Profile setup was replaced.'), { code: 'account-changed' });
     };
-    
     try {
       guard();
-      const indexed = await getProfileByAuthUid(userId);
+      setSetupState({ uid: userId, epoch: captured.epoch, loading: true, error: null });
+      const profileData = await withProfileSetupDeadline(async current => {
+        const { provisionAccountProfile } = await import('@/lib/accountProfileService');
+        current();
+        return action === 'recover'
+          ? (await provisionAccountProfile(userId, { action }, current)).profile
+          : await ensureUserProfile(userId, defaults, current);
+      }, guard);
       guard();
-      if (indexed?.id) {
-        return applyProfile(indexed as unknown as Profile);
-      }
-
-      // Prefer array result to avoid throwing when the row doesn't exist
-      const { data, error } = await db
-        .from('profiles')
-        .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, referral_inviter_id')
-        .eq('user_id', userId)
-        .limit(1);
-
-      guard();
-
-      if (!error && data?.[0]) {
-        const profileData = data[0] as unknown as Profile;
-
-        const { data: { user: authUser } } = await db.auth.getUser();
-        guard();
-        const metaUsername = authUser?.user_metadata?.username;
-        const shouldSyncSignupUsername =
-          isGeneratedUsername(profileData.username) ||
-          (typeof metaUsername === 'string' &&
-            metaUsername.trim() &&
-            normalizeUsername(metaUsername) !== normalizeUsername(profileData.username));
-
-        if (shouldSyncSignupUsername) {
-          void trySyncSignupUsername().then((syncedUsername) => {
-            guard();
-            if (syncedUsername && !isGeneratedUsername(syncedUsername)) {
-              setProfile((prev) =>
-                prev?.id === profileData.id ? { ...prev, username: syncedUsername } : prev,
-              );
-            }
-          }).catch(() => {});
-        } else {
-          clearSignupUsername();
-        }
-
-        return applyProfile(profileData);
-      }
-
-      if (retryCount < maxRetries) {
-        await new Promise((r) => setTimeout(r, 250));
-        guard();
-        return fetchProfile(userId, retryCount + 1, guard);
-      }
-
-      // Fast local ensure — claim first so we don't orphan a duplicate placeholder.
-      try {
-        guard();
-        await db.rpc('claim_profile_by_email').catch(() => undefined);
-        guard();
-        const claimed = await getProfileByAuthUid(userId);
-        guard();
-        if (claimed?.id) {
-          return applyProfile(claimed as unknown as Profile);
-        }
-        const ensured = await ensureUserProfile(userId);
-        guard();
-        if (ensured?.id) {
-          return applyProfile(ensured as unknown as Profile);
-        }
-      } catch (ensureErr) {
-        try { guard(); } catch { return null; }
-        console.warn('[Auth] ensureUserProfile failed:', ensureErr);
-      }
-
-      if (retainCachedProfile(setProfile, userId)) {
-        window.setTimeout(() => {
-          void fetchProfile(userId, 0, guard);
-        }, 2000);
-        return getCachedCurrentProfile();
-      }
-
-      console.warn('[Auth] Profile unavailable — retrying in background');
-      window.setTimeout(() => {
-        void fetchProfile(userId, 0, guard);
-      }, 1500);
-      return null;
-    } catch (err) {
+      if (profileData.user_id !== userId || !profileData.id) throw new Error('Profile ownership could not be confirmed.');
+      const confirmed = { ...profileData, ...(!profileData.username ? { onboarding_completed: false } : {}), avatar_url: profileData.avatar_url ?? null, bio: profileData.bio ?? '', created_at: profileData.created_at ?? '' } as Profile;
+      profileScopeRef.current = { uid: userId, epoch: captured.epoch };
+      setProfile(confirmed);
+      setSetupState({ uid: userId, epoch: captured.epoch, loading: false, error: null });
+      resetSessionProfileMemo();
+      persistCurrentProfile(confirmed, guard);
+      void checkBanStatus(confirmed.id, guard);
+      subscribeToBanChanges(confirmed.id, guard);
+      return confirmed;
+    } catch (error) {
       try { guard(); } catch { return null; }
-      const msg = err instanceof Error ? err.message : String(err);
-      const permissionDenied = /missing or insufficient permissions|permission-denied/i.test(msg);
-      const offline = /client is offline|unavailable|Failed to get document because the client is offline/i.test(msg);
-      // Soft-log auth races / transient offline — retry, don't spam as crash.
-      if (permissionDenied || offline) {
-        console.warn('[Auth] fetchProfile transient — retrying:', msg);
-      } else {
-        console.error('[Auth] fetchProfile error:', err);
-      }
-      
-      if (retryCount < maxRetries) {
-        await new Promise((r) => setTimeout(r, permissionDenied || offline ? 500 : 300));
-        return fetchProfile(userId, retryCount + 1, guard);
-      }
-      
-      retainCachedProfile(setProfile, userId);
-      window.setTimeout(() => {
-        void fetchProfile(userId, 0, guard);
-      }, permissionDenied || offline ? 1500 : 2000);
+      const failure = error as { code?: string; name?: string; message?: string };
+      const failureCode = String(failure?.code || failure?.name || '').replace(/^functions\//, '');
+      const transient = ['unavailable', 'deadline-exceeded', 'network-request-failed'].includes(failureCode) || (error instanceof TypeError && /fetch|network/i.test(error.message));
+      const preserve = transient && preserveConfirmedOnFailure && profileScopeRef.current?.uid === userId && profileScopeRef.current.epoch === captured.epoch;
+      if (!preserve) { profileScopeRef.current = null; setProfile(null); }
+      setSetupState({ uid: userId, epoch: captured.epoch, loading: false, error: preserve ? null : profileSetupFailure(error) });
       return null;
     }
   };
 
-  /** Warm caches + profile after sign-in — never blocks navigation. */
-  const bootstrapSessionData = (userId: string, authEvent: string, guard: () => void = tokenAccountGuard(userId)) => {
+  /** A single checked profile bootstrap; ordinary reads never create or relink identity. */
+  const bootstrapSessionData = (userId: string, authEvent: string, guard: () => void = profileAccountGuard(userId)) => {
     try { guard(); } catch { return; }
-    if (bootstrapUserRef.current === userId && authEvent !== 'SIGNED_IN') return;
-    bootstrapUserRef.current = userId;
-
+    if (pendingSignupRef.current) return;
+    const key = `${userId}:${reportAccountSnapshot().epoch}`;
+    if (bootstrapUserRef.current === key && authEvent !== 'SIGNED_IN') return;
+    bootstrapUserRef.current = key;
+    const lifetime = providerLifetimeRef.current;
     queueMicrotask(() => {
+      if (!mountedRef.current || lifetime !== providerLifetimeRef.current) return;
       try { guard(); } catch { return; }
-      const qc = (window as any).__REACT_QUERY_CLIENT__;
-      void prefetchAndApplyUserTheme(userId, qc);
       void fetchProfile(userId, 0, guard);
-
-      void (async () => {
-        try {
-          const profileId = await Promise.race([
-            resolveSessionProfileId(undefined),
-            new Promise<string | null>((resolve) => window.setTimeout(() => resolve(null), 2000)),
-          ]);
-          guard();
-          if (profileId && qc) {
-            qc.setQueryData(['session-profile-id', userId], profileId);
-            warmHomeCachesForProfile(qc, userId, profileId);
-          }
-          if (qc && authEvent === 'SIGNED_IN') {
-            void qc.invalidateQueries({ refetchType: 'active' });
-          }
-        } catch (err) {
-          try { guard(); } catch { return; }
-          console.error('[Auth] Session bootstrap failed:', err);
-        }
-
-        // Claim before ensure so we don't create a placeholder authUid profile
-        // that blocks email claim and duplicates accounts in friends/search.
-        void (async () => {
-          try {
-            guard();
-            await db.rpc('claim_profile_by_email');
-            guard();
-            resetSessionProfileMemo();
-            await fetchProfile(userId, 0, guard);
-          } catch (err: unknown) {
-            try { guard(); } catch { return; }
-            console.warn('[Auth] claim_profile_by_email failed:', err);
-            captureException(err, { scope: 'auth:claim_profile_by_email', userId });
-          }
-        })();
-      })();
     });
   };
 
@@ -737,27 +583,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false;
     };
 
+    mountedRef.current = true;
     // Helper: check if there's a stored auth token (session might be refreshing)
     const hasStoredToken = () => hasStoredAuthSession();
 
-    const hydrateCachedProfile = (userId = '') => {
-      stripStaleOnboardingFlagFromDisk();
-      const resolvedUserId = userId || getStoredAuthUserId() || '';
-      if (resolvedUserId) setActiveAuthUserId(resolvedUserId);
-      const cachedProfile = getCachedCurrentProfile();
-      if (!cachedProfile) return false;
-      if (resolvedUserId && cachedProfile.user_id && cachedProfile.user_id !== resolvedUserId) {
-        clearCachedCurrentProfile();
-        return false;
-      }
-      setProfile((prev) => {
-        if (prev?.user_id && resolvedUserId && prev.user_id !== resolvedUserId) {
-          return cachedProfileToProfile(cachedProfile, resolvedUserId);
-        }
-        return prev ?? cachedProfileToProfile(cachedProfile, resolvedUserId);
-      });
-      requestAnimationFrame(() => prefetchDMConversationsFromNav());
-      return true;
+    const hydrateCachedProfile = (_userId = '') => {
+      // A stored display snapshot cannot establish current profile ownership.
+      // The checked bootstrap is responsible for restoring an owned profile.
+      return false;
     };
 
     if (hasStoredToken()) {
@@ -1009,11 +842,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       logEvent('auth', 'Initializing: checking existing session');
 
+      const sessionReadSnapshot = tokenAccountSnapshot();
+      const isSessionReadCurrent = () => mountedRef.current && tokenAccountSnapshot().uid === sessionReadSnapshot.uid && tokenAccountSnapshot().epoch === sessionReadSnapshot.epoch;
       let getSessionHandled = false;
       const handleGetSession = async (
         result: Awaited<ReturnType<typeof db.auth.getSession>>,
       ) => {
-        if (getSessionHandled) return;
+        if (getSessionHandled || !isSessionReadCurrent()) return;
         getSessionHandled = true;
 
         const { data: { session }, error } = result;
@@ -1021,6 +856,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (hasStoredToken()) {
             logEvent('auth', 'getSession error with stored token — refreshing', { error: error.message });
             const { data: refreshed, error: refreshError } = await refreshStoredSession();
+            if (!isSessionReadCurrent()) return;
             if (refreshed.session?.user) {
               logEvent('auth', 'refreshSession restored session after getSession error', { userId: refreshed.session.user.id });
               setWasLoggedIn(true);
@@ -1070,6 +906,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           logEvent('auth', 'getSession returned null but stored token exists — refreshing');
 
           const { data, error } = await refreshStoredSession();
+          if (!isSessionReadCurrent()) return;
 
           if (data.session?.user) {
             logEvent('auth', 'refreshSession restored session', { userId: data.session.user.id });
@@ -1114,13 +951,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         let resolvedSession = session;
         if (!resolvedSession?.user && isOAuthRedirectInFlight()) {
           const captured = await awaitOAuthRedirectCapture();
+          if (!isSessionReadCurrent()) return;
           if (captured.session?.user) resolvedSession = captured.session;
         }
         if (!resolvedSession?.user) {
           const retry = await db.auth.getSession();
+          if (!isSessionReadCurrent()) return;
           if (retry.data.session?.user) resolvedSession = retry.data.session;
         }
 
+        if (!isSessionReadCurrent() || tokenAccountSnapshot().uid !== resolvedSession?.user?.id) return;
         authInitializedRef.current = true;
         setSession(resolvedSession);
         setUser(resolvedSession?.user ?? null);
@@ -1162,6 +1002,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
     // Cleanup on unmount
     return () => {
+      mountedRef.current = false;
+      providerLifetimeRef.current += 1;
+      bootstrapUserRef.current = null;
+      profileAttemptRef.current += 1;
       authAttempts.retire();
       document.removeEventListener('visibilitychange', resumeRefresh);
       window.removeEventListener('app-resumed', resumeRefresh);
@@ -1179,93 +1023,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = async (email: string, password: string, username: string) => {
+    const attempt = authAttempts.start(undefined, false);
+    const signupToken = Symbol('signup');
+    let createdUid: string | undefined;
+    let createdAccount = false;
     try {
       const normalizedEmail = normalizeLoginEmail(email);
       const cleanUsername = normalizeUsername(username);
-      if (!cleanUsername || cleanUsername.length < 3) {
-        throw new Error('Username must be at least 3 characters.');
-      }
-
-      // 1. Validate username when RPC exists; fail-soft if not deployed on production yet.
+      if (!cleanUsername || cleanUsername.length < 3) throw new Error('Username must be at least 3 characters.');
       const availability = await checkUsernameAvailable(cleanUsername);
+      attempt.guard();
       if (availability.error) throw new Error(availability.error);
-      if (!availability.available) {
-        throw new Error('This username is already taken. Please choose another.');
-      }
-
+      if (!availability.available) throw new Error('This username is already taken. Please choose another.');
       stashSignupUsername(cleanUsername);
-
-      // 2. Create auth user — username in metadata triggers handle_new_user.
-      const { data, error } = await db.auth.signUp({
-        email: normalizedEmail,
-        password,
-        options: {
-          emailRedirectTo: getAuthRedirectUrl('/auth/callback'),
-          data: { username: cleanUsername },
-        },
-      });
-
-      if (error) {
-        throw error;
-      }
-
+      pendingSignupRef.current = signupToken;
+      const { data, error } = await db.auth.signUp({ email: normalizedEmail, password, options: {
+        emailRedirectTo: getAuthRedirectUrl('/auth/callback'), data: { username: cleanUsername },
+      } });
+      if (error) throw error;
+      createdAccount = Boolean(data.user || data.session?.user);
+      createdUid = data.session?.user?.id;
       if (data.session?.user) {
-        // Establish the submitted identity before any listener-driven redirect.
-        let signupProfile: Profile = {
-          id: data.session.user.id,
-          user_id: data.session.user.id,
-          username: cleanUsername,
-          display_name: cleanUsername,
-          avatar_url: null,
-          bio: '',
-          created_at: new Date().toISOString(),
-          onboarding_completed: false,
-        };
-        try {
-          const ensured = await ensureUserProfile(data.session.user.id, {
-            username: cleanUsername,
-            display_name: cleanUsername,
-            onboarding_completed: false,
-          });
-          if (isGeneratedUsername(ensured.username)) {
-            await updateUserProfile(data.session.user.id, { username: cleanUsername });
-            ensured.username = cleanUsername;
-          }
-          signupProfile = ensured as unknown as Profile;
-        } catch (profileError) {
-          // The account is already created. Keep onboarding authoritative and
-          // let the existing background bootstrap retry profile persistence.
-          console.warn('[Auth] signup profile confirmation deferred:', profileError);
-        }
-        setProfile(signupProfile);
-        persistCurrentProfile(signupProfile);
+        attempt.bindAuthenticated(data.session.user.id);
+        attempt.guard();
+        setProfile(null);
         setWasLoggedIn(true);
         setSession(data.session);
         setUser(data.session.user);
         setActiveAuthUserId(data.session.user.id);
         authInitializedRef.current = true;
-        setLoading(false);
-        setIsInitialized(true);
-        /* hydrateCachedProfile handled by listener */
-        if (data.session.expires_at) {
-          scheduleTokenRefresh(data.session.expires_at);
-        }
-        bootstrapSessionData(data.session.user.id, 'SIGNED_IN');
-        void trySyncSignupUsername();
-        return {
-          error: null,
-          needsEmailConfirmation: false,
-          verificationEmailSent: data.verificationEmailSent !== false,
-        };
+        setLoading(false); setIsInitialized(true);
+        if (data.session.expires_at) scheduleTokenRefresh(data.session.expires_at);
+        bootstrapUserRef.current = `${data.session.user.id}:${reportAccountSnapshot().epoch}`;
+        await fetchProfile(data.session.user.id, 0, attempt.guard, 'ensure', {
+          username: cleanUsername, display_name: cleanUsername, onboarding_completed: false,
+        });
+        // Profile failure is a retryable signed-in state, not another Auth signup.
+        return { error: null, needsEmailConfirmation: false, verificationEmailSent: data.verificationEmailSent !== false };
       }
-
-      return {
-        error: null,
-        needsEmailConfirmation: Boolean(data.user),
-        verificationEmailSent: data.verificationEmailSent !== false,
-      };
+      attempt.guard();
+      return { error: null, needsEmailConfirmation: Boolean(data.user), verificationEmailSent: data.verificationEmailSent !== false };
     } catch (error) {
+      if (createdAccount && isRetiredAuthAttempt(error)) return { error: null, needsEmailConfirmation: false };
       return { error: error as Error, needsEmailConfirmation: false };
+    } finally {
+      if (pendingSignupRef.current === signupToken) {
+        pendingSignupRef.current = null;
+        const currentUid = tokenAccountSnapshot().uid;
+        if (currentUid && currentUid !== createdUid) bootstrapSessionData(currentUid, 'SIGNED_IN');
+      }
     }
   };
 
@@ -1427,65 +1233,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const updateProfile = async (updates: Partial<Profile>) => {
-    if (!profile) return { error: new Error('No profile') };
-
-    // Optimistic update — flip local state immediately so UI feels instant.
-    const previousProfile = profile;
-    const normalizedUpdates = { ...updates };
-    if (updates.username !== undefined) {
-      normalizedUpdates.username = normalizeUsername(String(updates.username));
-    }
-    const merged = { ...profile, ...normalizedUpdates };
-    setProfile(merged);
-
-    // Update profile cache + invalidate queries optimistically too.
-    void (async () => {
-      try {
-        persistCurrentProfile(merged);
-      } catch {}
-      try {
-        const qc = (window as any).__REACT_QUERY_CLIENT__;
-        if (qc) {
-          qc.invalidateQueries({ queryKey: ['profile'] });
-          qc.invalidateQueries({ queryKey: ['profile-by-id'] });
-          qc.invalidateQueries({ queryKey: ['user-profile'] });
-          qc.invalidateQueries({ queryKey: ['profiles'] });
-        }
-      } catch {}
-    })();
-
+    if (!user?.id || !profile || profile.user_id !== user.id) return { error: new Error('Load your profile before saving changes.') };
+    const accountGuard = profileAccountGuard(user.id);
+    const lifetime = providerLifetimeRef.current;
+    const guard = () => {
+      accountGuard();
+      if (!mountedRef.current || lifetime !== providerLifetimeRef.current) throw Object.assign(new Error('Profile editor closed.'), { code: 'account-changed' });
+    };
+    const ownerEpoch = reportAccountSnapshot().epoch;
+    const ownProfile = profile;
     try {
-      const authUserId = user?.id ?? profile.user_id ?? profile.id;
-      await updateUserProfile(authUserId, updates as Partial<import('@/lib/firebase/types').UserProfile>);
+      guard();
+      await updateUserProfile(user.id, updates, guard);
+      guard();
+      if (!mountedRef.current || profileScopeRef.current?.epoch !== ownerEpoch) throw new Error('Your account changed.');
+      const confirmed = { ...ownProfile, ...updates, ...(updates.username !== undefined ? { username: normalizeUsername(String(updates.username)) } : {}) };
+      setProfile(confirmed);
+      persistCurrentProfile(confirmed, guard);
+      const qc = (window as any).__REACT_QUERY_CLIENT__;
+      for (const key of ['profile', 'profile-by-id', 'user-profile', 'profiles']) void qc?.invalidateQueries({ queryKey: [key] });
       return { error: null };
-    } catch (error) {
-      // Roll back on failure
-      setProfile(previousProfile);
-      return { error: error as Error };
-    }
+    } catch (error) { return { error: error as Error }; }
   };
 
   const refreshProfile = async () => {
-    const uid = user?.id ?? (await db.auth.getSession()).data.session?.user?.id;
-    if (!uid) return null;
-    const result = await Promise.race([
-      fetchProfile(uid),
-      new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 5000)),
-    ]);
-    return result as Profile | null;
+    if (!user?.id) return null;
+    return fetchProfile(user.id, 0, profileAccountGuard(user.id), 'ensure', undefined, true);
   };
+  const retryProfileSetup = async () => { if (user?.id) await fetchProfile(user.id, 0, profileAccountGuard(user.id)); };
+  const recoverProfileSetup = async () => {
+    if (user?.id && setupState?.uid === user.id && setupState.epoch === accountSession.epoch && setupState.error?.recoveryAvailable) {
+      await fetchProfile(user.id, 0, profileAccountGuard(user.id), 'recover');
+    }
+  };
+  const currentSetup = setupState?.uid === accountSession.uid && setupState?.epoch === accountSession.epoch ? setupState : null;
+  const profileSetupError = currentSetup?.error ?? null;
+  const profileSetupLoading = !!user && (!currentSetup || currentSetup.loading);
 
   const resolvedProfile = useMemo(() => {
-    if (!profile) return null;
+    if (!profile || profile.user_id !== user?.id || profile.user_id !== accountSession.uid || profileScopeRef.current?.epoch !== accountSession.epoch) return null;
     const avatar = resolveProfileAvatarUrl(profile.id, profile.avatar_url);
     if (avatar === profile.avatar_url) return profile;
     return { ...profile, avatar_url: avatar ?? profile.avatar_url };
-  }, [profile]);
+  }, [profile, user?.id, accountSession]);
 
   // Stable context value: auth API functions close over fresh state via a ref,
   // so consumers only re-render when auth *data* actually changes.
-  const apiRef = useRef({ signUp, signIn, applyOAuthSession, resendVerification, signOut, updateProfile, refreshProfile });
-  apiRef.current = { signUp, signIn, applyOAuthSession, resendVerification, signOut, updateProfile, refreshProfile };
+  const apiRef = useRef({ signUp, signIn, applyOAuthSession, resendVerification, signOut, updateProfile, refreshProfile, retryProfileSetup, recoverProfileSetup });
+  apiRef.current = { signUp, signIn, applyOAuthSession, resendVerification, signOut, updateProfile, refreshProfile, retryProfileSetup, recoverProfileSetup };
   const stableApi = useMemo(
     () => ({
       signUp: (email: string, password: string, username: string) => apiRef.current.signUp(email, password, username),
@@ -1495,6 +1290,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut: () => apiRef.current.signOut(),
       updateProfile: (updates: Partial<Profile>) => apiRef.current.updateProfile(updates),
       refreshProfile: () => apiRef.current.refreshProfile(),
+      retryProfileSetup: () => apiRef.current.retryProfileSetup(),
+      recoverProfileSetup: () => apiRef.current.recoverProfileSetup(),
     }),
     [],
   );
@@ -1507,9 +1304,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       authReady: isInitialized,
       banInfo,
+      profileSetupError, profileSetupLoading,
       ...stableApi,
     }),
-    [user, session, resolvedProfile, loading, isInitialized, banInfo, stableApi],
+    [user, session, resolvedProfile, loading, isInitialized, banInfo, profileSetupError, profileSetupLoading, stableApi],
   );
 
   // Always keep AuthContext mounted — ban UI replaces children, never the provider.
@@ -1540,6 +1338,8 @@ const AUTH_OUTSIDE_PROVIDER_FALLBACK: AuthContextType = {
   loading: true,
   authReady: false,
   banInfo: null,
+  profileSetupError: null, profileSetupLoading: false,
+  retryProfileSetup: async () => {}, recoverProfileSetup: async () => {},
   signUp: async () => ({ error: new Error('Auth not ready') }),
   signIn: async () => ({ error: new Error('Auth not ready') }),
   applyOAuthSession: async () => ({ requiresApproval: false }),

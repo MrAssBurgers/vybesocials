@@ -1,12 +1,12 @@
 import {
   getDocument,
   getDocuments,
-  setDocument,
   updateDocument,
   where,
   orderBy,
   firestoreLimit,
 } from './firestoreDb';
+import { profileAccountGuard } from '@/lib/profileAccountGuard';
 import { firebaseAuth } from './authService';
 import { getProfileByAuthUid, getProfilesByIds } from './profileResolve';
 import { syncProfileUsername } from './syncProfileUsername';
@@ -52,41 +52,37 @@ export async function getUserProfileByUsername(username: string): Promise<UserPr
 export async function ensureUserProfile(
   authUserId: string,
   defaults?: Partial<UserProfile>,
+  extraGuard?: () => void,
 ): Promise<UserProfile> {
-  const existing = await getProfileByAuthUid(authUserId);
-  if (existing) return existing;
-
-  const profile: UserProfile = {
-    id: authUserId,
-    user_id: authUserId,
-    username: defaults?.username || `user_${authUserId.slice(0, 8)}`,
-    display_name: defaults?.display_name ?? defaults?.username ?? null,
-    avatar_url: defaults?.avatar_url ?? null,
-    bio: defaults?.bio ?? '',
-    onboarding_completed: defaults?.onboarding_completed ?? false,
-    created_at: new Date().toISOString(),
-  };
-
-  await setDocument('profiles', authUserId, profile);
-  return profile;
+  const guard = profileAccountGuard(authUserId, extraGuard);
+  const { provisionAccountProfile } = await import('@/lib/accountProfileService');
+  guard();
+  const result = await provisionAccountProfile(authUserId, { defaults: defaults ? {
+    ...(defaults.username !== undefined ? { username: defaults.username } : {}),
+    ...(defaults.display_name != null ? { displayName: defaults.display_name } : {}),
+    ...(defaults.avatar_url !== undefined ? { avatarUrl: defaults.avatar_url } : {}),
+    ...(defaults.bio !== undefined ? { bio: defaults.bio } : {}),
+    ...(defaults.onboarding_completed === false ? { onboardingCompleted: false as const } : {}),
+  } : undefined }, guard);
+  guard();
+  return result.profile;
 }
 
-export async function updateUserProfile(
-  userId: string,
-  updates: Partial<UserProfile>,
-): Promise<void> {
-  const profile = await getProfileByAuthUid(userId);
-  if (!profile?.id) throw new Error('Profile not found');
-
-  const authUid = profile.user_id || userId;
+export async function updateUserProfile(userId: string, updates: Partial<UserProfile> & { first_name?: string; last_name?: string; link_url?: string; location?: string }, extraGuard?: () => void): Promise<void> {
+  const guard = profileAccountGuard(userId, extraGuard);
+  if (['id', 'user_id', 'created_at'].some(key => key in updates)) throw new Error('Profile ownership cannot be changed here.');
+  const profile = await getProfileByAuthUid(userId, guard);
+  guard();
+  if (!profile?.id || profile.user_id !== userId) throw new Error('Profile not found');
   const { username, ...rest } = updates;
-
   if (username !== undefined) {
-    await syncProfileUsername(authUid, String(username));
+    await syncProfileUsername(userId, String(username), guard);
+    guard();
   }
-
   if (Object.keys(rest).length > 0) {
+    guard();
     await updateDocument('profiles', profile.id, rest);
+    guard();
   }
 }
 
@@ -98,9 +94,10 @@ export async function isUsernameAvailable(username: string, excludeUserId?: stri
 }
 
 export async function getCurrentUserProfile(): Promise<UserProfile | null> {
-  const { data: { user } } = await firebaseAuth.getUser();
-  if (!user) return null;
-  return ensureUserProfile(user.id);
+  const uid = firebaseAuth.auth?.currentUser?.uid;
+  if (!uid) return null;
+  const guard = profileAccountGuard(uid);
+  return getProfileByAuthUid(uid, guard);
 }
 
 export async function listUsers(limit = 50): Promise<UserProfile[]> {

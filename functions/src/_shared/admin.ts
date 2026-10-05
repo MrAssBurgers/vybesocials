@@ -17,7 +17,16 @@ export function requireAuth(request: CallableRequest): string {
 
 export async function requireAdmin(request: CallableRequest): Promise<string> {
   const uid = requireAuth(request);
+  const binding = (await db.collection('_account_profile_bindings').doc(uid).get()).data();
+  if (binding && (binding.version !== 1 || binding.owner_uid !== uid || binding.status !== 'active'
+    || typeof binding.profile_id !== 'string' || !binding.profile_id)) {
+    throw new HttpsError('permission-denied', 'This account identity is retired. Sign in to the current account.');
+  }
   if (request.auth?.token?.admin === true) return uid;
+  const directProfile = (await db.collection('profiles').doc(uid).get()).data();
+  if (directProfile && (directProfile.user_id !== uid || directProfile.is_deleted === true || directProfile.deleted_at)) {
+    throw new HttpsError('permission-denied', 'This account identity needs an ownership review.');
+  }
   const snap = await db.collection('user_roles')
     .where('user_id', '==', uid)
     .where('role', 'in', ['admin', 'owner'])

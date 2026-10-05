@@ -1,10 +1,25 @@
-import { ReactNode } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { lazy, ReactNode, Suspense, useEffect, useState } from 'react';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { hasStoredAuthSession } from '@/lib/legacyAuthStorage';
 import { stashAuthReturnPath } from '@/lib/authReturnPath';
 import { shouldBlockPostLoginNavigation } from '@/lib/loginApprovalGate';
 import { GuestContentGate } from './GuestContentGate';
+const AccountProfileStatus = lazy(() => import('./AccountProfileStatus'));
+
+function RestoringSession() {
+  const [delayed, setDelayed] = useState(false);
+  const location = useLocation();
+  useEffect(() => { const timer = setTimeout(() => setDelayed(true), 8_000); return () => clearTimeout(timer); }, []);
+  return <div role="status" aria-label="Restoring your session" className="min-h-screen bg-background flex flex-col gap-4 items-center justify-center px-6 text-center">
+    <div className="w-8 h-8 rounded-full border-[3px] border-primary/30 border-t-primary animate-spin" />
+    {delayed && <>
+      <p className="text-sm text-muted-foreground">Your session is taking longer than usual to load.</p>
+      <button className="rounded-full bg-primary px-5 py-2 font-medium" onClick={() => window.location.reload()}>Try loading again</button>
+      <Link className="text-sm underline" to="/auth" onClick={() => stashAuthReturnPath(`${location.pathname}${location.search}${location.hash}`)}>Go to sign in</Link>
+    </>}
+  </div>;
+}
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -26,7 +41,7 @@ const GUEST_ALLOWED_ROUTES = ['/home', '/explore', '/clips', '/shorts', '/p/', '
  * token refresh.
  */
 export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
-  const { user, profile, authReady } = useAuth();
+  const { user, profile, authReady, profileSetupError } = useAuth();
   const location = useLocation();
 
   // Check if current route allows guest access
@@ -53,20 +68,11 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
     return <GuestContentGate />;
   }
 
-  // Auth still restoring — never treat as signed-out (OAuth redirect race).
-  // Show a tiny bootstrap shell unless we already have a disk session hint
-  // (then keep children for DM/home cold-start continuity).
-  if (!authReady) {
-    if (hasStoredToken) return <>{children}</>;
-    return (
-      <div role="status" aria-label="Restoring your session" className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-[3px] border-primary/30 border-t-primary animate-spin" />
-      </div>
-    );
-  }
+  // A disk hint cannot authorize mounting account-backed queries.
+  if (!authReady) return <RestoringSession />;
 
   if (!user && hasStoredToken) {
-    return <>{children}</>;
+    return <RestoringSession />;
   }
 
   // Genuinely signed out — stash intended destination, then send to auth.
@@ -76,6 +82,11 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
       stashAuthReturnPath(returnTo);
     }
     return <Navigate to="/auth" state={{ from: location }} replace />;
+  }
+
+  // Provisioning failure is recoverable account state, not unfinished onboarding.
+  if (profileSetupError || !profile?.id || profile.user_id !== user.id) {
+    return <Suspense fallback={<RestoringSession />}><AccountProfileStatus /></Suspense>;
   }
 
   // A signed-in account is not fully initialized until onboarding is explicitly

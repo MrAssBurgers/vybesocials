@@ -54,7 +54,7 @@ function toError(err: unknown): VybeAuthError {
           ? String((e.details as { message?: unknown }).message || '')
           : '';
     const msg = e.message || detail || 'Function error';
-    return { message: msg, name: code || e.code };
+    return { message: msg, name: code || e.code, details: e.details };
   }
   return { message: 'Function error' };
 }

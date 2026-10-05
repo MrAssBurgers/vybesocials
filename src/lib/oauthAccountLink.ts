@@ -1,19 +1,17 @@
-/**
- * Post-OAuth profile claim + friendly handling for Auth identity conflicts.
- * Firestore claim merges migrated profiles by email; Firebase “one account per email”
- * must stay enabled in the console for automatic provider merge on new sign-in.
- */
-import { db } from '@/lib/firebase';
+/** Account profile setup after OAuth never guesses identity from an email. */
+import { getFirebaseAuth } from '@/lib/firebase/authService';
+import { profileAccountGuard } from '@/lib/profileAccountGuard';
 import type { VybeAuthError } from '@/lib/firebase/types';
 import { APPLE_SIGNIN_OPEN_FAILED, isOpaqueUnknownAuthText } from '@/lib/errorUtils';
 
-/** Claim / merge Firestore profile for the signed-in email (safe no-op on failure). */
+/** AuthProvider presents setup failure; this adapter never claims by email. */
 export async function claimProfileAfterOAuth(): Promise<void> {
-  try {
-    await db.rpc('claim_profile_by_email');
-  } catch {
-    /* optional enrichment — login continues */
-  }
+  const uid = getFirebaseAuth()?.currentUser?.uid || '';
+  const guard = profileAccountGuard(uid);
+  const { provisionAccountProfile } = await import('@/lib/accountProfileService');
+  guard();
+  await provisionAccountProfile(uid, {}, guard);
+  guard();
 }
 
 export function isAccountExistsWithDifferentCredential(error: unknown): boolean {

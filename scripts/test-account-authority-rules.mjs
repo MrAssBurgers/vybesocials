@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
 // Synthetic fixtures only: never fall through to a live endpoint or credential.
@@ -15,12 +16,10 @@ const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
 const rules = await readFile('firestore.rules', 'utf8');
 // Reports are callable-only. bug_reports retains the same staff-read predicate
 // and provides an unchanged surface for these existing role-authority probes.
-// Reconstruct only the pre-fix staff-role predicate in an isolated demo project.
-// This proves the late-alias read budget limitation existed before this change.
-const originalRules = rules
-  .replace('activeStaffRoleAt(col, profileId(), role)', 'exists(/databases/$(database)/documents/$(col)/$(profileId() + \'_\' + role))')
-  .replace('activeStaffRoleAt(col, uid(), role)', 'exists(/databases/$(database)/documents/$(col)/$(uid() + \'_\' + role))');
-assert.notEqual(originalRules, rules, 'Baseline probe must restore the original exists-only predicate');
+// Use the complete prior checkpoint: reconstructed role predicates would keep
+// today's identity helpers and could mislabel a new Rules budget regression.
+const originalRules = execFileSync('git', ['show', '4ac93f56:firestore.rules'], { encoding: 'utf8' });
+assert.notEqual(originalRules, rules, 'Baseline probe must use the exact prior rules');
 const baseline = await initializeTestEnvironment({ projectId: 'demo-vybe-authority-baseline', firestore: { host, port: Number(port), rules: originalRules } });
 let baselineChecks = 0;
 try {
@@ -95,6 +94,7 @@ try {
         const client = user(uid);
         await seed('profiles', profileId, { user_id: uid });
         await seed('user_auth_index', uid, { profile_id: profileId });
+        await seed('_account_profile_bindings', uid, { version: 1, owner_uid: uid, profile_id: profileId, status: 'active' });
         const identity = alias === 'uid' ? uid : profileId;
         const id = `${identity}_${role}`;
         const roleRow = { user_id: identity, role };

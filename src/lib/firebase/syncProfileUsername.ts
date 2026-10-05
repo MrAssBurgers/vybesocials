@@ -1,8 +1,9 @@
 import { updateProfile as updateFirebaseAuthProfile } from 'firebase/auth';
 import { normalizeUsername } from '@/lib/username';
 import { firebaseAuth } from './authService';
-import { getProfileByAuthUid } from './profileResolve';
-import { setDocument, updateDocument } from './firestoreDb';
+import { profileAccountGuard } from '@/lib/profileAccountGuard';
+import { getProfileByAuthUid, syncUserAuthIndex } from './profileResolve';
+import { updateDocument } from './firestoreDb';
 
 /**
  * Persist a username change everywhere it must stay consistent:
@@ -11,14 +12,19 @@ import { setDocument, updateDocument } from './firestoreDb';
 export async function syncProfileUsername(
   authUserId: string,
   username: string,
+  extraGuard?: () => void,
 ): Promise<{ profileId: string; username: string }> {
+  const guard = profileAccountGuard(authUserId, extraGuard);
+  const authUser = firebaseAuth.auth?.currentUser;
+  if (authUser?.uid !== authUserId) throw new Error('Your account changed.');
   const normalized = normalizeUsername(username);
   if (!normalized) {
     throw new Error('Username cannot be empty');
   }
 
-  const profile = await getProfileByAuthUid(authUserId);
-  if (!profile?.id) {
+  const profile = await getProfileByAuthUid(authUserId, guard);
+  guard();
+  if (!profile?.id || profile.user_id !== authUserId) {
     throw new Error('Profile not found');
   }
 
@@ -27,25 +33,16 @@ export async function syncProfileUsername(
 
   await updateDocument('profiles', profile.id, patch);
 
-  await setDocument(
-    'user_auth_index',
-    authUserId,
-    {
-      profile_id: profile.id,
-      username: normalized,
-      updated_at: now,
-    },
-    true,
-  );
-
-  const auth = firebaseAuth.auth;
-  if (auth?.currentUser) {
-    try {
-      await updateFirebaseAuthProfile(auth.currentUser, { displayName: normalized });
-    } catch {
-      // Non-fatal — Firestore is source of truth for @handles.
-    }
+  guard();
+  await syncUserAuthIndex(authUserId, profile.id, guard);
+  guard();
+  if (firebaseAuth.auth?.currentUser !== authUser) throw new Error('Your account changed.');
+  try {
+    await updateFirebaseAuthProfile(authUser, { displayName: normalized });
+  } catch {
+    // The checked Firestore profile remains authoritative for handles.
   }
+  guard();
 
   return { profileId: profile.id, username: normalized };
 }

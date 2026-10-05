@@ -9,7 +9,7 @@ import type { DocumentReference } from 'firebase-admin/firestore';
 import { OAuth2Client } from 'google-auth-library';
 import { db, auth, requireAuth, requireAdmin, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import { sendPasswordResetEmail, type PasswordResetSendProvider } from './_shared/passwordResetEmail.js';
-import { claimProfileByEmailForUid } from './_shared/claimProfileByEmail.js';
+import { ensureAccountProfileForUid } from './_shared/accountProfileAuthority.js';
 import { gateKnownSession, shouldExpireStaleLoginChallenge } from './_shared/loginNotifyGuards.js';
 import { renderAuthEmail, AUTH_EMAIL_SUBJECTS } from './_shared/emailTemplates/index.js';
 import { premiumStatusForRequest } from './_shared/premiumAuthority.js';
@@ -88,11 +88,17 @@ export const requestPasswordReset = onCall({ cors: true, secrets: ['RESEND_API_K
   return { ok: true, message: 'If that email exists, we sent a reset link.' };
 });
 
-/** Link OAuth / new auth uid to migrated profile by email (restores DMs, posts, etc.). */
-export const claimProfileByEmail = onCall({ cors: true }, async (request) => {
+/** Canonical setup; email/name/index hints never transfer profile ownership. */
+export const ensureAccountProfile = onCall({ cors: true, timeoutSeconds: 60 }, async (request) => {
   const uid = requireAuth(request);
-  const result = await claimProfileByEmailForUid(uid);
-  return { profileId: result.profileId, claimed: result.claimed };
+  enforceRateLimit(await rateLimit(`account-profile:${uid}`, 30, 60));
+  return ensureAccountProfileForUid(db, auth, uid, request.data);
+});
+/** Compatibility export requires the exact same bound setup contract. */
+export const claimProfileByEmail = onCall({ cors: true, timeoutSeconds: 60 }, async (request) => {
+  const uid = requireAuth(request);
+  enforceRateLimit(await rateLimit(`account-profile:${uid}`, 30, 60));
+  return ensureAccountProfileForUid(db, auth, uid, request.data);
 });
 
 /** auth-2fa-request — issue a 6-digit code (email channel). */

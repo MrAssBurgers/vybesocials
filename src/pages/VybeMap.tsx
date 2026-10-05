@@ -141,7 +141,8 @@ function VybeMapInner() {
   const { data: groupMaps = [] } = useGroupMaps(effectiveId);
   const createGroupMap = useCreateGroupMap();
   const logAccess = useLogLocationAccess();
-  const { setMap, flyTo, flyToUser, startWander, resetBearing } = useVybeMapFlyTo();
+  const { mapViewMode, setMapViewMode } = useMapViewMode();
+  const { setMap, flyTo, flyToUser, startWander, resetBearing } = useVybeMapFlyTo(mapViewMode);
   const mapInstanceRef = useRef<{ getCenter: () => { lat: number; lng: number } } | null>(null);
 
   const [selId, setSelId] = useState<string | null>(null);
@@ -155,7 +156,6 @@ function VybeMapInner() {
   const [findState, setFindMode] = useState<{ lease: MapLocationLease; ar: boolean } | null>(null);
   const currentFindFriend = currentMapLocation(findState?.lease, locationScope, friends);
   const findMode = currentFindFriend && findState ? { friend: currentFindFriend, ar: findState.ar } : null;
-  const { mapViewMode, setMapViewMode } = useMapViewMode();
   const { followHeading, setFollowHeading, toggleFollowHeading } = useMapFollowHeading();
   const [squadsOpen, setSquadsOpen] = useState(false);
   const [activeSquad, setActiveSquad] = useState<MapGroupMap | null>(null);
@@ -613,6 +613,7 @@ function VybeMapInner() {
             followHeading={followHeading}
             onFollowHeading={setFollowHeading}
             onMapMode={setMapViewMode}
+            onReturnTo3D={() => { setMapViewMode('3d'); setFlatFallback(false); }}
             onToggleLayer={(key) => { toggleLayer(key); trackMapEvent('layer_toggle', { layer: key }); }}
             onGhost={() => { setSettingsOpen(false); setGhostOpen(true); }}
             onSquads={() => { setSettingsOpen(false); setSquadsOpen(true); }}

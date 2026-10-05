@@ -1,5 +1,5 @@
 /**
- * Leaflet fallback when VITE_MAPBOX_ACCESS_TOKEN is not configured.
+ * Optional flat renderer, entered only after an explicit user choice.
  */
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
@@ -24,7 +24,7 @@ export interface VybeMapLeafletProps {
   onFriendTap: (f: LiveFriend) => void;
   onPlaceTap: (p: MapPlace) => void;
   mapElRef: React.RefObject<HTMLDivElement | null>;
-  onMapReady?: (map: L.Map) => void;
+  onMapReady?: (map: L.Map | null) => void;
 }
 
 export function VybeMapLeafletFallback({
@@ -32,6 +32,8 @@ export function VybeMapLeafletFallback({
   onFriendTap, onPlaceTap, mapElRef, onMapReady,
 }: VybeMapLeafletProps) {
   const mapRef = useRef<L.Map | null>(null);
+  const readyCallback = useRef(onMapReady);
+  readyCallback.current = onMapReady;
   const markersRef = useRef<L.LayerGroup | null>(null);
   const heatLayerRef = useRef<L.LayerGroup | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -58,13 +60,13 @@ export function VybeMapLeafletFallback({
     markersRef.current = L.layerGroup().addTo(map);
     heatLayerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
-    onMapReady?.(map);
+    readyCallback.current?.(map);
     requestAnimationFrame(() => { if (!cancelled) map.invalidateSize(); });
     const ro = new ResizeObserver(() => {
       requestAnimationFrame(() => { if (!cancelled) { try { map.invalidateSize(); } catch { /* disposed */ } } });
     });
     ro.observe(el);
-    return () => { cancelled = true; clearTimeout(timer); ro.disconnect(); tiles.off(); map.remove(); mapRef.current = null; markersRef.current = null; heatLayerRef.current = null; };
+    return () => { cancelled = true; clearTimeout(timer); ro.disconnect(); tiles.off(); readyCallback.current?.(null); map.remove(); mapRef.current = null; markersRef.current = null; heatLayerRef.current = null; };
   }, [attempt]);
 
   useEffect(() => {

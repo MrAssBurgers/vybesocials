@@ -38,7 +38,6 @@ import {
   writeAuthVault,
 } from '@/lib/authSessionMirror';
 import type { VybeSession, VybeUser, VybeAuthError } from './types';
-import { setDocument } from './firestoreDb';
 
 let authInstance: Auth | null = null;
 
@@ -384,32 +383,7 @@ export const firebaseAuth = {
       });
     }
 
-    const now = new Date().toISOString();
-    let profileBootstrapSucceeded = true;
-    try {
-      const initialUsername = username || `user_${cred.user.uid.slice(0, 8)}`;
-      await setDocument('profiles', cred.user.uid, {
-        id: cred.user.uid,
-        user_id: cred.user.uid,
-        username: initialUsername,
-        display_name: initialUsername,
-        avatar_url: null,
-        bio: '',
-        onboarding_completed: false,
-        email: cred.user.email || payload.email,
-        created_at: now,
-      }, true);
-      await setDocument('user_auth_index', cred.user.uid, {
-        profile_id: cred.user.uid,
-        username: initialUsername,
-        email: cred.user.email || payload.email,
-        updated_at: now,
-      }, true);
-    } catch (error) {
-      profileBootstrapSucceeded = false;
-      console.warn('[auth] signup profile bootstrap deferred:', error);
-    }
-
+    // AuthProvider provisions the profile through the checked server authority.
     let verificationEmailSent = true;
     try {
       await sendEmailVerification(cred.user);
@@ -425,7 +399,7 @@ export const firebaseAuth = {
         user: session.user,
         session,
         verificationEmailSent,
-        profileBootstrapSucceeded,
+        profileBootstrapSucceeded: false,
       },
       error: null,
     };
