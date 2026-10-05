@@ -38,6 +38,7 @@ import { getAuthRedirectUrl } from '@/lib/authRedirect';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
 import { getLoginCredentialErrorMessage, isInvalidLoginCredentialError } from '@/lib/loginErrors';
 import { clearObsoleteAuthStorage, hasStoredAuthSession } from '@/lib/legacyAuthStorage';
+import { SessionRestoringScreen } from '@/components/auth/SessionRestoringScreen';
 import { VybeLiquidTouchOverlay } from '@/components/effects/VybeLiquidTouchOverlay';
 import { VybeLiquidText } from '@/components/ui/VybeLiquidText';
 import { useEmailVerificationPoll } from '@/hooks/useEmailVerificationPoll';
@@ -849,13 +850,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const location = useLocation();
   const isInviteRoute = location.pathname.startsWith('/invite/');
 
-  // Spinner only while restoring an existing session — logged-out users see the form immediately.
-  if (!isInviteMode && !authReady && hasStoredSession && !isOAuthReturn) {
-    return (
-      <div className="fixed inset-0 z-50 bg-[#0B0B10] flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-[3px] border-primary/30 border-t-primary animate-spin" />
-      </div>
-    );
+  // A vault-only native session may have no localStorage hint while restoring.
+  // Wait for checked settlement, not merely the launch animation's deadline.
+  if (!authReady && !isOAuthReturn) {
+    return <SessionRestoringScreen />;
   }
 
   // OAuth redirect in flight — keep spinner until session hydrates (avoids login loop).

@@ -12,6 +12,12 @@ Production web hosting is **Lovable**, with custom domain **`vybehub.app`**. Lov
 | Firebase Hosting staging frontend | https://vybe-daaab.web.app — shares the production Firebase project; not an isolated data environment |
 | Isolated local QA | `demo-vybe-preview`; follow [LOCAL_PREVIEW_QA.md](docs/LOCAL_PREVIEW_QA.md). Never deploy its configuration or fixtures. |
 
+## Phone session repair checkpoint (2026-10-05)
+
+The pending phone-persistence repair requires the matching client, exact updated callable **`authLoginNotify`**, checked account-profile setup and Firestore Rules. Provision the `auth_challenges` index `(user_id ASC, challenge_type ASC, status ASC, expires_at ASC)` first. `_auth_device_session_heads` is server-only durable device-generation evidence with no TTL. Older callers lack the checked account/credential fields; coordinate the cutover with all existing confirmation/approval prerequisites. No new secret, Auth configuration or token-lifetime change is required. This does not lift the `auth2faRequest` deployment restriction.
+
+See [Phone session stability](docs/PHONE_SESSION_STABILITY.md) for the native storage/startup failure paths and physical Android/iOS close/reopen checklist. Browser reloads and simulated bridge tests do not certify a physical phone. Publish the verified commit through Lovable Share → Publish only after the coordinated prerequisites, then verify the Despia manifest and cold-launch update. This guidance does not claim a production publish.
+
 ## Post/clip map-pin repair checkpoint (2026-10-05)
 
 The exact new callable is **`manageMapPin`**, dependent on checked account-profile binding and post publication. Release its explicit owner area-sharing/removal controls, checked list/read consumers and both renderer opening paths with the matching Rules. Direct `map_post_pins`, `map_clip_pins`, `_map_pins`, `_map_pin_receipts` and `_map_pin_cursors` access is denied, including raw staff access. Old copied pin rows do not grant consent and are not auto-adopted. Story/event paths remain outside this stage.

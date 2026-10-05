@@ -1725,6 +1725,7 @@ service cloud.firestore {
     match /_sign_in_preference_limits/{id} { allow read, write: if false; }
     match /_auth_session_revocations/{id} { allow read, write: if false; }
     match /_auth_session_revoke_limits/{id} { allow read, write: if false; }
+    match /_auth_device_session_heads/{id} { allow read, write: if false; }
     match /user_passkeys/{id} {
       allow read: if signedIn() && (
         resource.data.user_id == uid() || ownsProfileId(resource.data.user_id)

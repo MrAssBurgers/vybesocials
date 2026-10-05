@@ -1,5 +1,6 @@
 {
   "indexes": [
+    {"collectionGroup":"auth_challenges","queryScope":"COLLECTION","fields":[{"fieldPath":"user_id","order":"ASCENDING"},{"fieldPath":"challenge_type","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"expires_at","order":"ASCENDING"}]},
     {"collectionGroup":"_map_pins","queryScope":"COLLECTION","fields":[{"fieldPath":"kind","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"shared_at","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}]},
     {"collectionGroup":"_location_requests","queryScope":"COLLECTION","fields":[{"fieldPath":"participant_uids","arrayConfig":"CONTAINS"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"expires_at_ms","order":"ASCENDING"}]},
     {"collectionGroup":"_location_requests","queryScope":"COLLECTION","fields":[{"fieldPath":"pair_id","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"expires_at_ms","order":"ASCENDING"}]},

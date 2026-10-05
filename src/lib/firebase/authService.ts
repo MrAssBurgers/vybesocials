@@ -6,6 +6,8 @@ import {
   browserSessionPersistence,
   browserPopupRedirectResolver,
   onAuthStateChanged,
+  onIdTokenChanged,
+  beforeAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -36,10 +38,72 @@ import {
   prefersLocalAuthPersistence,
   seedFirebaseAuthFromBackup,
   writeAuthVault,
+  clearAuthVault,
+  flushAuthVault,
+  nativeAuthVaultAvailable,
+  getAuthRestoreState as storageRestoreState,
+  subscribeAuthRestoreState as subscribeStorageRestore,
+  retryAuthStorage,
+  retireAuthRestore,
+  hasAuthLogoutTombstone,
+  allowExplicitAuthSignIn,
+  type AuthRestoreState,
 } from '@/lib/authSessionMirror';
 import type { VybeSession, VybeUser, VybeAuthError } from './types';
 
 let authInstance: Auth | null = null;
+let authIntent = 0;
+export const getAuthSessionGeneration = () => authIntent;
+let sdkReady = false;
+let sdkError = false;
+let sdkWait: { auth: Auth; promise: Promise<void> } | null = null;
+const restoreListeners = new Set<() => void>();
+const notifyRestore = () => restoreListeners.forEach(listener => listener());
+subscribeStorageRestore(notifyRestore);
+export function getAuthRestoreState(): AuthRestoreState {
+  if (sdkError || (!isLocalPreview() && storageRestoreState() === 'error')) return 'error';
+  return sdkReady && (isLocalPreview() || storageRestoreState() === 'ready') ? 'ready' : 'pending';
+}
+export function subscribeAuthRestoreState(listener: () => void) {
+  restoreListeners.add(listener);
+  return () => { restoreListeners.delete(listener); };
+}
+export async function retryAuthRestore() {
+  sdkError = false;
+  if (!isLocalPreview()) await retryAuthStorage(currentApiKey(), typeof navigator === 'undefined' ? '' : navigator.userAgent);
+  const auth = resolveAuth();
+  if (auth) await waitForSdk(auth);
+  notifyRestore();
+}
+function storageOrNull(kind: 'localStorage' | 'sessionStorage'): Storage | null {
+  try { return typeof window === 'undefined' ? null : window[kind]; } catch { return null; }
+}
+function waitForSdk(auth: Auth): Promise<void> {
+  if (sdkWait?.auth === auth) return sdkWait.promise;
+  const flight = { auth, promise: Promise.resolve() };
+  flight.promise = (async () => { try {
+    await withAuthTimeout(auth.authStateReady(), 10000, 'Session recovery timed out. Try again.');
+    // Firebase's initial persisted-user load bypasses beforeAuthStateChanged.
+    // Enforce a durable logout before allowing that initial account into the UI.
+    if (!isLocalPreview() && hasAuthLogoutTombstone() && auth.currentUser) {
+      await withAuthTimeout(firebaseSignOut(auth), 5000, 'Sign-out recovery timed out. Try again.');
+    }
+    if (auth !== authInstance) return;
+    sdkReady = true; sdkError = false; notifyRestore();
+  } catch { if (auth === authInstance) { sdkError = true; notifyRestore(); } }
+  })().finally(() => { if (sdkWait === flight) sdkWait = null; });
+  sdkWait = flight;
+  return flight.promise;
+}
+function retireSavedSession() { authIntent++; retireAuthRestore(); }
+function beginExplicitSignIn() { retireSavedSession(); allowExplicitAuthSignIn(); }
+export async function abandonAuthRestore() {
+  const result = await firebaseAuth.signOut();
+  // Abandonment itself is an explicit signed-out decision; failed native
+  // confirmation must not trap a first-use device that has no vault value.
+  if (authInstance && !authInstance.currentUser) { sdkReady = true; sdkError = false; notifyRestore(); }
+  return result;
+}
 
 const NOT_CONFIGURED: VybeAuthError = {
   message: 'Firebase is not configured. Set VITE_FIREBASE_* variables (see .env.example).',
@@ -78,19 +142,21 @@ async function settleAuthStorage(): Promise<void> {
 function resolveAuth(): Auth | null {
   if (!isFirebaseConfigured()) return null;
   const localPreview = isLocalPreview();
-  if (!localPreview && !isAuthStorageReady()) return null;
   if (authInstance) { connectLocalPreviewAuth(authInstance); return authInstance; }
+  if (!localPreview) void ensureAuthStorageReady(currentApiKey(), typeof navigator === 'undefined' ? '' : navigator.userAgent);
+  if (!localPreview && !isAuthStorageReady()) return null;
   const app = getFirebaseApp();
   const apiKey = currentApiKey();
-  if (!localPreview && typeof localStorage !== 'undefined' && apiKey) {
-    seedFirebaseAuthFromBackup(localStorage, apiKey);
+  const storage = storageOrNull('localStorage');
+  if (!localPreview && storage && apiKey) {
+    seedFirebaseAuthFromBackup(storage, apiKey);
   }
   try {
     // Phones, including Fold WebViews with no "; wv": IndexedDB is often wiped
     // when the process dies and can hang open. Keep the session in localStorage.
     const mobile =
       typeof navigator !== 'undefined' &&
-      prefersLocalAuthPersistence(navigator.userAgent || '');
+      (prefersLocalAuthPersistence(navigator.userAgent || '') || nativeAuthVaultAvailable());
     authInstance = initializeAuth(app, {
       // Demo sessions remain in this tab and never enter the normal recovery mirror.
       persistence: localPreview ? [browserSessionPersistence] : mobile
@@ -102,19 +168,35 @@ function resolveAuth(): Auth | null {
     authInstance = getAuth(app);
   }
   connectLocalPreviewAuth(authInstance);
+  const auth = authInstance;
+  let observed = false, previous: FirebaseUser | null = null;
+  onIdTokenChanged(auth, user => {
+    if (user && !sdkReady && hasAuthLogoutTombstone() && !localPreview) return;
+    if (user !== previous || !observed) {
+      if (user || observed) retireSavedSession();
+      previous = user;
+    }
+    observed = true;
+    if (user) {
+      const intent = authIntent;
+      rememberAuthUser(user, () => { if (intent !== authIntent || auth.currentUser !== user) throw new Error('Retired session backup.'); });
+    }
+  });
+  void waitForSdk(auth);
   return authInstance;
 }
 
-function rememberAuthUser(user: FirebaseUser | null) {
+function rememberAuthUser(user: FirebaseUser | null, guard: () => void = () => {}) {
   if (isLocalPreview()) return;
-  if (!user || typeof localStorage === 'undefined') return;
+  if (!user) return;
   const apiKey = currentApiKey();
   if (!apiKey) return;
   try {
     const json = JSON.stringify(user.toJSON());
-    mirrorAuthUserJson(localStorage, apiKey, json);
-    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
-    if (prefersLocalAuthPersistence(ua)) writeAuthVault(json);
+    guard();
+    const storage = storageOrNull('localStorage');
+    if (storage) mirrorAuthUserJson(storage, apiKey, json);
+    if (nativeAuthVaultAvailable()) writeAuthVault(json, guard);
   } catch {
     /* private mode */
   }
@@ -267,7 +349,13 @@ export const firebaseAuth = {
   async getSession(): Promise<{ data: { session: VybeSession | null }; error: VybeAuthError | null }> {
     await settleAuthStorage();
     const auth = resolveAuth();
-    if (!auth) return { data: { session: null }, error: NOT_CONFIGURED };
+    if (!auth) return { data: { session: null }, error: isFirebaseConfigured() ? { name: 'auth/restore-unavailable', message: 'Your saved session has not finished restoring. Try again.' } : NOT_CONFIGURED };
+    if (!sdkReady) {
+      try { await withAuthTimeout(waitForSdk(auth), 2000, 'Session recovery is still pending.'); } catch { /* A null before SDK readiness is not a signed-out decision. */ }
+    }
+    if (getAuthRestoreState() !== 'ready') return {
+      data: { session: null }, error: { name: getAuthRestoreState() === 'error' ? 'auth/restore-unavailable' : 'auth/restore-pending', message: 'Your saved session has not finished restoring. Try again.' },
+    };
     const user = auth.currentUser;
     if (!user) return { data: { session: null }, error: null };
     const instant = buildVybeSessionInstant(user);
@@ -287,11 +375,17 @@ export const firebaseAuth = {
     const auth = resolveAuth();
     if (!auth) return { data: { session: null }, error: NOT_CONFIGURED };
     const user = auth.currentUser;
+    const intent = authIntent;
+    const changed = () => authIntent !== intent || auth.currentUser !== user;
+    const retired = { data: { session: null }, error: { name: 'auth/session-changed', message: 'The signed-in session changed.' } };
     if (!user) return { data: { session: null }, error: { message: 'Not authenticated' } };
     try {
       await withAuthTimeout(user.getIdToken(true), 8000, 'Session refresh timed out');
-      return { data: { session: await toVybeSession(user) }, error: null };
+      if (changed()) return retired;
+      const session = await toVybeSession(user);
+      return changed() ? retired : { data: { session }, error: null };
     } catch (err) {
+      if (changed()) return retired;
       const instant = buildVybeSessionInstant(user);
       return { data: { session: instant }, error: toAuthError(err) };
     }
@@ -303,17 +397,19 @@ export const firebaseAuth = {
 
   onAuthStateChange(callback: AuthStateCallback) {
     let unsubscribe = () => {};
+    let unsubscribeRestore = () => {};
     let cancelled = false;
+    let attached = false;
     const attach = () => {
-      if (cancelled) return;
+      if (cancelled || attached) return;
       const auth = resolveAuth();
       if (!auth) {
-        callback('INITIAL_SESSION', null);
+        if (!isFirebaseConfigured()) callback('INITIAL_SESSION', null);
         return;
       }
+      attached = true;
       let initialFired = false;
-      unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      rememberAuthUser(firebaseUser);
+      let eventGeneration = 0, withheldNull = false;
       const emit = (event: string, session: VybeSession | null) => {
         try {
           callback(event, session);
@@ -322,15 +418,25 @@ export const firebaseAuth = {
         }
       };
 
-      if (!firebaseUser) {
+      const emitNull = () => {
+        if (cancelled || auth.currentUser || getAuthRestoreState() !== 'ready') return;
+        withheldNull = false;
         if (!initialFired) {
           initialFired = true;
           emit('INITIAL_SESSION', null);
         } else {
           emit('SIGNED_OUT', null);
         }
-        return;
-      }
+      };
+      unsubscribeRestore = subscribeAuthRestoreState(() => { if (withheldNull) emitNull(); });
+      unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      const currentEvent = ++eventGeneration, intent = authIntent;
+      if (cancelled) return;
+      if (firebaseUser && !sdkReady && hasAuthLogoutTombstone() && !isLocalPreview()) { withheldNull = true; return; }
+      const guard = () => { if (cancelled || currentEvent !== eventGeneration || intent !== authIntent || auth.currentUser !== firebaseUser) throw new Error('Retired auth event.'); };
+      rememberAuthUser(firebaseUser, guard);
+      if (!firebaseUser) { withheldNull = true; emitNull(); return; }
+      withheldNull = false;
 
       const instant = buildVybeSessionInstant(firebaseUser);
       if (!initialFired) {
@@ -341,11 +447,15 @@ export const firebaseAuth = {
       }
 
       void enrichSessionToken(instant, firebaseUser, 5000).then((enriched) => {
+        try { guard(); } catch { return; }
         if (!enriched.access_token) return;
         emit('TOKEN_REFRESHED', enriched);
       });
       });
     };
+    const unsubscribeStartup = subscribeAuthRestoreState(() => {
+      if (!attached && storageRestoreState() === 'ready') void settleAuthStorage().then(attach);
+    });
     void settleAuthStorage().then(attach);
     return {
       data: {
@@ -353,6 +463,8 @@ export const firebaseAuth = {
           unsubscribe: () => {
             cancelled = true;
             unsubscribe();
+            unsubscribeRestore();
+            unsubscribeStartup();
           },
         },
       },
@@ -364,6 +476,7 @@ export const firebaseAuth = {
     password: string;
     options?: { emailRedirectTo?: string; data?: Record<string, unknown> };
   }) {
+    beginExplicitSignIn();
     await settleAuthStorage();
     const auth = resolveAuth();
     if (!auth) return { data: { user: null, session: null }, error: NOT_CONFIGURED };
@@ -406,6 +519,7 @@ export const firebaseAuth = {
   },
 
   async signInWithPassword(payload: { email: string; password: string }) {
+    beginExplicitSignIn();
     await settleAuthStorage();
     const auth = resolveAuth();
     if (!auth) return { data: { user: null, session: null }, error: NOT_CONFIGURED };
@@ -470,23 +584,34 @@ export const firebaseAuth = {
     }
   },
 
-  async signOut(_options?: { scope?: 'local' | 'global' }) {
+  async signOut(_options?: { scope?: 'local' | 'global'; guard?: () => void }) {
+    try { _options?.guard?.(); } catch (err) { return { error: toAuthError(err) }; }
+    retireSavedSession();
+    const intent = authIntent;
     const auth = resolveAuth();
     if (!auth) return { error: NOT_CONFIGURED };
+    let unblock = () => {};
     try {
+      const current = auth.currentUser;
+      unblock = beforeAuthStateChanged(auth, incoming => {
+        if (!incoming && (authIntent !== intent || auth.currentUser !== current)) throw new Error('Retired sign-out.');
+        if (!incoming) _options?.guard?.();
+      });
+      // Write the logout intent before waiting on SDK persistence; a phone can
+      // close during that await. Never let a retired cleanup erase a new login.
+      if (!isLocalPreview()) {
+        const storage = storageOrNull('localStorage');
+        if (storage) clearMirroredAuth(storage); else clearAuthVault();
+      }
       // Always clear local Firebase persistence. A prior "local = no-op" stub left
       // firebase:authUser:* in localStorage so logout → refresh restored the session.
       await firebaseSignOut(auth);
-      if (!isLocalPreview() && typeof localStorage !== 'undefined') {
-        try {
-          clearMirroredAuth(localStorage);
-        } catch {
-          /* ignore */
-        }
-      }
+      if (!isLocalPreview() && !auth.currentUser) await flushAuthVault();
       return { error: null };
     } catch (err) {
       return { error: toAuthError(err) };
+    } finally {
+      unblock();
     }
   },
 
@@ -498,6 +623,7 @@ export const firebaseAuth = {
   async signInWithCustomToken(
     customToken: string,
   ): Promise<{ data: { session: VybeSession | null }; error: VybeAuthError | null }> {
+    beginExplicitSignIn();
     const auth = resolveAuth();
     if (!auth) return { data: { session: null }, error: NOT_CONFIGURED };
     try {
@@ -533,6 +659,7 @@ export const firebaseAuth = {
     provider: 'google' | 'apple',
     opts?: { extraParams?: Record<string, string>; useRedirect?: boolean }
   ): Promise<{ data: { session: VybeSession | null }; error: VybeAuthError | null; redirected?: boolean }> {
+    beginExplicitSignIn();
     const auth = resolveAuth();
     if (!auth) return { data: { session: null }, error: NOT_CONFIGURED };
     try {
@@ -571,6 +698,7 @@ export const firebaseAuth = {
   async signInWithOAuthNative(
     provider: 'google' | 'apple',
   ): Promise<{ data: { session: VybeSession | null }; error: VybeAuthError | null }> {
+    beginExplicitSignIn();
     const auth = resolveAuth();
     if (!auth) return { data: { session: null }, error: NOT_CONFIGURED };
 

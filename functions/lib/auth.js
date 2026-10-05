@@ -10,6 +10,7 @@ import { db, auth, requireAuth, requireAdmin, rateLimit, enforceRateLimit } from
 import { sendPasswordResetEmail } from './_shared/passwordResetEmail.js';
 import { ensureAccountProfileForUid } from './_shared/accountProfileAuthority.js';
 import { gateKnownSession, shouldExpireStaleLoginChallenge } from './_shared/loginNotifyGuards.js';
+import { loginDeviceVersion, registerLoginDevice, withCurrentLoginDevice } from './_shared/loginDeviceAuthority.js';
 import { renderAuthEmail, AUTH_EMAIL_SUBJECTS } from './_shared/emailTemplates/index.js';
 import { premiumStatusForRequest } from './_shared/premiumAuthority.js';
 /** Must match Firebase Console Google web client (public). Used by native-callback exchange. */
@@ -202,7 +203,7 @@ export const auth2faVerifyPhone = onCall({ cors: true, secrets: [...TWILIO_SECRE
     }
     throw new HttpsError('failed-precondition', 'Open phone settings to verify a phone number.');
 });
-import { dispatchOneSignalToProfile, resolvePushTargetProfileId } from './_shared/onesignalPush.js';
+import { dispatchOneSignalToProfile } from './_shared/onesignalPush.js';
 function asString(value) {
     if (typeof value === 'string' && value.trim())
         return value.trim();
@@ -222,9 +223,6 @@ function parseDeviceLabel(userAgent) {
     if (/linux/i.test(userAgent))
         return 'Linux';
     return 'Web browser';
-}
-async function resolveProfileIdForAuthUid(uid) {
-    return resolvePushTargetProfileId(uid);
 }
 async function loadChallenge(challengeId) {
     const snap = await db.collection('auth_challenges').doc(challengeId).get();
@@ -471,7 +469,9 @@ async function resolveLoginGeo(request) {
  * sign-in hits an account that already has active sessions elsewhere.
  * `session_resume` / app opens never create approval challenges.
  */
-export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY'] }, async (request) => {
+export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY'] }, request => runAuthLoginNotify(request));
+/** The real callable handler with provider seams for isolated gate tests. */
+export async function runAuthLoginNotify(request, providers = { geo: resolveLoginGeo, send: dispatchOneSignalToProfile }) {
     const uid = requireAuth(request);
     const payload = (request.data || {});
     const sessionHash = asString(payload.deviceFingerprint);
@@ -479,10 +479,9 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
     const userAgent = asString(payload.userAgent);
     const now = new Date().toISOString();
     const isResume = method === 'session_resume' || method === 'app_open' || method === 'heartbeat';
-    const profileId = await resolveProfileIdForAuthUid(uid);
     const settingsSnap = await db.collection('user_2fa_settings').doc(uid).get();
     const loginApprovalsEnabled = !!settingsSnap.data()?.login_approvals_enabled;
-    const geo = await resolveLoginGeo(request);
+    const geo = await providers.geo(request);
     // Firestore rejects nested undefined values. Geo lookup is intentionally
     // best-effort, so persist an explicit nullable shape on every path.
     const safeGeo = {
@@ -493,105 +492,29 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
         latitude: geo.latitude ?? null,
         longitude: geo.longitude ?? null,
     };
-    let sessionRef = null;
+    const registered = await registerLoginDevice(db, auth, uid, request.auth?.token.auth_time, payload, {
+        device_label: parseDeviceLabel(userAgent), user_agent: userAgent || null,
+        ip: geo.ip ?? null, city: geo.city ?? null, region: geo.region ?? null, country: geo.country ?? null,
+        latitude: geo.latitude ?? null, longitude: geo.longitude ?? null, geo: safeGeo,
+    });
+    const receipt = { ownerUid: registered.ownerUid, authTime: registered.authTime, accountCreatedAt: registered.accountCreatedAt,
+        profileId: registered.profileId, trackingDeferred: registered.trackingDeferred };
+    if (registered.trackingDeferred)
+        return { ...receipt, ok: true, sessionId: null, notified: false, requiresApproval: false, reason: 'profile_setup_pending' };
+    const profileId = registered.profileId;
+    let sessionRef = db.collection('user_sessions').doc(registered.sessionId);
+    const updateDevice = (patch, trust) => withCurrentLoginDevice(db, auth, registered, sessionHash, (tx, ref) => { tx.update(ref, patch); }, Date.now(), { trust, settingsVersion: loginDeviceVersion(settingsSnap.updateTime) });
+    const finish = (result) => withCurrentLoginDevice(db, auth, registered, sessionHash, () => ({ ...receipt, ...result }), Date.now(), { confirmation: result.requiresApproval ? 'pending' : 'trusted' });
     // Known session on this device. Trusted installs may heartbeat normally,
     // but an untrusted install with pending approval must stay gated on retry.
-    if (sessionHash) {
-        const known = await db.collection('user_sessions')
-            .where('user_id', '==', uid)
-            .where('session_token_hash', '==', sessionHash)
-            .limit(1)
-            .get();
-        if (!known.empty) {
-            const doc = known.docs[0];
-            const sessionData = doc.data();
-            const pendingApproval = sessionData.pending_approval === true;
-            const trusted = sessionData.trusted !== false;
-            const deviceLabel = parseDeviceLabel(userAgent);
-            await doc.ref.set({
-                last_seen_at: now,
-                ip: geo.ip ?? null,
-                city: geo.city ?? null,
-                region: geo.region ?? null,
-                country: geo.country ?? null,
-                latitude: geo.latitude ?? null,
-                longitude: geo.longitude ?? null,
-                geo: safeGeo,
-            }, { merge: true });
-            const gate = gateKnownSession({ pendingApproval, trusted, isResume });
-            if (gate.action === 'require_approval') {
-                const pendingSnap = await db.collection('auth_challenges')
-                    .where('user_id', '==', uid)
-                    .where('challenge_type', '==', 'login_approval')
-                    .where('status', '==', 'pending')
-                    .limit(10)
-                    .get();
-                const existing = pendingSnap.docs.find((challenge) => {
-                    const meta = (challenge.data().metadata || {});
-                    return (meta.requesting_session_id === doc.id ||
-                        (sessionHash && meta.requesting_session_hash === sessionHash));
-                });
-                await doc.ref.set({ trusted: false, pending_approval: true }, { merge: true });
-                if (existing) {
-                    const existingData = existing.data();
-                    return {
-                        ok: true,
-                        sessionId: doc.id,
-                        challengeId: existing.id,
-                        expiresAt: existingData.expires_at || null,
-                        deviceLabel,
-                        geo: {
-                            city: geo.city || null,
-                            country: geo.country || null,
-                            ip: geo.ip,
-                            region: geo.region || null,
-                        },
-                        notified: false,
-                        requiresApproval: true,
-                        reason: 'existing_challenge',
-                    };
-                }
-                sessionRef = doc.ref;
-            }
-            else {
-                const stale = await db.collection('auth_challenges')
-                    .where('user_id', '==', uid)
-                    .where('challenge_type', '==', 'login_approval')
-                    .where('status', '==', 'pending')
-                    .limit(10)
-                    .get();
-                const batch = db.batch();
-                let cleared = 0;
-                for (const challenge of stale.docs) {
-                    const meta = (challenge.data().metadata || {});
-                    const sameDevice = meta.requesting_session_hash === sessionHash;
-                    const resumeNoise = meta.method === 'session_resume' || meta.method === 'app_open';
-                    if (shouldExpireStaleLoginChallenge({ trusted, sameDevice, resumeNoise })) {
-                        batch.set(challenge.ref, { status: 'expired', resolved_at: now }, { merge: true });
-                        cleared += 1;
-                    }
-                }
-                if (cleared > 0)
-                    await batch.commit();
-                return {
-                    ok: true,
-                    sessionId: doc.id,
-                    notified: false,
-                    requiresApproval: false,
-                    reason: 'known_session',
-                };
-            }
-        }
-    }
-    let reusedPendingSession = false;
-    if (!sessionRef) {
-        sessionRef = db.collection('user_sessions').doc();
+    if (!registered.created) {
+        const doc = { id: sessionRef.id, ref: sessionRef };
+        const sessionData = registered.row;
+        const pendingApproval = sessionData.pending_approval === true;
+        const trusted = sessionData.trusted !== false;
         const deviceLabel = parseDeviceLabel(userAgent);
-        await sessionRef.set({
-            user_id: uid,
-            session_token_hash: sessionHash || null,
-            device_label: deviceLabel,
-            user_agent: userAgent || null,
+        await updateDevice({
+            last_seen_at: now,
             ip: geo.ip ?? null,
             city: geo.city ?? null,
             region: geo.region ?? null,
@@ -599,26 +522,85 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
             latitude: geo.latitude ?? null,
             longitude: geo.longitude ?? null,
             geo: safeGeo,
-            trusted: isResume,
-            pending_approval: false,
-            created_at: now,
-            last_seen_at: now,
-            revoked_at: null,
         });
+        const gate = gateKnownSession({ pendingApproval, trusted, isResume });
+        if (gate.action === 'require_approval') {
+            const pendingSnap = await db.collection('auth_challenges')
+                .where('user_id', '==', uid)
+                .where('challenge_type', '==', 'login_approval')
+                .where('status', '==', 'pending')
+                .where('expires_at', '>', now)
+                .limit(10)
+                .get();
+            const existing = pendingSnap.docs.find((challenge) => {
+                const meta = (challenge.data().metadata || {});
+                return !challengeExpired(challenge.data().expires_at)
+                    && meta.requesting_session_id === doc.id
+                    && meta.requesting_session_hash === sessionHash;
+            });
+            if (existing) {
+                await updateDevice({ trusted: false, pending_approval: true });
+                const existingData = existing.data();
+                return finish({
+                    ...receipt,
+                    ok: true,
+                    sessionId: doc.id,
+                    challengeId: existing.id,
+                    expiresAt: existingData.expires_at || null,
+                    deviceLabel,
+                    geo: {
+                        city: geo.city || null,
+                        country: geo.country || null,
+                        ip: geo.ip,
+                        region: geo.region || null,
+                    },
+                    notified: false,
+                    requiresApproval: true,
+                    reason: 'existing_challenge',
+                });
+            }
+            sessionRef = doc.ref;
+        }
+        else {
+            const stale = await db.collection('auth_challenges')
+                .where('user_id', '==', uid)
+                .where('challenge_type', '==', 'login_approval')
+                .where('status', '==', 'pending')
+                .limit(10)
+                .get();
+            const expired = [];
+            for (const challenge of stale.docs) {
+                const meta = (challenge.data().metadata || {});
+                const sameDevice = meta.requesting_session_hash === sessionHash;
+                const resumeNoise = meta.method === 'session_resume' || meta.method === 'app_open';
+                if (shouldExpireStaleLoginChallenge({ trusted, sameDevice, resumeNoise })) {
+                    expired.push(challenge.ref);
+                }
+            }
+            if (expired.length > 0)
+                await withCurrentLoginDevice(db, auth, registered, sessionHash, tx => { expired.forEach(ref => tx.update(ref, { status: 'expired', resolved_at: now })); });
+            return finish({
+                ...receipt,
+                ok: true,
+                sessionId: doc.id,
+                notified: false,
+                requiresApproval: false,
+                reason: 'known_session',
+            });
+        }
     }
-    else {
-        reusedPendingSession = true;
-    }
+    const reusedPendingSession = !registered.created;
     const deviceLabel = parseDeviceLabel(userAgent);
     // Cold starts / resumes register the install but never spam approvals or history.
     if (isResume) {
-        return {
+        return finish({
+            ...receipt,
             ok: true,
             sessionId: sessionRef.id,
             notified: false,
             requiresApproval: false,
             reason: 'session_resume',
-        };
+        });
     }
     if (!reusedPendingSession) {
         await db.collection('login_history').add({
@@ -645,51 +627,45 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
     });
     // First device or no other active sessions — never alert yourself on sign-in.
     if (otherActiveSessions.length === 0) {
-        await sessionRef.set({ trusted: true, pending_approval: false }, { merge: true });
-        return {
+        await updateDevice({ trusted: true, pending_approval: false }, 'first-device');
+        return finish({
+            ...receipt,
             ok: true,
             sessionId: sessionRef.id,
             notified: false,
             requiresApproval: false,
             reason: 'first_device',
-        };
-    }
-    // Another device is already signed in — only then notify the account owner.
-    // Treat enable-toggle as a heartbeat that trusts this device without gating.
-    if (method === 'login_approval_enable') {
-        await sessionRef.set({ trusted: true, pending_approval: false }, { merge: true });
-        return {
-            ok: true,
-            sessionId: sessionRef.id,
-            notified: false,
-            requiresApproval: false,
-            reason: 'login_approval_enable',
-        };
+        });
     }
     if (!loginApprovalsEnabled) {
-        await sessionRef.set({ trusted: true, pending_approval: false }, { merge: true });
-        return {
+        await updateDevice({ trusted: true, pending_approval: false }, 'approvals-disabled');
+        return finish({
+            ...receipt,
             ok: true,
             sessionId: sessionRef.id,
             notified: false,
             requiresApproval: false,
             reason: 'approvals_disabled',
-        };
+        });
     }
     const pendingSnap = await db.collection('auth_challenges')
         .where('user_id', '==', uid)
         .where('challenge_type', '==', 'login_approval')
         .where('status', '==', 'pending')
+        .where('expires_at', '>', now)
         .limit(5)
         .get();
     const existing = pendingSnap.docs.find((doc) => {
         const meta = (doc.data().metadata || {});
-        return sessionHash && meta.requesting_session_hash === sessionHash;
+        return !challengeExpired(doc.data().expires_at)
+            && meta.requesting_session_id === sessionRef.id
+            && meta.requesting_session_hash === sessionHash;
     });
     if (existing) {
         const existingData = existing.data();
-        await sessionRef.set({ trusted: false, pending_approval: true }, { merge: true });
-        return {
+        await updateDevice({ trusted: false, pending_approval: true });
+        return finish({
+            ...receipt,
             ok: true,
             sessionId: sessionRef.id,
             challengeId: existing.id,
@@ -699,27 +675,29 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
             notified: false,
             requiresApproval: true,
             reason: 'existing_challenge',
-        };
+        });
     }
     const challengeRef = db.collection('auth_challenges').doc();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const place = [geo.city, geo.region, geo.country].filter(Boolean).join(', ') || geo.ip || 'Unknown location';
-    await challengeRef.set({
-        user_id: uid,
-        challenge_type: 'login_approval',
-        status: 'pending',
-        created_at: now,
-        expires_at: expiresAt,
-        metadata: {
-            requesting_session_hash: sessionHash || null,
-            requesting_session_id: sessionRef.id,
-            device: { label: deviceLabel, browser: userAgent || null, os: deviceLabel },
-            method,
-            ip: geo.ip ?? null,
-            geo: safeGeo,
-        },
+    await withCurrentLoginDevice(db, auth, registered, sessionHash, (tx, ref) => {
+        tx.create(challengeRef, {
+            user_id: uid,
+            challenge_type: 'login_approval',
+            status: 'pending',
+            created_at: now,
+            expires_at: expiresAt,
+            metadata: {
+                requesting_session_hash: sessionHash || null,
+                requesting_session_id: sessionRef.id,
+                device: { label: deviceLabel, browser: userAgent || null, os: deviceLabel },
+                method,
+                ip: geo.ip ?? null,
+                geo: safeGeo,
+            },
+        });
+        tx.update(ref, { trusted: false, pending_approval: true });
     });
-    await sessionRef.set({ trusted: false, pending_approval: true }, { merge: true });
     // In-app notification so the already-signed-in session sees a pop + inbox row
     // even when OneSignal delivery is delayed/offline.
     try {
@@ -765,7 +743,7 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
     catch (err) {
         console.warn('[authLoginNotify] in-app notification failed', err);
     }
-    await dispatchOneSignalToProfile(profileId, {
+    await providers.send(profileId, {
         title: 'Approve sign-in?',
         body: `New sign-in from ${place}. Was this you?`,
         type: 'login_approval',
@@ -777,7 +755,7 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
     });
     // Push to auth-uid alias as well (Despia/OneSignal external_id drift).
     if (profileId !== uid) {
-        await dispatchOneSignalToProfile(uid, {
+        await providers.send(uid, {
             title: 'Approve sign-in?',
             body: `New sign-in from ${place}. Was this you?`,
             type: 'login_approval',
@@ -788,7 +766,8 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
             },
         });
     }
-    return {
+    return finish({
+        ...receipt,
         ok: true,
         sessionId: sessionRef.id,
         challengeId: challengeRef.id,
@@ -798,8 +777,8 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
         notified: true,
         requiresApproval: true,
         reason: 'approval_push',
-    };
-});
+    });
+}
 /** Account-wide only; never turn a one-device request into global revocation. */
 export const authSessionRevoke = onCall({ cors: true, timeoutSeconds: 60 }, request => revokeAccountSessions(db, auth, requireAuth(request), request.auth?.token.auth_time, request.data));
 const QR_SIGNIN_TTL_SEC = 180;

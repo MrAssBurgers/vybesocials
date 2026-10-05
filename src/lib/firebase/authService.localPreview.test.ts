@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const mock = vi.hoisted(() => ({ local: true, mobile: false, ready: true, auth: { currentUser: null as any }, initialize: vi.fn(), signOut: vi.fn(), listener: null as any, connect: vi.fn() }));
+const mock = vi.hoisted(() => ({ local: true, mobile: false, ready: true, auth: { currentUser: null as any, authStateReady: async () => {} }, initialize: vi.fn(), signOut: vi.fn(), listener: null as any, connect: vi.fn() }));
 vi.mock('./localPreview', () => ({ isLocalPreview: () => mock.local }));
 vi.mock('./app', () => ({ getFirebaseApp: () => ({ name: '[DEFAULT]' }) }));
 vi.mock('./emulators', () => ({ connectLocalPreviewAuth: mock.connect }));
@@ -9,7 +9,9 @@ vi.mock('firebase/auth', async importOriginal => ({
   ...await importOriginal<typeof import('firebase/auth')>(),
   initializeAuth: mock.initialize,
   getAuth: () => mock.auth,
-  onAuthStateChanged: (_auth: unknown, listener: unknown) => { mock.listener = listener; return () => {}; },
+  onAuthStateChanged: (_auth: unknown, listener: any) => { mock.listener = (user: any) => { mock.auth.currentUser = user; listener(user); }; return () => {}; },
+  onIdTokenChanged: () => () => {},
+  beforeAuthStateChanged: () => () => {},
   signOut: mock.signOut,
 }));
 vi.mock('@/lib/authSessionMirror', async importOriginal => {
@@ -21,15 +23,48 @@ vi.mock('@/lib/authSessionMirror', async importOriginal => {
 const backupKey = 'vybe.auth.user';
 const productionKey = 'firebase:authUser:production-test-key:[DEFAULT]';
 const demoKey = 'firebase:authUser:demo-vybe-preview-key:[DEFAULT]';
-const productionBackup = JSON.stringify({ uid: 'synthetic-production-user', apiKey: 'production-test-key' });
-function user() { return { uid: 'demo-user', providerData: [], metadata: {}, email: 'alice@vybe.test', emailVerified: true, refreshToken: 'demo-only', getIdToken: vi.fn(async () => 'demo-only'), toJSON: vi.fn(() => ({ uid: 'demo-user', apiKey: 'demo-vybe-preview-key' })) }; }
+const tokenManager = { refreshToken: 'synthetic-refresh', accessToken: 'synthetic-access', expirationTime: 2000000000000 };
+const productionBackup = JSON.stringify({ uid: 'synthetic-production-user', apiKey: 'production-test-key', emailVerified: true, isAnonymous: false, providerData: [], stsTokenManager: tokenManager });
+function user() { return { uid: 'demo-user', providerData: [], metadata: {}, email: 'alice@vybe.test', emailVerified: true, refreshToken: 'demo-only', getIdToken: vi.fn(async () => 'demo-only'), toJSON: vi.fn(() => ({ uid: 'demo-user', apiKey: mock.local ? 'demo-vybe-preview-key' : 'production-test-key', emailVerified: true, isAnonymous: false, providerData: [], stsTokenManager: tokenManager })) }; }
 beforeEach(() => {
-  vi.resetModules(); vi.clearAllMocks(); mock.local = true; mock.mobile = false; mock.ready = true; mock.auth = { currentUser: null }; mock.listener = null;
+  vi.resetModules(); vi.clearAllMocks(); mock.local = true; mock.mobile = false; mock.ready = true; mock.auth = { currentUser: null, authStateReady: async () => {} }; mock.listener = null;
   mock.initialize.mockReturnValue(mock.auth); mock.signOut.mockResolvedValue(undefined);
   localStorage.setItem(backupKey, productionBackup); localStorage.setItem(productionKey, productionBackup);
 });
 
 describe('isolated preview authentication persistence', () => {
+  it('does not emit an old token after A to B to A, even with the same SDK user object', async () => {
+    const { firebaseAuth } = await import('./authService');
+    const callback = vi.fn(); const subscription = firebaseAuth.onAuthStateChange(callback);
+    await Promise.resolve(); await Promise.resolve();
+    let release!: (value: string) => void; const delayed = new Promise<string>(resolve => { release = resolve; });
+    const alice = user(); alice.getIdToken.mockReturnValueOnce(delayed).mockResolvedValue('current-token');
+    mock.listener(alice); mock.listener({ ...user(), uid: 'bob' }); mock.listener(alice);
+    release('retired-token'); await vi.waitFor(() => expect(callback).toHaveBeenCalledWith('TOKEN_REFRESHED', expect.objectContaining({ access_token: 'current-token' })));
+    expect(callback).not.toHaveBeenCalledWith('TOKEN_REFRESHED', expect.objectContaining({ access_token: 'retired-token' }));
+    subscription.data.subscription.unsubscribe();
+  });
+  it('unsubscription retires deferred token enrichment', async () => {
+    const { firebaseAuth } = await import('./authService');
+    const callback = vi.fn(); const subscription = firebaseAuth.onAuthStateChange(callback);
+    await Promise.resolve(); await Promise.resolve();
+    let release!: (value: string) => void; const delayed = new Promise<string>(resolve => { release = resolve; });
+    const alice = user(); alice.getIdToken.mockReturnValue(delayed); mock.listener(alice);
+    subscription.data.subscription.unsubscribe(); release('late-token'); await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(callback.mock.calls.filter(([event]) => event === 'TOKEN_REFRESHED')).toEqual([]);
+  });
+  it('a localStorage write failure does not prevent the independent native credential backup', async () => {
+    mock.local = false;
+    const { firebaseAuth } = await import('./authService'); const mirror = await import('@/lib/authSessionMirror');
+    await firebaseAuth.getSession();
+    let saved: string | null = null;
+    mirror.setAuthVaultTransportForTests({ read: async () => saved, write: (_key, value) => { saved = value; } });
+    const subscription = firebaseAuth.onAuthStateChange(vi.fn()); await Promise.resolve(); await Promise.resolve();
+    const failure = vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw Error('Storage unavailable'); });
+    const signedIn = user(); mock.listener(signedIn); await mirror.flushAuthVault();
+    expect(saved).toBe(JSON.stringify(signedIn.toJSON()));
+    failure.mockRestore(); mirror.setAuthVaultTransportForTests(null); mirror.resetAuthStoragePrepareForTests(); subscription.data.subscription.unsubscribe();
+  });
   it.each([false, true])('uses session-only persistence and never seeds the production backup (mobile=%s)', async mobile => {
     mock.mobile = mobile; mock.ready = false;
     const { browserSessionPersistence } = await import('firebase/auth');

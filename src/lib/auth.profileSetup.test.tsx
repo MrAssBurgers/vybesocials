@@ -8,15 +8,17 @@ const state = vi.hoisted(() => ({
   subscribers: new Set<() => void>(),
   listener: null as null | ((event: string, session: unknown) => Promise<void>),
   ensure: vi.fn(), recover: vi.fn(), signup: vi.fn(), cache: vi.fn(), currentCache: vi.fn(), warm: vi.fn(),
-  getSession: vi.fn(), unsubscribe: vi.fn(),
+  getSession: vi.fn(), unsubscribe: vi.fn(), refresh: vi.fn(), signOut: vi.fn(),
+  restoreState: 'ready' as 'pending' | 'ready' | 'error', restoreSubscribers: new Set<() => void>(), firebaseUser: null as null | { uid: string },
+  bans: [] as Array<{ reason: string; is_permanent: boolean; is_meme_ban: boolean }>, banLoad: null as null | Promise<void>,
 }));
 vi.mock('@/lib/firebase', () => ({ db: {
   auth: {
     onAuthStateChange: (listener: typeof state.listener) => { state.listener = listener; return { data: { subscription: { unsubscribe: state.unsubscribe } } }; },
-    getSession: state.getSession, signUp: state.signup, signOut: vi.fn(),
+    getSession: state.getSession, signUp: state.signup, signOut: state.signOut,
   },
   realtime: { setAuth: vi.fn() }, removeChannel: vi.fn(),
-  from: () => ({ select: () => ({ eq: () => ({ order: () => ({ limit: async () => ({ data: [], error: null }) }) }) }) }),
+  from: () => ({ select: () => ({ eq: () => ({ order: () => ({ limit: async () => ({ data: state.bans, error: null }) }) }) }) }),
 } }));
 vi.mock('@/lib/firebase/users', () => ({ ensureUserProfile: state.ensure, updateUserProfile: vi.fn() }));
 vi.mock('@/lib/reportModerationService', () => ({
@@ -48,7 +50,7 @@ vi.mock('@/lib/legacyAuthStorage', () => ({ hasStoredAuthSession: () => false, g
 vi.mock('@/lib/wasLoggedIn', () => ({ setWasLoggedIn: vi.fn() }));
 vi.mock('@/lib/authRedirect', () => ({ getAuthRedirectUrl: () => 'https://example.test/auth/callback' }));
 vi.mock('@/lib/despiaBridge', () => ({ isDespiaRuntime: () => false }));
-vi.mock('@/lib/firebaseAuthRefresh', () => ({ refreshFirebaseSession: vi.fn() }));
+vi.mock('@/lib/firebaseAuthRefresh', () => ({ refreshFirebaseSession: state.refresh }));
 vi.mock('@/lib/functionAuth', () => ({ clearFunctionAuthHeadersCache: vi.fn() }));
 vi.mock('@/lib/debugLogger', () => ({ logEvent: vi.fn() }));
 vi.mock('@/lib/usernameAvailability', () => ({ checkUsernameAvailable: async () => ({ available: true, error: null }) }));
@@ -59,17 +61,22 @@ vi.mock('@/lib/passwordRecoveryUrl', () => ({ isPasswordRecoveryUrl: () => false
 vi.mock('@/lib/firebase/oauthRedirect', () => ({ awaitOAuthRedirectCapture: async () => ({ session: null, error: null }), clearOAuthRedirectPending: vi.fn(), isLikelyFirebaseOAuthReturnUrl: () => false, isOAuthRedirectInFlight: () => false, recoverOAuthSessionIfSignedIn: vi.fn() }));
 vi.mock('@/lib/despiaOAuth', () => ({ isDespiaOAuthInFlight: () => false }));
 vi.mock('@/lib/loginApprovalGate', () => ({ beginLoginApprovalCheck: vi.fn(), endLoginApprovalCheck: vi.fn() }));
-vi.mock('@/lib/firebase/authService', () => ({ getFirebaseAuth: () => ({ currentUser: { uid: state.account.uid } }) }));
+vi.mock('@/lib/firebase/authService', () => ({
+  getFirebaseAuth: () => { if (state.firebaseUser?.uid !== state.account.uid) state.firebaseUser = state.account.uid ? { uid: state.account.uid } : null; return { currentUser: state.firebaseUser }; },
+  getAuthRestoreState: () => state.restoreState,
+  subscribeAuthRestoreState: (callback: () => void) => { state.restoreSubscribers.add(callback); return () => state.restoreSubscribers.delete(callback); },
+}));
 vi.mock('@/lib/authSessionMirror', () => ({ clearMirroredAuth: vi.fn() }));
 vi.mock('@/lib/sentry', () => ({ setSentryUser: vi.fn() }));
-vi.mock('@/components/auth/BannedScreen', () => ({ BannedScreen: () => null }));
-vi.mock('@/components/auth/MemeBanScreen', () => ({ MemeBanScreen: () => null }));
+vi.mock('@/components/auth/BannedScreen', async () => { await state.banLoad; return { BannedScreen: BanProbe }; });
+vi.mock('@/components/auth/MemeBanScreen', async () => { await state.banLoad; return { MemeBanScreen: BanProbe }; });
 
 import { AuthProvider, useAuth } from './auth';
 import { reportAccountSnapshot } from '@/lib/reportModerationService';
 import { tokenAccountSnapshot } from '@/lib/tokenMarketplaceService';
 
 let current: ReturnType<typeof useAuth>;
+function BanProbe({ reason }: { reason?: string }) { const auth = useAuth(); return <p role="alert">{auth.user?.id}: {reason}</p>; }
 function Probe() {
   current = useAuth();
   return <output data-testid="auth">{JSON.stringify({ uid: current.user?.id ?? null, profile: current.profile?.username ?? null, profileId: current.profile?.id ?? null, error: current.profileSetupError, pending: current.profileSetupLoading })}</output>;
@@ -85,7 +92,7 @@ function deferred<T>() {
 function mount(strict = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const provider = <QueryClientProvider client={client}><AuthProvider><Probe /></AuthProvider></QueryClientProvider>;
-  return render(strict ? <StrictMode>{provider}</StrictMode> : provider);
+  return { ...render(strict ? <StrictMode>{provider}</StrictMode> : provider), client };
 }
 async function switchAccount(uid: string, event = 'SIGNED_IN') {
   await act(async () => {
@@ -97,13 +104,63 @@ async function switchAccount(uid: string, event = 'SIGNED_IN') {
 
 beforeEach(() => {
   vi.clearAllMocks(); state.ensure.mockReset(); state.recover.mockReset(); state.signup.mockReset();
-  state.account = { uid: undefined, epoch: 0 }; state.listener = null; state.subscribers.clear();
+  state.account = { uid: undefined, epoch: 0 }; state.listener = null; state.subscribers.clear(); state.restoreSubscribers.clear(); state.restoreState = 'ready'; state.firebaseUser = null; state.refresh.mockReset(); state.signOut.mockReset();
   state.getSession.mockImplementation(() => new Promise(() => {}));
+  state.bans = []; state.banLoad = null;
   localStorage.clear(); sessionStorage.clear();
 });
-afterEach(() => { cleanup(); vi.useRealTimers(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); delete (window as any).__REACT_QUERY_CLIENT__; document.body.style.backgroundImage = ''; });
 
 describe('AuthProvider checked profile setup', () => {
+  it.each([false, true])('blocks children while the lazy ban screen loads and preserves its Auth context (meme=%s)', async meme => {
+    const moduleReady = deferred<void>(); state.banLoad = moduleReady.promise;
+    state.bans = [{ reason: 'Account access is restricted', is_permanent: true, is_meme_ban: meme }];
+    state.ensure.mockResolvedValue(profile('alice', 'alice'));
+    mount(); await switchAccount('alice', 'INITIAL_SESSION');
+    await screen.findByRole('status', { name: 'Loading account notice' });
+    expect(screen.queryByTestId('auth')).not.toBeInTheDocument();
+    await act(async () => moduleReady.resolve());
+    expect(await screen.findByRole('alert')).toHaveTextContent('alice: Account access is restricted');
+    expect(screen.queryByTestId('auth')).not.toBeInTheDocument();
+  });
+
+  it('does not let delayed logout cleanup erase a replacement login or its caches', async () => {
+    const pending = deferred<{ error: null }>();
+    state.ensure.mockImplementation(async (uid: string) => profile(uid, `current-${uid}`));
+    state.signOut.mockImplementation(({ guard }) => { guard(); return pending.promise; });
+    const view = mount(); (window as any).__REACT_QUERY_CLIENT__ = view.client;
+    await switchAccount('alice', 'INITIAL_SESSION'); await waitFor(() => expect(current.profile?.user_id).toBe('alice'));
+    let logout!: Promise<void>; act(() => { logout = current.signOut(); });
+    await switchAccount('bob'); await waitFor(() => expect(current.profile?.user_id).toBe('bob'));
+    view.client.setQueryData(['replacement-account'], 'bob-cache');
+    localStorage.setItem('firebase:authUser:replacement:[DEFAULT]', 'bob-credentials');
+    localStorage.setItem('vybe-font-body', 'bob-font');
+    document.body.style.backgroundImage = 'url("https://example.test/bob.png")';
+    await act(async () => { pending.resolve({ error: null }); await logout; });
+    expect(state.signOut).toHaveBeenCalledOnce();
+    expect(current.user?.id).toBe('bob'); expect(current.profile?.user_id).toBe('bob');
+    expect(view.client.getQueryData(['replacement-account'])).toBe('bob-cache');
+    expect(localStorage.getItem('firebase:authUser:replacement:[DEFAULT]')).toBe('bob-credentials');
+    expect(localStorage.getItem('vybe-font-body')).toBe('bob-font');
+    expect(document.body.style.backgroundImage).toContain('bob.png');
+  });
+
+  it('cleans only the confirmed signed-out state and invokes the adapter once', async () => {
+    state.ensure.mockResolvedValue(profile('alice', 'alice'));
+    state.signOut.mockImplementation(async ({ guard }) => {
+      guard(); state.account = { uid: undefined, epoch: state.account.epoch + 1 };
+      state.subscribers.forEach(notify => notify());
+      await state.listener?.('SIGNED_OUT', null);
+      return { error: null };
+    });
+    const view = mount(); (window as any).__REACT_QUERY_CLIENT__ = view.client;
+    await switchAccount('alice', 'INITIAL_SESSION'); await waitFor(() => expect(current.profile?.user_id).toBe('alice'));
+    view.client.setQueryData(['old-account'], 'alice-cache'); localStorage.setItem('vybe-font-body', 'alice-font');
+    await act(async () => current.signOut());
+    expect(state.signOut).toHaveBeenCalledOnce(); expect(current.user).toBeNull();
+    expect(view.client.getQueryData(['old-account'])).toBeUndefined(); expect(localStorage.getItem('vybe-font-body')).toBeNull();
+  });
+
   it('finishes StrictMode restoration with independently numbered token and profile observer epochs', async () => {
     state.account = { uid: 'alice', epoch: 1 };
     state.getSession.mockResolvedValue({ data: { session: session('alice') }, error: null });
@@ -233,5 +290,59 @@ describe('AuthProvider checked profile setup', () => {
     await act(async () => current.recoverProfileSetup());
     expect(state.recover).toHaveBeenCalledWith('alice', { action: 'recover' }, expect.any(Function));
     expect(current.profile?.id).toBe('legacy-profile'); expect(current.profileSetupError).toBeNull();
+  });
+});
+
+describe('AuthProvider restoration and refresh ownership', () => {
+  it('never declares signed out from the startup timeout while native restoration is pending', async () => {
+    vi.useFakeTimers(); state.restoreState = 'pending'; mount();
+    await act(async () => { await vi.advanceTimersByTimeAsync(8_001); });
+    expect(current.loading).toBe(false); expect(current.authReady).toBe(false); expect(current.user).toBeNull(); expect(state.signOut).not.toHaveBeenCalled();
+    state.ensure.mockResolvedValue(profile('alice', 'restored-alice'));
+    await act(async () => { state.restoreState = 'ready'; state.restoreSubscribers.forEach(notify => notify()); });
+    await switchAccount('alice', 'INITIAL_SESSION');
+    expect(current.authReady).toBe(true); expect(current.user?.id).toBe('alice');
+  });
+  it.each(['auth/restore-pending', 'auth/restore-unavailable'])('preserves unresolved account state after %s rather than creating an authoritative empty result', async name => {
+    state.restoreState = name.endsWith('pending') ? 'pending' : 'error';
+    state.getSession.mockResolvedValue({ data: { session: null }, error: { name, message: 'Restore not settled' } }); mount();
+    await waitFor(() => expect(state.getSession).toHaveBeenCalled()); expect(current.authReady).toBe(false); expect(state.signOut).not.toHaveBeenCalled(); expect(state.cache).not.toHaveBeenCalled();
+    await act(async () => { state.restoreState = 'ready'; state.restoreSubscribers.forEach(notify => notify()); await state.listener?.('INITIAL_SESSION', null); });
+    expect(current.authReady).toBe(true); expect(current.user).toBeNull();
+  });
+  it('accepts a delayed real session result after the old synthetic-null deadline', async () => {
+    vi.useFakeTimers(); const pending = deferred<{ data: { session: ReturnType<typeof session> }; error: null }>(); state.getSession.mockReturnValue(pending.promise);
+    state.account = { uid: 'alice', epoch: 1 }; state.ensure.mockResolvedValue(profile('alice', 'late-real-session')); mount();
+    await act(async () => { await vi.advanceTimersByTimeAsync(3_000); }); expect(current.authReady).toBe(false);
+    await act(async () => pending.resolve({ data: { session: session('alice') }, error: null }));
+    expect(current.authReady).toBe(true); expect(current.user?.id).toBe('alice');
+  });
+  it('never lets a delayed old-account fatal refresh sign out the replacement account', async () => {
+    vi.useFakeTimers(); const pending = deferred<unknown>(); state.refresh.mockReturnValue(pending.promise); state.ensure.mockImplementation(async uid => profile(uid, uid)); mount();
+    await act(async () => {
+      state.account = { uid: 'alice', epoch: 1 }; state.subscribers.forEach(notify => notify());
+      await state.listener?.('INITIAL_SESSION', { ...session('alice'), expires_at: Math.floor(Date.now() / 1000) + 301 });
+      await vi.advanceTimersByTimeAsync(1001);
+    });
+    expect(state.refresh).toHaveBeenCalledOnce(); await switchAccount('bob');
+    await act(async () => pending.resolve({ data: { session: null }, error: { message: 'Invalid refresh token' } }));
+    expect(state.signOut).not.toHaveBeenCalled(); expect(current.user?.id).toBe('bob');
+  });
+  it('passes the fatal-refresh guard through to a delayed SDK logout dispatch', async () => {
+    vi.useFakeTimers(); const dispatch = deferred<void>(), commit = vi.fn();
+    state.refresh.mockResolvedValue({ data: { session: null }, error: { message: 'Invalid refresh token' } });
+    state.signOut.mockImplementation(async ({ guard }) => {
+      await dispatch.promise;
+      try { guard(); commit(); return { error: null }; } catch (error) { return { error }; }
+    });
+    state.ensure.mockImplementation(async uid => profile(uid, uid)); mount();
+    await act(async () => {
+      state.account = { uid: 'alice', epoch: 1 }; state.subscribers.forEach(notify => notify());
+      await state.listener?.('INITIAL_SESSION', { ...session('alice'), expires_at: Math.floor(Date.now() / 1000) + 301 });
+      await vi.advanceTimersByTimeAsync(1001);
+    });
+    expect(state.signOut).toHaveBeenCalledWith({ scope: 'local', guard: expect.any(Function) });
+    await switchAccount('bob'); await act(async () => dispatch.resolve());
+    expect(commit).not.toHaveBeenCalled(); expect(current.user?.id).toBe('bob');
   });
 });

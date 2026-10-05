@@ -5,6 +5,7 @@ import { isNativeAppShell } from '@/lib/despiaBridge';
 import { isMobileOrTabletDevice } from '@/lib/deviceDetection';
 import { shouldBlockPostLoginNavigation } from '@/lib/loginApprovalGate';
 import { hasCompletedCurrentIntro } from '@/lib/mobileIntroVersion';
+import { SessionRestoringScreen } from './SessionRestoringScreen';
 
 const VybeHome = lazy(() => import('@/pages/VybeHome'));
 const Landing = lazy(() => import('@/pages/Landing'));
@@ -44,13 +45,13 @@ function useMobileAppEntry(): boolean {
  *  - Desktop web (logged out) → VybeHome marketing page
  */
 export default function RootGate() {
-  const { user, loading } = useAuth();
+  const { user, loading, authReady } = useAuth();
   // Honor VYBE_INTRO_VERSION — bumping the constant re-shows intro after Publish.
   // (Previously only `vybe_intro_seen` was checked, so intro UX changes looked "unpublished".)
   const [introDone, setIntroDone] = useState<boolean>(() => hasCompletedCurrentIntro());
   const isMobileApp = useMobileAppEntry();
 
-  if (loading) return <EntryLoading />;
+  if (loading || !authReady) return <SessionRestoringScreen />;
   // Login confirmation in progress — stay on auth surface (Landing), do not bounce to /home.
   if (user && !shouldBlockPostLoginNavigation()) {
     return <Navigate to="/home" replace />;

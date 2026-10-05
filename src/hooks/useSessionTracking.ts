@@ -1,200 +1,74 @@
 import { useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
-import { db } from '@/lib/firebase';
-import {
-  rememberCurrentSessionHash,
-  rememberSelfLoginChallenge,
-} from '@/lib/sessionIdentity';
+import { rememberCurrentSessionHash, rememberSelfLoginChallenge } from '@/lib/sessionIdentity';
 import { getOrCreateDeviceId } from '@/lib/notifications/pushDiagnostics';
-import {
-  clearPendingLoginApproval,
-  setPendingLoginApproval,
-  type PendingLoginApproval,
-} from '@/lib/loginApprovalGate';
+import { clearPendingLoginApproval, setPendingLoginApproval, shouldBlockPostLoginNavigation, type PendingLoginApproval } from '@/lib/loginApprovalGate';
+import { captureDeviceSignIn, deviceConfirmationRequired, registerCurrentDevice, signOutForDeviceConfirmation, signOutIfCurrentDeviceRevoked } from '@/lib/loginDeviceService';
 
 const REVOKE_CHECK_INTERVAL_MS = 15_000;
-
 export interface FreshLoginNotifyResult {
-  requiresApproval: boolean;
-  challengeId?: string;
-  expiresAt?: string;
-  sessionId?: string;
-  deviceLabel?: string;
-  geo?: PendingLoginApproval['location'];
-  reason?: string;
+  requiresApproval: boolean; challengeId?: string; expiresAt?: string; sessionId?: string;
+  deviceLabel?: string; geo?: PendingLoginApproval['location']; reason?: string;
+}
+const idKey = (uid: string, device: string) => `vybe-app-session-id-${uid}-${device}`;
+function readId(uid: string, device: string) { try { return localStorage.getItem(idKey(uid, device)); } catch { return null; } }
+function rememberId(uid: string, device: string, id: string) {
+  try { localStorage.setItem(idKey(uid, device), id); localStorage.setItem(`vybe-session-tracked-${uid}-${device}`, String(Date.now())); } catch { /* In-memory tracking still works. */ }
 }
 
-/**
- * Registers this install in user_sessions and watches for remote revoke.
- * Uses a stable localStorage device id (Firebase JWTs have no session_id) so
- * cold starts do not look like new logins / spam "Was this you?" challenges.
- *
- * Real sign-in alerts are created only when `notifyFreshLogin` is called from
- * auth flows — not on every app open.
- */
+/** Cold reopen registers only after checked profile setup. Existing credentials
+ * remain logged in through network failures; only their current revoked device
+ * generation can trigger a sign-out. */
 export function useSessionTracking() {
-  const { user, authReady } = useAuth();
+  const { user, profile, authReady } = useAuth();
   useEffect(() => {
-    if (!authReady || !user) return;
-    let cancelled = false;
-    let interval: ReturnType<typeof setInterval> | undefined;
-
-    const kickIfRevoked = async (trackedSessionId: string) => {
-      const { data } = await db
-        .from('user_sessions')
-        .select('revoked_at')
-        .eq('id', trackedSessionId)
-        .maybeSingle();
-
-      if (!cancelled && data?.revoked_at) {
-        await db.auth.signOut({ scope: 'local' as any });
-        window.location.assign('/login');
-      }
-    };
-
-    const trackAndWatch = async () => {
-      const deviceFingerprint = getOrCreateDeviceId();
-      rememberCurrentSessionHash(user.id, deviceFingerprint);
-
-      const trackedKey = `vybe-session-tracked-${user.id}-${deviceFingerprint}`;
-      const idKey = `vybe-app-session-id-${user.id}-${deviceFingerprint}`;
-      let trackedSessionId: string | null = null;
-
+    if (!authReady || !user || !profile || profile.user_id !== user.id) return;
+    let cancelled = false, running = false, checkedId: string | null = null, lastRegistration = -Infinity;
+    const device = getOrCreateDeviceId();
+    const guard = () => { if (cancelled) throw new Error('This device view closed.'); };
+    const check = async () => {
+      if (cancelled || running || shouldBlockPostLoginNavigation()) return;
+      running = true;
       try {
-        trackedSessionId = localStorage.getItem(idKey);
-        let alreadyTracked = !!localStorage.getItem(trackedKey);
-        // Let interactive login (notifyFreshLogin) claim a new auth first — avoids
-        // racing session_resume vs password/oauth and dropping real location alerts.
-        if (!alreadyTracked) {
-          await new Promise((r) => window.setTimeout(r, 900));
-          if (cancelled) return;
-          alreadyTracked = !!localStorage.getItem(trackedKey);
-          trackedSessionId = localStorage.getItem(idKey) || trackedSessionId;
-        }
-        if (!alreadyTracked) {
-          const { data } = await db.functions.invoke('auth-login-notify', {
-            body: {
-              method: 'session_resume',
-              deviceFingerprint,
-              userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
-            },
-          });
-          const payload = data as {
-            sessionId?: string;
-            challengeId?: string;
-            notified?: boolean;
-          } | null;
-          trackedSessionId = payload?.sessionId || trackedSessionId;
-          if (payload?.challengeId) {
-            rememberSelfLoginChallenge(user.id, payload.challengeId);
+        const signIn = await captureDeviceSignIn(user.id, guard);
+        rememberCurrentSessionHash(user.id, device);
+        if (!checkedId && Date.now() - lastRegistration >= 60_000) {
+          lastRegistration = Date.now();
+          try {
+            const result = await registerCurrentDevice(signIn, device, 'session_resume', profile.id);
+            signIn.guard(); checkedId = result.sessionId;
+            if (checkedId) rememberId(user.id, device, checkedId);
+          } catch (error) {
+            signIn.guard();
+            if (deviceConfirmationRequired(error, signIn)) { await signOutForDeviceConfirmation(signIn); return; }
+            // Retry registration later; never treat an outage as revocation.
           }
-          if (trackedSessionId) localStorage.setItem(idKey, trackedSessionId);
-          localStorage.setItem(trackedKey, String(Date.now()));
-        } else if (trackedSessionId) {
-          // Known install — soft heartbeat for revoke checks only.
-          void db.functions.invoke('auth-login-notify', {
-            body: {
-              method: 'session_resume',
-              deviceFingerprint,
-              userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
-            },
-          });
         }
-      } catch (e) {
-        console.warn('session tracking failed', e);
-      }
-
-      if (!trackedSessionId) {
-        const { data } = await db
-          .from('user_sessions')
-          .select('id, revoked_at')
-          .eq('user_id', user.id)
-          .eq('session_token_hash', deviceFingerprint)
-          .maybeSingle();
-        trackedSessionId = data?.id ?? null;
-        if (trackedSessionId) localStorage.setItem(idKey, trackedSessionId);
-        if (data?.revoked_at && trackedSessionId) await kickIfRevoked(trackedSessionId);
-      }
-
-      if (trackedSessionId && !cancelled) {
-        await kickIfRevoked(trackedSessionId);
-        interval = setInterval(() => kickIfRevoked(trackedSessionId!), REVOKE_CHECK_INTERVAL_MS);
-      }
+        // Confirmed memory wins even if disk was full and retained an old ID.
+        const currentId = checkedId || readId(user.id, device);
+        if (currentId) await signOutIfCurrentDeviceRevoked(signIn, device, currentId);
+      } catch { /* Retired account, failed token refresh or read: keep current credentials. */ }
+      finally { running = false; }
     };
-
-    trackAndWatch();
-    return () => {
-      cancelled = true;
-      if (interval) clearInterval(interval);
-    };
-  }, [authReady, user?.id]);
+    void check();
+    const interval = setInterval(() => void check(), REVOKE_CHECK_INTERVAL_MS);
+    const retry = () => { lastRegistration = -Infinity; void check(); };
+    window.addEventListener('online', retry);
+    return () => { cancelled = true; clearInterval(interval); window.removeEventListener('online', retry); };
+  }, [authReady, user, profile?.id, profile?.user_id]);
 }
 
-/** Call after a real password / OAuth / custom-token sign-in (not cold resume). */
+/** Interactive confirmation failures stay errors rather than claiming approval. */
 export async function notifyFreshLogin(method: string): Promise<FreshLoginNotifyResult> {
-  try {
-    const deviceFingerprint = getOrCreateDeviceId();
-    const { data: { session } } = await db.auth.getSession();
-    const uid = session?.user?.id;
-    if (!uid) return { requiresApproval: false };
-
-    rememberCurrentSessionHash(uid, deviceFingerprint);
-    const trackedKey = `vybe-session-tracked-${uid}-${deviceFingerprint}`;
-    const idKey = `vybe-app-session-id-${uid}-${deviceFingerprint}`;
-    // Claim before invoke so cold-start resume does not win the race.
-    localStorage.setItem(trackedKey, String(Date.now()));
-
-    const { data } = await db.functions.invoke('auth-login-notify', {
-      body: {
-        method,
-        deviceFingerprint,
-        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
-      },
-    });
-
-    const payload = data as {
-      challengeId?: string;
-      sessionId?: string;
-      expiresAt?: string;
-      deviceLabel?: string;
-      geo?: PendingLoginApproval['location'];
-      requiresApproval?: boolean;
-      reason?: string;
-    } | null;
-
-    if (payload?.sessionId) localStorage.setItem(idKey, payload.sessionId);
-
-    if (payload?.requiresApproval && payload.challengeId) {
-      rememberSelfLoginChallenge(uid, payload.challengeId);
-      const pending: PendingLoginApproval = {
-        challengeId: payload.challengeId,
-        expiresAt: payload.expiresAt,
-        email: session.user.email || undefined,
-        deviceLabel: payload.deviceLabel,
-        location: payload.geo,
-        userId: uid,
-        method,
-      };
-      setPendingLoginApproval(pending);
-      return {
-        requiresApproval: true,
-        challengeId: payload.challengeId,
-        expiresAt: payload.expiresAt,
-        sessionId: payload.sessionId,
-        deviceLabel: payload.deviceLabel,
-        geo: payload.geo,
-        reason: payload.reason,
-      };
-    }
-
-    clearPendingLoginApproval();
-    return {
-      requiresApproval: false,
-      sessionId: payload?.sessionId,
-      reason: payload?.reason,
-    };
-  } catch (e) {
-    console.warn('fresh login notify failed', e);
-    return { requiresApproval: false };
-  }
+  const signIn = await captureDeviceSignIn(), device = getOrCreateDeviceId();
+  const payload = await registerCurrentDevice(signIn, device, method);
+  signIn.guard(); rememberCurrentSessionHash(signIn.uid, device);
+  if (payload.sessionId) rememberId(signIn.uid, device, payload.sessionId);
+  if (payload.requiresApproval) {
+    rememberSelfLoginChallenge(signIn.uid, payload.challengeId!);
+    setPendingLoginApproval({ challengeId: payload.challengeId!, expiresAt: payload.expiresAt, email: signIn.user.email || undefined,
+      deviceLabel: payload.deviceLabel, location: payload.geo, userId: signIn.uid, method });
+  } else clearPendingLoginApproval();
+  return { requiresApproval: payload.requiresApproval, sessionId: payload.sessionId ?? undefined, challengeId: payload.challengeId,
+    expiresAt: payload.expiresAt, deviceLabel: payload.deviceLabel, geo: payload.geo, reason: payload.reason };
 }

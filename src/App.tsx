@@ -46,7 +46,8 @@ import {
 } from "@/lib/nativePerfMode";
 import { getRuntimeOs } from "@/lib/despiaBridge";
 import { hasStoredAuthSession } from "@/lib/legacyAuthStorage";
-import { getWasLoggedIn, setWasLoggedIn } from "@/lib/wasLoggedIn";
+import { getWasLoggedIn } from "@/lib/wasLoggedIn";
+import { useAuthSplashStatus } from "@/hooks/useAuthSplashStatus";
 import SmartErrorBoundary from "@/components/error/SmartErrorBoundary";
 import LocalErrorBoundary from "@/components/error/LocalErrorBoundary";
 import { GlobalErrorHandler } from "@/components/error/GlobalErrorHandler";
@@ -440,49 +441,7 @@ function useAuthResolved() {
     getWasLoggedIn() ||
     hasStoredAuthSession() ||
     !!getCachedCurrentProfile();
-  const [resolved, setResolved] = useState(optimistic);
-  const [hasSession, setHasSession] = useState(
-    () => optimistic || hasStoredAuthSession(),
-  );
-  useEffect(() => {
-    let cancelled = false;
-    const authTimeoutMs = optimistic
-      ? (isNativePerfMode() ? 150 : 200)
-      : hasStoredAuthSession()
-        ? (isNativePerfMode() ? 300 : 400)
-        : (isNativePerfMode() ? 600 : 700);
-    const forceDone = setTimeout(() => {
-      if (!cancelled) {
-        setResolved(true);
-        logStartupPhase('Auth restored', { via: 'timeout', ms: authTimeoutMs });
-      }
-    }, authTimeoutMs);
-
-    if (hasStoredAuthSession()) {
-      setHasSession(true);
-      setWasLoggedIn(true);
-    }
-
-    db.auth.getSession().then(({ data }) => {
-      if (cancelled) return;
-      setHasSession(!!data.session);
-      setWasLoggedIn(!!data.session);
-      setResolved(true);
-    }).catch(() => { if (!cancelled) setResolved(true); });
-
-    const { data: { subscription } } = db.auth.onAuthStateChange((event, session) => {
-      setHasSession(!!session);
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') setWasLoggedIn(!!session);
-      if (event === 'SIGNED_OUT') setWasLoggedIn(false);
-      setResolved(true);
-    });
-    return () => {
-      cancelled = true;
-      clearTimeout(forceDone);
-      subscription.unsubscribe();
-    };
-  }, []);
-  return { authResolved: resolved, hasSession };
+  return useAuthSplashStatus(optimistic, isNativePerfMode());
 }
 
 // Preloader wrapper component - must be inside QueryClientProvider

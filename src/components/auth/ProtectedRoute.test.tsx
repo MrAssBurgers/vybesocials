@@ -7,6 +7,7 @@ const state = vi.hoisted(() => ({
   auth: { user: null as null | { id: string }, profile: null as null | { id: string; user_id: string; onboarding_completed: boolean }, authReady: true,
     profileSetupError: null as null | { message: string; recoveryAvailable: boolean }, profileSetupLoading: false },
   retry: vi.fn(), recover: vi.fn(), signOut: vi.fn(),
+  restore: 'pending', retryRestore: vi.fn(), abandonRestore: vi.fn(),
   stored: false, approval: false, stash: vi.fn(),
 }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ ...state.auth, retryProfileSetup: state.retry, recoverProfileSetup: state.recover, signOut: state.signOut }) }));
@@ -15,11 +16,13 @@ vi.mock('@/lib/profileAccountGuard', () => ({ profileAccountGuard: (uid: string,
 vi.mock('@/lib/legacyAuthStorage', () => ({ hasStoredAuthSession: () => state.stored }));
 vi.mock('@/lib/loginApprovalGate', () => ({ shouldBlockPostLoginNavigation: () => state.approval }));
 vi.mock('@/lib/authReturnPath', () => ({ stashAuthReturnPath: state.stash }));
+vi.mock('@/lib/firebase/authService', () => ({ getAuthRestoreState: () => state.restore, subscribeAuthRestoreState: () => () => {}, retryAuthRestore: state.retryRestore, abandonAuthRestore: state.abandonRestore }));
 
 beforeEach(() => {
   state.auth = { user: null, profile: null, authReady: true, profileSetupError: null, profileSetupLoading: false };
   state.retry.mockReset(); state.recover.mockReset(); state.signOut.mockReset();
   state.stored = false; state.approval = false; state.stash.mockClear();
+  state.restore = 'pending'; state.retryRestore.mockReset().mockResolvedValue(undefined); state.abandonRestore.mockReset().mockResolvedValue(undefined);
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 function show(path = '/explore?q=music#results', allowGuest?: boolean) {
@@ -45,7 +48,7 @@ describe('database-backed route access', () => {
   });
   it('shows a named loading state while restoring auth instead of firing guest queries', () => {
     state.auth.authReady = false; show();
-    expect(screen.getByRole('status', { name: 'Restoring your session' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Restoring your account' })).toBeInTheDocument();
     expect(screen.queryByText('Protected feature mounted')).not.toBeInTheDocument();
   });
   it('keeps authenticated screens accessible', () => {
@@ -54,7 +57,7 @@ describe('database-backed route access', () => {
   });
   it('uses a stored session only to wait, without mounting private content', () => {
     state.stored = true; state.auth.authReady = false; show();
-    expect(screen.getByRole('status', { name: 'Restoring your session' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Restoring your account' })).toBeInTheDocument();
     expect(screen.queryByText('Protected feature mounted')).not.toBeInTheDocument();
   });
   it('does not bypass pending login approval', () => {
@@ -107,13 +110,31 @@ describe('database-backed route access', () => {
     await screen.findByRole('alert', { name: 'Profile setup needs attention' });
     expect(screen.queryByRole('button', { name: 'Recover my profile' })).not.toBeInTheDocument();
   });
-  it('offers restoration recovery after a bounded wait without erasing a native session', () => {
-    vi.useFakeTimers(); state.stored = true; show('/messages?chat=friend');
-    expect(screen.queryByRole('link', { name: 'Go to sign in' })).not.toBeInTheDocument();
+  it('offers restoration retry after a bounded wait without erasing a native session', async () => {
+    vi.useFakeTimers(); state.stored = true; state.auth.authReady = false; show('/messages?chat=friend');
+    expect(screen.queryByRole('button', { name: 'Sign in again' })).not.toBeInTheDocument();
     act(() => vi.advanceTimersByTime(8_000));
-    expect(screen.getByRole('button', { name: 'Try loading again' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('link', { name: 'Go to sign in' }));
-    expect(state.stash).toHaveBeenCalledWith('/messages?chat=friend');
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await act(async () => {});
+    expect(state.retryRestore).toHaveBeenCalledOnce();
+    expect(state.abandonRestore).not.toHaveBeenCalled();
+    expect(state.signOut).not.toHaveBeenCalled();
+  });
+  it('offers deliberate failed-restoration abandonment on a private deep link', async () => {
+    state.stored = true; state.auth.authReady = false; state.restore = 'error'; show('/messages?chat=friend#latest');
+    expect(state.abandonRestore).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in again' }));
+    await act(async () => {});
+    expect(state.abandonRestore).toHaveBeenCalledOnce();
+    expect(screen.queryByText('Protected feature mounted')).not.toBeInTheDocument();
+    expect(screen.queryByText('Authentication destination')).not.toBeInTheDocument();
+  });
+  it('does not let a stale disk hint trap an authoritatively signed-out account', () => {
+    state.stored = true; state.auth.authReady = true; show('/messages?chat=friend#latest');
+    expect(screen.getByText('Authentication destination')).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Restoring your account' })).not.toBeInTheDocument();
+    expect(state.stash).toHaveBeenCalledWith('/messages?chat=friend#latest');
+    expect(screen.queryByText('Protected feature mounted')).not.toBeInTheDocument();
     expect(state.signOut).not.toHaveBeenCalled();
   });
 });

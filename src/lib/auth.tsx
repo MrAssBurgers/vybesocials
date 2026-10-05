@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, useRef, useCallback, ReactNode } from 'react';
+import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useState, useRef, useCallback, useSyncExternalStore, ReactNode } from 'react';
 import type { User, Session } from '@/lib/firebase';
 import { db } from '@/lib/firebase';
 import { updateUserProfile, ensureUserProfile } from '@/lib/firebase/users';
@@ -6,8 +6,6 @@ import { profileAccountGuard, withProfileSetupDeadline, profileSetupFailure } fr
 import { reportAccountSnapshot } from '@/lib/reportModerationService';
 import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 import type { ProfileSetupError } from '@/lib/accountProfileService';
-import { BannedScreen } from '@/components/auth/BannedScreen';
-import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
 import { setCachedProfile, setCachedCurrentProfile, clearCachedCurrentProfile, clearProfileCache, setActiveAuthUserId, stripStaleOnboardingFlagFromDisk } from '@/lib/profileCache';
 import { clearCachedUserLevel } from '@/lib/userLevelCache';
 import { prefetchDMConversationsFromNav } from '@/lib/loadDMConversations';
@@ -34,12 +32,14 @@ import { cacheProfileAvatar, resolveProfileAvatarUrl } from '@/lib/profileAvatar
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
 import { awaitOAuthRedirectCapture, clearOAuthRedirectPending, isLikelyFirebaseOAuthReturnUrl, isOAuthRedirectInFlight, recoverOAuthSessionIfSignedIn } from '@/lib/firebase/oauthRedirect';
 import { isDespiaOAuthInFlight } from '@/lib/despiaOAuth';
-import { captureException } from '@/lib/sentry';
 import { tokenAccountGuard, tokenAccountSnapshot } from '@/lib/tokenMarketplaceService';
 import { beginLoginApprovalCheck, endLoginApprovalCheck } from '@/lib/loginApprovalGate';
 import { captureAuthSnapshotGuard, completeAuthConfirmation, createAuthAttemptController, isRetiredAuthAttempt, type AuthSessionAttempt } from '@/lib/authSessionAttempt';
-import { getFirebaseAuth } from '@/lib/firebase/authService';
+import { getFirebaseAuth, getAuthRestoreState, subscribeAuthRestoreState } from '@/lib/firebase/authService';
 import { clearMirroredAuth } from '@/lib/authSessionMirror';
+
+const BannedScreen = lazy(() => import('@/components/auth/BannedScreen').then(module => ({ default: module.BannedScreen })));
+const MemeBanScreen = lazy(() => import('@/components/auth/MemeBanScreen').then(module => ({ default: module.MemeBanScreen })));
 
 // Token refresh interval - refresh 5 minutes before expiry
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
@@ -203,6 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const accountSession = useReportAccountSession();
+  const authRestoreState = useSyncExternalStore(subscribeAuthRestoreState, getAuthRestoreState, getAuthRestoreState);
   const [setupState, setSetupState] = useState<{ uid: string; epoch: number; loading: boolean; error: ProfileSetupError | null } | null>(null);
   const profileScopeRef = useRef<{ uid: string; epoch: number } | null>(null);
   const profileAttemptRef = useRef(0);
@@ -319,6 +320,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = null;
     }
+    const firebaseUser = getFirebaseAuth()?.currentUser;
+    const snapshot = tokenAccountSnapshot();
+    if (!firebaseUser || firebaseUser.uid !== snapshot.uid) return;
+    const accountGuard = captureAuthSnapshotGuard(tokenAccountSnapshot, firebaseUser.uid);
+    const lifetime = providerLifetimeRef.current;
+    const guard = () => {
+      accountGuard();
+      if (!mountedRef.current || providerLifetimeRef.current !== lifetime || getFirebaseAuth()?.currentUser !== firebaseUser) throw new Error('Session refresh retired.');
+    };
 
     const expiresAtMs = expiresAt * 1000;
     const now = Date.now();
@@ -329,7 +339,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (delay > 0 && delay < 24 * 60 * 60 * 1000) { // Max 24 hours
       refreshTimerRef.current = setTimeout(async () => {
         try {
+          guard();
           const { data, error } = await refreshFirebaseSession();
+          guard();
           if (error) {
             console.error('Token refresh failed:', error);
             if (isFatalRefreshError(error.message)) {
@@ -337,8 +349,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               // can sign back in and reload data (instead of being stuck with
               // a cached profile and 401s on every request).
               try {
-                await db.auth.signOut({ scope: 'local' });
+                await db.auth.signOut({ scope: 'local', guard });
               } catch { /* ignore */ }
+              const after = tokenAccountSnapshot();
+              if (!mountedRef.current || providerLifetimeRef.current !== lifetime || getFirebaseAuth()?.currentUser || after.uid || after.epoch > snapshot.epoch + 1) return;
               setSession(null);
               setUser(null);
               setProfile(null);
@@ -349,6 +363,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             scheduleTokenRefresh(data.session.expires_at);
           }
         } catch (err) {
+          try { guard(); } catch { return; }
           console.error('Token refresh error:', err);
         }
       }, delay);
@@ -601,10 +616,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { safetyMs, getSessionMs } = getAuthInitTimeouts();
     const authSafetyTimeout = window.setTimeout(() => {
       if (authInitializedRef.current) return;
-      logEvent('auth', 'Auth init safety timeout — continuing');
-      authInitializedRef.current = true;
+      logEvent('auth', 'Auth restore still pending — showing recovery controls');
       setLoading(false);
-      setIsInitialized(true);
     }, safetyMs);
 
     // Set up auth state listener FIRST
@@ -641,13 +654,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // ── KEY FIX: Never finalize "no session" from INITIAL_SESSION ──
-        // INITIAL_SESSION with null session happens when the stored token
-        // is expired and a background refresh is in progress. We MUST wait
-        // for getSession() or TOKEN_REFRESHED to resolve instead.
+        // The adapter withholds native/SDK provisional nulls. Only its settled
+        // empty result may unlock the sign-in surface.
         if (event === 'INITIAL_SESSION' && !session) {
-          logEvent('auth', 'INITIAL_SESSION with no session — deferring to getSession');
-          // Still unblock the login UI — getSession continues in background.
+          if (getAuthRestoreState() !== 'ready') return;
+          logEvent('auth', 'INITIAL_SESSION settled without a session');
           if (!authInitializedRef.current) {
             authInitializedRef.current = true;
             setLoading(false);
@@ -852,6 +863,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         getSessionHandled = true;
 
         const { data: { session }, error } = result;
+        // Neither a native-vault timeout nor an unresolved Firebase hydration
+        // establishes signed-out state. Keep the bounded restoration surface.
+        if (error?.name === 'auth/restore-pending' || error?.name === 'auth/restore-unavailable' || getAuthRestoreState() !== 'ready') {
+          setLoading(false);
+          return;
+        }
         if (error) {
           if (hasStoredToken()) {
             logEvent('auth', 'getSession error with stored token — refreshing', { error: error.message });
@@ -928,9 +945,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (error && isFatalRefreshError(error.message)) {
             logEvent('auth', 'Refresh token invalid — clearing local session', { error: error.message });
+            const signOutSnapshot = tokenAccountSnapshot(), sdkUser = getFirebaseAuth()?.currentUser;
+            const signOutLifetime = providerLifetimeRef.current;
+            const guard = () => {
+              if (!isSessionReadCurrent() || providerLifetimeRef.current !== signOutLifetime || getFirebaseAuth()?.currentUser !== sdkUser) throw new Error('Session recovery was replaced.');
+            };
             try {
-              await db.auth.signOut({ scope: 'local' });
+              await db.auth.signOut({ scope: 'local', guard });
             } catch { /* ignore */ }
+            const after = tokenAccountSnapshot();
+            if (!mountedRef.current || providerLifetimeRef.current !== signOutLifetime || getFirebaseAuth()?.currentUser || after.uid || after.epoch !== signOutSnapshot.epoch + (signOutSnapshot.uid ? 1 : 0)) return;
             setSession(null);
             setUser(null);
             setProfile(null);
@@ -982,17 +1006,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const getSessionTimeout = window.setTimeout(() => {
         if (getSessionHandled) return;
-        logEvent('auth', 'getSession timed out — continuing');
-        void (async () => {
-          if (isOAuthRedirectInFlight()) {
-            const captured = await awaitOAuthRedirectCapture();
-            if (captured.session?.user) {
-              void handleGetSession({ data: { session: captured.session }, error: null });
-              return;
-            }
-          }
-          void handleGetSession({ data: { session: null }, error: null });
-        })();
+        // Do not consume the real read or synthesize an authoritative null.
+        // Its late checked result or the Auth listener may still restore it.
+        if (isSessionReadCurrent()) setLoading(false);
       }, getSessionMs);
 
       db.auth.getSession().then((result) => {
@@ -1160,7 +1176,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    authAttempts.retire();
+    const snapshot = tokenAccountSnapshot();
+    const sdkUser = getFirebaseAuth()?.currentUser;
+    const lifetime = providerLifetimeRef.current;
+    const attempt = authAttempts.start(snapshot.uid, false);
+    const guard = () => {
+      attempt.guard();
+      if (!mountedRef.current || lifetime !== providerLifetimeRef.current || getFirebaseAuth()?.currentUser !== sdkUser) throw new Error('Sign-out was replaced.');
+    };
+    const ownsSignedOutState = () => {
+      const current = tokenAccountSnapshot();
+      return mountedRef.current && lifetime === providerLifetimeRef.current && attempt.owns()
+        && !getFirebaseAuth()?.currentUser && !current.uid
+        && current.epoch === snapshot.epoch + (snapshot.uid ? 1 : 0);
+    };
+    guard();
     explicitSignOutRef.current = true;
     clearFunctionAuthHeadersCache();
     setWasLoggedIn(false);
@@ -1171,37 +1201,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearCachedCurrentProfile();
     clearCachedUserLevel();
 
-    // 2) Clear Firebase persistence BEFORE refresh can resurrect the session.
-    //    (local-scope used to be a no-op and left firebase:authUser:* on disk.)
+    // The adapter owns durable logout and its native tombstone. Do not run a
+    // second logout or wipe arbitrary auth keys after this await: a replacement
+    // sign-in may already own those credentials.
     try {
-      await db.auth.signOut({ scope: 'local' as any });
+      const result = await db.auth.signOut({ scope: 'local', guard });
+      if (result?.error) return;
     } catch (err: unknown) {
       console.warn('[Auth] Local signOut failed (state already cleared):', err);
+      return;
     }
-    // Eager disk wipe — belt and suspenders if Auth persistence lags.
-    try {
-      for (const key of Object.keys(localStorage)) {
-        if (key.startsWith('firebase:authUser:') || key.startsWith('sb-')) {
-          localStorage.removeItem(key);
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-    void db.auth.signOut().catch((err: unknown) => {
-      console.warn('[Auth] Global signOut (token revoke) failed:', err);
-      captureException(err, { scope: 'auth:signOut:global' });
-    });
-
-    // #region agent log
-    fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'ios-post-fix',hypothesisId:'E',location:'auth.tsx:signOut',message:'signOut cleared',data:{hasFirebaseUserKey:Object.keys(localStorage).some(k=>k.startsWith('firebase:authUser:')),wasLoggedInFlag:false},timestamp:Date.now()})}).catch(()=>{});
-    try {
-      fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:{action:'debug_oauth',event:'signout_cleared',hypothesisId:'E',location:'auth.tsx',payload:{runId:'ios-post-fix',hasFirebaseUserKey:Object.keys(localStorage).some(k=>k.startsWith('firebase:authUser:'))}}}),keepalive:true}).catch(()=>{});
-    } catch { /* ignore */ }
-    // #endregion
-
+    if (!ownsSignedOutState()) return;
     // 3) Defer all theme/DOM/localStorage cleanup so it never blocks the navigate.
     queueMicrotask(() => {
+      if (!ownsSignedOutState()) return;
       try {
         const qc = (window as any).__REACT_QUERY_CLIENT__;
         if (qc && typeof qc.clear === 'function') qc.clear();
@@ -1302,12 +1315,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       profile: resolvedProfile,
       loading,
-      authReady: isInitialized,
+      authReady: isInitialized && authRestoreState === 'ready',
       banInfo,
       profileSetupError, profileSetupLoading,
       ...stableApi,
     }),
-    [user, session, resolvedProfile, loading, isInitialized, banInfo, profileSetupError, profileSetupLoading, stableApi],
+    [user, session, resolvedProfile, loading, isInitialized, authRestoreState, banInfo, profileSetupError, profileSetupLoading, stableApi],
   );
 
   // Always keep AuthContext mounted — ban UI replaces children, never the provider.
@@ -1315,7 +1328,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={contextValue}>
       {banInfo ? (
-        banInfo.is_meme_ban ? (
+        <Suspense fallback={<div role="status" aria-label="Loading account notice" className="min-h-[100dvh] bg-background flex items-center justify-center p-6">Loading account notice…</div>}>
+        {banInfo.is_meme_ban ? (
           <MemeBanScreen reason={banInfo.reason} expiresAt={banInfo.expires_at} customGifUrl={banInfo.custom_gif_url} />
         ) : (
           <BannedScreen
@@ -1323,7 +1337,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             expiresAt={banInfo.expires_at}
             isPermanent={banInfo.is_permanent}
           />
-        )
+        )}
+        </Suspense>
       ) : (
         children
       )}
