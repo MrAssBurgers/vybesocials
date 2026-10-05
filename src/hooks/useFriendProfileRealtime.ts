@@ -4,7 +4,7 @@ import { documentRef, onSnapshot } from '@/lib/firebase/firestoreDb';
 import { friendshipPairId } from '@/lib/friendProfilePair';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
-/** Realtime invalidation for friendship pair + location share docs. */
+/** Realtime invalidation for friendship pair docs; location grants use checked expiring reads. */
 export function useFriendProfileRealtime(otherProfileId: string | undefined) {
   const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
@@ -18,13 +18,8 @@ export function useFriendProfileRealtime(otherProfileId: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ['friendship-pair', pairId] });
     });
 
-    const unsubShare = onSnapshot(documentRef('location_shares', pairId), () => {
-      queryClient.invalidateQueries({ queryKey: ['location-share', pairId] });
-    });
-
     return () => {
       unsubPair();
-      unsubShare();
     };
   }, [pairId, queryClient]);
 }

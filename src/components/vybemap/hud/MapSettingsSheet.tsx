@@ -10,6 +10,7 @@ interface MapSettingsSheetProps {
   mapMode: MapViewMode;
   layers: Record<MapLayer, boolean>;
   sharing: boolean;
+  sharingStatus?: string;
   hasMapbox: boolean;
   followHeading?: boolean;
   onFollowHeading?: (enabled: boolean) => void;
@@ -26,7 +27,7 @@ interface MapSettingsSheetProps {
 export function MapSettingsSheet({
   mapMode,
   layers,
-  sharing,
+  sharing, sharingStatus,
   hasMapbox,
   followHeading = false,
   onFollowHeading,
@@ -67,7 +68,7 @@ export function MapSettingsSheet({
           <section>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-white/40 mb-2">Quick actions</p>
             <div className="grid grid-cols-2 gap-2">
-              <QuickBtn icon={Ghost} label={sharing ? 'You\'re live' : 'Ghost mode'} onClick={onGhost} active={!sharing} />
+              <QuickBtn icon={Ghost} label={sharingStatus || (sharing ? 'You\'re live' : 'Ghost mode')} onClick={onGhost} active={!sharing} />
               <QuickBtn icon={Sparkles} label="Squads" onClick={onSquads} />
               <QuickBtn icon={Plus} label="Drop a spot" onClick={onDropSpot} />
               <QuickBtn icon={MapPin} label="Plan meetup" onClick={onPlanMeetup} />

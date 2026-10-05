@@ -1,302 +1,206 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { encodeGeohash } from '@/lib/vybemap/geohash';
 import { detectActivity } from '@/lib/vybemap/activity';
-import { upsertLiveLocation, disableLiveLocation, appendLocationHistory } from '@/lib/vybemap/firestore';
-import {
-  persistGhostUntil,
-  persistSharingPref,
-  resolveSharingOnLoad,
-} from '@/lib/vybemap/ghostMode';
-
-const UPSERT_INTERVAL_MS = 5_000;
-const HISTORY_INTERVAL_MS = 60_000;
-
-function autoStatus(speed: number | null, hour: number): string | null {
-  if (speed && speed > 25) return '✈️ Traveling';
-  if (speed && speed > 2) return '🚗 Driving';
-  if (speed && speed > 0.5) return '🚶 Walking';
-  if (hour >= 0 && hour < 6) return '😴 Sleeping';
-  return null;
-}
+import { useLocationMutation, useLocationSharing } from './useLocationSharing';
+import { locationSharingRequest, type LocationSharingState } from '@/lib/locationSharingService';
 
 export interface LocationState {
-  coords: [number, number] | null;
-  accuracy: number | null;
-  speed: number | null;
-  heading: number | null;
-  sharing: boolean;
-  /** True only after this session has a usable position and permission is not denied. */
-  locationAvailable: boolean;
-  locationDenied: boolean;
-  /** Epoch ms when temporary ghost ends; null if live or permanent ghost. */
-  ghostUntil: number | null;
-  setSharing: (v: boolean) => void;
-  /** Existing map controls may ask for position; mounting the map never prompts. */
+  coords: [number, number] | null; accuracy: number | null; speed: number | null; heading: number | null;
+  sharing: boolean; sharingEnabled: boolean; sharingPending: boolean; sharingReady: boolean; sharingError: string | null;
+  legacySharingNeedsReview: boolean;
+  locationAvailable: boolean; locationDenied: boolean; ghostUntil: number | null;
+  setSharing: (v: boolean) => Promise<void>;
   requestLocation: () => void;
-  /** Hide for `ms` then auto-restore. Survives leaving /map. */
-  enableTemporaryGhost: (ms: number) => void;
-  exitGhost: () => void;
+  enableTemporaryGhost: (ms: number) => Promise<void>;
+  exitGhost: () => Promise<void>;
+  retrySharing: () => void;
+}
+const EMPTY_POSITION = { coords: null as [number, number] | null, accuracy: null as number | null, speed: null as number | null, heading: null as number | null, denied: false };
+async function optionalBatteryPercent(): Promise<number | null> {
+  const read = (navigator as Navigator & { getBattery?: () => Promise<{ level: number }> }).getBattery;
+  if (!read) return null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const battery = await Promise.race([read.call(navigator), new Promise<null>(resolve => { timer = setTimeout(() => resolve(null), 250); })]);
+    return battery && Number.isFinite(battery.level) ? Math.max(0, Math.min(100, Math.round(battery.level * 100))) : null;
+  } catch { return null; } finally { if (timer) clearTimeout(timer); }
 }
 
-export function useBackgroundLocation(
-  userId?: string,
-  options?: { watchOnMap?: boolean },
-): LocationState {
+export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: boolean }): LocationState {
   const watchOnMap = options?.watchOnMap ?? false;
-  const [request, setRequest] = useState<{ userId?: string; allowed: boolean }>({ userId, allowed: false });
-  const locationRequested = request.userId === userId && request.allowed;
-  const requestLocation = useCallback(() => { setRequest({ userId, allowed: true }); }, [userId]);
+  const [ghost, setGhost] = useState<{ scope: string; until: number; revision: string } | null>(null);
+  const read = useLocationSharing(undefined, watchOnMap || !!ghost);
+  const change = useLocationMutation();
+  const actor = read.actor;
+  const ready = actor.ready && userId === actor.profileId;
+  const scope = JSON.stringify([actor.uid, actor.profileId, actor.epoch]);
+  const context = useMemo(() => ({ active: true, intent: 0, blocked: false, lastSent: 0, sending: false, failedIntent: null as boolean | null }), [scope]);
+  useEffect(() => { context.active = true; return () => { context.active = false; context.intent++; }; }, [context]);
+  const guard = useCallback(() => { actor.guard(); if (!ready || !context.active) throw Object.assign(new Error('Your account changed. Open the map again.'), { code: 'account-changed' }); }, [actor.guard, ready, context]);
+  const [request, setRequest] = useState<string | null>(null);
+  const [position, setPosition] = useState({ ...EMPTY_POSITION, scope });
+  const currentPosition = ready && position.scope === scope ? position : EMPTY_POSITION;
+  const [problem, setProblem] = useState<{ scope: string; message: string } | null>(null);
+  const [published, setPublished] = useState<{ scope: string; revision: string; expiresAt: number } | null>(null);
+  const latest = useRef({ state: read.data?.state, guard, scope, watchOnMap });
+  latest.current = { state: read.data?.state, guard, scope, watchOnMap };
+  const requestLocation = useCallback(() => { try { guard(); setRequest(scope); } catch { /* Auth not ready: no GPS request. */ } }, [guard, scope]);
+
   useEffect(() => {
     let active = true;
-    // Reading the permission state does not request GPS or prompt the user.
-    // Preserve already-granted map watchers, but require a gesture for prompt.
-    if (watchOnMap && userId && navigator.permissions?.query) {
+    if (watchOnMap && ready && navigator.permissions?.query) {
       void navigator.permissions.query({ name: 'geolocation' }).then(permission => {
-        if (active && permission.state === 'granted') setRequest({ userId, allowed: true });
+        try { latest.current.guard(); } catch { return; }
+        if (active && permission.state === 'granted') setRequest(scope);
       }).catch(() => {});
     }
     return () => { active = false; };
-  }, [watchOnMap, userId]);
-  const [coords, setCoords] = useState<[number, number] | null>(null);
-  const [accuracy, setAccuracy] = useState<number | null>(null);
-  const [speed, setSpeed] = useState<number | null>(null);
-  const [heading, setHeading] = useState<number | null>(null);
-  const [locationDenied, setLocationDenied] = useState(false);
-  const initial = resolveSharingOnLoad();
-  const [sharing, setSharingState] = useState(initial.sharing);
-  const [ghostUntil, setGhostUntil] = useState<number | null>(initial.ghostUntil);
-  const lastUpsert = useRef(0);
-  const lastHistory = useRef(0);
-  const lastPos = useRef<{ lat: number; lng: number } | null>(null);
-  const lastSpeed = useRef<number | null>(null);
-  const ghostTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const denialNotifiedRef = useRef(false);
+  }, [watchOnMap, ready, scope]);
 
-  const clearGhostTimer = useCallback(() => {
-    if (ghostTimerRef.current) {
-      clearTimeout(ghostTimerRef.current);
-      ghostTimerRef.current = null;
-    }
-  }, []);
-
-  const exitGhost = useCallback(() => {
-    clearGhostTimer();
-    persistGhostUntil(null);
-    setGhostUntil(null);
-    setSharingState(true);
-    persistSharingPref(true);
-  }, [clearGhostTimer]);
-
-  const setSharing = useCallback((v: boolean) => {
-    clearGhostTimer();
-    persistGhostUntil(null);
-    setGhostUntil(null);
-    setSharingState(v);
-    persistSharingPref(v);
-  }, [clearGhostTimer]);
-
-  const enableTemporaryGhost = useCallback((ms: number) => {
-    if (!Number.isFinite(ms) || ms <= 0) return;
-    const until = Date.now() + ms;
-    persistGhostUntil(until);
-    setGhostUntil(until);
-    setSharingState(false);
-    persistSharingPref(false);
-  }, []);
-
-  // Restore from temporary ghost when `ghostUntil` elapses (survives leaving /map).
-  useEffect(() => {
-    if (ghostUntil == null) {
-      clearGhostTimer();
-      return;
-    }
-    const remaining = ghostUntil - Date.now();
-    if (remaining <= 0) {
-      exitGhost();
-      toast.success("You're live on VybeMap again");
-      return;
-    }
-    clearGhostTimer();
-    ghostTimerRef.current = setTimeout(() => {
-      ghostTimerRef.current = null;
-      persistGhostUntil(null);
-      setGhostUntil(null);
-      setSharingState(true);
-      persistSharingPref(true);
-      toast.success("You're live on VybeMap again");
-    }, remaining);
-    return () => clearGhostTimer();
-  }, [ghostUntil, exitGhost, clearGhostTimer]);
-  // Upsert to DB
-  const upsertLocation = useCallback(async (lat: number, lng: number, acc: number, spd: number | null, heading?: number | null) => {
-    if (!userId || !sharing) return;
-    const now = Date.now();
-    const moving = spd != null && spd > 0.5;
-    const minInterval = moving ? 3_000 : UPSERT_INTERVAL_MS;
-    if (now - lastUpsert.current < minInterval) return;
-    lastUpsert.current = now;
-    const hour = new Date().getHours();
-    const status = autoStatus(spd, hour);
-    const activity_type = detectActivity(spd, status);
-    const geohash = encodeGeohash(lat, lng, 7);
-    let battery_percent: number | undefined;
+  const setSharing = useCallback(async (enabled: boolean, checkedState?: LocationSharingState) => {
+    guard();
+    const current = checkedState || read.data?.state;
+    if (!current) throw new Error('Refresh location sharing before changing it.');
+    context.intent++; context.blocked = true;
+    setPublished(null); setGhost(null); setProblem(null);
     try {
-      const bat = await (navigator as Navigator & { getBattery?: () => Promise<{ level: number }> }).getBattery?.();
-      if (bat) battery_percent = Math.round(bat.level * 100);
-    } catch { /* unsupported */ }
-
-    const expiresAt = new Date(now + 60 * 60 * 1000).toISOString();
-    await upsertLiveLocation(userId, {
-      user_id: userId,
-      latitude: lat,
-      longitude: lng,
-      accuracy: acc,
-      sharing_enabled: true,
-      is_ghost: false,
-      status,
-      speed: spd,
-      heading: heading ?? null,
-      activity_type,
-      geohash,
-      battery_percent: battery_percent ?? null,
-      expires_at: expiresAt,
-      sharing_mode: 'friends',
-    });
-
-    if (now - lastHistory.current > HISTORY_INTERVAL_MS) {
-      lastHistory.current = now;
-      void appendLocationHistory(userId, {
-        latitude: lat,
-        longitude: lng,
-        accuracy: acc,
-        speed: spd,
-        heading: heading ?? null,
-        activity_type,
-        geohash,
-      });
+      await change.mutateAsync({ action: 'setSharing', expectedRevision: current.revision, enabled });
+      guard(); context.failedIntent = null; context.blocked = !enabled; context.lastSent = 0;
+    } catch (error) {
+      guard();
+      context.failedIntent = enabled;
+      setProblem({ scope, message: error instanceof Error ? error.message : 'Location sharing was not confirmed. Retry before assuming it stopped.' });
+      throw error;
     }
-
-    lastPos.current = { lat, lng };
-  }, [userId, sharing]);
-
-  // Request GPS only while the user is on VybeMap (location feature), never on cold start /
-  // Home / Feed. Sharing still controls whether we upsert live location while watching.
-  const shouldWatch = Boolean(userId) && watchOnMap && locationRequested;
+  }, [guard, read.data, context, change.mutateAsync, scope]);
+  const exitGhost = useCallback(() => setSharing(true), [setSharing]);
+  const enableTemporaryGhost = useCallback(async (ms: number) => {
+    if (!Number.isFinite(ms) || ms < 60_000 || ms > 24 * 60 * 60_000) throw new Error('Choose a valid Ghost duration.');
+    await setSharing(false); guard();
+    const fresh = await locationSharingRequest(actor, { action: 'read' }, guard);
+    guard();
+    if (!('state' in fresh) || !fresh.state || fresh.state.enabled || !fresh.state.revision) throw new Error('Check Ghost Mode again before scheduling a return.');
+    setGhost({ scope, until: Date.now() + ms, revision: fresh.state.revision });
+  }, [setSharing, actor, guard, scope]);
 
   useEffect(() => {
-    if (!shouldWatch || !('geolocation' in navigator)) return;
+    if (!ghost || ghost.scope !== scope) return;
     let active = true;
-    let watchId: number | undefined;
-    let fallbackWatchId: number | undefined;
-    let fellBack = false;
-
-    const watchOpts = (): PositionOptions => ({
-      enableHighAccuracy: document.visibilityState !== 'hidden',
-      maximumAge: document.visibilityState === 'hidden' ? 25_000 : sharing ? 4_000 : 8_000,
-      timeout: 20_000,
-    });
-
-    const onSuccess = (pos: GeolocationPosition) => {
-      if (!active) return;
-      const c: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-      setCoords(c);
-      setLocationDenied(false);
-      setAccuracy(pos.coords.accuracy);
-      const spd = pos.coords.speed;
-      setSpeed(spd);
-      lastSpeed.current = spd;
-      const h = pos.coords.heading;
-      if (h != null && Number.isFinite(h)) setHeading(h);
-      upsertLocation(c[0], c[1], pos.coords.accuracy, spd, h);
+    const resume = async () => {
+      if (!active || document.visibilityState === 'hidden' || Date.now() < ghost.until) return;
+      try {
+        latest.current.guard();
+        const result = await locationSharingRequest(actor, { action: 'read' }, latest.current.guard);
+        latest.current.guard();
+        if (!active || !('state' in result) || result.state?.revision !== ghost.revision || result.state.enabled) { if (active) setGhost(null); return; }
+        await change.mutateAsync({ action: 'setSharing', expectedRevision: ghost.revision, enabled: true });
+        latest.current.guard(); if (!active) return;
+        context.blocked = false; context.lastSent = 0; setGhost(null);
+        toast.success('Ghost timer ended. Location updates resume while the map is open.');
+      } catch { if (active) { setGhost(null); setProblem({ scope, message: 'Automatic return was not confirmed. Check location sharing and retry.' }); } }
     };
+    const timer = setTimeout(() => { void resume(); }, Math.max(0, ghost.until - Date.now()));
+    const visible = () => { void resume(); };
+    document.addEventListener('visibilitychange', visible);
+    return () => { active = false; clearTimeout(timer); document.removeEventListener('visibilitychange', visible); };
+  }, [ghost, scope, context]);
 
-    const onError = (err: GeolocationPositionError) => {
-      if (!active) return;
-      console.warn('[Geolocation] error:', err.code, err.message);
-      if (err.code === 1) {
-        // Permission denied — toast once. Do NOT flip Ghost Mode / sharing pref.
-        setLocationDenied(true);
-        setCoords(null);
-        if (userId) {
-          void disableLiveLocation(userId);
-        }
-        if (!denialNotifiedRef.current) {
-          denialNotifiedRef.current = true;
-          toast.error('Location permission denied — enable it in Settings to share on the map', {
-            id: 'vybe-map-location-denied',
-          });
-        }
-        return;
-      }
-      // TIMEOUT (3) or POSITION_UNAVAILABLE (2): retry with low accuracy.
-      // Common on Macs / desktops without GPS where high-accuracy WiFi lookup stalls.
-      if (!fellBack && (err.code === 2 || err.code === 3)) {
-        fellBack = true;
-        try {
-          // One-shot first to populate quickly
-          navigator.geolocation.getCurrentPosition(onSuccess, (e) => {
-            console.warn('[Geolocation] fallback one-shot failed:', e.code, e.message);
-          }, { enableHighAccuracy: false, timeout: 30000, maximumAge: 5 * 60 * 1000 });
-          // Then keep watching at low accuracy
-          fallbackWatchId = navigator.geolocation.watchPosition(onSuccess, (e) => {
-            console.warn('[Geolocation] fallback watch error:', e.code, e.message);
-          }, { enableHighAccuracy: false, maximumAge: 60_000, timeout: 30000 });
-        } catch (e) {
-          console.warn('[Geolocation] fallback threw:', e);
-        }
-      }
+  const publish = useCallback(async (pos: GeolocationPosition) => {
+    const snapshot = latest.current;
+    const state = snapshot.state;
+    if (!state?.enabled || !state.revision || context.blocked || context.sending || !snapshot.watchOnMap || document.visibilityState === 'hidden') return;
+    const sampledAt = pos.timestamp;
+    if (!Number.isFinite(sampledAt) || Date.now() - sampledAt > 60_000 || sampledAt > Date.now() + 5000 || Date.now() - context.lastSent < 5000) return;
+    const intent = context.intent;
+    const check = () => {
+      snapshot.guard();
+      if (context.intent !== intent || context.blocked || !context.active || document.visibilityState === 'hidden' || !latest.current.watchOnMap || latest.current.scope !== snapshot.scope || latest.current.state?.revision !== state.revision || !latest.current.state?.enabled) throw new Error('Location update retired.');
     };
-
+    context.sending = true; context.lastSent = Date.now();
     try {
-      // Quick one-shot so the dot appears ASAP
-      navigator.geolocation.getCurrentPosition(onSuccess, onError, {
-        enableHighAccuracy: false,
-        timeout: 10000,
-        maximumAge: 5 * 60 * 1000,
-      });
-      watchId = navigator.geolocation.watchPosition(onSuccess, onError, watchOpts());
-    } catch { /* geolocation not available */ }
+      check();
+      const batteryPercent = await optionalBatteryPercent();
+      check();
+      const receipt = await locationSharingRequest(actor, { action: 'publishPosition', requestId: crypto.randomUUID(), sharingRevision: state.revision, sampledAt, latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy, speed: pos.coords.speed, heading: pos.coords.heading, batteryPercent, activityType: detectActivity(pos.coords.speed) }, check);
+      check();
+      if ('expiresAt' in receipt && receipt.expiresAt) setPublished({ scope: snapshot.scope, revision: state.revision, expiresAt: Date.parse(receipt.expiresAt) });
+      setProblem(null);
+    } catch (error) {
+      try { check(); } catch { return; }
+      setPublished(null);
+      setProblem({ scope: snapshot.scope, message: error instanceof Error ? error.message : 'Location update was not confirmed.' });
+    } finally { context.sending = false; }
+  }, [actor.uid, actor.profileId, context]);
 
-    const onVisibility = () => {
-      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
-      watchId = navigator.geolocation.watchPosition(onSuccess, onError, watchOpts());
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-
-    return () => {
-      active = false;
-      document.removeEventListener('visibilitychange', onVisibility);
-      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
-      if (fallbackWatchId !== undefined) navigator.geolocation.clearWatch(fallbackWatchId);
-    };
-  }, [shouldWatch, sharing, upsertLocation, userId]);
-
-  // Disable sharing in DB when toggled off
+  const shouldWatch = ready && watchOnMap && request === scope;
   useEffect(() => {
-    if (sharing || !userId) return;
-    void disableLiveLocation(userId);
-  }, [sharing, userId]);
-
-  // Push location immediately when sharing is turned on (don't wait for 15s throttle).
+    if (!shouldWatch || !navigator.geolocation) return;
+    let active = true, fellBack = false;
+    let watchId: number | undefined;
+    const current = () => { try { latest.current.guard(); return active && document.visibilityState !== 'hidden' && latest.current.scope === scope; } catch { return false; } };
+    const success = (pos: GeolocationPosition) => {
+      if (!current()) return;
+      const { latitude, longitude, accuracy, speed, heading } = pos.coords;
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return;
+      setPosition({ scope, coords: [latitude, longitude], accuracy, speed, heading: heading != null && Number.isFinite(heading) ? heading : null, denied: false });
+      void publish(pos);
+    };
+    const failure = (error: GeolocationPositionError) => {
+      if (!current()) return;
+      if (error.code === 1) {
+        context.intent++; setPublished(null);
+        setPosition({ ...EMPTY_POSITION, scope, denied: true });
+        setProblem({ scope, message: 'Location permission is denied. New updates stopped; a previously shared position expires within two minutes. Use Ghost Mode to stop access now.' });
+      } else if (!fellBack && (error.code === 2 || error.code === 3)) {
+        fellBack = true;
+        if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
+        watchId = navigator.geolocation.watchPosition(success, failure, { enableHighAccuracy: false, maximumAge: 30_000, timeout: 30_000 });
+      }
+    };
+    const start = () => {
+      if (document.visibilityState === 'hidden') return;
+      navigator.geolocation.getCurrentPosition(success, failure, { enableHighAccuracy: false, timeout: 10_000, maximumAge: 30_000 });
+      watchId = navigator.geolocation.watchPosition(success, failure, { enableHighAccuracy: true, maximumAge: 4000, timeout: 20_000 });
+    };
+    const visibility = () => {
+      context.intent++; setPublished(null);
+      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
+      watchId = undefined;
+      if (document.visibilityState !== 'hidden') start();
+    };
+    try { start(); } catch { setProblem({ scope, message: 'Location is unavailable on this device.' }); }
+    document.addEventListener('visibilitychange', visibility);
+    return () => { active = false; context.intent++; document.removeEventListener('visibilitychange', visibility); if (watchId !== undefined) navigator.geolocation.clearWatch(watchId); };
+  }, [shouldWatch, scope, context, publish]);
+  // Once enable has been acknowledged, request a fresh sample. Never re-label a
+  // cached coordinate with a new timestamp or republish another account's sample.
   useEffect(() => {
-    if (!sharing || !userId || !coords) return;
-    lastUpsert.current = 0;
-    void upsertLocation(coords[0], coords[1], accuracy ?? 50, speed);
-  }, [sharing, userId, coords, accuracy, speed, upsertLocation]);
+    if (shouldWatch && read.data?.state.enabled && !context.blocked && document.visibilityState !== 'hidden') {
+      const success = (pos: GeolocationPosition) => { try { latest.current.guard(); if (latest.current.scope === scope) void publish(pos); } catch { /* Account retired. */ } };
+      navigator.geolocation?.getCurrentPosition(success, () => {}, { enableHighAccuracy: false, maximumAge: 0, timeout: 10_000 });
+    }
+  }, [read.data?.state.revision, shouldWatch, context, scope, publish]);
 
+  const sharingEnabled = !!read.data?.state.enabled && ready;
   return {
-    coords,
-    accuracy,
-    speed,
-    heading,
-    sharing,
-    locationAvailable: coords !== null && !locationDenied,
-    locationDenied,
-    ghostUntil,
-    setSharing,
-    requestLocation,
-    enableTemporaryGhost,
-    exitGhost,
+    ...currentPosition, locationDenied: currentPosition.denied,
+    sharingEnabled, sharing: sharingEnabled && published?.scope === scope && published.revision === read.data?.state.revision && published.expiresAt > Date.now(),
+    sharingPending: change.isPending, sharingReady: !!read.data, sharingError: problem?.scope === scope ? problem.message : read.error?.message || null,
+    legacySharingNeedsReview: read.data?.legacySharingNeedsReview ?? false,
+    locationAvailable: !!currentPosition.coords && !currentPosition.denied,
+    ghostUntil: ghost?.scope === scope ? ghost.until : null,
+    setSharing, requestLocation, enableTemporaryGhost, exitGhost, retrySharing: () => {
+      void (async () => {
+        try {
+          guard(); const result = await read.refetch(); guard();
+          if (result.error || !result.data) throw result.error || new Error('Location sharing could not be checked.');
+          if (context.failedIntent !== null) await setSharing(context.failedIntent, result.data.state);
+          else setProblem(null);
+        } catch (error) {
+          try { guard(); } catch { return; }
+          setProblem({ scope, message: error instanceof Error ? error.message : 'Location sharing was not confirmed.' });
+        }
+      })();
+    },
   };
 }

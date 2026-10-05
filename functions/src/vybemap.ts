@@ -6,6 +6,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import { getOrResearchLocationIntel } from './_shared/mapLocationIntel.js';
+import { runLocationSharing } from './_shared/locationSharingAuthority.js';
 
 const INTEL_SECRETS = ['GEMINI_API_KEY'] as const;
 
@@ -30,44 +31,20 @@ export const logMapAccess = onCall(async (request) => {
   return { ok: true };
 });
 
-/** Aggregate heatmap cells from live locations (privacy-safe grid). */
+/** Retire the old global heatmap, which copied exact private coordinates.
+ * Current clients derive coarse cells only from their checked location read. */
 export const aggregateVybeHeatmap = onSchedule('every 15 minutes', async () => {
-  const snap = await db.collection('user_live_locations').where('sharing_enabled', '==', true).limit(500).get();
-  const buckets = new Map<string, { lat: number; lng: number; n: number }>();
-
-  snap.docs.forEach((doc) => {
-    const d = doc.data() as { geohash?: string; latitude?: number; longitude?: number };
-    const prefix = (d.geohash || '').slice(0, 5);
-    if (!prefix || d.latitude == null || d.longitude == null) return;
-    const cur = buckets.get(prefix) || { lat: d.latitude, lng: d.longitude, n: 0 };
-    cur.n += 1;
-    buckets.set(prefix, cur);
-  });
-
+  const snap = await db.collection('heatmap_tiles').limit(200).get();
   const batch = db.batch();
-  buckets.forEach((v, prefix) => {
-    const ref = db.collection('heatmap_tiles').doc(prefix);
-    batch.set(ref, {
-      geohash_prefix: prefix,
-      cell_latitude: v.lat,
-      cell_longitude: v.lng,
-      intensity: Math.min(100, v.n * 8),
-      pulse_level: v.n > 10 ? 3 : v.n > 5 ? 2 : 1,
-      updated_at: new Date().toISOString(),
-    }, { merge: true });
-  });
+  for (const doc of snap.docs) batch.delete(doc.ref);
   await batch.commit();
 });
 
 /** Emergency ghost — instant hide from all maps. */
 export const emergencyGhostMode = onCall(async (request) => {
   const uid = requireAuth(request);
-  await db.collection('user_live_locations').doc(uid).set({
-    sharing_enabled: false,
-    is_ghost: true,
-    updated_at: new Date().toISOString(),
-  }, { merge: true });
-  return { ok: true };
+  enforceRateLimit(await rateLimit(`location:${uid}:change`, 30, 60));
+  return runLocationSharing(db, uid, { ...request.data, action: 'setSharing', enabled: false });
 });
 
 /** AI area intelligence — safety, trespassing, access rules (Gemini + Google Search). */

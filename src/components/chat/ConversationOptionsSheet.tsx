@@ -196,7 +196,7 @@ function FriendshipDetails({
     ['Shared media', String(shared.length || pair?.shared_clip_count || 0)],
     ['Saved messages', String(pair?.saved_memory_count || 0)],
     ['Recent calls', String(pair?.call_count || 0)],
-    ['Location sharing', location.isActive ? 'On' : 'Off'],
+    ['Location sharing', location.isError ? 'Unavailable' : !location.isReady ? 'Checking…' : location.isActive ? 'Access allowed' : location.outgoingShare?.paused || location.incomingShare?.paused ? 'Paused' : 'Not shared'],
     ['Pinned', isPinned ? 'Yes' : 'No'],
   ];
 
@@ -571,13 +571,14 @@ export function ConversationOptionsSheet({
             <DrawerDescription>Private details shared between you</DrawerDescription>
           </DrawerHeader>
           <div className="overflow-y-auto px-4 pb-6">
-            {otherUserId && (
+            {friendshipOpen && otherUserId && (
               <FriendshipDetails
                 otherUserId={otherUserId}
                 isPinned={isPinned}
                 relationshipLabel={relationshipLabel}
                 onManageLocation={() => {
                   setFriendshipOpen(false);
+                  close();
                   navigate(`/messages/${conversationId}?location=1`);
                 }}
               />

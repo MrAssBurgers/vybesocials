@@ -1,5 +1,9 @@
 {
   "indexes": [
+    {"collectionGroup":"_location_requests","queryScope":"COLLECTION","fields":[{"fieldPath":"participant_uids","arrayConfig":"CONTAINS"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"expires_at_ms","order":"ASCENDING"}]},
+    {"collectionGroup":"_location_requests","queryScope":"COLLECTION","fields":[{"fieldPath":"pair_id","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"expires_at_ms","order":"ASCENDING"}]},
+    {"collectionGroup":"_location_grants","queryScope":"COLLECTION","fields":[{"fieldPath":"active","order":"ASCENDING"},{"fieldPath":"expires_at_ms","order":"ASCENDING"}]},
+    {"collectionGroup":"_location_grants","queryScope":"COLLECTION","fields":[{"fieldPath":"participant_uids","arrayConfig":"CONTAINS"},{"fieldPath":"active","order":"ASCENDING"},{"fieldPath":"expires_at_ms","order":"ASCENDING"}]},
     {"collectionGroup":"posts","queryScope":"COLLECTION","fields":[{"fieldPath":"author_id","order":"ASCENDING"},{"fieldPath":"is_pinned","order":"ASCENDING"}]},
     {"collectionGroup":"login_history","queryScope":"COLLECTION","fields":[{"fieldPath":"user_id","order":"ASCENDING"},{"fieldPath":"created_at","order":"DESCENDING"}]},
     {"collectionGroup":"user_sessions","queryScope":"COLLECTION","fields":[{"fieldPath":"user_id","order":"ASCENDING"},{"fieldPath":"revoked_at","order":"ASCENDING"},{"fieldPath":"last_seen_at","order":"DESCENDING"}]},

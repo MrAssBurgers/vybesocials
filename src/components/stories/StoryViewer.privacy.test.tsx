@@ -44,7 +44,7 @@ beforeEach(() => {
   mock.chat.mockResolvedValue('chat-alice-bob'); mock.send.mockResolvedValue({ error: null });
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe('Story viewer current audience authority', () => {
   it('uses cached props only for IDs while access is pending, with an available close action', () => {
@@ -85,6 +85,9 @@ describe('Story viewer current audience authority', () => {
 
   it('marks an authorized story viewed once despite repeated audience refreshes and control updates', () => {
     mock.current = story(); mock.loading = false; const view = setup();
+    expect(mock.markViewed).not.toHaveBeenCalled();
+    const image = document.querySelector('img[src="https://media.invalid/authorized-story-bob.jpg"]')!;
+    Object.defineProperty(image, 'naturalWidth', { value: 640 }); fireEvent.load(image);
     fireEvent.click(screen.getByRole('button', { name: 'Pause story' }));
     fireEvent.click(screen.getByRole('button', { name: 'Play story' }));
     mock.current = { ...mock.current }; view.rerender(<StoryViewer {...view.props} />);
@@ -97,6 +100,45 @@ describe('Story viewer current audience authority', () => {
     view.rerender(<StoryViewer {...view.props} />);
     expect(screen.getByText('Your account changed. Close stories and open them again.')).toBeVisible();
     expect(document.querySelector('img,video')).toBeNull(); expect(screen.queryByText('Current authorized caption')).toBeNull();
+  });
+});
+
+describe('Story viewer waits for actual media playback', () => {
+  it('holds progress through image failure/retry and preserves an explicit pause', () => {
+    vi.useFakeTimers(); mock.current = story(); mock.loading = false; setup();
+    const image = document.querySelector('img[src="https://media.invalid/authorized-story-bob.jpg"]')!;
+    act(() => vi.advanceTimersByTime(6000)); expect(mock.visible).toHaveBeenLastCalledWith('story-bob');
+    expect(mock.markViewed).not.toHaveBeenCalled(); expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
+    fireEvent.error(image); act(() => vi.advanceTimersByTime(6000)); expect(mock.visible).toHaveBeenLastCalledWith('story-bob');
+    fireEvent.click(screen.getByRole('button', { name: 'Pause story' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Retry story media' }));
+    const retried = document.querySelector('img[src="https://media.invalid/authorized-story-bob.jpg"]')!;
+    Object.defineProperty(retried, 'naturalWidth', { value: 1 }); fireEvent.load(retried);
+    act(() => vi.advanceTimersByTime(6000)); expect(mock.visible).toHaveBeenLastCalledWith('story-bob');
+    expect(screen.getByRole('button', { name: 'Play story' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Play story' })); act(() => vi.advanceTimersByTime(5250));
+    expect(mock.visible).toHaveBeenLastCalledWith('story-cara');
+  });
+
+  it('keeps a long video until its real end and reflects native playback progress', async () => {
+    vi.useFakeTimers(); vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(); vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+    mock.current = { ...story(), media_type: 'video', media_url: 'https://media.invalid/current.mp4' }; mock.loading = false; setup();
+    const video = document.querySelector('video')!; fireEvent.loadedData(video); fireEvent.playing(video);
+    act(() => vi.advanceTimersByTime(16000)); expect(mock.visible).toHaveBeenLastCalledWith('story-bob');
+    Object.defineProperty(video, 'duration', { value: 60 }); video.currentTime = 30; fireEvent.timeUpdate(video);
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50');
+    fireEvent.ended(video); expect(mock.visible).toHaveBeenLastCalledWith('story-cara');
+    await act(async () => {});
+  });
+
+  it('preserves the user pause across an admission failure and same-story recheck', () => {
+    mock.current = story(); mock.loading = false; const view = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Pause story' }));
+    mock.failed = true; view.rerender(<StoryViewer {...view.props} />);
+    expect(document.querySelector('video,img')).toBeNull();
+    mock.failed = false; view.rerender(<StoryViewer {...view.props} />);
+    expect(screen.getByRole('button', { name: 'Play story' })).toBeEnabled();
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
   });
 });
 

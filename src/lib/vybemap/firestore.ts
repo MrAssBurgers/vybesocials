@@ -1,30 +1,21 @@
 /**
  * VybeMap — Firebase Firestore only (no Supabase/Postgres).
- * Canonical live location: user_live_locations/{profileId}
+ * Live sharing is managed separately by locationSharingService.
  */
 import {
-  collectionRef,
-  documentRef,
   setDocument,
   getDocument,
   getDocuments,
-  getDocumentFromServer,
   getDocumentsFromServer,
   newDocumentId,
-  onSnapshot,
-  query,
   where,
   orderBy,
   firestoreLimit,
 } from '@/lib/firebase/firestoreDb';
-import type { Unsubscribe } from 'firebase/firestore';
-import type { LiveFriend, MapStoryPin, MapPostPin, MapClipPin, MapMeetup, MapPlace, HeatmapCell, MapEventPin, MapPlacePost, MapPlacePostComment, FriendCheckIn } from './types';
+import type { MapStoryPin, MapPostPin, MapClipPin, MapMeetup, MapPlace, MapEventPin, MapPlacePost, MapPlacePostComment, FriendCheckIn } from './types';
 import { encodeGeohash } from './geohash';
-import { isValidLatLng, approximateCoords } from './geo';
-import { detectActivity } from './activity';
 
 export const COLLECTIONS = {
-  live: 'user_live_locations',
   history: 'location_history',
   accessLogs: 'location_access_logs',
   places: 'map_places',
@@ -33,7 +24,6 @@ export const COLLECTIONS = {
   checkIns: 'map_check_ins',
   meetups: 'map_meetups',
   meetupMembers: 'map_meetup_members',
-  heatmap: 'heatmap_tiles',
   stories: 'map_story_pins',
   posts: 'map_post_pins',
   clips: 'map_clip_pins',
@@ -42,47 +32,6 @@ export const COLLECTIONS = {
   friendRequests: 'friend_requests',
   profiles: 'profiles',
 } as const;
-
-export interface LiveLocationPayload {
-  user_id: string;
-  latitude: number;
-  longitude: number;
-  accuracy?: number | null;
-  speed?: number | null;
-  heading?: number | null;
-  battery_percent?: number | null;
-  activity_type?: string;
-  geohash?: string;
-  city?: string | null;
-  label?: string | null;
-  status?: string | null;
-  sharing_enabled: boolean;
-  is_ghost: boolean;
-  sharing_mode?: string;
-  approx_radius_m?: number;
-  expires_at: string;
-  updated_at: string;
-}
-
-export async function upsertLiveLocation(profileId: string, payload: Omit<LiveLocationPayload, 'updated_at'>): Promise<void> {
-  await setDocument(COLLECTIONS.live, profileId, {
-    ...payload,
-    user_id: profileId,
-    updated_at: new Date().toISOString(),
-  });
-}
-
-export async function disableLiveLocation(profileId: string): Promise<void> {
-  await setDocument(COLLECTIONS.live, profileId, {
-    sharing_enabled: false,
-    is_ghost: true,
-  }, true);
-}
-
-export async function appendLocationHistory(profileId: string, row: Record<string, unknown>): Promise<void> {
-  const id = newDocumentId(COLLECTIONS.history);
-  await setDocument(COLLECTIONS.history, id, { user_id: profileId, ...row, recorded_at: new Date().toISOString() });
-}
 
 export async function fetchFriendIds(profileId: string): Promise<string[]> {
   const [sent, recv] = await Promise.all([
@@ -99,98 +48,6 @@ export async function fetchFriendIds(profileId: string): Promise<string[]> {
     ...sent.map((r) => r.receiver_id),
     ...recv.map((r) => r.sender_id),
   ]));
-}
-
-async function enrichFriends(rows: LiveLocationPayload[]): Promise<LiveFriend[]> {
-  if (!rows.length) return [];
-  const ids = Array.from(new Set(rows.map((r) => r.user_id)));
-  const profileRows = await Promise.all(
-    ids.map((id) => getDocument<{ username: string | null; display_name: string | null; avatar_url: string | null; bio?: string | null }>(COLLECTIONS.profiles, id)),
-  );
-  const byId = new Map(ids.map((id, i) => [id, profileRows[i]]));
-
-  return rows.map((row) => {
-    let lat = row.latitude;
-    let lng = row.longitude;
-    if (row.sharing_mode === 'approximate' || (row.approx_radius_m && row.approx_radius_m > 0)) {
-      const j = approximateCoords(lat, lng, row.user_id);
-      lat = j.lat;
-      lng = j.lng;
-    }
-    return {
-      id: row.user_id,
-      user_id: row.user_id,
-      latitude: lat,
-      longitude: lng,
-      accuracy: row.accuracy,
-      label: row.label ?? null,
-      city: row.city,
-      updated_at: row.updated_at,
-      expires_at: row.expires_at,
-      sharing_enabled: row.sharing_enabled,
-      sharing_mode: row.sharing_mode as LiveFriend['sharing_mode'],
-      status: row.status,
-      speed: row.speed,
-      heading: row.heading,
-      battery_percent: row.battery_percent,
-      activity_type: (row.activity_type || detectActivity(row.speed, row.status)) as LiveFriend['activity_type'],
-      geohash: row.geohash,
-      approx_radius_m: row.approx_radius_m,
-      profile: byId.get(row.user_id) || null,
-    };
-  });
-}
-
-interface LocationShare {
-  id: string;
-  viewer_id: string;
-  sharer_id: string;
-  active: boolean;
-  paused?: boolean;
-  precision?: string;
-  expires_at?: string | null;
-}
-
-/** Only explicit shares addressed to this viewer can authorize location reads.
- * Never scan all users' live coordinates then filter them in the browser. */
-export async function fetchLiveFriends(viewerId: string, friendIds: string[], guard: () => void): Promise<LiveFriend[]> {
-  guard();
-  if (!viewerId || !friendIds.length) return [];
-  const shares = await getDocumentsFromServer<LocationShare>('location_shares', [
-    where('viewer_id', '==', viewerId), firestoreLimit(201),
-  ]);
-  guard();
-  if (shares.length > 200) throw new Error('Too many location shares to load at once. Manage your existing shares first.');
-  const friendSet = new Set(friendIds);
-  const now = Date.now();
-  const admitted = shares.filter(share => share.viewer_id === viewerId && friendSet.has(share.sharer_id)
-    && share.active === true && share.paused !== true
-    && (!share.expires_at || Date.parse(share.expires_at) > now));
-  const rows: LiveLocationPayload[] = [];
-  // Keep requests bounded even with a large friend list; each read is checked by
-  // the current rules and a revocation failure hides this refresh's entire list.
-  for (let offset = 0; offset < admitted.length; offset += 8) {
-    const batch = await Promise.all(admitted.slice(offset, offset + 8).map(async share => {
-      guard();
-      const row = await getDocumentFromServer<LiveLocationPayload>(COLLECTIONS.live, share.sharer_id);
-      guard();
-      if (!row || row.user_id !== share.sharer_id || row.sharing_enabled !== true || row.is_ghost !== false
-        || !isValidLatLng(row.latitude, row.longitude) || !row.expires_at || !(Date.parse(row.expires_at) > Date.now())) return null;
-      return share.precision === 'precise' ? row : { ...row, sharing_mode: 'approximate' };
-    }));
-    guard();
-    rows.push(...batch.filter((row): row is LiveLocationPayload => row !== null));
-  }
-  const result = await enrichFriends(rows);
-  guard();
-  return result;
-}
-
-/** Share changes invalidate the list. Coordinates are refreshed by the bounded
- * polling query, rather than an unauthorized collection-wide listener. */
-export function subscribeLiveFriends(viewerId: string, onUpdate: () => void, onError: (error: Error) => void): Unsubscribe {
-  return onSnapshot(query(collectionRef('location_shares'), where('viewer_id', '==', viewerId), firestoreLimit(201)),
-    () => onUpdate(), onError);
 }
 
 export async function logLocationAccess(viewerId: string, targetId: string, action: string): Promise<void> {
@@ -256,20 +113,6 @@ export async function fetchMapMeetups(): Promise<MapMeetup[]> {
       member_count: mem.length || 1,
     };
   });
-}
-
-export async function fetchHeatmap(): Promise<HeatmapCell[]> {
-  const rows = await getDocuments<HeatmapCell & { intensity: number }>(COLLECTIONS.heatmap, [
-    orderBy('intensity', 'desc'),
-    firestoreLimit(200),
-  ]);
-  return rows.map((r) => ({
-    geohash_prefix: r.geohash_prefix,
-    cell_latitude: r.cell_latitude,
-    cell_longitude: r.cell_longitude,
-    intensity: r.intensity,
-    pulse_level: r.pulse_level ?? 1,
-  }));
 }
 
 export async function fetchMapPlaces(): Promise<MapPlace[]> {

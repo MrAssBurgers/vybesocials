@@ -161,6 +161,7 @@ import { normalizeMessagesCache, safeMessageViews, safeMessageReactions } from '
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
 import { DMSafetyGate } from './DMSafetyGate';
 import { GroupInfoSheet } from './GroupInfoSheet';
+import { ChatLocationSharing } from './ChatLocationSharing';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { OwnerWifeRingBadge, isOwnerWife } from '@/components/ui/OwnerWifeRingBadge';
 import { StreakIndicator } from './StreakIndicator';
@@ -1723,6 +1724,7 @@ function ChatViewContent() {
       />
 
       {/* DM Feature Sheets - triggered from Toybox */}
+      <ChatLocationSharing otherProfileId={otherMember?.id} otherUsername={otherMember?.username} available={!isGroupChat && conversationFetched && !conversationError && !!conversation} />
       {conversationId && (
         <>
       <VanishThreadsSheet conversationId={conversationId} open={showVanishThreads} onOpenChange={setShowVanishThreads} />

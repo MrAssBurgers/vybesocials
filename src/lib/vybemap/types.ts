@@ -40,6 +40,10 @@ export type ActivityType =
   | 'traveling';
 
 export interface LiveFriend {
+  /** Current checked grant and client access lease; never a persisted authority. */
+  accessRevision?: string;
+  accessUntil?: number;
+  sampleExpiresAt?: number;
   id: string;
   user_id: string;
   latitude: number;

@@ -9,6 +9,7 @@ interface MapSnapTopBarProps {
   radarLabel?: string;
   squadChip?: { label: string; onClear: () => void } | null;
   liveSharing?: boolean;
+  sharingStatus?: string;
   locationAvailable?: boolean;
   /** Tap status chip — exit ghost or open privacy sheet. */
   onStatusChip?: () => void;
@@ -21,6 +22,7 @@ export function MapSnapTopBar({
   radarLabel,
   squadChip,
   liveSharing,
+  sharingStatus,
   locationAvailable = true,
   onStatusChip,
 }: MapSnapTopBarProps) {
@@ -100,7 +102,7 @@ export function MapSnapTopBar({
                   'pointer-events-auto vybe-map-status-chip',
                   locationAvailable && liveSharing ? 'vybe-map-status-chip-live' : 'vybe-map-status-chip-ghost',
                 )}
-                aria-label={!locationAvailable ? 'Location not available' : liveSharing ? 'Open privacy and Ghost Mode' : 'Exit Ghost Mode'}
+                aria-label={sharingStatus || (!locationAvailable ? 'Location not available' : liveSharing ? 'Open privacy and Ghost Mode' : 'Exit Ghost Mode')}
                 title={!locationAvailable ? 'Enable location to share' : liveSharing ? 'Privacy' : 'Tap to go live'}
               >
                 <span
@@ -109,11 +111,11 @@ export function MapSnapTopBar({
                     locationAvailable && liveSharing ? 'bg-emerald-400 shadow-[0_0_6px_hsl(142_70%_55%)]' : 'bg-amber-400',
                   )}
                 />
-                {!locationAvailable
+                {sharingStatus || (!locationAvailable
                   ? 'Location off'
                   : liveSharing
                     ? "You're live"
-                    : 'Ghost mode · tap to exit'}
+                    : 'Ghost mode · tap to exit')}
               </button>
             )}
             {radarLabel && (

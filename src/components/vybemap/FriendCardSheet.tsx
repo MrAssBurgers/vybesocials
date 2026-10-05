@@ -33,6 +33,7 @@ export function FriendCardSheet({
 }: FriendCardSheetProps) {
   const name = friend.profile?.display_name || friend.profile?.username || 'Friend';
   const username = friend.profile?.username;
+  const approximate = friend.sharing_mode === 'approximate' || (friend.approx_radius_m ?? 0) > 0;
   const activity = activityMeta(friend.activity_type || 'stationary');
   const mph = speedMph(friend.speed);
   const dist = myCoords
@@ -85,7 +86,7 @@ export function FriendCardSheet({
               </span>
               {dist && (
                 <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-violet-500/15 text-violet-300">
-                  {dist} mi away
+                  {approximate ? `~${dist} mi to shared area` : `${dist} mi away`}
                 </span>
               )}
             </div>
@@ -106,7 +107,7 @@ export function FriendCardSheet({
           className="mt-5 w-full vybe-map-find-fab h-12 justify-center text-[15px]"
         >
           <Crosshair className="h-[18px] w-[18px]" />
-          Pinpoint exact location
+          {approximate ? 'Find shared area' : 'Find shared location'}
         </motion.button>
 
         <div className="grid grid-cols-4 gap-2 mt-3">

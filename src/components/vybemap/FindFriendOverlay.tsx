@@ -32,7 +32,8 @@ export function FindFriendOverlay({ friend, myCoords, onClose, onFound }: FindFr
   const bearing = bearingDegrees(liveCoords, [targetLat, targetLng]);
   const name = friend.profile?.display_name || friend.profile?.username || 'Friend';
   const color = proximityColor(feet);
-  const found = feet < 80;
+  const approximate = friend.sharing_mode === 'approximate' || (friend.approx_radius_m ?? 0) > 0;
+  const found = !approximate && feet < 80;
 
   useEffect(() => {
     setLiveCoords(myCoords);
@@ -73,6 +74,7 @@ export function FindFriendOverlay({ friend, myCoords, onClose, onFound }: FindFr
   }, []);
 
   useEffect(() => {
+    if (approximate) return;
     const now = Date.now();
     if (feet < 80 && !foundRef.current) {
       foundRef.current = true;
@@ -82,9 +84,9 @@ export function FindFriendOverlay({ friend, myCoords, onClose, onFound }: FindFr
       lastHapticRef.current = now;
       triggerHaptic('light');
     }
-  }, [feet, onFound]);
+  }, [feet, onFound, approximate]);
 
-  const distanceLabel = feet < 80 ? 'Here' : formatDistance(feet);
+  const distanceLabel = approximate ? `${formatDistance(feet)} to area` : feet < 80 ? 'Here' : formatDistance(feet);
 
   return (
     <motion.div
@@ -114,7 +116,7 @@ export function FindFriendOverlay({ friend, myCoords, onClose, onFound }: FindFr
               <div className="text-center">
                 <p className="text-[11px] uppercase tracking-[0.2em] text-white/40 mb-1">Distance</p>
                 <p className="text-5xl font-light tabular-nums tracking-tight" style={{ color }}>{distanceLabel}</p>
-                <p className="text-sm text-white/45 mt-2">Move your phone — arrow points to {name.split(' ')[0]}</p>
+                <p className="text-sm text-white/45 mt-2">{approximate ? `Arrow points to the shared area, within about ${Math.round((friend.approx_radius_m || 2000) / 1000)} km. Your friend may be anywhere in it.` : `Move your phone — arrow points toward ${name.split(' ')[0]}’s shared GPS position`}</p>
               </div>
 
               <div className="relative w-72 h-72">
@@ -146,7 +148,7 @@ export function FindFriendOverlay({ friend, myCoords, onClose, onFound }: FindFr
       </div>
 
       <p className="text-center text-[10px] text-white/30 pb-[max(env(safe-area-inset-bottom),16px)] px-8">
-        High-accuracy GPS + compass · Pulses faster as you get closer
+        {approximate ? 'Approximate sharing does not reveal an exact position or confirm arrival.' : 'GPS + compass estimates · GPS accuracy varies'}
       </p>
     </motion.div>
   );

@@ -1,7 +1,6 @@
 import { createContext, useContext, ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
-import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useBackgroundLocation, LocationState } from '@/hooks/useBackgroundLocation';
 import { isMapRoute } from '@/lib/locationRoutes';
 
@@ -11,13 +10,14 @@ const LocationContext = createContext<LocationState>({
   speed: null,
   heading: null,
   sharing: false,
+  sharingEnabled: false, sharingPending: false, sharingReady: false, sharingError: null, legacySharingNeedsReview: false, retrySharing: () => {},
   locationAvailable: false,
   locationDenied: false,
   ghostUntil: null,
-  setSharing: () => {},
+  setSharing: async () => {},
   requestLocation: () => {},
-  enableTemporaryGhost: () => {},
-  exitGhost: () => {},
+  enableTemporaryGhost: async () => {},
+  exitGhost: async () => {},
 });
 
 export function useLocationContext() {
@@ -26,10 +26,9 @@ export function useLocationContext() {
 
 export function LocationProvider({ children }: { children: ReactNode }) {
   const { profile } = useAuth();
-  const profileId = useAuthProfileId();
   const { pathname } = useLocation();
   // GPS permission is requested only on /map (see useBackgroundLocation), not on app open.
-  const location = useBackgroundLocation(profileId ?? profile?.id, {
+  const location = useBackgroundLocation(profile?.id, {
     watchOnMap: isMapRoute(pathname),
   });
 

@@ -1,114 +1,42 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { db } from '@/lib/firebase';
-import { useAuthProfileId } from '@/hooks/useAuthProfileId';
-import { friendshipPairId } from '@/lib/friendProfilePair';
-import {
-  createLocationRequest,
-  pauseLocationShare,
-  stopLocationShare,
-  type LocationDuration,
-} from '@/lib/friendProfileClient';
-import { toast } from 'sonner';
+import { useMemo } from 'react';
+import { useLocationMutation, useLocationSharing } from './useLocationSharing';
+import type { LocationDuration, LocationPrecision, LocationRequest, LocationShare } from '@/lib/locationSharingService';
 
-export interface LocationShareRow {
-  id: string;
-  pair_id: string;
-  sharer_id: string;
-  viewer_id: string;
-  precision?: string;
-  duration?: string;
-  active?: boolean;
-  paused?: boolean;
-  expires_at?: string | null;
-  last_latitude?: number | null;
-  last_longitude?: number | null;
-  last_accuracy?: number | null;
-  last_activity_type?: string | null;
-  last_battery_percent?: number | null;
-  last_updated_at?: string | null;
-}
-
-export function useLocationShareWithFriend(otherProfileId: string | undefined) {
-  const profileId = useAuthProfileId();
-  const pairId =
-    profileId && otherProfileId ? friendshipPairId(profileId, otherProfileId) : null;
-  const queryClient = useQueryClient();
-
-  const query = useQuery({
-    queryKey: ['location-share', pairId],
-    queryFn: async (): Promise<LocationShareRow | null> => {
-      if (!pairId) return null;
-      const { data, error } = await db
-        .from('location_shares')
-        .select('*')
-        .eq('id', pairId)
-        .maybeSingle();
-      if (error) throw error;
-      return (data as LocationShareRow | null) ?? null;
-    },
-    enabled: !!pairId,
-    staleTime: 15_000,
-  });
-
-  const requestShare = useMutation({
-    mutationFn: async (opts: {
-      duration?: LocationDuration;
-      precision?: string;
-      message?: string;
-    }) => {
-      if (!otherProfileId) throw new Error('Missing friend');
-      const { data, error } = await createLocationRequest({
-        targetId: otherProfileId,
-        duration: opts.duration,
-        precision: opts.precision,
-        message: opts.message,
-      });
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      toast.success('Location request sent');
-    },
-    onError: (err: Error) => toast.error(err.message || 'Could not send request'),
-  });
-
-  const stopShare = useMutation({
-    mutationFn: async () => {
-      if (!otherProfileId) throw new Error('Missing friend');
-      const { error } = await stopLocationShare(otherProfileId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['location-share', pairId] });
-      toast.success('Location sharing stopped');
-    },
-  });
-
-  const pauseShare = useMutation({
-    mutationFn: async (paused: boolean) => {
-      if (!otherProfileId) throw new Error('Missing friend');
-      const { error } = await pauseLocationShare(otherProfileId, paused);
-      if (error) throw error;
-    },
-    onSuccess: (_, paused) => {
-      queryClient.invalidateQueries({ queryKey: ['location-share', pairId] });
-      toast.success(paused ? 'Location paused' : 'Location resumed');
-    },
-  });
-
-  const share = query.data;
-  const isSharer = !!profileId && share?.sharer_id === profileId;
-  const isViewer = !!profileId && share?.viewer_id === profileId;
-  const isActive = !!share?.active && !share?.paused;
-
+/** Both directional grants are distinct; pausing one never hides its controls. */
+export function useLocationShareWithFriend(otherProfileId: string | undefined, enabled = true) {
+  const query = useLocationSharing(otherProfileId, enabled && !!otherProfileId);
+  const mutation = useLocationMutation(otherProfileId);
+  const shares = query.data?.shares;
+  const outgoingShare = shares?.find(row => row.sharerId === query.actor.profileId && row.viewerId === otherProfileId && row.active);
+  const incomingShare = shares?.find(row => row.viewerId === query.actor.profileId && row.sharerId === otherProfileId && row.active);
+  const requests = query.data?.requests;
+  const incomingRequests = useMemo(() => requests?.filter(row => row.targetId === query.actor.profileId && row.status === 'pending') ?? [], [requests, query.actor.profileId]);
+  const outgoingRequests = useMemo(() => requests?.filter(row => row.requesterId === query.actor.profileId && row.status === 'pending') ?? [], [requests, query.actor.profileId]);
+  const requireRead = () => { mutation.guardCurrent(); if (!query.data) throw new Error('Refresh location sharing before changing it.'); };
   return {
-    ...query,
-    share,
-    isSharer,
-    isViewer,
-    isActive,
-    requestShare,
-    stopShare,
-    pauseShare,
+    ...query, shares, outgoingShare, incomingShare, incomingRequests, outgoingRequests,
+    share: outgoingShare || incomingShare,
+    isSharer: !!outgoingShare, isViewer: !!incomingShare,
+    isActive: !!shares?.some(row => row.active && !row.paused),
+    location: query.data?.locations.find(row => row.id === otherProfileId),
+    guardCurrent: mutation.guardCurrent,
+    requestShare: { ...mutation, mutateAsync: async (opts: { duration?: LocationDuration; precision?: LocationPrecision; message?: string }) => {
+      requireRead();
+      if (!otherProfileId) throw new Error('Choose a friend.');
+      return mutation.mutateAsync({ action: 'request', targetId: otherProfileId, duration: opts.duration || '1h', precision: opts.precision || 'approximate', message: opts.message || null });
+    } },
+    respondRequest: { ...mutation, mutateAsync: async (opts: { request: LocationRequest; intent: 'accept' | 'decline' | 'block' }) => {
+      requireRead();
+      if (!incomingRequests.some(row => row.id === opts.request.id && row.revision === opts.request.revision)) throw new Error('This request changed. Refresh location sharing.');
+      return mutation.mutateAsync({ action: 'respond', locationRequestId: opts.request.id, expectedRevision: opts.request.revision, intent: opts.intent });
+    } },
+    stopShare: { ...mutation, mutateAsync: async (share: LocationShare = outgoingShare || incomingShare!) => {
+      requireRead(); if (!share || !shares?.some(row => row.id === share.id && row.revision === share.revision)) throw new Error('This share changed. Refresh location sharing.');
+      return mutation.mutateAsync({ action: 'stop', shareId: share.id, expectedRevision: share.revision });
+    } },
+    pauseShare: { ...mutation, mutateAsync: async (paused: boolean) => {
+      requireRead(); if (!outgoingShare) throw new Error('There is no active outgoing share.');
+      return mutation.mutateAsync({ action: 'pause', shareId: outgoingShare.id, expectedRevision: outgoingShare.revision, paused });
+    } },
   };
 }

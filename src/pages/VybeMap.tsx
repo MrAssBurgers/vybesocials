@@ -5,11 +5,13 @@ import { useNavigate } from 'react-router-dom';
 import type L from 'leaflet';
 
 import { useAuth } from '@/lib/auth';
+import { useProfileAccount } from '@/hooks/useProfileAccount';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useLocationContext } from '@/providers/LocationProvider';
 import { navVisibility } from '@/lib/navVisibility';
 import { triggerHaptic } from '@/lib/haptics';
 import { toast } from 'sonner';
+import { captureMapLocationLease, currentMapLocation, type MapLocationLease } from '@/lib/vybemap/mapLocationLease';
 import { trackMapEvent } from '@/lib/vybemap/analytics';
 import { isValidLatLng, distanceMeters } from '@/lib/vybemap/geo';
 import { type LiveFriend, type MapPlace, type MapMeetup } from '@/lib/vybemap/types';
@@ -90,11 +92,14 @@ class MapErrorBoundary extends Component<{ children: ReactNode }, { hasError: bo
 
 function VybeMapInner() {
   const navigate = useNavigate();
+  const locationAccount = useProfileAccount();
+  const sharingView = useRef(true);
+  useEffect(() => { sharingView.current = true; return () => { sharingView.current = false; }; }, []);
   const { profile } = useAuth();
   const profileId = useAuthProfileId();
   const {
     coords: myCoords,
-    sharing,
+    sharing, sharingEnabled, sharingPending, sharingReady, sharingError, legacySharingNeedsReview, retrySharing,
     locationAvailable,
     locationDenied,
     setSharing,
@@ -111,6 +116,10 @@ function VybeMapInner() {
   const friendIds = friendQuery.data;
   const liveQuery = useLiveFriends(friendIds);
   const friends = liveQuery.data;
+  const locationScope = JSON.stringify([locationAccount.session.uid, locationAccount.session.epoch]);
+  const locationView = useRef({ scope: locationScope, friends });
+  locationView.current = { scope: locationScope, friends };
+  const routeWork = useRef(0);
   const { data: friendCheckIns = [] } = useFriendCheckIns(friendIds);
   const { data: stories = [] } = useMapStories(layers.stories);
   const { data: posts = [] } = useMapPosts(layers.posts);
@@ -143,13 +152,16 @@ function VybeMapInner() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [ghostOpen, setGhostOpen] = useState(false);
   const [discoveryOpen, setDiscoveryOpen] = useState(false);
-  const [findMode, setFindMode] = useState<{ friend: LiveFriend; ar: boolean } | null>(null);
+  const [findState, setFindMode] = useState<{ lease: MapLocationLease; ar: boolean } | null>(null);
+  const currentFindFriend = currentMapLocation(findState?.lease, locationScope, friends);
+  const findMode = currentFindFriend && findState ? { friend: currentFindFriend, ar: findState.ar } : null;
   const { mapViewMode, setMapViewMode } = useMapViewMode();
   const { followHeading, setFollowHeading, toggleFollowHeading } = useMapFollowHeading();
   const [squadsOpen, setSquadsOpen] = useState(false);
   const [activeSquad, setActiveSquad] = useState<MapGroupMap | null>(null);
   const { data: squadMemberIds = [] } = useGroupMemberIds(activeSquad?.id);
-  const [route, setRoute] = useState<{
+  const [routeState, setRoute] = useState<{
+    scope: string; friendLease?: MapLocationLease;
     label: string;
     dest: [number, number];
     origin: [number, number];
@@ -162,7 +174,25 @@ function VybeMapInner() {
   /** false = card minimized; route polyline stays on the map until End. */
   const [routeBarExpanded, setRouteBarExpanded] = useState(true);
   const [routeLoading, setRouteLoading] = useState(false);
-  const [pendingRoute, setPendingRoute] = useState<{ label: string; dest: [number, number] } | null>(null);
+  const [pendingRouteState, setPendingRoute] = useState<{ label: string; dest: [number, number]; scope: string; friendLease?: MapLocationLease } | null>(null);
+  const route = routeState?.scope === locationScope && (!routeState.friendLease || currentMapLocation(routeState.friendLease, locationScope, friends)) ? routeState : null;
+  const pendingRoute = pendingRouteState?.scope === locationScope && (!pendingRouteState.friendLease || currentMapLocation(pendingRouteState.friendLease, locationScope, friends)) ? pendingRouteState : null;
+  useEffect(() => {
+    if (routeState && !route) { routeWork.current++; setRoute(null); setRouteLoading(false); }
+    if (pendingRouteState && !pendingRoute) setPendingRoute(null);
+    if (findState && !findMode) setFindMode(null);
+  }, [routeState, route, pendingRouteState, pendingRoute, findState, !!findMode]);
+  useEffect(() => {
+    const deadlines = [routeState?.friendLease?.sampleExpiresAt, pendingRouteState?.friendLease?.sampleExpiresAt].filter((value): value is number => typeof value === 'number');
+    if (!deadlines.length) return;
+    const timer = setTimeout(() => {
+      routeWork.current++;
+      setRoute(value => value?.friendLease?.sampleExpiresAt && value.friendLease.sampleExpiresAt <= Date.now() ? null : value);
+      setPendingRoute(value => value?.friendLease?.sampleExpiresAt && value.friendLease.sampleExpiresAt <= Date.now() ? null : value);
+      setRouteLoading(false);
+    }, Math.max(0, Math.min(...deadlines) - Date.now()) + 1);
+    return () => clearTimeout(timer);
+  }, [routeState?.friendLease?.sampleExpiresAt, pendingRouteState?.friendLease?.sampleExpiresAt]);
   const { data: routeDestIntel } = useLocationIntel({
     latitude: route?.dest[0] ?? 0,
     longitude: route?.dest[1] ?? 0,
@@ -200,8 +230,12 @@ function VybeMapInner() {
     dest: [number, number],
     origin: [number, number],
     originKind: RouteOriginChoice,
-    options?: { dismissSheets?: boolean },
+    options?: { dismissSheets?: boolean; friendLease?: MapLocationLease },
   ) => {
+    const lease = options?.friendLease, scope = locationScope, operation = ++routeWork.current;
+    const accountGuard = locationAccount.guard;
+    const guard = () => { accountGuard(); if (!sharingView.current || operation !== routeWork.current || scope !== locationView.current.scope || (lease && !currentMapLocation(lease, scope, locationView.current.friends))) throw new Error('Location route expired.'); };
+    try { guard(); } catch { return; }
     const externalUrl = externalDirectionsUrl(dest[0], dest[1]);
     if (options?.dismissSheets !== false) {
       setSelId(null);
@@ -214,8 +248,10 @@ function VybeMapInner() {
     setRouteLoading(true);
     try {
       const result = await fetchMapboxRoute(origin, dest);
+      guard();
       if (result) {
         setRoute({
+          scope, friendLease: lease,
           label,
           dest,
           origin,
@@ -233,14 +269,16 @@ function VybeMapInner() {
         toast.message('Opened directions in Maps');
       }
     } catch {
+      try { guard(); } catch { return; }
       window.open(externalUrl, '_blank');
       toast.error('Could not load live route — opened Maps instead');
     } finally {
-      setRouteLoading(false);
+      if (sharingView.current && operation === routeWork.current && scope === locationView.current.scope) setRouteLoading(false);
     }
-  }, []);
+  }, [locationScope, locationAccount.guard]);
 
   const endLiveRoute = useCallback(() => {
+    routeWork.current++; setRouteLoading(false);
     setRoute(null);
     setRouteBarExpanded(true);
     setPendingRoute(null);
@@ -251,8 +289,9 @@ function VybeMapInner() {
   const startLiveRoute = useCallback(async (
     label: string,
     dest: [number, number],
-    options?: { dismissSheets?: boolean },
+    options?: { dismissSheets?: boolean; friendLease?: MapLocationLease },
   ) => {
+    try { locationAccount.guard(); if (options?.friendLease && !currentMapLocation(options.friendLease, locationScope, friends)) return; } catch { return; }
     const externalUrl = externalDirectionsUrl(dest[0], dest[1]);
     const mapCoords = readMapCameraCoords();
     const cameraOffLive =
@@ -269,7 +308,7 @@ function VybeMapInner() {
         setDiscoveryOpen(false);
         setSettingsOpen(false);
       }
-      setPendingRoute({ label, dest });
+      setPendingRoute({ label, dest, scope: locationScope, friendLease: options?.friendLease });
       return;
     }
 
@@ -283,7 +322,7 @@ function VybeMapInner() {
     }
 
     await runLiveRoute(label, dest, safeMyCoords, 'live', options);
-  }, [readMapCameraCoords, safeMyCoords, route, runLiveRoute]);
+  }, [readMapCameraCoords, safeMyCoords, route, runLiveRoute, locationScope, locationAccount.guard, friends]);
 
   const confirmRouteOrigin = useCallback((originKind: RouteOriginChoice) => {
     if (!pendingRoute) return;
@@ -293,7 +332,7 @@ function VybeMapInner() {
       toast.error(originKind === 'live' ? 'Live location unavailable' : 'Map position unavailable');
       return;
     }
-    void runLiveRoute(pendingRoute.label, pendingRoute.dest, origin, originKind);
+    void runLiveRoute(pendingRoute.label, pendingRoute.dest, origin, originKind, { friendLease: pendingRoute.friendLease });
   }, [pendingRoute, safeMyCoords, readMapCameraCoords, runLiveRoute]);
 
   const onFriendTap = useCallback((f: LiveFriend) => {
@@ -364,46 +403,27 @@ function VybeMapInner() {
     triggerHaptic('light');
   };
 
+  const confirmSharing = async (action: () => Promise<void>, message: string) => {
+    const guard = locationAccount.guard;
+    try {
+      guard(); if (sharingPending) return;
+      await action(); guard(); if (!sharingView.current) return;
+      triggerHaptic('medium'); toast.success(message); setGhostOpen(false);
+    } catch (error) {
+      try { guard(); } catch { return; }
+      if (sharingView.current) toast.error(error instanceof Error ? error.message : 'Location sharing was not confirmed. Retry.');
+    }
+  };
   const toggleSharing = () => {
-    if (effectiveLiveSharing) {
-      setSharing(false);
-      triggerHaptic('medium');
-      toast.success("Ghost Mode — you're hidden");
-    } else {
-      if (!locationAvailable || !safeMyCoords || locationDenied) {
-        requestLocation();
-        toast.message('Check location permission, then choose Go live again.');
-        return;
-      }
-      exitGhost();
-      triggerHaptic('medium');
-      toast.success("You're live on VybeMap");
-    }
-    setGhostOpen(false);
-  };
-
-  const handleGhostDuration = (ms: number) => {
-    enableTemporaryGhost(ms);
-    triggerHaptic('medium');
-    toast.success(`Ghost mode for ${Math.round(ms / 60_000)} min`);
-    setGhostOpen(false);
-  };
-
-  const handleStatusChip = () => {
+    if (!sharingReady || sharingPending) return;
+    if (sharingEnabled) return confirmSharing(() => setSharing(false), 'Ghost Mode confirmed. New location access is stopped.');
     if (!locationAvailable || !safeMyCoords || locationDenied) {
-      requestLocation();
-      toast.message('Checking location permission…');
-      return;
+      requestLocation(); toast.message('Check location permission, then choose Share live location again.'); return;
     }
-    if (effectiveLiveSharing) {
-      setGhostOpen(true);
-      return;
-    }
-    // One tap to leave Ghost — don't trap users behind Settings.
-    exitGhost();
-    triggerHaptic('medium');
-    toast.success("You're live on VybeMap");
+    return confirmSharing(exitGhost, 'Sharing enabled for friends you approve. Waiting for a fresh location update.');
   };
+  const handleGhostDuration = (ms: number) => confirmSharing(() => enableTemporaryGhost(ms), `Ghost Mode confirmed for ${Math.round(ms / 60_000)} minutes while this app remains open.`);
+  const handleStatusChip = () => { setGhostOpen(true); };
 
   const handleSearch = async (query: string) => {
     trackMapEvent('teleport', { q: query });
@@ -440,12 +460,15 @@ function VybeMapInner() {
   };
 
   const handleFindFriend = useCallback((friend: LiveFriend) => {
-    void startFind.mutateAsync(friend.user_id);
-    setSelId(null);
-    setFindMode({ friend, ar: false });
-    trackMapEvent('find_friend_start');
-    triggerHaptic('medium');
-  }, [startFind]);
+    try {
+      locationAccount.guard();
+      const lease = captureMapLocationLease(friend, locationScope);
+      if (!currentMapLocation(lease, locationScope, friends)) return;
+      void startFind.mutateAsync(friend.user_id).catch(() => { /* Finder display still depends on the current admitted location. */ });
+      setSelId(null); setFindMode({ lease, ar: false });
+      trackMapEvent('find_friend_start'); triggerHaptic('medium');
+    } catch { /* A stale marker cannot start finding. */ }
+  }, [startFind, locationScope, friends, locationAccount.guard]);
 
   return (
     <main
@@ -493,6 +516,7 @@ function VybeMapInner() {
         onOpenSettings={() => setSettingsOpen(true)}
         radarLabel={radar.label}
         liveSharing={effectiveLiveSharing}
+        sharingStatus={sharingPending ? 'Saving privacy…' : sharingError ? 'Check location sharing' : !sharingReady ? 'Checking privacy…' : sharingEnabled && !effectiveLiveSharing ? 'Waiting for location' : undefined}
         locationAvailable={locationAvailable && !!safeMyCoords && !locationDenied}
         onStatusChip={handleStatusChip}
         squadChip={
@@ -520,7 +544,13 @@ function VybeMapInner() {
             originLabel={route.originKind === 'map' ? 'From map pin' : 'From live GPS'}
             onMinimize={() => setRouteBarExpanded(false)}
             onEnd={endLiveRoute}
-            onOpenExternal={() => window.open(route.externalUrl, '_blank')}
+            onOpenExternal={() => {
+              try {
+                locationAccount.guard();
+                if (route.scope !== locationView.current.scope || (route.friendLease && !currentMapLocation(route.friendLease, route.scope, locationView.current.friends))) return;
+                window.open(route.externalUrl, '_blank');
+              } catch { /* Retired routes cannot disclose the old destination. */ }
+            }}
           />
         )}
       </AnimatePresence>
@@ -569,7 +599,7 @@ function VybeMapInner() {
 
       <AnimatePresence>
         {ghostOpen && (
-          <GhostModeSheet sharing={effectiveLiveSharing} onClose={() => setGhostOpen(false)} onToggleSharing={toggleSharing} onGhostDuration={handleGhostDuration} />
+          <GhostModeSheet sharing={sharingEnabled} pending={sharingPending} ready={sharingReady} error={sharingError} legacyReview={legacySharingNeedsReview} onRetry={retrySharing} onClose={() => setGhostOpen(false)} onToggleSharing={toggleSharing} onGhostDuration={handleGhostDuration} />
         )}
       </AnimatePresence>
 
@@ -578,7 +608,7 @@ function VybeMapInner() {
           <MapSettingsSheet
             mapMode={mapViewMode}
             layers={layers}
-            sharing={effectiveLiveSharing}
+            sharing={effectiveLiveSharing} sharingStatus={sharingPending ? 'Saving privacy…' : sharingError || !sharingReady ? 'Check privacy' : sharingEnabled && !effectiveLiveSharing ? 'Waiting for location' : undefined}
             hasMapbox={useMapbox}
             followHeading={followHeading}
             onFollowHeading={setFollowHeading}
@@ -611,13 +641,13 @@ function VybeMapInner() {
               const lat = sel.displayLat ?? sel.latitude;
               const lng = sel.displayLng ?? sel.longitude;
               const name = sel.profile?.display_name || sel.profile?.username || 'Friend';
-              void startLiveRoute(`Route to ${name}`, [lat, lng]);
+              void startLiveRoute(`Route to ${name}`, [lat, lng], { friendLease: captureMapLocationLease(sel, locationScope, true) });
             }}
             onLiveRoute={() => {
               const lat = sel.displayLat ?? sel.latitude;
               const lng = sel.displayLng ?? sel.longitude;
               const name = sel.profile?.display_name || sel.profile?.username || 'Friend';
-              void startLiveRoute(`Route to ${name}`, [lat, lng]);
+              void startLiveRoute(`Route to ${name}`, [lat, lng], { friendLease: captureMapLocationLease(sel, locationScope, true) });
             }}
             onWave={async () => {
               if (!effectiveId) return;

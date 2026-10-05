@@ -11,13 +11,10 @@ import {
 } from '@/lib/vybemap/types';
 import {
   fetchFriendIds,
-  fetchLiveFriends,
-  subscribeLiveFriends,
   fetchMapStories,
   fetchMapPosts,
   fetchMapClips,
   fetchMapMeetups,
-  fetchHeatmap,
   fetchMapPlaces,
   fetchEventPins,
   fetchPlacePosts,
@@ -35,7 +32,7 @@ import {
   createMeetup,
   fetchLocationHistory,
 } from '@/lib/vybemap/firestore';
-import { applyDisplayPositions } from '@/lib/vybemap/smoothing';
+import { useLocationSharing } from '@/hooks/useLocationSharing';
 import { isValidLatLng } from '@/lib/vybemap/geo';
 import { fetchMyGroupMaps, createGroupMap, joinGroupMap, fetchGroupMemberIds } from '@/lib/vybemap/mapSocial';
 import {
@@ -108,46 +105,21 @@ export function useFriendIds(profileId?: string) {
   return { ...result, data: enabled && result.isFetchedAfterMount && !result.isError && !result.isPlaceholderData ? result.data ?? EMPTY_FRIEND_IDS : EMPTY_FRIEND_IDS };
 }
 
-export function useLiveFriends(friendIds: string[]) {
-  const account = useProfileAccount();
-  const qc = useQueryClient();
-  const profileId = account.profile?.id;
-  const key = useMemo(() => ['vybemap-live-friends', profileId, account.session.uid, account.session.epoch, [...friendIds].sort().join(':')],
-    [profileId, account.session.uid, account.session.epoch, friendIds]);
-  const enabled = account.ready && !!profileId && friendIds.length > 0;
-  const [listenerError, setListenerError] = useState<{ key: string; error: Error } | null>(null);
-  const keyText = JSON.stringify(key);
-  const query = useQuery({
-    queryKey: key, enabled, staleTime: 0, gcTime: 0, refetchOnMount: 'always', placeholderData: undefined,
-    refetchInterval: 12_000, refetchOnWindowFocus: 'always', retry: false,
-    queryFn: async () => {
-      account.guard();
-      const result = await fetchLiveFriends(profileId!, friendIds, account.guard);
-      account.guard();
-      setListenerError(null);
-      return result;
-    },
-  });
-  useEffect(() => {
-    if (!enabled) return;
-    const guard = account.guard;
-    let active = true;
-    const stop = subscribeLiveFriends(profileId!, () => {
-      try { guard(); } catch { return; }
-      if (!active) return;
-      void qc.invalidateQueries({ queryKey: key });
-    }, error => {
-      try { guard(); } catch { return; }
-      if (active) setListenerError({ key: keyText, error });
-    });
-    return () => { active = false; stop(); };
-  // A subscription belongs to this exact immutable account/friend scope.
-  }, [enabled, keyText, qc]);
-  const error = listenerError?.key === keyText ? listenerError.error : query.error;
-  const smoothed = useMemo(() => enabled && query.isFetchedAfterMount && !error && !query.isPlaceholderData
-    ? applyDisplayPositions(query.data ?? EMPTY_LIVE_FRIENDS, 1) : EMPTY_LIVE_FRIENDS,
-  [enabled, query.isFetchedAfterMount, error, query.isPlaceholderData, query.data]);
-  return { ...query, data: smoothed, error, isError: !!error, isLoading: enabled && query.isPending };
+export function useLiveFriends(_friendIds: string[]) {
+  const query = useLocationSharing();
+  const data = useMemo(() => query.data?.locations.map(row => ({
+    accessRevision: query.data.shares.find(share => share.id === row.shareId)?.revision,
+    accessUntil: Math.min(query.data.validUntil, query.data.receivedAt + Date.parse(row.expiresAt) - query.data.serverTime),
+    sampleExpiresAt: query.data.receivedAt + Date.parse(row.expiresAt) - query.data.serverTime,
+    id: row.id, user_id: row.id, latitude: row.latitude, longitude: row.longitude,
+    displayLat: row.latitude, displayLng: row.longitude, accuracy: row.accuracy,
+    label: row.profile.displayName || row.profile.username, updated_at: row.updatedAt,
+    expires_at: row.expiresAt, sharing_enabled: true, sharing_mode: row.precision,
+    approx_radius_m: row.approxRadiusM, speed: row.speed, heading: row.heading,
+    battery_percent: row.batteryPercent, activity_type: row.activityType,
+    profile: { username: row.profile.username, display_name: row.profile.displayName, avatar_url: row.profile.avatarUrl },
+  })) ?? EMPTY_LIVE_FRIENDS, [query.data]);
+  return { ...query, data };
 }
 
 export function useMapStories(enabled: boolean) {
@@ -167,7 +139,18 @@ export function useMapMeetups(enabled: boolean) {
 }
 
 export function useMapHeatmap(enabled: boolean) {
-  return useQuery({ queryKey: ['vybemap-heatmap'], enabled, staleTime: 60_000, queryFn: fetchHeatmap });
+  const query = useLocationSharing(undefined, enabled);
+  const data = useMemo(() => {
+    const cells = new Map<string, { geohash_prefix: string; cell_latitude: number; cell_longitude: number; intensity: number; pulse_level: number }>();
+    for (const row of query.data?.locations || []) {
+      // Only positions admitted to this viewer contribute; never raw global GPS.
+      const lat = Math.round(row.latitude * 50) / 50, lng = Math.round(row.longitude * 50) / 50;
+      const key = `${lat}:${lng}`, cell = cells.get(key);
+      if (cell) cell.intensity++; else cells.set(key, { geohash_prefix: key, cell_latitude: lat, cell_longitude: lng, intensity: 1, pulse_level: 1 });
+    }
+    return [...cells.values()];
+  }, [query.data]);
+  return { ...query, data };
 }
 
 export function useMapPlaces(enabled: boolean) {
@@ -179,18 +162,19 @@ export function useMapEventPins(enabled: boolean) {
 }
 
 export function useLocationHistory(userId?: string, mode: TimeMachineMode = 'now') {
-  return useQuery({
-    queryKey: ['vybemap-history', userId, mode],
-    enabled: !!userId && mode !== 'now',
+  const account = useProfileAccount();
+  const enabled = account.ready && userId === account.profile?.id && mode !== 'now';
+  const query = useQuery({
+    queryKey: ['vybemap-history', userId, account.session.uid, account.session.epoch, mode],
+    enabled, staleTime: 0, gcTime: 0, placeholderData: undefined, refetchOnMount: 'always', retry: false,
     queryFn: async () => {
+      account.guard();
       const now = Date.now();
-      const since = mode === '1h' ? now - 3_600_000
-        : mode === '6h' ? now - 6 * 3_600_000
-        : mode === 'yesterday' ? now - 86_400_000
-        : now - 7 * 86_400_000;
-      return fetchLocationHistory(userId!, since);
+      const since = mode === '1h' ? now - 3_600_000 : mode === '6h' ? now - 6 * 3_600_000 : mode === 'yesterday' ? now - 86_400_000 : now - 7 * 86_400_000;
+      const rows = await fetchLocationHistory(userId!, since); account.guard(); return rows;
     },
   });
+  return { ...query, data: enabled && query.isFetchedAfterMount && !query.isError && !query.isPlaceholderData ? query.data : undefined };
 }
 
 export function useCreateMeetup() {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { X, Pause, Play, Eye, Send, Heart, ChevronLeft, ChevronRight, Megaphone, Loader2 } from 'lucide-react';
 import { StoryPollViewer } from './StoryPollViewer';
@@ -77,9 +77,13 @@ function StoryViewerSession({ groups, initialGroupIndex, onClose }: StoryViewerP
   const isOwnStory = currentGroup?.user.id === profile?.id;
   const signedAvatarUrl = useSignedUrl(currentGroup?.user.avatar_url);
   const viewedInThisViewer = useRef(new Set<string>());
-  
-
-  const STORY_DURATION = currentStory?.media_type === 'video' ? 15000 : 5000;
+  const mediaContext = useMemo(() => ({}), [currentStory?.id, currentStory?.media_url, currentStory?.media_type]);
+  const currentMediaContext = useRef(mediaContext); currentMediaContext.current = mediaContext;
+  const [mediaReady, setMediaReady] = useState<{ context: object; ready: boolean } | null>(null);
+  const isMediaReady = mediaReady?.context === mediaContext && mediaReady.ready;
+  const handleMediaReady = useCallback((ready: boolean) => {
+    if (currentMediaContext.current === mediaContext) setMediaReady({ context: mediaContext, ready });
+  }, [mediaContext]);
 
   // Hide bottom nav when story viewer is open
   useEffect(() => {
@@ -91,13 +95,13 @@ function StoryViewerSession({ groups, initialGroupIndex, onClose }: StoryViewerP
 
   // Mark story as viewed
   useEffect(() => {
-    if (currentStory && !currentStory.has_viewed && !isOwnStory && !viewedInThisViewer.current.has(currentStory.id)) {
+    if (currentStory && isMediaReady && !currentStory.has_viewed && !isOwnStory && !viewedInThisViewer.current.has(currentStory.id)) {
       // Mutation status changes and fresh audience responses can rerender the
       // viewer while this cosmetic marker is still pending.
       viewedInThisViewer.current.add(currentStory.id);
       viewStory.mutate(currentStory.id);
     }
-  }, [currentStory?.id, currentStory?.has_viewed, isOwnStory, viewStory]);
+  }, [currentStory?.id, currentStory?.has_viewed, isOwnStory, isMediaReady, viewStory]);
 
   // Use ref for goNext to avoid stale closure in timer
   const goNextRef = useRef<() => void>(() => {});
@@ -115,13 +119,15 @@ function StoryViewerSession({ groups, initialGroupIndex, onClose }: StoryViewerP
     if (bar) {
       bar.style.transition = 'none';
       bar.style.width = '0%';
+      bar.setAttribute('aria-valuenow', '0');
     }
   }, []);
 
   // Progress timer — 4 ticks/sec; the bar's CSS transition keeps it visually
   // smooth without re-rendering the whole viewer.
   useEffect(() => {
-    if (isPaused || !currentStory) return;
+    // Video progression follows actual playback below, including clips over 15s.
+    if (isPaused || !currentStory || !isMediaReady || currentStory.media_type === 'video') return;
 
     const TICK_MS = 250;
     const interval = setInterval(() => {
@@ -130,16 +136,30 @@ function StoryViewerSession({ groups, initialGroupIndex, onClose }: StoryViewerP
         goNextRef.current();
         return;
       }
-      progressValueRef.current += 100 / (STORY_DURATION / TICK_MS);
+      progressValueRef.current += 100 / (5000 / TICK_MS);
       const bar = activeBarRef.current;
       if (bar) {
         bar.style.transition = 'width 250ms linear';
         bar.style.width = `${Math.min(progressValueRef.current, 100)}%`;
+        bar.setAttribute('aria-valuenow', String(Math.min(progressValueRef.current, 100)));
       }
     }, TICK_MS);
 
     return () => clearInterval(interval);
-  }, [isPaused, currentStory, groupIndex, storyIndex, STORY_DURATION, resetProgress]);
+  }, [isPaused, currentStory, isMediaReady, groupIndex, storyIndex, resetProgress]);
+
+  const handleMediaProgress = useCallback((percent: number) => {
+    if (currentMediaContext.current !== mediaContext || !currentStory) return;
+    try { storyGuard(currentStory.id); } catch { return; }
+    progressValueRef.current = percent;
+    const bar = activeBarRef.current;
+    if (bar) { bar.style.width = `${percent}%`; bar.setAttribute('aria-valuenow', String(percent)); }
+  }, [mediaContext, currentStory?.id, storyGuard]);
+  const handleMediaEnded = useCallback(() => {
+    if (currentMediaContext.current !== mediaContext || !currentStory) return;
+    try { storyGuard(currentStory.id); } catch { return; }
+    goNextRef.current();
+  }, [mediaContext, currentStory?.id, storyGuard]);
 
   // Reset progress when story changes
   useEffect(() => {
@@ -338,7 +358,7 @@ function StoryViewerSession({ groups, initialGroupIndex, onClose }: StoryViewerP
   useEffect(() => {
     setReplyText(''); setShowReplyInput(false); setIsSendingReply(false);
     setIsPaused(false);
-  }, [currentStory?.id]);
+  }, [candidateId]);
 
   if (!currentStory || !currentGroup) return <FullscreenPortal>
     <div role="dialog" aria-modal="true" aria-label={visible.isLoading ? 'Checking story access' : 'Story unavailable'} className="fixed inset-0 z-[6000] bg-black text-white flex flex-col items-center justify-center gap-4 p-6 text-center">
@@ -409,9 +429,13 @@ function StoryViewerSession({ groups, initialGroupIndex, onClose }: StoryViewerP
             className="absolute inset-0"
           >
             <StoryMedia 
+              key={JSON.stringify([currentStory.id, currentStory.media_url, currentStory.media_type])}
               mediaUrl={currentStory.media_url} 
               mediaType={currentStory.media_type}
               isPaused={isPaused}
+              onReadyChange={handleMediaReady}
+              onProgress={handleMediaProgress}
+              onEnded={handleMediaEnded}
             />
           </motion.div>
         </AnimatePresence>
@@ -426,6 +450,11 @@ function StoryViewerSession({ groups, initialGroupIndex, onClose }: StoryViewerP
             <div key={i} className="flex-1 h-0.5 bg-white/30 rounded-full overflow-hidden">
               <div
                 ref={i === storyIndex ? activeBarRef : undefined}
+                role={i === storyIndex ? 'progressbar' : undefined}
+                aria-label={i === storyIndex ? 'Story progress' : undefined}
+                aria-valuemin={i === storyIndex ? 0 : undefined}
+                aria-valuemax={i === storyIndex ? 100 : undefined}
+                aria-valuenow={i === storyIndex ? Math.min(progressValueRef.current, 100) : undefined}
                 className="h-full bg-white rounded-full origin-left"
                 style={{
                   width:

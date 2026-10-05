@@ -479,20 +479,31 @@ service cloud.firestore {
             && request.resource.data.pin_order <= 100));
     }
     match /user_locations/{docId} {
-      allow read: if signedIn();
-      allow write: if ownsUserField('user_id') || willOwnUserField('user_id') || ownsProfileId(docId) || isAdmin();
+      // Orphaned legacy coordinate rows have no current sharing authority.
+      allow read, write: if false;
+    }
+    function ownsLocationAlias(value) {
+      let canonical = profileId();
+      let profile = get(/databases/$(database)/documents/profiles/$(canonical));
+      let uidProfile = get(/databases/$(database)/documents/profiles/$(uid()));
+      return signedIn() && value in [uid(), canonical] && profile != null && profile.data.user_id == uid()
+        && profile.data.get('is_deleted', false) == false && profile.data.get('deleted_at', null) == null
+        && (uidProfile == null || canonical == uid());
     }
     // VybeMap — canonical live location (doc id = profiles.id)
     match /user_live_locations/{profileDocId} {
-      allow read: if signedIn() && ownsProfileId(profileDocId);
-      allow read: if signedIn() && hasActiveLocationShareFrom(profileDocId);
-      allow create, update: if signedIn() && ownsProfileId(profileDocId);
-      allow delete: if ownsProfileId(profileDocId) || isAdmin();
+      // Checked callables project grant precision and recheck current consent.
+      allow read, write: if false;
     }
     match /location_history/{docId} {
-      allow read: if signedIn() && (ownsUserField('user_id') || isAdmin());
-      allow create: if signedIn() && willOwnUserField('user_id');
-      allow update, delete: if isAdmin();
+      allow read: if ownsLocationAlias(resource.data.get('user_id', ''));
+      allow create: if ownsLocationAlias(request.resource.data.get('user_id', ''))
+        && request.resource.data.keys().hasOnly(['id', 'user_id', 'latitude', 'longitude', 'accuracy', 'speed', 'heading', 'activity_type', 'geohash', 'recorded_at'])
+        && request.resource.data.latitude is number && request.resource.data.latitude >= -90 && request.resource.data.latitude <= 90
+        && request.resource.data.longitude is number && request.resource.data.longitude >= -180 && request.resource.data.longitude <= 180
+        && request.resource.data.recorded_at is string;
+      allow update: if false;
+      allow delete: if ownsLocationAlias(resource.data.get('user_id', ''));
     }
     match /location_access_logs/{docId} {
       allow read: if signedIn() && (ownsUserField('viewer_id') || ownsUserField('target_id') || isAdmin());
@@ -579,8 +590,7 @@ service cloud.firestore {
       allow read, write: if signedIn() && (ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin());
     }
     match /heatmap_tiles/{cellId} {
-      allow read: if signedIn();
-      allow write: if false;
+      allow read, write: if false;
     }
     match /map_access_rate/{docId} {
       allow read, write: if false;
@@ -837,20 +847,6 @@ service cloud.firestore {
         ownsProfileId(resource.data.user_b)
       );
     }
-    function isLocationShareMember() {
-      return signedIn() && (
-        ownsProfileId(resource.data.sharer_id) ||
-        ownsProfileId(resource.data.viewer_id)
-      );
-    }
-    function hasActiveLocationShareFrom(sharerProfileId) {
-      let pairId = friendshipPairDocId(profileId(), sharerProfileId);
-      return signedIn() &&
-        exists(/databases/$(database)/documents/location_shares/$(pairId)) &&
-        get(/databases/$(database)/documents/location_shares/$(pairId)).data.active == true &&
-        get(/databases/$(database)/documents/location_shares/$(pairId)).data.sharer_id == sharerProfileId &&
-        get(/databases/$(database)/documents/location_shares/$(pairId)).data.viewer_id == profileId();
-    }
     match /friendship_pairs/{pairId} {
       allow read: if isFriendshipPairMember();
       allow write: if false;
@@ -859,8 +855,19 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /location_shares/{pairId} {
-      allow read: if isLocationShareMember();
-      allow write: if false;
+      allow read, write: if false;
+    }
+    match /_location_grants/{docId} {
+      allow read, write: if false;
+    }
+    match /_location_requests/{docId} {
+      allow read, write: if false;
+    }
+    match /_location_state/{docId} {
+      allow read, write: if false;
+    }
+    match /_location_receipts/{docId} {
+      allow read, write: if false;
     }
     match /profile_visibility/{ownerId} {
       function ownsVisibility() {

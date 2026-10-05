@@ -1,134 +1,85 @@
-import { db } from '@/lib/firebase';
-import {
-  getEffectiveProfileId,
-  setCachedCurrentProfile,
-  type CachedProfile,
-} from '@/lib/profileCache';
+import { getCachedCurrentProfile, getCachedProfile, setCachedCurrentProfile, type CachedProfile } from '@/lib/profileCache';
 import { getProfileByAuthUid } from '@/lib/firebase/users';
-import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
+import { reportAccountSnapshot, type ReportAccountSession } from '@/lib/reportModerationService';
 import { withTimeout } from '@/lib/withTimeout';
 
-let memoAuthUserId: string | null = null;
-let memoProfileId: string | null = null;
-let inflight: Promise<string | undefined> | null = null;
-
+let generation = 0;
+let memo: { uid: string; epoch: number; profileId: string } | undefined;
+let inflight: { uid: string; epoch: number; generation: number; promise: Promise<string | undefined> } | undefined;
 const RESOLVE_TIMEOUT_MS = 2500;
 
-/** Sync profile id — live auth state or disk cache (instant). */
+/** Cached identity is usable only when its owner matches the live Firebase account. */
 export function syncSessionProfileId(liveProfileId?: string | null): string | undefined {
-  return getEffectiveProfileId(liveProfileId);
+  const { uid } = reportAccountSnapshot();
+  if (!uid) return undefined;
+  const current = getCachedCurrentProfile();
+  const cached = liveProfileId ? getCachedProfile(liveProfileId) ?? (current?.id === liveProfileId ? current : null) : current;
+  return cached?.user_id === uid ? cached.id : undefined;
 }
 
-function looksPlaceholder(
-  profile: { id?: string; username?: string | null } | null | undefined,
-  authUserId: string,
-): boolean {
-  if (!profile?.id) return true;
-  return (
-    profile.id === authUserId ||
-    !profile.username ||
-    String(profile.username).startsWith('user_')
-  );
+function sameSession(expected: ReportAccountSession): boolean {
+  const current = reportAccountSnapshot();
+  return current.uid === expected.uid && current.epoch === expected.epoch;
 }
 
-function cacheResolvedProfile(authUserId: string, profile: {
-  id: string;
-  user_id?: string;
-  username?: string | null;
-  display_name?: string | null;
-  avatar_url?: string | null;
-}): string {
-  memoAuthUserId = authUserId;
-  memoProfileId = profile.id;
-  void syncUserAuthIndex(authUserId, profile.id);
-  const payload: CachedProfile = {
-    id: profile.id,
-    user_id: profile.user_id,
-    username: profile.username || '',
-    display_name: profile.display_name ?? null,
-    avatar_url: profile.avatar_url ?? null,
-  };
-  setCachedCurrentProfile(payload);
-  return profile.id;
-}
-
-/** One session-scoped profile lookup; deduped across DMs/messages/chat. */
-export async function resolveSessionProfileId(
-  liveProfileId?: string | null,
-): Promise<string | undefined> {
-  const cached = getEffectiveProfileId(liveProfileId);
+/** Bounded account-scoped lookup. A timeout or retired account never guesses a profile ID. */
+export async function resolveSessionProfileId(liveProfileId?: string | null): Promise<string | undefined> {
+  const session = reportAccountSnapshot();
+  const uid = session.uid;
+  if (!uid) return undefined;
+  const cached = syncSessionProfileId(liveProfileId);
   if (cached) return cached;
+  if (memo?.uid === uid && memo.epoch === session.epoch) return memo.profileId;
+  if (inflight?.uid === uid && inflight.epoch === session.epoch && inflight.generation === generation) return inflight.promise;
 
-  const { data: { session } } = await db.auth.getSession();
-  const authUserId = session?.user?.id;
-  if (!authUserId) return undefined;
-
-  if (memoAuthUserId === authUserId && memoProfileId) return memoProfileId;
-
-  if (inflight) return inflight;
-
-  // Entire body (including first Firestore read) is timed so a hung getDoc
-  // cannot poison every DM open waiting on shared inflight.
-  inflight = (async () => {
+  const startedGeneration = generation;
+  let active = true;
+  const guard = () => {
+    if (!active || generation !== startedGeneration || !sameSession(session)) throw new Error('Profile lookup expired.');
+  };
+  const readOwnedProfile = async () => {
+    guard();
+    const profile = await getProfileByAuthUid(uid);
+    guard();
+    if (profile && (!profile.id || profile.user_id !== uid)) throw new Error('Profile ownership could not be verified.');
+    return profile;
+  };
+  const attempt = { uid, epoch: session.epoch, generation: startedGeneration, promise: undefined as unknown as Promise<string | undefined> };
+  attempt.promise = (async () => {
     try {
-      const resolved = await withTimeout(
-        (async () => {
-          let profile = await getProfileByAuthUid(authUserId);
-          if (profile?.id && !looksPlaceholder(profile, authUserId)) {
-            return profile;
-          }
-
-          if (!profile?.id || looksPlaceholder(profile, authUserId)) {
-            await db.rpc('claim_profile_by_email').catch(() => undefined);
-            const claimed = await getProfileByAuthUid(authUserId);
-            if (claimed?.id) profile = claimed;
-          }
-          if (!profile?.id) {
-            await db.rpc('ensure_profile').catch(() => undefined);
-            profile = await getProfileByAuthUid(authUserId);
-          }
-          return profile;
-        })(),
-        RESOLVE_TIMEOUT_MS,
-        'resolveSessionProfileId timed out',
-      ).catch(() => null);
-
-      if (!resolved?.id) {
-        // Prefer auth uid over blocking — membership reads can still use it as a key.
-        return authUserId;
-      }
-
-      return cacheResolvedProfile(authUserId, resolved);
+      // Provisioning belongs to explicit authentication bootstrap. A shared read
+      // must not launch account mutations that can outlive this lookup's guard.
+      const profile = await withTimeout(readOwnedProfile(), RESOLVE_TIMEOUT_MS, 'Profile lookup timed out.');
+      guard();
+      if (!profile) return undefined;
+      const payload: CachedProfile = {
+        id: profile.id, user_id: uid, username: profile.username || '',
+        display_name: profile.display_name ?? null, avatar_url: profile.avatar_url ?? null,
+      };
+      memo = { uid, epoch: session.epoch, profileId: profile.id };
+      setCachedCurrentProfile(payload);
+      return profile.id;
+    } catch {
+      return undefined;
     } finally {
-      inflight = null;
+      active = false;
+      // An older attempt must not erase a newer account's pending lookup.
+      if (inflight === attempt) inflight = undefined;
     }
   })();
-
-  return inflight;
+  inflight = attempt;
+  return attempt.promise;
 }
 
-/** Clear memo when auth user changes (call from AuthProvider if needed). */
+/** Invalidates both memoized results and already-dispatched asynchronous work. */
 export function resetSessionProfileMemo(): void {
-  memoAuthUserId = null;
-  memoProfileId = null;
-  inflight = null;
+  generation += 1;
+  memo = undefined;
+  inflight = undefined;
 }
 
-/** Resolve profile id for story publish — creates profile row if missing. */
-export async function resolveStoryAuthorProfileId(
-  liveProfileId?: string | null,
-): Promise<string> {
-  let id = getEffectiveProfileId(liveProfileId) ?? (await resolveSessionProfileId(liveProfileId));
-  if (id) return id;
-
-  const { error } = await db.rpc('ensure_profile');
-  if (error) {
-    await db.rpc('claim_profile_by_email');
-  }
-
-  id = await resolveSessionProfileId(liveProfileId);
-  if (!id) {
-    throw new Error('Could not load your profile. Sign out and back in, then try again.');
-  }
+export async function resolveStoryAuthorProfileId(liveProfileId?: string | null): Promise<string> {
+  const id = await resolveSessionProfileId(liveProfileId);
+  if (!id) throw new Error('Could not load your profile. Please retry before sharing.');
   return id;
 }
