@@ -9794,6 +9794,16 @@ No backend deployment or client publish: new shared module is unused until match
 
 Next three tasks: implement matched existing discovery callable/client/lease and truthful UI; verify prerequisites and deploy only exactservice plusmatchedclient; continue existing Firebase content/mobile/readiness verification. No new features.
 
+## 2026-10-06 — Matched discovery transport and callable (pending UI/cutover)
+
+Previous turn progress: checked Firebase discovery foundation committed/tested. Connected only local getDiscoveryProfiles to authority with checkedAuth/30perminute existing protectedquota; DOBmigration/adminexports unchanged. Added strictclientreadPeopleDiscovery: SDKcreation/incarnation/UID/profile/exactobject/epochguard, validatedselection/projectedreceipt, noextratargetfields/self/duplicates/unselectedprofiles, 15sdeadline/late-retirement, roundtripadjustedshortlease, actionableerror and no raw/storagefallback. Existing suggestion hooks/UI not yet connected; productioncutoverpending.
+
+Client16focusedpass; full4574pass6skip; Functions/clientbuild/native/types/lint passfiveexistingwarnings; bundleunchanged1102.3raw334.6gzip (serviceunuseduntilhookintegration). Realcompiledcallable guest/quota plusauthority11groupspass on disposable8387/9297;120selection30output1118ms. RealFirebaseSDKAuth9199/Functions5101 matchedclientvalidates1279ms response ageReviewRequiredtrue for syntheticBob; noDOBguess/fixturemutation. InitialSDK404 correctlyfailed becauselocalwrapperhadnoexport; addedexactcompiledgetDiscoveryProfilesreexport, sameexistingemulatorhotreload recovered. Logs work/people-discovery-contract-{functions,backend,transport,full,build,types,lint}; focused work/people-discovery-client-focused.log. Scripts guardedcontactsbackend/loopbackpreviewtransportonly; productionuntouched.
+
+No service deployment or client publish; old hooks lack newrequiredidentityfields and stillhave rawfallback. Mustcomplete hooks/error/ageReview UI/indexbaselinepreflight beforeexactservice+matchedclientrelease. Goalactive; actualphone/content/app-readiness remainopen.
+
+Next three tasks: connect general/mutualsuggestionhooks with lease/session/cache guards and birthday/retryUI; verify exact productionprerequisites and release matchedgetDiscoveryProfiles/client; continue retainedFirebasecontent/mobile/performanceverification. No new features.
+
 
 
 

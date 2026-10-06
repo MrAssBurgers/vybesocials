@@ -6,6 +6,7 @@ assert.equal(process.env.FIREBASE_AUTH_EMULATOR_HOST, '127.0.0.1:9297');
 process.env.FIREBASE_CONFIG = JSON.stringify({ projectId });
 const { db, auth } = await import('../functions/lib/_shared/admin.js');
 const { peopleDiscovery, discoveryAge } = await import('../functions/lib/_shared/peopleDiscoveryAuthority.js');
+const { getDiscoveryProfiles } = await import('../functions/lib/profilePrivacy.js');
 const now = Date.parse('2026-10-06T12:00:00Z');
 // Only this confirmed disposable emulator project may be reset.
 assert.equal((await fetch(`http://127.0.0.1:8387/emulator/v1/projects/${projectId}/databases/(default)/documents`, { method: 'DELETE' })).status, 200);
@@ -27,6 +28,14 @@ let groups = 0;
 const check = async (name, fn) => { await fn(); console.log(`PASS ${name}`); groups++; };
 try {
   const alice = await seed('alice'), bob = await seed('bob'), unknown = await seed('unknown', null), minor = await seed('minor', '2010-05-03');
+  await check('callable requires authentication and enforces its exact existing quota', async () => {
+    await assert.rejects(getDiscoveryProfiles.run({ data: {} }), { code: 'unauthenticated' });
+    const request = { auth: { uid: alice.uid }, data: body(alice, { candidateIds: [] }) };
+    const result = await getDiscoveryProfiles.run(request); assert.equal(result.ownerUid, alice.uid); assert.deepEqual(result.profiles, []);
+    await db.doc(`_rate_limits/people-discovery:${alice.uid}`).set({ count: 30, reset_at: Date.now() + 60000 });
+    await assert.rejects(getDiscoveryProfiles.run(request), { code: 'resource-exhausted' });
+    await db.doc(`_rate_limits/people-discovery:${alice.uid}`).delete();
+  });
   await check('canonical actor and strict bounded inputs', async () => {
     for (const patch of [{ expectedOwnerUid: bob.uid }, { expectedProfileId: bob.profileId }, { expectedAccountCreatedAt: alice.created + 1 }]) await assert.rejects(run(alice, patch), { code: 'failed-precondition' });
     for (const patch of [{ limit: 121 }, { limit: 0 }, { candidateIds: ['bad/path'] }, { candidateIds: Array(121).fill(bob.profileId) }, { admin: true }]) await assert.rejects(run(alice, patch), { code: 'invalid-argument' });
