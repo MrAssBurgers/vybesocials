@@ -57,3 +57,33 @@ describe('video playback', () => {
     expect(video.muted).toBe(true);
   });
 });
+
+it('does not restart playback when scrolling interrupts the first play request', async () => {
+  const video = fakeVideo(async () => { throw new DOMException('The play request was interrupted by pause', 'AbortError'); });
+  await expect(playWithAudio(video, false)).resolves.toBe('blocked');
+  expect(video.play).toHaveBeenCalledOnce();
+});
+it('does not retry a decoding/network failure as an audio permission failure', async () => {
+  const video = fakeVideo(async () => { throw new DOMException('Unsupported video', 'NotSupportedError'); });
+  await expect(playWithAudio(video, false)).resolves.toBe('blocked'); expect(video.play).toHaveBeenCalledOnce();
+});
+
+it('rejects a late autoplay permission failure after its card is retired', async () => {
+  let fail!: (error: Error) => void; let current = true;
+  const video = fakeVideo(() => new Promise((_, reject) => { fail = reject; }));
+  const result = playWithAudio(video, false, vi.fn(), () => current);
+  current = false; fail(new DOMException('Autoplay blocked', 'NotAllowedError'));
+  await expect(result).resolves.toBe('blocked'); expect(video.play).toHaveBeenCalledOnce();
+});
+it('a retired silent card cannot unmute on the next tap', async () => {
+  let count = 0; let current = true; const audible = vi.fn();
+  const video = fakeVideo(async () => { if (++count === 1) throw new DOMException('Autoplay blocked', 'NotAllowedError'); });
+  await expect(playWithAudio(video, false, audible, () => current)).resolves.toBe('silent');
+  current = false; releasePendingAudioUnlocks(); expect(video.muted).toBe(true); expect(audible).not.toHaveBeenCalled();
+});
+it('a new explicit mute choice cancels an earlier queued sound unlock', async () => {
+  let count = 0; const audible = vi.fn();
+  const video = fakeVideo(async () => { if (++count === 1) throw new DOMException('Autoplay blocked', 'NotAllowedError'); });
+  await playWithAudio(video, false, audible); await playWithAudio(video, true);
+  releasePendingAudioUnlocks(); expect(video.muted).toBe(true); expect(audible).not.toHaveBeenCalled();
+});

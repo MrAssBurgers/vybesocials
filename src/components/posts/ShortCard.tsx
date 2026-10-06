@@ -1,7 +1,7 @@
 import { applyConfirmedPostView } from '@/lib/postViewService';
 import { usePostMutations } from '@/hooks/usePostMutations';
 import { MapPinDialogLoader } from '@/components/vybemap/MapPinDialogLoader';
-import { useState, useRef, useEffect, useCallback, memo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { ProfileLink } from '@/components/profile/ProfileLink';
 import { Heart, MessageCircle, Send as SendIcon, Bookmark, Play, MoreVertical, Trash2, Flag, Eye, Pencil } from 'lucide-react';
@@ -38,7 +38,7 @@ import { ShareSheet } from '@/components/share/ShareSheet';
 import { HoldToShare } from '@/components/share/HoldToShare';
 import { FollowPlusButton } from '@/components/clips/FollowPlusButton';
 import { isValidMediaUrl } from '@/lib/mediaUrl';
-import { playWithAudio } from '@/lib/videoPlayback';
+import { playWithAudio, cancelVideoAudioUnlock } from '@/lib/videoPlayback';
 import { PausedMuteButton } from '@/components/video/PausedMuteButton';
 import { usePostReaction } from '@/hooks/usePostReaction';
 import { ReportContentDialog } from '@/components/safety/ReportContentDialog';
@@ -135,6 +135,16 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const signedAvatarUrl = useSignedUrl(post.author?.avatar_url || null);
   
   const effectiveIsHolding = externalIsHolding || isHolding;
+  const playbackContext = useMemo(() => ({ active: isActive && !effectiveIsHolding }), [isActive, signedMediaUrl, effectiveIsHolding, globalMuted]);
+  useEffect(() => {
+    playbackContext.active = isActive && !effectiveIsHolding;
+    const video = videoRef.current;
+    return () => {
+      playbackContext.active = false;
+      if (video) { cancelVideoAudioUnlock(video); video.pause(); }
+    };
+  }, [playbackContext]);
+
   const { isSlowConnection } = useNetworkStatus();
 
   // Sync view count from props (no realtime subscription needed)
@@ -169,6 +179,8 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
 
   // Auto-play when active - mute state only changes via tap
   useEffect(() => {
+    let current = true;
+    const video = videoRef.current;
     if (videoRef.current && signedMediaUrl) {
       if (effectiveIsHolding) return;
 
@@ -180,8 +192,8 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         }
         hasInitializedRef.current = true;
         const video = videoRef.current;
-        void playWithAudio(video, globalMuted, () => setIsMuted(false)).then((result) => {
-          if (result === 'blocked' || userPausedRef.current) return;
+        void playWithAudio(video, globalMuted, () => setIsMuted(false), () => current && !userPausedRef.current).then((result) => {
+          if (!current || result === 'blocked' || userPausedRef.current) return;
           setIsMuted(result !== 'sound');
           setIsPlaying(true);
           if (!hasCountedInitialView.current && profile) {
@@ -199,7 +211,11 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         setIsPlaying(false);
       }
     }
-  }, [isActive, signedMediaUrl, globalMuted, profile]);
+    return () => {
+      current = false;
+      if (video) { cancelVideoAudioUnlock(video); video.pause(); }
+    };
+  }, [isActive, signedMediaUrl, globalMuted, profile, effectiveIsHolding]);
 
   const incrementViewCount = async () => {
     await applyConfirmedPostView(postActions.actor, post.id, postActions.guard, setViewCount);
@@ -258,12 +274,12 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     singleTapTimer.current = setTimeout(() => {
       singleTapTimer.current = null;
       const video = videoRef.current;
-      if (!video) return;
+      if (!video || !playbackContext.active) return;
       if (video.paused) {
         userPausedRef.current = false;
         setPausedByTap(false);
-        void playWithAudio(video, video.muted, () => setIsMuted(false)).then((result) => {
-          if (result === 'blocked') return;
+        void playWithAudio(video, video.muted, () => setIsMuted(false), () => playbackContext.active && !userPausedRef.current).then((result) => {
+          if (!playbackContext.active || result === 'blocked') return;
           setIsMuted(result !== 'sound');
           setIsPlaying(true);
         });
@@ -274,7 +290,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         setPausedByTap(true);
       }
     }, 300);
-  }, [isHolding]);
+  }, [isHolding, playbackContext]);
   
   if (!post.author) {
     return (

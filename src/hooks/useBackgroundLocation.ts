@@ -37,21 +37,29 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
   const context = useMemo(() => ({ active: true, intent: 0, blocked: false, lastSent: 0, sending: false, failedIntent: null as boolean | null }), [scope]);
   useEffect(() => { context.active = true; return () => { context.active = false; context.intent++; }; }, [context]);
   const guard = useCallback(() => { actor.guard(); if (!ready || !context.active) throw Object.assign(new Error('Your account changed. Open the map again.'), { code: 'account-changed' }); }, [actor.guard, ready, context]);
-  const [request, setRequest] = useState<string | null>(null);
+  const [request, setRequest] = useState<{ scope: string; revision: number } | null>(null);
   const [position, setPosition] = useState({ ...EMPTY_POSITION, scope });
   const currentPosition = ready && position.scope === scope ? position : EMPTY_POSITION;
   const [problem, setProblem] = useState<{ scope: string; message: string } | null>(null);
+  const [positionProblem, setPositionProblem] = useState<{ scope: string; message: string } | null>(null);
   const [published, setPublished] = useState<{ scope: string; revision: string; expiresAt: number } | null>(null);
   const latest = useRef({ state: read.data?.state, guard, scope, watchOnMap });
   latest.current = { state: read.data?.state, guard, scope, watchOnMap };
-  const requestLocation = useCallback(() => { try { guard(); setRequest(scope); } catch { /* Auth not ready: no GPS request. */ } }, [guard, scope]);
+  const requestLocation = useCallback(() => {
+    try {
+      guard();
+      setRequest(previous => ({ scope, revision: previous?.scope === scope ? previous.revision + 1 : 0 }));
+    } catch { /* Auth not ready: no GPS request. */ }
+  }, [guard, scope]);
 
   useEffect(() => {
     let active = true;
     if (watchOnMap && ready && navigator.permissions?.query) {
       void navigator.permissions.query({ name: 'geolocation' }).then(permission => {
         try { latest.current.guard(); } catch { return; }
-        if (active && permission.state === 'granted') setRequest(scope);
+        if (active && permission.state === 'granted') {
+          setRequest(previous => previous?.scope === scope ? previous : { scope, revision: 0 });
+        }
       }).catch(() => {});
     }
     return () => { active = false; };
@@ -132,9 +140,13 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
     } finally { context.sending = false; }
   }, [actor.uid, actor.profileId, context]);
 
-  const shouldWatch = ready && watchOnMap && request === scope;
+  const shouldWatch = ready && watchOnMap && request?.scope === scope;
   useEffect(() => {
-    if (!shouldWatch || !navigator.geolocation) return;
+    if (!shouldWatch) return;
+    if (!navigator.geolocation) {
+      setPositionProblem({ scope, message: 'Location is unavailable on this device.' });
+      return;
+    }
     let active = true, fellBack = false;
     let watchId: number | undefined;
     const current = () => { try { latest.current.guard(); return active && document.visibilityState !== 'hidden' && latest.current.scope === scope; } catch { return false; } };
@@ -143,6 +155,7 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
       const { latitude, longitude, accuracy, speed, heading } = pos.coords;
       if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return;
       setPosition({ scope, coords: [latitude, longitude], accuracy, speed, heading: heading != null && Number.isFinite(heading) ? heading : null, denied: false });
+      setPositionProblem(null);
       void publish(pos);
     };
     const failure = (error: GeolocationPositionError) => {
@@ -150,15 +163,18 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
       if (error.code === 1) {
         context.intent++; setPublished(null);
         setPosition({ ...EMPTY_POSITION, scope, denied: true });
-        setProblem({ scope, message: 'Location permission is denied. New updates stopped; a previously shared position expires within two minutes. Use Ghost Mode to stop access now.' });
+        setPositionProblem({ scope, message: 'Location permission is denied. New updates stopped; a previously shared position expires within two minutes. Use Ghost Mode to stop access now.' });
       } else if (!fellBack && (error.code === 2 || error.code === 3)) {
         fellBack = true;
         if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
         watchId = navigator.geolocation.watchPosition(success, failure, { enableHighAccuracy: false, maximumAge: 30_000, timeout: 30_000 });
+      } else if (error.code === 2 || error.code === 3) {
+        setPositionProblem({ scope, message: 'Your device could not get a location. Check location services and try again.' });
       }
     };
     const start = () => {
       if (document.visibilityState === 'hidden') return;
+      fellBack = false;
       navigator.geolocation.getCurrentPosition(success, failure, { enableHighAccuracy: false, timeout: 10_000, maximumAge: 30_000 });
       watchId = navigator.geolocation.watchPosition(success, failure, { enableHighAccuracy: true, maximumAge: 4000, timeout: 20_000 });
     };
@@ -168,24 +184,26 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
       watchId = undefined;
       if (document.visibilityState !== 'hidden') start();
     };
-    try { start(); } catch { setProblem({ scope, message: 'Location is unavailable on this device.' }); }
+    try { start(); } catch { setPositionProblem({ scope, message: 'Location is unavailable on this device.' }); }
     document.addEventListener('visibilitychange', visibility);
     return () => { active = false; context.intent++; document.removeEventListener('visibilitychange', visibility); if (watchId !== undefined) navigator.geolocation.clearWatch(watchId); };
-  }, [shouldWatch, scope, context, publish]);
+  }, [shouldWatch, request?.revision, scope, context, publish]);
   // Once enable has been acknowledged, request a fresh sample. Never re-label a
   // cached coordinate with a new timestamp or republish another account's sample.
   useEffect(() => {
+    let active = true;
     if (shouldWatch && read.data?.state.enabled && !context.blocked && document.visibilityState !== 'hidden') {
-      const success = (pos: GeolocationPosition) => { try { latest.current.guard(); if (latest.current.scope === scope) void publish(pos); } catch { /* Account retired. */ } };
+      const success = (pos: GeolocationPosition) => { try { latest.current.guard(); if (active && latest.current.scope === scope) void publish(pos); } catch { /* Account retired. */ } };
       navigator.geolocation?.getCurrentPosition(success, () => {}, { enableHighAccuracy: false, maximumAge: 0, timeout: 10_000 });
     }
-  }, [read.data?.state.revision, shouldWatch, context, scope, publish]);
+    return () => { active = false; };
+  }, [read.data?.state.revision, shouldWatch, request?.revision, context, scope, publish]);
 
   const sharingEnabled = !!read.data?.state.enabled && ready;
   return {
     ...currentPosition, locationDenied: currentPosition.denied,
     sharingEnabled, sharing: sharingEnabled && published?.scope === scope && published.revision === read.data?.state.revision && published.expiresAt > Date.now(),
-    sharingPending: change.isPending, sharingReady: !!read.data, sharingError: problem?.scope === scope ? problem.message : read.error?.message || null,
+    sharingPending: change.isPending, sharingReady: !!read.data, sharingError: problem?.scope === scope ? problem.message : positionProblem?.scope === scope ? positionProblem.message : read.error?.message || null,
     legacySharingNeedsReview: read.data?.legacySharingNeedsReview ?? false,
     locationAvailable: !!currentPosition.coords && !currentPosition.denied,
     ghostUntil: ghost?.scope === scope ? ghost.until : null,
@@ -196,6 +214,7 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
           if (result.error || !result.data) throw result.error || new Error('Location sharing could not be checked.');
           if (context.failedIntent !== null) await setSharing(context.failedIntent, result.data.state);
           else setProblem(null);
+          if (positionProblem?.scope === scope && request?.scope === scope) requestLocation();
         } catch (error) {
           try { guard(); } catch { return; }
           setProblem({ scope, message: error instanceof Error ? error.message : 'Location sharing was not confirmed.' });

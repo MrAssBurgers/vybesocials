@@ -100,3 +100,71 @@ describe('map GPS consent and checked publication', () => {
     expect(attempts).toHaveLength(2); expect(attempts[1]).toEqual(attempts[0]);
   });
 });
+
+
+describe('explicit GPS recovery', () => {
+  it('restarts a failed watcher on an explicit retry and ignores its retired callback', async () => {
+    const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
+    act(() => hook.result.current.requestLocation());
+    const oldSuccess = gps.watchPosition.mock.calls[0][0];
+    act(() => gps.watchPosition.mock.calls[0][1]({ code: 1, message: 'Permission denied' }));
+    expect(hook.result.current.locationDenied).toBe(true);
+    act(() => hook.result.current.requestLocation());
+    expect(gps.watchPosition).toHaveBeenCalledTimes(2);
+    expect(gps.clearWatch).toHaveBeenCalledWith(17);
+    await act(async () => oldSuccess(sample()));
+    expect(hook.result.current.coords).toBeNull();
+    await act(async () => gps.watchPosition.mock.calls[1][0](sample()));
+    expect(hook.result.current.coords).toEqual([10, 20]);
+    expect(hook.result.current.locationDenied).toBe(false);
+    expect(hook.result.current.sharingError).toBeNull();
+    expect(state.invoke.mock.calls.some(([, input]) => input.action === 'publishPosition')).toBe(false);
+  });
+  it('clears a permission error after successful local positioning in Ghost Mode', async () => {
+    const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
+    act(() => hook.result.current.requestLocation());
+    act(() => gps.watchPosition.mock.calls[0][1]({ code: 1, message: 'Permission denied' }));
+    expect(hook.result.current.sharingError).toMatch(/permission is denied/);
+    await act(async () => gps.watchPosition.mock.calls[0][0](sample()));
+    expect(hook.result.current.locationAvailable).toBe(true);
+    expect(hook.result.current.sharingError).toBeNull();
+    expect(hook.result.current.sharingEnabled).toBe(false);
+    expect(state.invoke.mock.calls.some(([, input]) => input.action === 'publishPosition')).toBe(false);
+  });
+});
+
+it('reports a failed coarse fallback and the explicit Retry action restarts GPS without enabling sharing', async () => {
+  const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
+  act(() => hook.result.current.requestLocation());
+  act(() => gps.watchPosition.mock.calls[0][1]({ code: 3, message: 'Timeout' }));
+  expect(gps.watchPosition).toHaveBeenCalledTimes(2);
+  act(() => gps.watchPosition.mock.calls[1][1]({ code: 2, message: 'Unavailable' }));
+  expect(hook.result.current.sharingError).toMatch(/could not get a location/);
+  act(() => hook.result.current.retrySharing());
+  await waitFor(() => expect(gps.watchPosition).toHaveBeenCalledTimes(3));
+  expect(hook.result.current.sharingEnabled).toBe(false);
+  expect(state.invoke.mock.calls.some(([, input]) => input.action === 'setSharing' || input.action === 'publishPosition')).toBe(false);
+  await act(async () => gps.watchPosition.mock.calls[2][0](sample()));
+  expect(hook.result.current.sharingError).toBeNull();
+});
+it('a local GPS success cannot clear an unconfirmed sharing publication error', async () => {
+  state.enabled = true;
+  state.invoke.mockImplementation(async (_, input) => input.action === 'publishPosition' ? { data: null, error: { code: 'unavailable', message: 'Share upload failed' } } : response(input));
+  const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
+  act(() => hook.result.current.requestLocation());
+  await act(async () => gps.watchPosition.mock.calls[0][0](sample()));
+  expect(hook.result.current.sharingError).toBe('Share upload failed');
+  await act(async () => gps.watchPosition.mock.calls[0][0](sample()));
+  expect(hook.result.current.locationAvailable).toBe(true);
+  expect(hook.result.current.sharingError).toBe('Share upload failed');
+  expect(hook.result.current.sharing).toBe(false);
+});
+it('a deferred fresh sample is retired when the user restarts GPS', async () => {
+  state.enabled = true;
+  const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
+  act(() => hook.result.current.requestLocation());
+  const fresh = gps.getCurrentPosition.mock.calls.find(([, , options]) => options.maximumAge === 0)![0];
+  act(() => hook.result.current.requestLocation());
+  await act(async () => fresh(sample()));
+  expect(state.invoke.mock.calls.some(([, input]) => input.action === 'publishPosition')).toBe(false);
+});

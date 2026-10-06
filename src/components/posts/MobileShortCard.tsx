@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, memo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { ProfileLink } from '@/components/profile/ProfileLink';
 import { MapPinDialogLoader } from '@/components/vybemap/MapPinDialogLoader';
@@ -31,7 +31,9 @@ import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { usePostReaction } from '@/hooks/usePostReaction';
 import { avatarInitial } from '@/lib/parseApiDate';
-import { playWithAudio } from '@/lib/videoPlayback';
+import { playWithAudio, cancelVideoAudioUnlock } from '@/lib/videoPlayback';
+import { applyConfirmedPostView } from '@/lib/postViewService';
+import { usePostMutations } from '@/hooks/usePostMutations';
 import { isVideoPostMedia } from '@/lib/isVideoPostMedia';
 import { PausedMuteButton } from '@/components/video/PausedMuteButton';
 
@@ -72,6 +74,7 @@ export const MobileShortCard = memo(function MobileShortCard({
   immersiveFlow = false,
 }: MobileShortCardProps) {
   const { profile } = useAuth();
+  const postActions = usePostMutations(post.id);
   const queryClient = useQueryClient();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -118,6 +121,15 @@ export const MobileShortCard = memo(function MobileShortCard({
   const signedAvatarUrl = useSignedUrl(post.author.avatar_url);
 
   const isVideo = isVideoPostMedia(post);
+  const playbackContext = useMemo(() => ({ active: isActive && !isHolding }), [isActive, signedMediaUrl, isHolding, globalMuted]);
+  useEffect(() => {
+    playbackContext.active = isActive && !isHolding;
+    const video = videoRef.current;
+    return () => {
+      playbackContext.active = false;
+      if (video) { cancelVideoAudioUnlock(video); video.pause(); }
+    };
+  }, [playbackContext]);
 
   // Sync with global mute state
   useEffect(() => {
@@ -149,6 +161,7 @@ export const MobileShortCard = memo(function MobileShortCard({
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !signedMediaUrl || !isVideo) return;
+    let current = true;
 
     // Clear any pending play attempts
     if (playAttemptRef.current) {
@@ -169,8 +182,8 @@ export const MobileShortCard = memo(function MobileShortCard({
         if (userPausedRef.current) return;
         video.playsInline = true;
         hasInitializedRef.current = true;
-        void playWithAudio(video, globalMuted, () => setIsMuted(false)).then((result) => {
-          if (result === 'blocked' || userPausedRef.current) return;
+        void playWithAudio(video, globalMuted, () => setIsMuted(false), () => current && !userPausedRef.current).then((result) => {
+          if (!current || result === 'blocked' || userPausedRef.current) return;
           setIsMuted(result !== 'sound');
           setIsPlaying(true);
           if (!hasCountedInitialView.current && profile) {
@@ -190,25 +203,17 @@ export const MobileShortCard = memo(function MobileShortCard({
     }
 
     return () => {
+      current = false;
+      cancelVideoAudioUnlock(video);
+      video.pause();
       if (playAttemptRef.current) {
         clearTimeout(playAttemptRef.current);
       }
     };
-  }, [isActive, signedMediaUrl, isVideo, globalMuted, profile]);
+  }, [isActive, signedMediaUrl, isVideo, globalMuted, profile, isHolding]);
 
   const incrementViewCount = async () => {
-    try {
-      const { error } = await db.rpc('increment_view_count', { post_id_param: post.id });
-      if (error) {
-        console.error('RPC error:', error);
-        // Fallback: optimistically update local state
-        setViewCount(prev => prev + 1);
-      }
-    } catch (error) {
-      console.error('Failed to increment view count:', error);
-      // Fallback: optimistically update local state  
-      setViewCount(prev => prev + 1);
-    }
+    await applyConfirmedPostView(postActions.actor, post.id, postActions.guard, setViewCount);
   };
 
   // Handle video loop/repeat - count each replay as a view
@@ -284,12 +289,12 @@ export const MobileShortCard = memo(function MobileShortCard({
     singleTapTimer.current = setTimeout(() => {
       singleTapTimer.current = null;
       const video = videoRef.current;
-      if (!video) return;
+      if (!video || !playbackContext.active) return;
       if (video.paused) {
         userPausedRef.current = false;
         setPausedByTap(false);
-        void playWithAudio(video, video.muted, () => setIsMuted(false)).then((result) => {
-          if (result === 'blocked') return;
+        void playWithAudio(video, video.muted, () => setIsMuted(false), () => playbackContext.active && !userPausedRef.current).then((result) => {
+          if (!playbackContext.active || result === 'blocked') return;
           setIsMuted(result !== 'sound');
           setIsPlaying(true);
         });
@@ -300,7 +305,7 @@ export const MobileShortCard = memo(function MobileShortCard({
         setPausedByTap(true);
       }
     }, 300);
-  }, [isHolding, currentReaction, handleReaction]);
+  }, [isHolding, currentReaction, handleReaction, playbackContext]);
 
   const handleBookmark = async () => {
     if (!profile) return;
