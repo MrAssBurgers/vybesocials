@@ -1,0 +1,9 @@
+# Existing session keep-alive lifecycle recovery
+
+Tested source: `9cf25b4469d46d4a344498ff8b0f276b9f549779`. Publication job: `8feac2b0-8ed2-49ff-854d-c8fe1df8c73e`.
+
+Existing session warm-up ignored a native pause while the WebView reported visible, continued delayed reads after pause or cleanup, and requested a token before stored-session restoration completed. It now guards the shared foreground phase, online state, installed lifetime and exact SDK account/generation. Same-phase work coalesces; real quick resumes start fresh reads. Listener removal clears visibility, native resume and persisted page-show handlers plus the interval. The existing twenty-minute interval and ten-minute expiry threshold remain. No Auth configuration, credentials, backend, Rules, sign-out, content or location/consent changes.
+
+Four original regression checks fail before. Nine actual keep-alive cases, related token/refresh/Auth checks and all 4,782 full tests pass, six skipped. App/native build, types and bundle limits pass; lint has zero errors and five existing warnings. Synthetic browser verification exercises the actual keep-alive module: native pause produces zero reads/refreshes, resume produces one each, removal followed by resume/visibility leaves both at one. No production credential/token request or physical phone persistence/performance certification.
+
+The hosting UI confirmed “Your website was updated.” Canonical metadata, pinned query runtime, entry bytes and nine routes match the tested source; the secondary address redirects to canonical rather than being independently hosted evidence. See `verification.json` for exact publication evidence. Overall launch readiness, current mounted/phone adoption, location sharing, clips, historical Firebase restoration and security review remain open.
