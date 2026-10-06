@@ -1,0 +1,9 @@
+{
+  "indexes": [],
+  "ttl": [
+    {
+      "collection": "_notification_preference_requests",
+      "field": "expireAt"
+    }
+  ]
+}

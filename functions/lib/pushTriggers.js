@@ -82,7 +82,7 @@ async function collectDmRecipientIds(conversationId, senderIds, conversation, me
     // read a mute flag from in that case, so muting isn't possible yet — once
     // sendDmMessage/ensureConversationMembershipAdmin backfills the member
     // rows, the primary path above takes over and mute suppression applies.
-    if (!recipientUserIds.size) {
+    if (membersSnap.docs.length === 0) {
         const memberIds = conversation.member_ids;
         if (Array.isArray(memberIds)) {
             for (const id of memberIds) {
@@ -94,7 +94,7 @@ async function collectDmRecipientIds(conversationId, senderIds, conversation, me
         }
     }
     // Deterministic 1:1 chats: profileA_profileB when membership rows are missing.
-    if (!recipientUserIds.size) {
+    if (membersSnap.docs.length === 0 && !recipientUserIds.size) {
         for (const senderId of senderIds) {
             const other = inferOtherParticipantId(conversationId, senderId, senderIds);
             if (other && !isSenderMember(senderIds, other)) {
