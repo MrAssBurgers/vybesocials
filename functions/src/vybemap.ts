@@ -42,7 +42,7 @@ export const aggregateVybeHeatmap = onSchedule('every 15 minutes', async () => {
 });
 
 /** Emergency ghost — instant hide from all maps. */
-export const emergencyGhostMode = onCall(async (request) => {
+export const emergencyGhostMode = onCall({ cors: true, invoker: 'public', timeoutSeconds: 60 }, async (request) => {
   const uid = requireAuth(request);
   enforceRateLimit(await rateLimit(`location:${uid}:change`, 30, 60));
   return runLocationSharing(db, uid, { ...request.data, action: 'setSharing', enabled: false });

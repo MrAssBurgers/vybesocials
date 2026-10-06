@@ -16,7 +16,7 @@ import { trackMapEvent } from '@/lib/vybemap/analytics';
 import { isValidLatLng, distanceMeters } from '@/lib/vybemap/geo';
 import { type LiveFriend, type MapPlace, type MapMeetup } from '@/lib/vybemap/types';
 import {
-  useMapLayers, useMapViewMode, useMapFollowHeading, useFriendIds, useLiveFriends, useMapStories, useMapPosts,
+  useMapLayers, useMapViewMode, useMapFollowHeading, useLiveFriends, useMapStories, useMapPosts,
   useMapClips, useMapMeetups, useMapHeatmap, useMapPlaces, useMapEventPins,
   useFriendRadar, useStartFindFriend, useCreateMapSpot, useLogLocationAccess,
   useFriendCheckIns, useCreateMeetup,
@@ -119,15 +119,15 @@ function VybeMapInner() {
   const useMapbox = !flatFallback;
 
   const { layers, toggleLayer, setLayers } = useMapLayers();
-  const friendQuery = useFriendIds(profileId ?? profile?.id);
-  const friendIds = friendQuery.data;
-  const liveQuery = useLiveFriends(friendIds);
+  // Both checked services resolve relationships themselves. An unrelated raw
+  // friendship read must not block admitted locations or add startup requests.
+  const liveQuery = useLiveFriends([]);
   const friends = liveQuery.data;
   const locationScope = JSON.stringify([locationAccount.session.uid, locationAccount.session.epoch]);
   const locationView = useRef({ scope: locationScope, friends });
   locationView.current = { scope: locationScope, friends };
   const routeWork = useRef(0);
-  const checkInsQuery = useFriendCheckIns(friendIds);
+  const checkInsQuery = useFriendCheckIns([]);
   const friendCheckIns = checkInsQuery.data || [];
   const { data: stories = [] } = useMapStories(layers.stories);
   const postsQuery = useMapPosts(layers.posts);
@@ -797,10 +797,10 @@ function VybeMapInner() {
         checkInsState={checkInsQuery}
         postsState={layers.posts ? postsQuery : undefined}
         clipsState={layers.clips ? clipsQuery : undefined}
-        friendsLoading={friendQuery.isLoading || liveQuery.isLoading}
+        friendsLoading={liveQuery.isLoading}
         mapAttribution={<>{useMapbox && <><a href="https://www.mapbox.com/about/maps/" target="_blank" rel="noopener" className="underline">© Mapbox</a>{' · '}</>}<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" className="underline">© OpenStreetMap contributors</a>{useMapbox && <>{' · '}<a href="https://apps.mapbox.com/feedback/" target="_blank" rel="noopener" className="underline">Improve this map</a></>}</>}
-        friendsError={friendQuery.isError || liveQuery.isError}
-        onRetryFriends={() => { void friendQuery.refetch(); void liveQuery.refetch(); }}
+        friendsError={liveQuery.isError}
+        onRetryFriends={() => { void liveQuery.refetch(); }}
         stories={stories}
         posts={posts}
         clips={clips}

@@ -1,0 +1,73 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "_location_requests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "participant_uids",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expires_at_ms",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "_location_requests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "pair_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expires_at_ms",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "_location_grants",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "active",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expires_at_ms",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "_location_grants",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "participant_uids",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "active",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expires_at_ms",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "ttl": []
+}

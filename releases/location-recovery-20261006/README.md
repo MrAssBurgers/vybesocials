@@ -1,0 +1,13 @@
+# Existing mobile location-sharing recovery
+
+Production `manageLocationSharing` was missing (404). Released that checked current-client boundary and `emergencyGhostMode` only, retaining mandatory authenticated UID/canonical profile binding, request identities, revisions, quotas, friendship/block checks, directional consent and immediate access/sample expiry. The original Mapbox world map is unchanged.
+
+The exact prior active baseline was `00d7a6c4-2633-4da1-8045-daea63d99d89`, SHA256 `6217f4c3bcd40a9e43e5af69980844a1945e3dab7fe099c9986d5921388aa924`. The adjacent candidate changes only five location blocks (`user_locations`, `user_live_locations`, `location_history`, `location_shares`, `heatmap_tiles`) plus the reviewed collision-checked history-owner helper. Other release slices remain intact. Protected `_location_*` collections were already default-denied.
+
+Active ruleset `517c66cb-d84b-4cda-9a69-e40d2216d475`, SHA256 `1531ca50646c2708f49cead40f372eb1f428ef8fb61a18aae491f6f908a19be4`, independently reread from Google's Rules API. The activation request returned 503, but read-back confirmed it committed; it was not blindly recreated or reapplied. Both named Functions successfully deployed and public probes return callable 401 UNAUTHENTICATED.
+
+Four exact additive indexes are listed in `resources.json`; do not delete others. No TTL policy is added: canonical revision state and durable mutation receipts must not be expired as cursor cleanup. Raw current/historical locations and global exact-coordinate heatmaps are closed to browsers, including staff. Private history remains canonical-owner create/read/delete, immutable and coordinate-validated. No historical data was deleted or copied into grants.
+
+Validation: Functions build; exact candidate passed 20 backend groups and 189 raw Rules checks using isolated `demo-vybe-contacts-qa` Firestore 8387. Includes precision, grant direction, revocation, expiry, lost replies, concurrency, collision checks and legacy denial. Test fixtures never touch retained preview 8280 or production GPS.
+
+Scope limits: legacy action-wrapper entry points and scheduled cleanup jobs were not redeployed in this slice; their current production parity still needs review. Access expiry does not depend on those jobs. Legacy grants and public booleans are not consent: users must deliberately request/accept sharing and enable location updates on their devices. No production GPS permission was granted, no coordinates submitted, and no request sent to a real friend. Check-ins/meetups use a separate `manageMapSocial` service and are still being investigated. Physical mobile pause/resume/foreground, GPS permission and request/accept walkthrough remain required before claiming readiness.

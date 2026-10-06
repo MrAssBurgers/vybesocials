@@ -9,32 +9,6 @@ interface ClipVideoProgressProps {
 }
 
 const WAVE_BAR_COUNT = 8;
-const AUDIO_CTX_KEY = '__vybeClipAudio';
-
-type ClipAudioState = {
-  ctx: AudioContext;
-  analyser: AnalyserNode;
-};
-
-function getClipAudio(video: HTMLVideoElement): ClipAudioState | null {
-  const cached = (video as HTMLVideoElement & { [AUDIO_CTX_KEY]?: ClipAudioState })[AUDIO_CTX_KEY];
-  if (cached) return cached;
-
-  try {
-    const ctx = new AudioContext();
-    const source = ctx.createMediaElementSource(video);
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 64;
-    analyser.smoothingTimeConstant = 0.82;
-    source.connect(analyser);
-    analyser.connect(ctx.destination);
-    const state = { ctx, analyser };
-    (video as HTMLVideoElement & { [AUDIO_CTX_KEY]?: ClipAudioState })[AUDIO_CTX_KEY] = state;
-    return state;
-  } catch {
-    return null;
-  }
-}
 
 export const ClipVideoProgress = memo(function ClipVideoProgress({
   videoRef,
@@ -45,7 +19,6 @@ export const ClipVideoProgress = memo(function ClipVideoProgress({
   const fillRef = useRef<HTMLDivElement>(null);
   const waveRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const rafRef = useRef<number | null>(null);
-  const freqDataRef = useRef<Uint8Array | null>(null);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -59,16 +32,9 @@ export const ClipVideoProgress = memo(function ClipVideoProgress({
       return;
     }
 
-    let audio: ClipAudioState | null = null;
-    if (!isMuted) {
-      audio = getClipAudio(video);
-      audio?.ctx.resume().catch(() => {});
-      if (audio) {
-        freqDataRef.current = new Uint8Array(audio.analyser.frequencyBinCount);
-      }
-    }
-
-    const tick = () => {
+    // Decorative bars must never reroute media audio: cross-origin sources
+    // can become silent, and a processor per swiped clip retains resources.
+    const paint = () => {
       const duration = video.duration;
       const progress =
         duration && Number.isFinite(duration) && duration > 0
@@ -77,38 +43,41 @@ export const ClipVideoProgress = memo(function ClipVideoProgress({
 
       fill.style.transform = `scaleX(${progress})`;
 
-      if (audio && freqDataRef.current && !video.paused && !isMuted) {
-        audio.analyser.getByteFrequencyData(freqDataRef.current as any);
-        const data = freqDataRef.current;
-        const step = Math.max(1, Math.floor(data.length / WAVE_BAR_COUNT));
-
-        for (let i = 0; i < WAVE_BAR_COUNT; i++) {
-          const bar = waveRefs.current[i];
-          if (!bar) continue;
-          const sample = data[i * step] / 255;
-          const height = 0.18 + sample * 0.82;
-          bar.style.transform = `scaleY(${height})`;
-          bar.style.opacity = `${0.35 + sample * 0.55}`;
-        }
-      } else {
-        waveRefs.current.forEach((bar, i) => {
-          if (!bar) return;
-          const idle = 0.15 + Math.sin(Date.now() / 280 + i * 0.7) * 0.06;
-          bar.style.transform = `scaleY(${idle})`;
-          bar.style.opacity = '0.25';
-        });
-      }
-
-      rafRef.current = requestAnimationFrame(tick);
+      waveRefs.current.forEach((bar, i) => {
+        if (!bar) return;
+        const moving = !video.paused && !isMuted && document.visibilityState !== 'hidden';
+        const height = moving ? 0.3 + (Math.sin(video.currentTime * 4 + i * 0.7) + 1) * 0.2 : 0.15;
+        bar.style.transform = `scaleY(${height})`;
+        bar.style.opacity = moving ? '0.6' : '0.25';
+      });
     };
-
-    rafRef.current = requestAnimationFrame(tick);
+    const stop = () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    };
+    const tick = () => {
+      rafRef.current = null;
+      paint();
+      if (!video.paused && document.visibilityState !== 'hidden') rafRef.current = requestAnimationFrame(tick);
+    };
+    const sync = () => {
+      stop(); paint();
+      if (!video.paused && document.visibilityState !== 'hidden') rafRef.current = requestAnimationFrame(tick);
+    };
+    video.addEventListener('play', sync);
+    video.addEventListener('pause', sync);
+    video.addEventListener('loadedmetadata', sync);
+    video.addEventListener('seeked', sync);
+    document.addEventListener('visibilitychange', sync);
+    sync();
 
     return () => {
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
+      stop();
+      video.removeEventListener('play', sync);
+      video.removeEventListener('pause', sync);
+      video.removeEventListener('loadedmetadata', sync);
+      video.removeEventListener('seeked', sync);
+      document.removeEventListener('visibilitychange', sync);
     };
   }, [videoRef, isActive, isMuted]);
 

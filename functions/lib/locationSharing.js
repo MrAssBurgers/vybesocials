@@ -8,7 +8,7 @@ async function dispatch(uid, raw) {
     enforceRateLimit(await rateLimit(`location:${uid}:${input.action === 'read' ? 'read' : input.action === 'publishPosition' ? 'position' : 'change'}`, input.action === 'read' || input.action === 'publishPosition' ? 60 : 30, 60));
     return runLocationSharing(db, uid, input);
 }
-export const manageLocationSharing = onCall({ region: 'us-central1', timeoutSeconds: 60 }, request => dispatch(requireAuth(request), request.data));
+export const manageLocationSharing = onCall({ cors: true, invoker: 'public', region: 'us-central1', timeoutSeconds: 60 }, request => dispatch(requireAuth(request), request.data));
 // Keep named deployed entry points strict during cutover. Old unbound inputs
 // fail clearly instead of reviving the former raw/legacy authority.
 const actionCallable = (action) => onCall({ region: 'us-central1', timeoutSeconds: 60 }, request => dispatch(requireAuth(request), { ...request.data, action }));
