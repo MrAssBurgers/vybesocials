@@ -209,5 +209,28 @@ await check('prepared callable wrappers use the room contract and reject guest/c
   assert.equal(processSpaceAudioEffect.__endpoint.eventTrigger.retry, true);
   assert.equal(processSpaceAudioEffect.__endpoint.timeoutSeconds, 480);
 });
+await check('scheduled rooms reject premature admission and allow only the current host to start', async () => {
+  const room = await change(host, 'create', { title: 'Scheduled lifecycle', scheduledAt: new Date(Date.now() + 3600000).toISOString() });
+  const id = room.space.id;
+  await assert.rejects(call(host, 'audio', { spaceId: id }), { code: 'failed-precondition' });
+  await assert.rejects(change(listener, 'join', { spaceId: id, revision: 0 }), { code: 'failed-precondition' });
+  await assert.rejects(change(listener, 'start', { spaceId: id, revision: room.space.revision }), { code: 'permission-denied' });
+  await assert.rejects(change(host, 'start', { spaceId: id, revision: 0 }), { code: 'failed-precondition' });
+  const details = { requestId: randomUUID(), spaceId: id, revision: room.space.revision };
+  const started = await call(host, 'start', details);
+  assert.equal(started.space.status, 'live'); assert.equal(started.space.revision, 2); assert.equal(started.participant.is_muted, true);
+  assert.deepEqual(await call(host, 'start', details), started);
+  assert.equal((await db.doc(`spaces/${id}`).get()).data().status, 'live');
+  assert.equal((await call(host, 'audio', { spaceId: id })).canPublish, true);
+  await assert.rejects(change(host, 'start', { spaceId: id, revision: 2 }), { code: 'failed-precondition' });
+});
+await check('ending a room cannot create another close job after a confirmed end', async () => {
+  const room = await change(host, 'create', { title: 'End is terminal' });
+  const details = { requestId: randomUUID(), spaceId: room.space.id, revision: room.space.revision };
+  const ended = await call(host, 'end', details);
+  assert.deepEqual(await call(host, 'end', details), ended);
+  await assert.rejects(change(host, 'end', { spaceId: room.space.id, revision: ended.space.revision }), { code: 'failed-precondition' });
+  await sync(db, ended.audioEffectId, audioProvider);
+});
 console.log(JSON.stringify({ checks, projectId, productionWrites: false, scope: 'Isolated domain, worker coordination and prepared callable contracts; live trigger delivery, UI, real provider mutation and historical restoration remain unverified.' }));
 await db.terminate();

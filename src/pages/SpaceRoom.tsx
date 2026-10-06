@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { useSpace, useSpaceParticipants, useJoinSpace, useLeaveSpace, useEndSpace, useUpdateParticipantRole, useSetSpaceMute, useRaiseHand } from '@/hooks/useSpaces';
+import { useSpace, useSpaceParticipants, useJoinSpace, useLeaveSpace, useEndSpace, useUpdateParticipantRole, useSetSpaceMute, useRaiseHand, useStartSpace } from '@/hooks/useSpaces';
 import { useSpaceAudio } from '@/hooks/useSpaceAudio';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ export default function SpaceRoom() {
   const joinSpace = useJoinSpace();
   const leaveSpace = useLeaveSpace();
   const endSpace = useEndSpace();
+  const startSpace = useStartSpace();
   const updateRole = useUpdateParticipantRole();
   const setSpaceMute = useSetSpaceMute();
   const raiseHand = useRaiseHand();
@@ -66,9 +67,10 @@ export default function SpaceRoom() {
   const handleLeave = useCallback(async () => {
     if (!spaceId) return;
     triggerHaptic('medium');
+    if (!isInSpace) { await audio.disconnect(); navigate('/spaces'); return; }
     setLeaving(true); await audio.disconnect();
     try { await leaveSpace.mutateAsync(spaceId); navigate('/spaces'); } catch (error) { notifyError(error); } finally { setLeaving(false); }
-  }, [spaceId, leaveSpace, navigate, audio]);
+  }, [spaceId, leaveSpace, navigate, audio, isInSpace]);
 
   const handleEnd = useCallback(async () => {
     if (!spaceId) return;
@@ -138,6 +140,20 @@ export default function SpaceRoom() {
     );
   }
 
+  if (space.status === 'scheduled') {
+    return <AppLayout hideNav><div className="flex flex-col items-center justify-center min-h-screen gap-4 p-6 text-center">
+      <Radio className="h-12 w-12 text-primary" /><h1 className="text-xl font-bold">{space.title}</h1>
+      <p className="text-muted-foreground">This space hasn’t started yet.</p>
+      {space.scheduled_at && <p>{new Date(space.scheduled_at).toLocaleString()}</p>}
+      {isHost && <Button disabled={startSpace.isPending} onClick={async () => {
+        if (!spaceId) return;
+        try { await startSpace.mutateAsync(spaceId); toast.success('Your space is live. Your microphone is muted.'); } catch (error) { notifyError(error); }
+      }}>{startSpace.isPending ? 'Starting…' : 'Start this space'}</Button>}
+      {isHost && <Button variant="outline" disabled={leaving} onClick={handleEnd}>Cancel this space</Button>}
+      <Button variant="ghost" onClick={() => navigate('/spaces')}>Back to Spaces</Button>
+    </div></AppLayout>;
+  }
+
   return (
     <AppLayout hideNav noPadding>
       <div className="flex flex-col h-full bg-gradient-to-b from-background via-background to-card/30">
@@ -146,7 +162,7 @@ export default function SpaceRoom() {
           className="flex items-center justify-between p-4 border-b border-border/50"
           style={{ paddingTop: 'calc(var(--sat, 0px) + 1rem)' }}
         >
-          <Button variant="ghost" size="icon" disabled={leaving} onClick={handleLeave}>
+          <Button aria-label="Leave space" variant="ghost" size="icon" disabled={leaving} onClick={handleLeave}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           
@@ -263,7 +279,7 @@ export default function SpaceRoom() {
                       <AvatarFallback>{req.profile?.username?.[0]?.toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <span className="flex-1 text-sm">{req.profile?.username}</span>
-                    <Button size="sm" variant="ghost" disabled={updateRole.isPending || req.audio_pending} onClick={() => handlePromoteToSpeaker(req.id)}>
+                    <Button size="sm" variant="ghost" aria-label={`Invite ${req.profile?.display_name || req.profile?.username || 'participant'} to speak`} disabled={updateRole.isPending || req.audio_pending} onClick={() => handlePromoteToSpeaker(req.id)}>
                       <UserPlus className="h-4 w-4" />
                     </Button>
                   </div>
@@ -293,6 +309,7 @@ export default function SpaceRoom() {
                 variant={isMuted ? 'destructive' : 'default'}
                 size="lg"
                 className="rounded-full h-14 w-14"
+                aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
                 disabled={audio.state !== 'connected' || !audio.canPublish || setSpaceMute.isPending || leaving} onClick={handleToggleMute}
               >
                 {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}

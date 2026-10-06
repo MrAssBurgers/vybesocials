@@ -7,7 +7,7 @@ import { resolveIdentity, validAudienceId, type AudienceIdentity } from './profi
 type Row = Record<string, unknown>;
 type Actor = AudienceIdentity & { binding: string; created: number };
 type Role = 'host' | 'co_host' | 'speaker' | 'listener' | 'requested';
-const actions = ['list', 'read', 'create', 'join', 'leave', 'mute', 'hand', 'role', 'end', 'audio'] as const;
+const actions = ['list', 'read', 'create', 'join', 'leave', 'mute', 'hand', 'role', 'end', 'start', 'audio'] as const;
 type Action = typeof actions[number];
 export type SpaceInput = Row & { action: Action; expectedOwnerUid: string; expectedProfileId: string };
 const object = (v: unknown): v is Row => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -41,7 +41,7 @@ export function normalizeSpaceInput(raw: unknown, uid: string): SpaceInput {
     list: ['status'], read: ['spaceId'], create: ['requestId', 'title', 'description', 'tags', 'scheduledAt'],
     join: ['requestId', 'spaceId', 'revision', 'role'], leave: ['requestId', 'spaceId', 'revision'],
     mute: ['requestId', 'spaceId', 'revision', 'isMuted'], hand: ['requestId', 'spaceId', 'revision', 'raised'],
-    role: ['requestId', 'spaceId', 'revision', 'participantId', 'role'], end: ['requestId', 'spaceId', 'revision'], audio: ['spaceId'],
+    role: ['requestId', 'spaceId', 'revision', 'participantId', 'role'], end: ['requestId', 'spaceId', 'revision'], start: ['requestId', 'spaceId', 'revision'], audio: ['spaceId'],
   };
   const action = raw.action as Action;
   if (Object.keys(raw).some(key => !['action', 'expectedOwnerUid', 'expectedProfileId', ...fields[action]].includes(key))) throw new HttpsError('invalid-argument', 'Unexpected room details.');
@@ -164,7 +164,15 @@ export async function manageSpaceAuthority(db: Firestore, auth: Pick<Auth, 'getU
       return { ...base, space: roomView(stored), participants: visible.filter(participant => participant !== null),
         participant: owns(member, actor) ? memberView({ ...member, profile: profileView(actor) }) : null };
     }
-    if (stored.status !== 'live' && input.action !== 'end') throw fail();
+    if (input.action === 'start') {
+      if (!owns(stored, actor)) throw denied();
+      if (stored.status !== 'scheduled' || input.revision !== stored.revision || !member || !owns(member, actor)
+        || member.left_at !== null || member.role !== 'host' || member.audio_pending === true) throw fail();
+      const started = { ...stored, status: 'live', started_at: stamp, revision: Number(stored.revision) + 1 };
+      tx.set(roomRef, started); tx.set(db.doc(`spaces/${id}`), roomView(started));
+      return saveReceipt({ ...base, space: roomView(started), participant: memberView(member) });
+    }
+    if (stored.status === 'ended' || (stored.status !== 'live' && input.action !== 'end')) throw fail();
     if (input.action === 'audio') {
       if (!member || member.version !== 1 || !owns(member, actor) || member.left_at !== null) throw denied();
       if (member.audio_pending === true) throw new HttpsError('unavailable', 'The audio change is still being confirmed. Please retry.');

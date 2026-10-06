@@ -103,7 +103,7 @@ function useRoomMutation<I, O>(action: string, prepare: (input: I) => { intent: 
           queryFn: ({ signal }) => spaceAuthorityRequest<RoomRead>(actor, { action: 'read', spaceId: prepared.spaceId }, signal),
         });
         guard();
-        revision = action === 'end' ? snapshot.space.revision : action === 'role'
+        revision = ['end', 'start'].includes(action) ? snapshot.space.revision : action === 'role'
           ? snapshot.participants.find(p => p.id === prepared.participantId)?.revision
           : snapshot.participant?.revision ?? 0;
         if (revision === undefined) throw new Error('Refresh the participants before changing this room.');
@@ -128,3 +128,5 @@ export function useSetSpaceMute() { return useRoomMutation<{ spaceId: string; is
 export function useRaiseHand() { return useRoomMutation<{ spaceId: string; raised: boolean }, unknown>('hand', input => ({ intent: { ...input }, spaceId: input.spaceId })); }
 export function useUpdateParticipantRole() { return useRoomMutation<{ participantId: string; spaceId: string; role: string }, unknown>('role', input => ({ intent: { ...input }, spaceId: input.spaceId, participantId: input.participantId })); }
 export function useEndSpace() { return useRoomMutation<string, unknown>('end', spaceId => ({ intent: { spaceId }, spaceId })); }
+
+export function useStartSpace() { return useRoomMutation<string, unknown>('start', spaceId => ({ intent: { spaceId }, spaceId })); }

@@ -1,0 +1,58 @@
+{
+  "project": "vybe-daaab",
+  "verified_at": "2026-10-06T13:31:01.737191+00:00",
+  "indexes": [
+    {
+      "collection": "_space_authority",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "created_at",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "READY",
+      "name": "projects/vybe-daaab/databases/(default)/collectionGroups/_space_authority/indexes/CICAgNiZuIYK"
+    },
+    {
+      "collection": "_space_members",
+      "fields": [
+        {
+          "fieldPath": "space_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "left_at",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "joined_at",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "READY",
+      "name": "projects/vybe-daaab/databases/(default)/collectionGroups/_space_members/indexes/CICAgPjfjpYK"
+    },
+    {
+      "collection": "_space_members",
+      "fields": [
+        {
+          "fieldPath": "space_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "audio_pending",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "READY",
+      "name": "projects/vybe-daaab/databases/(default)/collectionGroups/_space_members/indexes/CICAgLiTzYUK"
+    }
+  ],
+  "firestore_rules_sha256": "f7be92e5abb8fa5fb8c8a9fc263440a3478a0e9829b92c84d0085402df999f78",
+  "rules_changed": false,
+  "functions_deployed": false
+}
