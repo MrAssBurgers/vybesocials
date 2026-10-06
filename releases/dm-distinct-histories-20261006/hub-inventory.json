@@ -1,0 +1,47 @@
+{
+  "readOnly": true,
+  "globalCounts": [
+    {
+      "collection": "posts",
+      "count": 15
+    },
+    {
+      "collection": "servers",
+      "count": 5
+    },
+    {
+      "collection": "channels",
+      "count": 7
+    },
+    {
+      "collection": "channel_messages",
+      "count": 2
+    },
+    {
+      "collection": "server_members",
+      "count": 12
+    },
+    {
+      "collection": "conversations",
+      "count": 59
+    },
+    {
+      "collection": "conversation_members",
+      "count": 255
+    },
+    {
+      "collection": "messages",
+      "count": 984
+    }
+  ],
+  "designatedScope": {
+    "designatedOwnerServerCount": 1,
+    "activeCurrentAdmissionCount": 0,
+    "invalidActiveGrants": 0
+  },
+  "limits": [
+    "Canonical counts correct earlier obsolete server_channels/root-admission inventory",
+    "Counts and raw roles do not prove user admission or protected historical ownership",
+    "No seeded/replaced channels, grants or messages"
+  ]
+}

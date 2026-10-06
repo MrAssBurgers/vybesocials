@@ -1,0 +1,69 @@
+{
+  "testedMain": "4335cbc043d675722a2428c47f09b57de24e54b9",
+  "deploymentId": "6e7ca9e7-8dfe-4ee6-9385-66c8158716de",
+  "source": [
+    {
+      "host": "https://vybehub.app",
+      "resolvedOrigin": "https://vybehub.app",
+      "redirected": false,
+      "routes": [
+        "/",
+        "/home",
+        "/map",
+        "/clips",
+        "/onboarding",
+        "/spaces",
+        "/space/qa-route-check",
+        "/messages",
+        "/community"
+      ],
+      "sourceSha": "1d357332b2ea8beaf126aea4e454b4171c4e389586a164ee0f7f386de6cc25aa",
+      "schema": "vybe-client-source-v2",
+      "files": 2580,
+      "built": "2026-10-06T15:01:56.448Z",
+      "entry": "/assets/app-VmIIE18g.js",
+      "entrySha": "2117816d468d87a4529f9dee4e72e500d2afabaaec7739265d6514d039ce7e4f"
+    },
+    {
+      "host": "https://vybesocials.lovable.app",
+      "resolvedOrigin": "https://vybehub.app",
+      "redirected": true,
+      "routes": [
+        "/",
+        "/home",
+        "/map",
+        "/clips",
+        "/onboarding",
+        "/spaces",
+        "/space/qa-route-check",
+        "/messages",
+        "/community"
+      ],
+      "sourceSha": "1d357332b2ea8beaf126aea4e454b4171c4e389586a164ee0f7f386de6cc25aa",
+      "schema": "vybe-client-source-v2",
+      "files": 2580,
+      "built": "2026-10-06T15:01:56.448Z",
+      "entry": "/assets/app-VmIIE18g.js",
+      "entrySha": "2117816d468d87a4529f9dee4e72e500d2afabaaec7739265d6514d039ce7e4f"
+    }
+  ],
+  "tests": {
+    "focused": 25,
+    "newLoaderRegressions": 3,
+    "skipped": 6,
+    "newMergeRegressions": 2,
+    "passed": 4763
+  },
+  "initialBundle": {
+    "gzipKb": 333.1,
+    "rawKb": 1098.0
+  },
+  "publisherObserved": "Your website was updated",
+  "proof": "outputs/vybe-dm-history-published.png",
+  "renderedProof": "outputs/vybe-dm-history-check.png",
+  "limits": [
+    "Synthetic rows verify loader/merge/render and selection, not all production histories",
+    "Historical identity/admission and mobile delivery remain open",
+    "No message, membership, account, Rules or Storage mutations"
+  ]
+}
