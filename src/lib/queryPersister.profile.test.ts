@@ -31,6 +31,16 @@ function snapshot(): PersistedClient {
 }
 
 describe('private profile sections never enter or return from shared disk query storage', () => {
+  it('never saves or revives parental settings from a shared disk snapshot', () => {
+    const client = new QueryClient();
+    client.setQueryData(['parental-controls', 'alice', 1], { user_id: 'alice', has_pin: true, is_active: true });
+    client.setQueryData(['parental-controls', 'alice'], { user_id: 'alice', has_pin: true });
+    const value = { timestamp: Date.now(), buster: 'fixture', clientState: dehydrate(client) };
+    expect(shouldPersistQueryKey(['parental-controls', 'alice', 1], { has_pin: true })).toBe(false);
+    expect(JSON.parse(state.options!.serialize(value)).clientState.queries).toHaveLength(0);
+    expect(state.options!.deserialize(JSON.stringify(value)).clientState.queries).toHaveLength(0);
+    client.clear();
+  });
   it('strips previous suggestion snapshots and excludes fresh checked discovery from disk', () => {
     const client = new QueryClient();
     const roots = ['people-discovery', 'quick-add-general', 'suggested-friends'];

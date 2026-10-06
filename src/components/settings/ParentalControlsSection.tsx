@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { motion } from 'framer-motion';
 import { Shield, Lock, Clock, Eye, MessageCircle, Bell, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,9 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
+import { Input } from '@/components/ui/input';
+import { reportAccountSnapshot, reportAccountSubscribe } from '@/lib/reportModerationService';
+import type { ParentalUnlockProof } from '@/hooks/useParentalControls';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
 import {
@@ -31,23 +34,30 @@ const CHILD_SAFE_DEFAULTS = {
 };
 
 export function ParentalControlsSection() {
-  const { data: controls, isLoading } = useParentalControls();
+  const { data: controls, isLoading, isError, refetch } = useParentalControls();
+  const account = useSyncExternalStore(reportAccountSubscribe, reportAccountSnapshot, reportAccountSnapshot);
+  const [unlockProof, setUnlockProof] = useState<ParentalUnlockProof | null>(null);
   const { data: safety } = useSafetySettings();
   const setupMutation = useSetupParentalControls();
-  const updateMutation = useUpdateParentalControls();
+  const updateMutation = useUpdateParentalControls(unlockProof, () => setUnlockProof(null));
   const updateSafetyMutation = useUpdateSafetySettings();
   const { data: screenTimeSec } = useTodayScreenTime();
 
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
-  const [unlocked, setUnlocked] = useState(false);
+  const unlocked = !!unlockProof && unlockProof.uid === account.uid && unlockProof.epoch === account.epoch;
   const [verifyPinInput, setVerifyPinInput] = useState('');
+  const [screenLimitDraft, setScreenLimitDraft] = useState<number | null>(null);
   const verifyPinMutation = useVerifyParentalPin();
+  useEffect(() => {
+    setUnlockProof(null); setPin(''); setConfirmPin(''); setVerifyPinInput('');
+  }, [account.uid, account.epoch]);
+  useEffect(() => { setScreenLimitDraft(null); }, [controls?.max_screen_time_minutes, account.uid, account.epoch]);
 
 
   const hasControls = !!controls;
   const isActive = controls?.is_active ?? false;
-  const screenLimit = controls?.max_screen_time_minutes ?? 120;
+  const screenLimit = screenLimitDraft ?? controls?.max_screen_time_minutes ?? 120;
   const filterLevel = controls?.content_filter_level ?? 'protected';
   const dmFilter = safety?.dm_filter ?? 'friends_only';
   const messageRequestsEnabled = safety?.message_requests_enabled ?? false;
@@ -76,6 +86,13 @@ export function ParentalControlsSection() {
     );
   }
 
+  if (isError) {
+    return <div className="liquid-glass-card p-6">
+      <p className="mb-3 text-sm text-muted-foreground">Your parental controls could not be loaded. Try again before making changes.</p>
+      <Button variant="outline" onClick={() => void refetch()}>Try again</Button>
+    </div>;
+  }
+
   if (hasControls && !unlocked) {
     return (
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="liquid-glass-card p-6">
@@ -89,21 +106,19 @@ export function ParentalControlsSection() {
           </div>
         </div>
         <div className="flex flex-col items-center gap-4">
-          <InputOTP maxLength={4} value={verifyPinInput} onChange={setVerifyPinInput}>
-            <InputOTPGroup>
-              <InputOTPSlot index={0} />
-              <InputOTPSlot index={1} />
-              <InputOTPSlot index={2} />
-              <InputOTPSlot index={3} />
-            </InputOTPGroup>
-          </InputOTP>
+          <Input type="password" inputMode="numeric" autoComplete="off" maxLength={8}
+            aria-label="Parental PIN, four to eight digits" placeholder="Enter your PIN"
+            className="max-w-48 text-center tracking-widest" value={verifyPinInput}
+            onChange={event => setVerifyPinInput(event.target.value.replace(/\D/g, '').slice(0, 8))} />
           <Button
             onClick={async () => {
               if (!controls?.has_pin) return;
               try {
                 const ok = await verifyPinMutation.mutateAsync(verifyPinInput);
                 if (ok) {
-                  setUnlocked(true);
+                  const current = reportAccountSnapshot();
+                  if (!account.uid || current.uid !== account.uid || current.epoch !== account.epoch) return;
+                  setUnlockProof({ pin: verifyPinInput, uid: account.uid, epoch: account.epoch });
                   setVerifyPinInput('');
                   haptics.success();
                 } else {
@@ -111,14 +126,17 @@ export function ParentalControlsSection() {
                   haptics.error();
                   setVerifyPinInput('');
                 }
-              } catch {
-                toast.error('Could not verify PIN');
+              } catch (error) {
+                const current = reportAccountSnapshot();
+                if (current.uid !== account.uid || current.epoch !== account.epoch) return;
+                const code = String((error as { code?: string }).code ?? '').replace(/^functions\//, '');
+                toast.error(code === 'resource-exhausted' ? 'Too many PIN attempts. Wait five minutes and try again.' : 'Could not verify PIN');
                 setVerifyPinInput('');
               }
             }}
-            disabled={verifyPinInput.length !== 4 || verifyPinMutation.isPending}
+            disabled={verifyPinInput.length < 4 || verifyPinInput.length > 8 || verifyPinMutation.isPending}
           >
-            Unlock Controls
+            {verifyPinMutation.isPending ? 'Checking PIN...' : 'Unlock Controls'}
           </Button>
 
         </div>
@@ -164,7 +182,13 @@ export function ParentalControlsSection() {
             </div>
             <Slider
               value={[screenLimit]}
-              onValueChange={([val]) => updateMutation.mutate({ max_screen_time_minutes: val })}
+              onValueChange={([val]) => setScreenLimitDraft(val)}
+              onValueCommit={([val]) => updateMutation.mutate({ max_screen_time_minutes: val }, {
+                onError: () => {
+                  const current = reportAccountSnapshot();
+                  if (current.uid === account.uid && current.epoch === account.epoch) setScreenLimitDraft(null);
+                },
+              })}
               min={15}
               max={480}
               step={15}
@@ -283,7 +307,7 @@ export function ParentalControlsSection() {
             <Button type="button" onClick={applyChildSafeDefaults} className="flex-1">
               Re-apply Child Safe Defaults
             </Button>
-            <Button type="button" variant="outline" onClick={() => setUnlocked(false)} className="flex-1">
+            <Button type="button" variant="outline" onClick={() => { setUnlockProof(null); setVerifyPinInput(''); }} className="flex-1">
               Lock Again
             </Button>
           </div>
@@ -359,10 +383,13 @@ export function ParentalControlsSection() {
               },
             }, {
               onSuccess: () => {
+                const current = reportAccountSnapshot();
+                if (!account.uid || current.uid !== account.uid || current.epoch !== account.epoch) return;
                 applyChildSafeDefaults();
                 toast.success('Parental controls enabled!');
                 haptics.success();
-                setUnlocked(true);
+                setUnlockProof({ pin, uid: account.uid, epoch: account.epoch });
+                setPin(''); setConfirmPin('');
               },
               onError: () => {
                 toast.error('Failed to set up parental controls');

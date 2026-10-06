@@ -2,6 +2,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { httpsCallable, getFunctions } from 'firebase/functions';
 import { getApp } from 'firebase/app';
 import { useAuth } from '@/lib/auth';
+import { useSyncExternalStore } from 'react';
+import { reportAccountGuard, reportAccountSnapshot, reportAccountSubscribe } from '@/lib/reportModerationService';
+import { toast } from 'sonner';
 
 const fns = () => getFunctions(getApp());
 
@@ -41,16 +44,19 @@ export function verifyPin(_inputPin: string, _storedHash: string): boolean {
 
 export function useParentalControls() {
   const { user } = useAuth();
+  const account = useSyncExternalStore(reportAccountSubscribe, reportAccountSnapshot, reportAccountSnapshot);
 
   return useQuery({
-    queryKey: ['parental-controls', user?.id],
+    queryKey: ['parental-controls', user?.id, account.epoch],
     queryFn: async () => {
       if (!user) return null;
+      const guard = reportAccountGuard(user.id); guard();
       const call = httpsCallable<unknown, { controls: ParentalControls | null }>(
         fns(),
         'getParentalControlsSafe',
       );
       const res = await call({});
+      guard();
       const controls = res.data?.controls;
       if (!controls) return null;
       return {
@@ -61,7 +67,7 @@ export function useParentalControls() {
         allowed_features: controls.allowed_features ?? DEFAULT_PARENTAL_VALUES.allowed_features,
       } as ParentalControls;
     },
-    enabled: !!user,
+    enabled: !!user && account.uid === user.id,
   });
 }
 
@@ -70,45 +76,66 @@ export function useSetupParentalControls() {
   const { user } = useAuth();
 
   return useMutation({
+    retry: false, networkMode: 'always', gcTime: 0,
     mutationFn: async ({ pin, settings }: { pin: string; settings?: Partial<ParentalControls> }) => {
       if (!user) throw new Error('Not authenticated');
+      const guard = reportAccountGuard(user.id); guard();
       const call = httpsCallable<unknown, { ok: boolean; controls: ParentalControls }>(
         fns(),
         'setParentalPin',
       );
-      const res = await call({ pin, settings });
+      const res = await call({ pin, settings, expectedOwnerUid: user.id });
+      guard();
       return res.data.controls;
     },
     onSuccess: (data) => {
-      queryClient.setQueryData(['parental-controls', user?.id], data);
+      queryClient.setQueryData(['parental-controls', user?.id, reportAccountSnapshot().epoch], data);
       queryClient.invalidateQueries({ queryKey: ['parental-controls', user?.id] });
     },
   });
 }
 
-export function useUpdateParentalControls() {
+export interface ParentalUnlockProof { pin: string; uid: string; epoch: number }
+export function useUpdateParentalControls(proof?: ParentalUnlockProof | null, onUnlockExpired?: () => void) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
   return useMutation({
+    retry: false, networkMode: 'always', gcTime: 0,
     mutationFn: async (updates: Partial<ParentalControls>) => {
       if (!user) throw new Error('Not authenticated');
+      const started = reportAccountSnapshot(), guard = reportAccountGuard(user.id);
+      guard();
+      if (!proof || proof.uid !== user.id || proof.epoch !== started.epoch) throw new Error('Unlock parental controls again.');
       const call = httpsCallable<unknown, { ok: boolean }>(fns(), 'updateParentalControls');
-      await call({ updates });
+      await call({ updates, pin: proof.pin, expectedOwnerUid: user.id });
+      guard();
       return updates as ParentalControls;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['parental-controls', user?.id] });
+    },
+    onError: error => {
+      const current = reportAccountSnapshot();
+      if (current.uid !== user?.id || proof?.epoch !== current.epoch) return;
+      const code = String((error as { code?: string }).code ?? '').replace(/^functions\//, '');
+      if (['permission-denied', 'failed-precondition', 'resource-exhausted'].includes(code)) onUnlockExpired?.();
+      toast.error('Could not save parental controls. Unlock again and retry.');
     },
   });
 }
 
 /** Server-side PIN verification. Returns true iff the PIN matches. */
 export function useVerifyParentalPin() {
+  const { user } = useAuth();
   return useMutation({
+    retry: false, networkMode: 'always', gcTime: 0,
     mutationFn: async (pin: string) => {
+      if (!user) throw new Error('Not authenticated');
+      const guard = reportAccountGuard(user.id); guard();
       const call = httpsCallable<unknown, { ok: boolean }>(fns(), 'verifyParentalPin');
-      const res = await call({ pin });
+      const res = await call({ pin, expectedOwnerUid: user.id });
+      guard();
       return Boolean(res.data?.ok);
     },
   });
