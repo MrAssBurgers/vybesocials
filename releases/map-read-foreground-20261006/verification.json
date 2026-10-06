@@ -1,0 +1,67 @@
+{
+  "testedMain": "15db4eb2326f492c14e819f7a6a076c01e063884",
+  "deploymentId": "581d89a6-5456-4ff6-8e8e-9c7cff747171",
+  "source": [
+    {
+      "host": "https://vybehub.app",
+      "resolvedOrigin": "https://vybehub.app",
+      "redirected": false,
+      "routes": [
+        "/",
+        "/home",
+        "/map",
+        "/clips",
+        "/onboarding",
+        "/spaces",
+        "/space/qa-route-check",
+        "/messages",
+        "/community"
+      ],
+      "sourceSha": "e6696a643354936ae4ab0914d5576f59a89356f59d13763e84167a083f0e3f9d",
+      "schema": "vybe-client-source-v2",
+      "files": 2582,
+      "built": "2026-10-06T15:31:29.389Z",
+      "entry": "/assets/app-D9ceebTz.js",
+      "entrySha": "1d9c2be872537030e2ea0029554aafacf9208b003b098235bafab3d4f7e08849"
+    },
+    {
+      "host": "https://vybesocials.lovable.app",
+      "resolvedOrigin": "https://vybehub.app",
+      "redirected": true,
+      "routes": [
+        "/",
+        "/home",
+        "/map",
+        "/clips",
+        "/onboarding",
+        "/spaces",
+        "/space/qa-route-check",
+        "/messages",
+        "/community"
+      ],
+      "sourceSha": "e6696a643354936ae4ab0914d5576f59a89356f59d13763e84167a083f0e3f9d",
+      "schema": "vybe-client-source-v2",
+      "files": 2582,
+      "built": "2026-10-06T15:31:29.389Z",
+      "entry": "/assets/app-D9ceebTz.js",
+      "entrySha": "1d9c2be872537030e2ea0029554aafacf9208b003b098235bafab3d4f7e08849"
+    }
+  ],
+  "checks": {
+    "fullTests": {
+      "passed": 4769,
+      "skipped": 6
+    },
+    "focusedTests": 69,
+    "typecheck": "pass",
+    "build": "pass",
+    "lint": "0 errors, 5 existing warnings",
+    "budget": "1098.4 KB raw /333.3 KB gzip"
+  },
+  "browserProof": "Actual map sharing hook with synthetic transport: paused request count2 unchanged after retry and remount; foreground resume count3/current read confirmed. No GPS or production data writes.",
+  "limitations": [
+    "Physical phone token transport, location sharing, decoding and FPS not verified.",
+    "Previously inspected desktop signed-in document still old CGCcULTp; current client adoption remains unresolved."
+  ],
+  "publisherScreenshot": "outputs/vybe-map-read-published.png"
+}
