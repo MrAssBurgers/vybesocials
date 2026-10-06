@@ -55,6 +55,45 @@ beforeEach(() => {
 afterEach(() => { cleanup(); client.clear(); vi.restoreAllMocks(); });
 
 describe('actual mobile clip playback lifecycle', () => {
+  it('retries an active network-failed clip when connectivity returns', async () => {
+    const load = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+    const view = render(<MobileShortCard post={clip} isActive />, { wrapper });
+    await new Promise(resolve => setTimeout(resolve, 180));
+    const video = view.container.querySelector('video')!;
+    Object.defineProperty(video, 'error', { configurable: true, value: { code: 2 } });
+    fireEvent.error(video);
+    expect(screen.getByRole('button', { name: 'Retry clip' })).toBeInTheDocument();
+    fireEvent(window, new Event('online'));
+    await waitFor(() => expect(load).toHaveBeenCalledOnce());
+    await waitFor(() => expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(2));
+    fireEvent.loadedData(video);
+    expect(screen.queryByRole('button', { name: 'Retry clip' })).not.toBeInTheDocument();
+  });
+  it('does not reload a departed clip or automatically retry unsupported media', async () => {
+    const load = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+    const view = render(<MobileShortCard post={clip} isActive />, { wrapper });
+    const video = view.container.querySelector('video')!;
+    Object.defineProperty(video, 'error', { configurable: true, value: { code: 4 } });
+    fireEvent.error(video); fireEvent(window, new Event('online'));
+    expect(load).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry clip' }));
+    expect(load).toHaveBeenCalledOnce();
+    view.rerender(<MobileShortCard post={clip} isActive={false} />);
+    Object.defineProperty(video, 'error', { configurable: true, value: { code: 2 } });
+    fireEvent(window, new Event('online'));
+    expect(load).toHaveBeenCalledOnce();
+  });
+  it('recovers a network failure on foreground return without reloading in the background', async () => {
+    const load = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+    const view = render(<MobileShortCard post={clip} isActive />, { wrapper });
+    await new Promise(resolve => setTimeout(resolve, 180));
+    const video = view.container.querySelector('video')!;
+    actVisibility('hidden');
+    Object.defineProperty(video, 'error', { configurable: true, value: { code: 2 } });
+    fireEvent(window, new Event('online')); expect(load).not.toHaveBeenCalled();
+    actVisibility('visible');
+    await waitFor(() => expect(load).toHaveBeenCalledOnce());
+  });
   it('starts one play request, including rerenders with the same account', async () => {
     const view = render(<MobileShortCard post={clip} isActive />, { wrapper });
     await new Promise(resolve => setTimeout(resolve, 180));

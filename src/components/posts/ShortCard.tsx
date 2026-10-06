@@ -46,6 +46,7 @@ import { useSafetyReport } from '@/hooks/useSafetyReport';
 import { DeleteContentDialog } from '@/components/posts/DeleteContentDialog';
 import { isVideoPostMedia } from '@/lib/isVideoPostMedia';
 import { useClipPageVisible } from '@/hooks/useClipPageVisible';
+import { useClipNetworkRecovery } from '@/hooks/useClipNetworkRecovery';
 
 interface ShortCardProps {
   post: {
@@ -137,6 +138,8 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   
   const effectiveIsHolding = externalIsHolding || isHolding;
   const pageVisible = useClipPageVisible();
+  const resetPlaybackError = useCallback(() => { setHasError(false); setIsLoading(true); }, []);
+  const recovery = useClipNetworkRecovery(videoRef, isActive && pageVisible && !effectiveIsHolding, signedMediaUrl, postActions.contextKey, userPausedRef, resetPlaybackError);
   const playbackContext = useMemo(() => ({ active: isActive && pageVisible && !effectiveIsHolding }), [isActive, pageVisible, signedMediaUrl, effectiveIsHolding, globalMuted, postActions.contextKey]);
   useEffect(() => {
     playbackContext.active = isActive && pageVisible && !effectiveIsHolding;
@@ -218,7 +221,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       current = false;
       if (video) { cancelVideoAudioUnlock(video); video.pause(); }
     };
-  }, [isActive, pageVisible, signedMediaUrl, globalMuted, profile?.id, postActions.contextKey, effectiveIsHolding]);
+  }, [isActive, pageVisible, signedMediaUrl, globalMuted, profile?.id, postActions.contextKey, effectiveIsHolding, recovery.revision]);
 
   const incrementViewCount = async () => {
     await applyConfirmedPostView(postActions.actor, post.id, postActions.guard, setViewCount);
@@ -429,6 +432,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         {(hasError || !hasRenderableMedia) && (
           <MediaFallback type={isVideo ? 'video' : 'image'} caption={post.caption} className="absolute inset-0" />
         )}
+        {hasError && isVideo && isActive && <button className="absolute bottom-20 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/60 px-5 py-3 text-sm font-semibold text-white" onClick={e => { e.stopPropagation(); recovery.retry(); }}>Retry clip</button>}
 
         {hasRenderableMedia && isVideo ? (
           <video
@@ -440,7 +444,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
             webkit-playsinline="true"
             muted={isMuted}
             preload={isActive ? "metadata" : "none"}
-            onLoadedData={() => setIsLoading(false)}
+            onLoadedData={() => { setIsLoading(false); setHasError(false); }}
             onEnded={handleVideoEnded}
             onError={() => {
               setIsLoading(false);

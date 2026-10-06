@@ -37,6 +37,7 @@ import { usePostMutations } from '@/hooks/usePostMutations';
 import { isVideoPostMedia } from '@/lib/isVideoPostMedia';
 import { PausedMuteButton } from '@/components/video/PausedMuteButton';
 import { useClipPageVisible } from '@/hooks/useClipPageVisible';
+import { useClipNetworkRecovery } from '@/hooks/useClipNetworkRecovery';
 
 interface MobileShortCardProps {
   post: {
@@ -123,6 +124,8 @@ export const MobileShortCard = memo(function MobileShortCard({
   const signedAvatarUrl = useSignedUrl(post.author.avatar_url);
 
   const isVideo = isVideoPostMedia(post);
+  const resetPlaybackError = useCallback(() => { setHasError(false); setIsLoading(true); }, []);
+  const recovery = useClipNetworkRecovery(videoRef, isActive && pageVisible && !isHolding && isVideo, signedMediaUrl, postActions.contextKey, userPausedRef, resetPlaybackError);
   const playbackContext = useMemo(() => ({ active: isActive && pageVisible && !isHolding }), [isActive, pageVisible, signedMediaUrl, isHolding, globalMuted, postActions.contextKey]);
   useEffect(() => {
     playbackContext.active = isActive && pageVisible && !isHolding;
@@ -213,7 +216,7 @@ export const MobileShortCard = memo(function MobileShortCard({
         clearTimeout(playAttemptRef.current);
       }
     };
-  }, [isActive, pageVisible, signedMediaUrl, isVideo, globalMuted, profile?.id, postActions.contextKey, isHolding]);
+  }, [isActive, pageVisible, signedMediaUrl, isVideo, globalMuted, profile?.id, postActions.contextKey, isHolding, recovery.revision]);
 
   const incrementViewCount = async () => {
     await applyConfirmedPostView(postActions.actor, post.id, postActions.guard, setViewCount);
@@ -381,7 +384,7 @@ export const MobileShortCard = memo(function MobileShortCard({
         {/* Error fallback */}
         {hasError && (
           <div className="absolute inset-0 flex items-center justify-center bg-muted/50">
-            <span className="text-4xl">🎬</span>
+            {isVideo ? <button className="rounded-full bg-black/60 px-5 py-3 text-sm font-semibold text-white" onClick={e => { e.stopPropagation(); recovery.retry(); }}>Retry clip</button> : <span className="text-4xl">🖼️</span>}
           </div>
         )}
 
@@ -395,7 +398,7 @@ export const MobileShortCard = memo(function MobileShortCard({
             webkit-playsinline="true"
             muted={isMuted}
             preload="none"
-            onLoadedData={() => setIsLoading(false)}
+            onLoadedData={() => { setIsLoading(false); setHasError(false); }}
             onEnded={handleVideoEnded}
             onError={() => {
               setIsLoading(false);

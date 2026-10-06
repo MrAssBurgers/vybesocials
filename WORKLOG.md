@@ -1,3 +1,14 @@
+## ACTIVE (2026-10-06) — Mobile clip and location transport recovery
+
+- Latest user reports Firebase auth/network-request-failed at onboarding, mobile location sharing failure and laggy/broken Clips. Existing verified token/bootstrap recovery remains; this log does not establish the cause of that particular phone request. Live retained desktop Clips plays one video ready4/errornull, but still mounts old CGCcULTp. Installed OS/browser clarification pending, no account/cache/permission/GPS changes.
+- Added foreground/current-source recovery of network-failed clip media on reconnect and app return; explicit Retry clip for media errors. Only active clips reload, explicitly paused clips stay paused, unsupported codecs do not automatically retry. Uses existing autoplay/account lifetime guards. No polling/per-frame work or extra video preloads.
+- Location reads retire after15s and mutations after20s; late replies cannot update the retired request. Uncertain writes retain their existing idempotent attempt for retry. Expired map leases and privacy checks remain enforced; no consent/location invention.
+- Full474files4515pass6skip, app/native build and budget1100.3KBraw334.1KBgzip pass; typecheck and lint pass (5 existing warnings). Focused actual mobile-card/transport regressions cover reconnect, foreground/departure, unsupported media and late transport/timeouts. Initial transport local variable shadowed request validator and was corrected; final tests green. Logs work/mobile-reconnect-*.log.
+- Deferred unfinished discovery source is safely retained as work/peopleDiscoveryAuthority.candidate.ts and work/profilePrivacy.candidate.ts; not committed, deployed or claimed complete. Functions working source restored to checkpoint. Both exact location job schedules independently have new-code attempts at06:41Z/status0; acknowledgment does not prove deleted-row counts.
+- Tested client source5cca732e454d7ac1896fbc3ffc123d3a8ffebc23a238e6e4022265511367138d/2538inputs ready for exact publication. Publication/mounted/physical phone outcome pending. No Firebase backend/Rules/Storage/Auth/secrets/data mutation.
+Next3tasks: publish and independently verify this client; diagnose mobile map/clip/current mounted adoption; finish checked discovery and retained Firebase content/security restoration.
+
+---
 ## ACTIVE (2026-10-06) — Location background job parity
 
 - Previous turn made progress updating/independently verifying four exact location action callables; main2b098ac8 clean at start. Full user-ready scope unchanged. Snapshot scheduler remains July13; heatmap/snapshot current reviewed source limits cleanup and never republishes private coordinates. Timestamp alone is not proof of previous source contents.

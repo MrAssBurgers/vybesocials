@@ -55,7 +55,14 @@ export function checkedLocationRead(value: unknown, actor: LocationActor, target
 export async function locationSharingRequest(actor: LocationActor, input: { action: 'read'; targetId?: string } | (LocationMutation & { requestId: string }), guard: () => void): Promise<LocationRead | LocationReceipt> {
   guard();
   if (!id(actor.uid) || !id(actor.profileId)) throw failure();
-  const result = await invokeFunction<unknown>('manage-location-sharing', { ...input, expectedOwnerUid: actor.uid, expectedProfileId: actor.profileId });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const transport = invokeFunction<unknown>('manage-location-sharing', { ...input, expectedOwnerUid: actor.uid, expectedProfileId: actor.profileId });
+  // A mobile transport may hang through a connectivity change. Retire its reply
+  // rather than leaving controls spinning for the SDK's full transport timeout.
+  // Mutation attempts retain their identity, so an uncertain save is retryable.
+  const result = await Promise.race([transport, new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(Object.assign(new Error('Location sharing took too long. Check your connection and retry.'), { code: 'deadline-exceeded' })), input.action === 'read' ? 15_000 : 20_000);
+  })]).finally(() => clearTimeout(timer));
   guard();
   if (result.error) throw Object.assign(new Error(result.error.message || 'Location sharing is unavailable. Please retry.'), { code: result.error.code || result.error.name });
   const v = result.data;

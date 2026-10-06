@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock('@/lib/firebase/functionsService', () => ({ invokeFunction: state.invoke }));
 import { checkedLocationRead, locationAttempt, locationSharingRequest } from './locationSharingService';
@@ -6,6 +6,30 @@ import { grant, locationRead, locationRequest, revision } from '@/test/locationS
 const actor = { uid: 'uid-alice', profileId: 'alice' };
 const input = { action: 'request' as const, targetId: 'bob', duration: '1h' as const, precision: 'approximate' as const, message: null };
 beforeEach(() => { state.invoke.mockReset(); sessionStorage.clear(); });
+afterEach(() => vi.useRealTimers());
+
+it('retires a hanging location read and ignores its late response', async () => {
+  vi.useFakeTimers();
+  let finish!: (value: unknown) => void;
+  state.invoke.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+  const guard = vi.fn();
+  const result = locationSharingRequest(actor, { action: 'read' }, guard);
+  const rejected = expect(result).rejects.toMatchObject({ code: 'deadline-exceeded' });
+  await vi.advanceTimersByTimeAsync(15_000);
+  await rejected;
+  finish({ data: locationRead(), error: null });
+  await vi.advanceTimersByTimeAsync(1);
+  expect(guard).toHaveBeenCalledOnce();
+});
+
+it('times out an uncertain mutation without replacing its retry identity', async () => {
+  vi.useFakeTimers(); state.invoke.mockReturnValue(new Promise(() => {}));
+  const attempt = locationAttempt(actor, input);
+  const result = locationSharingRequest(actor, attempt.body, () => {});
+  const rejected = expect(result).rejects.toMatchObject({ code: 'deadline-exceeded' });
+  await vi.advanceTimersByTimeAsync(20_000); await rejected;
+  expect(locationAttempt(actor, input).body.requestId).toBe(attempt.body.requestId);
+});
 describe('checked location-sharing service', () => {
   it('binds actor, action, request identity and exact target receipt', async () => {
     const body = { ...input, requestId: crypto.randomUUID() };
