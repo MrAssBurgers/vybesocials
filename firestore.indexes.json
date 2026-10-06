@@ -30,6 +30,12 @@
     { "collectionGroup": "shared_themes", "queryScope": "COLLECTION", "fields": [
       { "fieldPath": "is_public", "order": "ASCENDING" }, { "fieldPath": "likes_count", "order": "DESCENDING" }
     ] },
+    { "collectionGroup": "saved_themes", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "user_id", "order": "ASCENDING" }, { "fieldPath": "shared_theme_id", "order": "ASCENDING" }
+    ] },
+    { "collectionGroup": "theme_likes", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "user_id", "order": "ASCENDING" }, { "fieldPath": "shared_theme_id", "order": "ASCENDING" }
+    ] },
     { "collectionGroup": "dna_agent_actions", "queryScope": "COLLECTION", "fields": [
       { "fieldPath": "user_id", "order": "ASCENDING" }, { "fieldPath": "created_at", "order": "DESCENDING" }
     ] },

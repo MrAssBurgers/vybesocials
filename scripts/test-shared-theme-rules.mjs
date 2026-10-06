@@ -12,7 +12,7 @@ const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@fir
 const { doc, collection, query, where, getDoc, getDocs, setDoc, updateDoc, deleteDoc, setLogLevel } = require('firebase/firestore');
 setLogLevel('silent');
 const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
-const env = await initializeTestEnvironment({ projectId, firestore: { host, port: +port, rules: await readFile('firestore.rules', 'utf8') } });
+const env = await initializeTestEnvironment({ projectId, firestore: { host, port: +port, rules: await readFile(process.env.FIREBASE_TEST_RULES_PATH || 'firestore.rules', 'utf8') } });
 const owner = env.authenticatedContext('share-owner').firestore();
 const recipient = env.authenticatedContext('share-recipient').firestore();
 const guest = env.unauthenticatedContext().firestore();

@@ -1,3 +1,15 @@
+## ACTIVE (2026-10-06) — Existing theme service restoration and browser release investigation
+
+- Started clean main38c38d6b. Published mobile fixes remain independently verified as source1c4fa847, but physical phone GPS/codec and mounted adoption are not proven. Fresh IAB and Chrome version URLs return older, different manifests while independent requests to identical URLs return1c4fa847. Evidence work/browser-release-paths.log. No cache/worker/account storage/permission changed; cause still unproven.
+- Production metadata confirms generateThemeCode/useThemeCode/manageSharedTheme MISSING. Both inspected e14563a and published clients use the checked service contracts. Exact Rules candidate8c9ac23d... derives solely from current83f4ec... baseline and changes only theme access/private leaves. Owner reads retained, checked audience/writes required. No historical theme/content migration or public exposure.
+- Three exact indexes and one cursor TTL submitted once; actual cloud operations still PROCESSING, not terminal. Handles work/shared-theme-resource-operations.json; exact manifest releases/shared-theme-recovery-20261006/resources.json. Candidate/service release pending actual operation completion. No broad Rules/index/Functions deployment. Storage/Auth/secrets unchanged.
+- Functions build,24 backend groups,8 pagination groups,102 exact candidate Rules assertions, full474 files/4496 pass6 skip, app/native build/budget1099.2KBraw333.7KBgzip and lint5existingwarnings pass. Initial combined backend/listing run red because intentionally malformed backend test rows remained in the shared project; separate fresh-project rerun green without changing application behavior. Generated public manifests reverted before checkpoint. Required manual signed-in theme read and production deployment outcome remain pending.
+- Release scope/evidence in releases/shared-theme-recovery-20261006/README.md. Other open gates: real phone Firebase token/network recovery/map/clips, mounted release adoption, retained posts/DM/hubs/media and generic push/music/role authority. Goal active, no perfection/readiness claim.
+
+Next3tasks: finish exact theme resource/Rules/service release and verify live reads; diagnose actual browser adoption and phone Firebase map/clip/auth; continue guarded historical content and media restoration.
+
+---
+
 ## ACTIVE (2026-10-06) — Mobile clip lifecycle and stationary map sharing
 
 - Started clean main f6888f89. User's mobile location, clips and lag report remains priority; shared-theme recovery deferred for this focused repair. Four new actual-hook/card regressions reproduce failures before: duplicate play requests, no foreground resume, retired watch callbacks accepted after resume, and no stationary fresh sample. All pass after repair.

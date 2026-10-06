@@ -1,0 +1,52 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "shared_themes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "is_public",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "likes_count",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "saved_themes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "user_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "shared_theme_id",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "theme_likes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "user_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "shared_theme_id",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "ttl": [
+    {
+      "collection": "_shared_theme_cursors",
+      "field": "expireAt"
+    }
+  ]
+}
