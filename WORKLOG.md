@@ -6,7 +6,8 @@
 - Seven added provider cases pass, including retired-account rejection and confirmed-profile retention. Full474files4510pass6skip, app/native build and unchanged budget1100.0KBraw334.0KBgzip pass, types and lint5existingwarnings pass. Logs work/profile-resume-{before,focused,full,build,types,lint}. First focused after releasing latch stayed red until token-handler early return was corrected; no partial fix claimed. Exact new runtime publication pending.
 - Previous SQL security findings and40 dependency issues remain separate open review; overall launch readiness remains active.
 
-Next3tasks: publish and verify this exact profile-recovery client; diagnose older mounted browser and real mobile location/clip/network recovery; continue retained Firebase content/media and security review.
+- Published runtime source74ff823f via a5d5b4e2-2d6f-40ab-8329-bcabdef9ad45; actual UI updated and both origins match all v2 fields/count2537/source14e29af0... plus fetched entryBUIZS4A0/SHA15659b6e... . Committed archive matches too. No claimed mounted/phone adoption. Retained Home returns @bakrix and owner-review posts. Location service ACTIVE; narrow recent cloud-run200/204/no ERROR does not prove valid checked client results, individual phone association, or GPS sharing. Earlier map friend read still failed; old wrappers/scheduler July timestamps retain review. No production backend/Auth/Rules/data/privacy/cache/worker mutation. Full app goal active.
+Next3tasks: verify mounted/physical phone adoption of the profile-recovery client; diagnose older mounted browser and real mobile location/clip/network recovery; continue retained Firebase content/media and security review.
 
 ---
 
@@ -9649,4 +9650,5 @@ All eight migration phases complete. See `.lovable/plan.md` for per-phase detail
 - Live signed-in Clips read succeeds: one active Firebase Storage video readyState4/pausedfalse/errornull while two others paused. Desktop observation only, no physical phone/FPS/codec proof. Direct map navigation in older CGCcULTp client triggers real retained-account profile timeout; read retry started. No sign-out/account storage/cache/worker/GPS permission/share mutation. Browser adoption remains unresolved.
 
 Next3tasks: publish/verify corrected source schema against full input map; diagnose mounted old-client/profile timeout and physical phone location/clips; continue Firebase retained content/media and separate security review.
+
 
