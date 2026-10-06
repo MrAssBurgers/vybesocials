@@ -1,60 +1,66 @@
 import { db } from '@/lib/firebase';
 import { refreshFirebaseSession } from '@/lib/firebaseAuthRefresh';
+import { getFirebaseAuth, getAuthSessionGeneration } from '@/lib/firebase/authService';
 import { hasStoredAuthSession } from '@/lib/legacyAuthStorage';
 import { setWasLoggedIn } from '@/lib/wasLoggedIn';
+import { foregroundReadPhaseCurrent, getForegroundReadPhase, isAppForeground } from '@/lib/foregroundReadPhase';
 
 const REFRESH_INTERVAL_MS = 20 * 60 * 1000;
 const RESUME_DEBOUNCE_MS = 8000;
+let stopCurrent: (() => void) | null = null;
 
-let installed = false;
-let intervalId: ReturnType<typeof setInterval> | null = null;
-let lastResumeAt = 0;
-
-async function refreshIfNeeded(force = false) {
-  if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-  if (!hasStoredAuthSession()) return;
-
-  const { data: { session } } = await db.auth.getSession();
-  if (session?.user) {
-    setWasLoggedIn(true);
-    if (!force && session.expires_at) {
-      const expiresMs = session.expires_at * 1000;
-      if (expiresMs - Date.now() >= 10 * 60 * 1000) return;
-    }
-  }
-
-  await refreshFirebaseSession();
-}
-
-/** Keeps auth sessions warm on native shells and web (including Lovable preview). */
+/** Keeps auth sessions warm without requesting work for a retired foreground/session. */
 export function installAuthSessionKeepAlive(): void {
-  if (installed || typeof window === 'undefined') return;
-
-  installed = true;
-
+  if (stopCurrent || typeof window === 'undefined') return;
+  let active = true, lastResumeAt = -Infinity;
+  let lastResumePhase: ReturnType<typeof getForegroundReadPhase> | null = null;
+  let pending: { phase: ReturnType<typeof getForegroundReadPhase>; user: unknown; generation: number } | null = null;
+  const eligible = () => active && isAppForeground() && navigator.onLine !== false && hasStoredAuthSession();
   const tick = () => {
-    void refreshIfNeeded();
+    if (!eligible()) return;
+    const phase = getForegroundReadPhase();
+    const user = getFirebaseAuth()?.currentUser;
+    const generation = getAuthSessionGeneration();
+    if (pending?.phase === phase && pending.user === user && pending.generation === generation) return;
+    const flight = { phase, user, generation };
+    const current = () => eligible() && foregroundReadPhaseCurrent(phase) && getFirebaseAuth()?.currentUser === user && getAuthSessionGeneration() === generation;
+    pending = flight;
+    void (async () => {
+      try {
+        const { data: { session }, error } = await db.auth.getSession();
+        if (!current() || error || !session?.user || session.user.id !== user?.uid) return;
+        setWasLoggedIn(true);
+        if (session.expires_at && session.expires_at * 1000 - Date.now() >= 10 * 60 * 1000) return;
+        if (current()) await refreshFirebaseSession();
+      } catch { /* Transport failure keeps the existing session; later foreground/tick can retry. */ }
+      finally { if (pending === flight) pending = null; }
+    })();
   };
-
-  tick();
-  intervalId = setInterval(tick, REFRESH_INTERVAL_MS);
-
   const onResume = () => {
+    if (!eligible()) return;
     const now = Date.now();
-    if (now - lastResumeAt < RESUME_DEBOUNCE_MS) return;
+    const phase = getForegroundReadPhase();
+    if (phase === lastResumePhase && now - lastResumeAt < RESUME_DEBOUNCE_MS) return;
     lastResumeAt = now;
-    void refreshIfNeeded();
+    lastResumePhase = phase;
+    tick();
   };
-
+  const onPageShow = (event: PageTransitionEvent) => { if (event.persisted) onResume(); };
+  const interval = setInterval(tick, REFRESH_INTERVAL_MS);
   document.addEventListener('visibilitychange', onResume);
   window.addEventListener('app-resumed', onResume);
-  window.addEventListener('pageshow', (event) => {
-    if (event.persisted) onResume();
-  });
+  window.addEventListener('pageshow', onPageShow);
+  stopCurrent = () => {
+    active = false;
+    clearInterval(interval);
+    document.removeEventListener('visibilitychange', onResume);
+    window.removeEventListener('app-resumed', onResume);
+    window.removeEventListener('pageshow', onPageShow);
+  };
+  tick();
 }
 
 export function uninstallAuthSessionKeepAlive(): void {
-  if (intervalId) clearInterval(intervalId);
-  intervalId = null;
-  installed = false;
+  stopCurrent?.();
+  stopCurrent = null;
 }

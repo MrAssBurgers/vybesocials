@@ -1,3 +1,12 @@
+## ACTIVE (2026-10-06) — Session keep-alive lifecycle recovery
+
+- Previous turn was authoritative progress: published late token continuity932a9cc7, docs c410fe84. Main clean at start; full user-ready phone/map/clips/Auth/restoration/security scope unchanged.
+- Actual keep-alive tests reproduce4 failures before: initial native pause ignored; delayed session read continues after pause; uninstall leaves listeners/pending effects; incomplete restore invokes token refresh. Repair checks shared native/visible phase and online eligibility, retires async work on pause/uninstall/exact SDK account-generation change, coalesces same-phase/session work, skips null/error restore, and removes all3 listeners plus interval. Existing20minute interval/expiry10minute threshold retained. Quick real resume starts fresh read, with same-phase8second event debounce; old read cannot add refresh. No sign-out, credential/Auth config, backend/Rules/location/consent/content mutation or new feature.
+- Nine actual keep-alive cases pass; related refresh/token/auth cases also pass. Full498files4782pass6skip; app/native build/budget1099.0KBraw333.6KBgzip/types pass, lint0errors5existingwarnings. Logs work/keepalive-{before,focused,full,build,types,lint}.log. Isolated Chrome actual module/synthetic transports confirms native paused0reads/refreshes, resume1/1, uninstall then resume/visibility remains1/1. Screenshot task outputs/vybe-keepalive-browser-qa.png. No production token/physical-phone persistence/network/FPS proof.
+- Generated public outputs restored. Exact source metadata prepared; production publication pending. Actual older mounted browser adoption, phone onboarding/map/clips and missing historical authority/media/security checks remain open.
+Next3tasks: publish exact verified keep-alive source and check hosted files; diagnose actual current phone/browser sign-in/map/clips and retained old client adoption; continue preserved Firebase community/content/media restoration and security audit.
+
+---
 ## ACTIVE (2026-10-06) — Late native token recovery continuity
 
 - Previous turn made authoritative progress: published clip pause continuity source3fb5e216, docs64aa1d1e. Overall user-ready restoration/mobile map/clips/Auth/network/adoption scope unchanged. Main clean at start.
