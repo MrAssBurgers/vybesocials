@@ -32,6 +32,20 @@ it('masks an expired lease while a refresh is still pending', async () => {
   state.read.mockImplementation(() => new Promise(() => {}));
   await advance(15_010); expect(hook.result.current.data).toBeUndefined(); expect(hook.result.current.isLoading).toBe(true);
 });
+it('renews a shortened lease early enough for a slow Firebase read', async () => {
+  let calls = 0;
+  state.read.mockImplementation(async (_actor, _selection, guard) => {
+    if (++calls > 1) await new Promise(done => setTimeout(done, 5000));
+    guard(); return { ...result(), validUntil: Date.now() + 9000 };
+  });
+  const hook = renderHook(usePeopleDiscovery, { wrapper }); await advance();
+  const originalExpiry = hook.result.current.data!.validUntil;
+  await advance(3400); expect(state.read).toHaveBeenCalledTimes(2);
+  expect(hook.result.current.data?.profiles).toHaveLength(1);
+  await advance(5000);
+  expect(hook.result.current.data?.validUntil).toBeGreaterThan(originalExpiry);
+  expect(hook.result.current.isLoading).toBe(false);
+});
 it('keeps failures actionable and never retains an old successful grant after rejection', async () => {
   const hook = renderHook(usePeopleDiscovery, { wrapper }); await advance();
   state.read.mockRejectedValueOnce(new Error('Connection failed'));

@@ -28,6 +28,23 @@ let groups = 0;
 const check = async (name, fn) => { await fn(); console.log(`PASS ${name}`); groups++; };
 try {
   const alice = await seed('alice'), bob = await seed('bob'), unknown = await seed('unknown', null), minor = await seed('minor', '2010-05-03');
+  await check('unbound candidates fail before identity query fan-out without changing admission', async () => {
+    const unbound = await seed('unbound');
+    await db.doc(`_account_profile_bindings/${unbound.uid}`).delete();
+    let queries = 0;
+    const measured = new Proxy(db, { get(target, name) {
+      if (name === 'runTransaction') return callback => target.runTransaction(tx => callback(new Proxy(tx, { get(transaction, method) {
+        if (method === 'get') return (reference, ...args) => { if (!reference.path) queries++; return transaction.get(reference, ...args); };
+        const value = Reflect.get(transaction, method); return typeof value === 'function' ? value.bind(transaction) : value;
+      } })));
+      const value = Reflect.get(target, name); return typeof value === 'function' ? value.bind(target) : value;
+    } });
+    await peopleDiscovery(measured, auth, alice.uid, body(alice, { candidateIds: [] }));
+    const baselineQueries = queries; queries = 0;
+    const result = await peopleDiscovery(measured, auth, alice.uid, body(alice, { candidateIds: [unbound.profileId] }));
+    assert.deepEqual(result.profiles, []);
+    assert.equal(queries - baselineQueries, 2, 'Only the two actor friendship graph queries; no unbound target identity queries');
+  });
   await check('callable requires authentication and enforces its exact existing quota', async () => {
     await assert.rejects(getDiscoveryProfiles.run({ data: {} }), { code: 'unauthenticated' });
     const request = { auth: { uid: alice.uid }, data: body(alice, { candidateIds: [] }) };

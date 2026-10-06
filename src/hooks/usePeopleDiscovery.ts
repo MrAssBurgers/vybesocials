@@ -20,7 +20,13 @@ export function usePeopleDiscovery() {
       return readPeopleDiscovery({ uid: actor.user!.id, profileId: actor.profile!.id }, { limit: 120 }, guard);
     },
     staleTime: 0, gcTime: 0, retry: false, placeholderData: undefined,
-    refetchOnMount: 'always', refetchOnWindowFocus: 'always', refetchInterval: 10_000,
+    refetchOnMount: 'always', refetchOnWindowFocus: 'always',
+    // Slow transport shortens the checked lease. Renew while it is still
+    // current so the fixed ten-second poll does not make suggestions blink.
+    refetchInterval: query => {
+      const remaining = (query.state.data?.validUntil ?? 0) - Date.now();
+      return remaining > 0 && !query.state.error ? Math.max(1000, Math.min(10_000, remaining / 3)) : 10_000;
+    },
   });
   useEffect(() => {
     const change = () => {

@@ -26,12 +26,19 @@ async function currentAuth(auth, actor) {
     }
 }
 async function bound(db, tx, alias) {
-    const who = await resolveIdentity(db, tx, alias);
-    if (!who)
+    // Reject missing/retired protected bindings before the six-query identity
+    // check. This is only a negative prefilter: admitted rows still pass the
+    // complete alias, uniqueness, index and ownership verification below.
+    const direct = await tx.get(db.doc(`profiles/${alias}`));
+    const possibleUid = direct.exists ? direct.data()?.user_id : alias;
+    if (!validAudienceId(possibleUid))
         return null;
-    const b = (await tx.get(db.doc(`_account_profile_bindings/${who.uid}`))).data();
-    if (b?.version !== 1 || b.status !== 'active' || b.owner_uid !== who.uid || b.profile_id !== who.profileId
+    const b = (await tx.get(db.doc(`_account_profile_bindings/${possibleUid}`))).data();
+    if (b?.version !== 1 || b.status !== 'active' || b.owner_uid !== possibleUid
         || !stamp(b.auth_created_at_ms) || typeof b.revision !== 'string' || !/^[a-f0-9]{48}$/.test(b.revision))
+        return null;
+    const who = await resolveIdentity(db, tx, alias);
+    if (!who || who.uid !== possibleUid || b.profile_id !== who.profileId)
         return null;
     return { ...who, created: b.auth_created_at_ms, binding: b.revision };
 }
@@ -114,9 +121,11 @@ export async function peopleDiscovery(db, auth, uid, raw, clock = Date.now) {
         const ids = selected !== undefined ? [...new Set(selected)].slice(0, limit)
             : [...new Set([...mutuals.keys(), ...(await tx.get(db.collection('profiles').orderBy('created_at', 'desc').limit(limit))).docs.map(d => d.id)])].slice(0, limit);
         const profiles = [];
-        // Four concurrent read groups cap fan-out; output order remains deterministic.
-        for (let start = 0; start < ids.length && profiles.length < 30; start += 4) {
-            const rows = await Promise.all(ids.slice(start, start + 4).map(async (id) => {
+        // Eight concurrent candidates keep the read bounded while avoiding thirty
+        // serial network batches for a mostly unbound imported profile directory.
+        // Results are folded in input order, independent of completion order.
+        for (let start = 0; start < ids.length && profiles.length < 30; start += 8) {
+            const rows = await Promise.all(ids.slice(start, start + 8).map(async (id) => {
                 const target = await bound(db, tx, id);
                 if (!target || (selected !== undefined && target.profileId !== id) || target.uid === uid || target.aliases.some(alias => friendAliases.has(alias)) || target.row.is_private !== false
                     || target.row.is_banned === true || target.row.deletion_requested_at || target.row.scheduled_purge_at)
