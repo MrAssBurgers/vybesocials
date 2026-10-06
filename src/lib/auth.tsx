@@ -804,7 +804,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let lastResumeRefreshAt = 0;
     const resumeRefresh = () => {
-      if (document.visibilityState !== 'visible') return;
+      if (document.visibilityState !== 'visible' || navigator.onLine === false) return;
       const sdkUser = getFirebaseAuth()?.currentUser;
       if (!sdkUser && !hasStoredAuthSession()) return;
       const lifetime = providerLifetimeRef.current;
@@ -824,7 +824,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (sdkUser && session?.user && session.user.id !== sdkUser.uid) return;
         if (session?.user && session.expires_at) {
           const expiresMs = session.expires_at * 1000;
-          if (expiresMs - Date.now() > 5 * 60 * 1000) return;
+          if (expiresMs - Date.now() > 5 * 60 * 1000) {
+            // Reconnecting with a still-valid token does not emit a Firebase
+            // token event. Retry only the transient bootstrap belonging to
+            // this exact account; authoritative failures remain actionable.
+            if (sdkUser && !shouldBlockPostLoginNavigation() && bootstrapRetryRef.current === `${sdkUser.uid}:${reportAccountSnapshot().epoch}`) {
+              bootstrapSessionData(sdkUser.uid, 'RESUMED', guard);
+            }
+            return;
+          }
         }
         if (sdkUser) scheduleTokenRefresh(session?.expires_at ?? Date.now() / 1000);
         else if (!session?.user) void refreshFirebaseSession().catch(() => {});

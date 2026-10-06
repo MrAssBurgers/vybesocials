@@ -147,10 +147,10 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
       setPositionProblem({ scope, message: 'Location is unavailable on this device.' });
       return;
     }
-    let active = true, fellBack = false, permissionDenied = false;
+    let active = true, fellBack = false, permissionDenied = false, nativePaused = false;
     let watchRevision = 0;
     let watchId: number | undefined;
-    const current = (revision: number) => { try { latest.current.guard(); return active && revision === watchRevision && document.visibilityState !== 'hidden' && latest.current.scope === scope; } catch { return false; } };
+    const current = (revision: number) => { try { latest.current.guard(); return active && !nativePaused && revision === watchRevision && document.visibilityState !== 'hidden' && latest.current.scope === scope; } catch { return false; } };
     const success = (pos: GeolocationPosition, revision: number) => {
       if (!current(revision)) return;
       const { latitude, longitude, accuracy, speed, heading } = pos.coords;
@@ -182,7 +182,7 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
       }
     };
     const start = () => {
-      if (document.visibilityState === 'hidden' || permissionDenied) return;
+      if (nativePaused || document.visibilityState === 'hidden' || permissionDenied) return;
       fellBack = false;
       const revision = ++watchRevision;
       navigator.geolocation.getCurrentPosition(pos => success(pos, revision), error => failure(error, revision), { enableHighAccuracy: false, timeout: 10_000, maximumAge: 30_000 });
@@ -196,7 +196,17 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
     };
     try { start(); } catch { setPositionProblem({ scope, message: 'Location is unavailable on this device.' }); }
     document.addEventListener('visibilitychange', visibility);
-    return () => { active = false; context.intent++; document.removeEventListener('visibilitychange', visibility); if (watchId !== undefined) navigator.geolocation.clearWatch(watchId); };
+    const pause = () => { nativePaused = true; visibility(); };
+    const resume = () => { nativePaused = false; visibility(); };
+    window.addEventListener('app-paused', pause);
+    window.addEventListener('app-resumed', resume);
+    return () => {
+      active = false; context.intent++;
+      document.removeEventListener('visibilitychange', visibility);
+      window.removeEventListener('app-paused', pause);
+      window.removeEventListener('app-resumed', resume);
+      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
+    };
   }, [shouldWatch, request?.revision, scope, context, publish]);
   // A stationary device may not emit watch callbacks. Refresh an approved share
   // using actual fresh samples before its two-minute server expiry; never extend

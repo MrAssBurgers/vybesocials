@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useProfileAccount } from './useProfileAccount';
 import { locationAttempt, locationSharingRequest, type LocationMutation, type LocationRead } from '@/lib/locationSharingService';
@@ -11,6 +11,7 @@ export const locationSharingKey = (actor: { uid: string; profileId: string; epoc
 type ReadResult = LocationRead & { validUntil: number; receivedAt: number };
 export function useLocationSharing(targetId?: string, enabled = true) {
   const actor = useLocationActor(), client = useQueryClient();
+  const nativePaused = useRef(false);
   const [visibility, setVisibility] = useState(() => ({ visible: document.visibilityState !== 'hidden', revision: 0 }));
   const key = [...locationSharingKey(actor, targetId), visibility.revision];
   const scope = JSON.stringify(key);
@@ -31,7 +32,7 @@ export function useLocationSharing(targetId?: string, enabled = true) {
   });
   useEffect(() => {
     const change = () => {
-      const visible = document.visibilityState !== 'hidden';
+      const visible = !nativePaused.current && document.visibilityState !== 'hidden';
       // Remove hidden-page grants rather than painting them on foreground while
       // a new read is pending. Query cancellation also discards late old reads.
       void client.cancelQueries({ queryKey: key, exact: true });
@@ -42,9 +43,15 @@ export function useLocationSharing(targetId?: string, enabled = true) {
     // Reconnect checks current permissions instead of retaining a failed read
     // until the polling interval or painting a cached grant while retrying.
     window.addEventListener('online', change);
+    const pause = () => { nativePaused.current = true; change(); };
+    const resume = () => { nativePaused.current = false; change(); };
+    window.addEventListener('app-paused', pause);
+    window.addEventListener('app-resumed', resume);
     return () => {
       document.removeEventListener('visibilitychange', change);
       window.removeEventListener('online', change);
+      window.removeEventListener('app-paused', pause);
+      window.removeEventListener('app-resumed', resume);
     };
   // This listener may only change the captured actor/target query.
   }, [client, scope]);

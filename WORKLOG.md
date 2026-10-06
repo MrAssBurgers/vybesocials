@@ -9760,6 +9760,14 @@ Publishedd8dec334, deployment618527f4-de9f-45ee-9ceb-f7a231cc3150, actual publis
 
 Next three tasks: currentphone/network/location/Clips verification; restore missing safeFirebase discovery/retainedcontent; finish whole-app performance/readiness checks. No newfeatures.
 
+## 2026-10-06 — Native resume and valid-token reconnection
+
+Latest mobile report remains priority. Found resumeRefresh returned for valid tokens before retrying a transient profile bootstrap, and native producer dispatched non-bubbling document events while Auth/session listeners live on window. Fixed checked bootstrap retry with valid token; native pause/resume bubbles exactly once. Clips now honor native pause/resume independently of WebView visibility. Map reads retire native background leases and recheck on resume; GPS watches stop on pause and retire callbacks, resume only existing requested watches. No GPS consent, account/session purge, Auth config, backend or Rules change.
+
+Four initial regression cases fail previous source/pass fixed. Added native producer, background grants, GPS queued callbacks and authoritative rejection/A→B→A guards. Full4554pass6skip, build/native/types/lint pass (five existing warnings), bundle1101.9KB raw334.5KB gzip. Actual synthetic saved Firebase preview reaches 3Dmap and Clips readyState4/pausedfalse/errornull. Logs work/mobile-resume-{before,focused,full,build,types,lint}. Release releases/mobile-native-resume-20261006/README.md. Client publication pending. Physical-phone source/network/GPS/codecs/FPS and older browser adoption unverified; goal active.
+
+Next three tasks: publish and verify exact tested client; verify actual phone connection/location/Clips; continue safe existing Firebase content restoration and performance. No new features.
+
 
 
 

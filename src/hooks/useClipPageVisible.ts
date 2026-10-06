@@ -4,9 +4,18 @@ import { useEffect, useState } from 'react';
 export function useClipPageVisible() {
   const [visible, setVisible] = useState(() => document.visibilityState !== 'hidden');
   useEffect(() => {
-    const update = () => setVisible(document.visibilityState !== 'hidden');
+    let paused = false;
+    const update = () => setVisible(!paused && document.visibilityState !== 'hidden');
+    const pause = () => { paused = true; update(); };
+    const resume = () => { paused = false; update(); };
     document.addEventListener('visibilitychange', update);
-    return () => document.removeEventListener('visibilitychange', update);
+    window.addEventListener('app-paused', pause);
+    window.addEventListener('app-resumed', resume);
+    return () => {
+      document.removeEventListener('visibilitychange', update);
+      window.removeEventListener('app-paused', pause);
+      window.removeEventListener('app-resumed', resume);
+    };
   }, []);
   return visible;
 }

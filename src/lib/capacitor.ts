@@ -62,9 +62,9 @@ export async function initializeNativePlugins() {
     // Handle app state changes
     App.addListener('appStateChange', ({ isActive }) => {
       if (isActive) {
-        document.dispatchEvent(new CustomEvent('app-resumed'));
+        document.dispatchEvent(new CustomEvent('app-resumed', { bubbles: true }));
       } else {
-        document.dispatchEvent(new CustomEvent('app-paused'));
+        document.dispatchEvent(new CustomEvent('app-paused', { bubbles: true }));
       }
     });
 

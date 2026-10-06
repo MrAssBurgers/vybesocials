@@ -367,6 +367,35 @@ describe('AuthProvider checked profile setup', () => {
 });
 
 describe('AuthProvider restoration and refresh ownership', () => {
+  it.each(['online', 'app-resumed'])('retries a transient profile failure on %s with an unexpired token', async event => {
+    state.ensure.mockRejectedValueOnce({ code: 'functions/unavailable' }).mockResolvedValueOnce(profile('alice', 'recovered'));
+    mount(); await switchAccount('alice', 'INITIAL_SESSION');
+    await waitFor(() => expect(current.profileSetupError).not.toBeNull());
+    state.getSession.mockResolvedValue({ data: { session: { ...session('alice'), expires_at: Math.floor(Date.now() / 1000) + 3600 } }, error: null });
+    await act(async () => { window.dispatchEvent(new Event(event)); });
+    await waitFor(() => expect(current.profile?.username).toBe('recovered'));
+    expect(state.ensure).toHaveBeenCalledTimes(2); expect(state.refresh).not.toHaveBeenCalled(); expect(state.signOut).not.toHaveBeenCalled();
+  });
+  it('does not retry an authoritative profile rejection on reconnect', async () => {
+    state.ensure.mockRejectedValue({ code: 'functions/permission-denied' });
+    mount(); await switchAccount('alice', 'INITIAL_SESSION');
+    await waitFor(() => expect(current.profileSetupError).not.toBeNull());
+    state.getSession.mockResolvedValue({ data: { session: { ...session('alice'), expires_at: Math.floor(Date.now() / 1000) + 3600 } }, error: null });
+    await act(async () => { window.dispatchEvent(new Event('online')); });
+    expect(state.ensure).toHaveBeenCalledOnce(); expect(current.profile).toBeNull();
+  });
+  it('a delayed reconnect read cannot retry a retired account after Alice→Bob→Alice', async () => {
+    state.ensure.mockRejectedValueOnce({ code: 'functions/unavailable' }).mockImplementation(async uid => profile(uid, `current-${uid}`));
+    mount(); await switchAccount('alice', 'INITIAL_SESSION');
+    await waitFor(() => expect(current.profileSetupError).not.toBeNull());
+    const pending = deferred<any>(); state.getSession.mockReturnValue(pending.promise);
+    act(() => window.dispatchEvent(new Event('online')));
+    await switchAccount('bob'); await waitFor(() => expect(current.profile?.username).toBe('current-bob'));
+    await switchAccount('alice'); await waitFor(() => expect(current.profile?.username).toBe('current-alice'));
+    await act(async () => pending.resolve({ data: { session: { ...session('alice'), expires_at: Math.floor(Date.now() / 1000) + 3600 } }, error: null }));
+    expect(state.ensure).toHaveBeenCalledTimes(3); expect(current.profile?.username).toBe('current-alice'); expect(state.signOut).not.toHaveBeenCalled();
+  });
+
   it.each(['functions/unavailable', 'auth/network-request-failed', 'functions/deadline-exceeded'])('retries failed initial profile setup after a current token event (%s)', async code => {
     state.ensure.mockRejectedValueOnce({ code, message: 'Temporary connection failure' }).mockResolvedValueOnce(profile('alice', 'recovered'));
     mount(); await switchAccount('alice', 'INITIAL_SESSION');

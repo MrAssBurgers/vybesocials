@@ -21,14 +21,25 @@ beforeEach(() => {
 afterEach(() => { cleanup(); client.clear(); vi.useRealTimers(); });
 async function advance(ms: number) { await act(async () => { await vi.advanceTimersByTimeAsync(ms); }); }
 describe('location sharing refresh continuity', () => {
-  it('rechecks a failed read immediately on reconnect instead of waiting for polling', async () => {
+  it.each(['online', 'app-resumed'])('rechecks a failed read immediately on %s instead of waiting for polling', async event => {
     state.request.mockRejectedValueOnce(new Error('Network unavailable'));
     const hook = renderHook(() => useLocationSharing(), { wrapper }); await advance(1);
     expect(hook.result.current.isError).toBe(true);
-    act(() => window.dispatchEvent(new Event('online'))); await advance(1);
+    act(() => document.dispatchEvent(new CustomEvent(event, { bubbles: true }))); await advance(1);
     expect(state.request).toHaveBeenCalledTimes(2);
     expect(hook.result.current.data).toBeUndefined();
     await advance(2_010); expect(hook.result.current.data?.locations[0].id).toBe('bob');
+  });
+  it('retires native background grants and ignores reconnect until the app resumes', async () => {
+    const hook = renderHook(() => useLocationSharing(), { wrapper }); await advance(2_010);
+    expect(hook.result.current.data).toBeDefined();
+    act(() => document.dispatchEvent(new CustomEvent('app-paused', { bubbles: true }))); await advance(1);
+    expect(hook.result.current.data).toBeUndefined();
+    act(() => window.dispatchEvent(new Event('online'))); await advance(1);
+    expect(state.request).toHaveBeenCalledOnce();
+    act(() => document.dispatchEvent(new CustomEvent('app-resumed', { bubbles: true }))); await advance(1);
+    expect(state.request).toHaveBeenCalledTimes(2); expect(hook.result.current.data).toBeUndefined();
+    await advance(2_010); expect(hook.result.current.data).toBeDefined();
   });
   it('discards the old grant while a reconnect checks for revoked access', async () => {
     const hook = renderHook(() => useLocationSharing(), { wrapper }); await advance(2_010);

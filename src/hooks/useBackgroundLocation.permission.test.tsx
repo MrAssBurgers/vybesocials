@@ -29,6 +29,21 @@ beforeEach(() => {
 afterEach(() => { cleanup(); clients.forEach(client => client.clear()); clients.length = 0; });
 const create = () => renderHook(() => useBackgroundLocation(`profile-${state.uid}`, { watchOnMap: true }), { wrapper: wrapper() });
 describe('map GPS consent and checked publication', () => {
+  it('retires native background GPS callbacks and restarts only the requested watch on resume', async () => {
+    const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
+    act(() => hook.result.current.requestLocation());
+    const old = gps.watchPosition.mock.calls[0][0];
+    act(() => document.dispatchEvent(new CustomEvent('app-paused', { bubbles: true })));
+    await act(async () => old(sample()));
+    expect(hook.result.current.coords).toBeNull(); expect(gps.clearWatch).toHaveBeenCalledWith(17);
+    act(() => document.dispatchEvent(new Event('visibilitychange')));
+    expect(gps.watchPosition).toHaveBeenCalledOnce();
+    act(() => document.dispatchEvent(new CustomEvent('app-resumed', { bubbles: true })));
+    expect(gps.watchPosition).toHaveBeenCalledTimes(2);
+    await act(async () => old(sample())); expect(hook.result.current.coords).toBeNull();
+    await act(async () => gps.watchPosition.mock.calls[1][0](sample())); expect(hook.result.current.coords).toEqual([10, 20]);
+    expect(state.invoke.mock.calls.some(([, input]) => input.action === 'setSharing' || input.action === 'publishPosition')).toBe(false);
+  });
   it('does not prompt on map entry; the existing explicit action starts GPS', async () => {
     const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
     expect(gps.getCurrentPosition).not.toHaveBeenCalled(); expect(gps.watchPosition).not.toHaveBeenCalled();
