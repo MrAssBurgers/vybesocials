@@ -5,7 +5,6 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
   browserPopupRedirectResolver,
-  onAuthStateChanged,
   onIdTokenChanged,
   beforeAuthStateChanged,
   signInWithEmailAndPassword,
@@ -409,6 +408,7 @@ export const firebaseAuth = {
       }
       attached = true;
       let initialFired = false;
+      let lastUser: FirebaseUser | null = null;
       let eventGeneration = 0, withheldNull = false;
       const emit = (event: string, session: VybeSession | null) => {
         try {
@@ -429,22 +429,26 @@ export const firebaseAuth = {
         }
       };
       unsubscribeRestore = subscribeAuthRestoreState(() => { if (withheldNull) emitNull(); });
-      unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      // Token refreshes do not trigger onAuthStateChanged. Profile bootstrap
+      // recovery depends on receiving the same-account token once connectivity
+      // returns; it must not restart the interactive sign-in flow.
+      unsubscribe = onIdTokenChanged(auth, (firebaseUser) => {
       const currentEvent = ++eventGeneration, intent = authIntent;
       if (cancelled) return;
       if (firebaseUser && !sdkReady && hasAuthLogoutTombstone() && !isLocalPreview()) { withheldNull = true; return; }
       const guard = () => { if (cancelled || currentEvent !== eventGeneration || intent !== authIntent || auth.currentUser !== firebaseUser) throw new Error('Retired auth event.'); };
       rememberAuthUser(firebaseUser, guard);
-      if (!firebaseUser) { withheldNull = true; emitNull(); return; }
+      if (!firebaseUser) { lastUser = null; withheldNull = true; emitNull(); return; }
       withheldNull = false;
 
       const instant = buildVybeSessionInstant(firebaseUser);
       if (!initialFired) {
         initialFired = true;
         emit('INITIAL_SESSION', instant);
-      } else {
+      } else if (firebaseUser !== lastUser) {
         emit('SIGNED_IN', instant);
       }
+      lastUser = firebaseUser;
 
       void enrichSessionToken(instant, firebaseUser, 5000).then((enriched) => {
         try { guard(); } catch { return; }

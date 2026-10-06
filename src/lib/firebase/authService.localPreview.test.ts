@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const mock = vi.hoisted(() => ({ local: true, mobile: false, ready: true, auth: { currentUser: null as any, authStateReady: async () => {} }, initialize: vi.fn(), signOut: vi.fn(), listener: null as any, connect: vi.fn() }));
+const mock = vi.hoisted(() => ({ local: true, mobile: false, ready: true, auth: { currentUser: null as any, authStateReady: async () => {} }, initialize: vi.fn(), signOut: vi.fn(), listener: null as any, authObserver: null as any, tokens: new Set<any>(), connect: vi.fn() }));
 vi.mock('./localPreview', () => ({ isLocalPreview: () => mock.local }));
 vi.mock('./app', () => ({ getFirebaseApp: () => ({ name: '[DEFAULT]' }) }));
 vi.mock('./emulators', () => ({ connectLocalPreviewAuth: mock.connect }));
@@ -9,8 +9,8 @@ vi.mock('firebase/auth', async importOriginal => ({
   ...await importOriginal<typeof import('firebase/auth')>(),
   initializeAuth: mock.initialize,
   getAuth: () => mock.auth,
-  onAuthStateChanged: (_auth: unknown, listener: any) => { mock.listener = (user: any) => { mock.auth.currentUser = user; listener(user); }; return () => {}; },
-  onIdTokenChanged: () => () => {},
+  onAuthStateChanged: (_auth: unknown, listener: any) => { mock.authObserver = listener; mock.listener = (user: any) => { mock.auth.currentUser = user; listener(user); }; return () => {}; },
+  onIdTokenChanged: (_auth: unknown, listener: any) => { mock.tokens.add(listener); mock.listener = (user: any) => { mock.auth.currentUser = user; mock.tokens.forEach(notify => notify(user)); }; return () => { mock.tokens.delete(listener); }; },
   beforeAuthStateChanged: () => () => {},
   signOut: mock.signOut,
 }));
@@ -27,12 +27,26 @@ const tokenManager = { refreshToken: 'synthetic-refresh', accessToken: 'syntheti
 const productionBackup = JSON.stringify({ uid: 'synthetic-production-user', apiKey: 'production-test-key', emailVerified: true, isAnonymous: false, providerData: [], stsTokenManager: tokenManager });
 function user() { return { uid: 'demo-user', providerData: [], metadata: {}, email: 'alice@vybe.test', emailVerified: true, refreshToken: 'demo-only', getIdToken: vi.fn(async () => 'demo-only'), toJSON: vi.fn(() => ({ uid: 'demo-user', apiKey: mock.local ? 'demo-vybe-preview-key' : 'production-test-key', emailVerified: true, isAnonymous: false, providerData: [], stsTokenManager: tokenManager })) }; }
 beforeEach(() => {
-  vi.resetModules(); vi.clearAllMocks(); mock.local = true; mock.mobile = false; mock.ready = true; mock.auth = { currentUser: null, authStateReady: async () => {} }; mock.listener = null;
+  vi.resetModules(); vi.clearAllMocks(); mock.local = true; mock.mobile = false; mock.ready = true; mock.auth = { currentUser: null, authStateReady: async () => {} }; mock.listener = null; mock.authObserver = null; mock.tokens.clear();
   mock.initialize.mockReturnValue(mock.auth); mock.signOut.mockResolvedValue(undefined);
   localStorage.setItem(backupKey, productionBackup); localStorage.setItem(productionKey, productionBackup);
 });
 
 describe('isolated preview authentication persistence', () => {
+  it('emits a recovered same-account token without repeating sign-in after a network failure', async () => {
+    const { firebaseAuth } = await import('./authService');
+    const callback = vi.fn(); const subscription = firebaseAuth.onAuthStateChange(callback);
+    await Promise.resolve(); await Promise.resolve();
+    const alice = user(); alice.getIdToken.mockRejectedValueOnce(Object.assign(new Error('Network unavailable'), { code: 'auth/network-request-failed' }));
+    mock.auth.currentUser = alice; mock.authObserver?.(alice); mock.tokens.forEach(notify => notify(alice));
+    await vi.waitFor(() => expect(callback).toHaveBeenCalledWith('INITIAL_SESSION', expect.objectContaining({ user: expect.objectContaining({ id: alice.uid }) })));
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    callback.mockClear(); alice.getIdToken.mockResolvedValue('recovered-token');
+    mock.tokens.forEach(notify => notify(alice));
+    await vi.waitFor(() => expect(callback).toHaveBeenCalledWith('TOKEN_REFRESHED', expect.objectContaining({ access_token: 'recovered-token' })));
+    expect(callback).not.toHaveBeenCalledWith('SIGNED_IN', expect.anything());
+    subscription.data.subscription.unsubscribe();
+  });
   it('does not emit an old token after A to B to A, even with the same SDK user object', async () => {
     const { firebaseAuth } = await import('./authService');
     const callback = vi.fn(); const subscription = firebaseAuth.onAuthStateChange(callback);

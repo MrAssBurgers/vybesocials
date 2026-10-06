@@ -9736,6 +9736,14 @@ Publication completed c86add38, deploymentf9ce45f4-2b62-4ea9-b2dc-d85138eb5a62 w
 
 Next three tasks: diagnose actual phone adoption/auth-network/location with current source; verify real Clips codecs/performance; restore existing safe Firebase content/discovery services. No new features.
 
+## 2026-10-06 — Firebase token recovery reaches the app
+
+Previous turn made progress: Clips resolution fix published and exactpublicsource verified. This turn found Auth adapter listens only onAuthStateChanged, so later same-account SDK token refreshes never reach the app's TOKEN_REFRESHED/profile retry path after initial network failure. Changed adapter to onIdTokenChanged; repeated same-SDK-user token events do not reemitSIGNED_IN. Existing exactsession/event/unsubscribe/logout guards retained. No Auth config, storage/session purge, Rules/backend/GPS changes.
+
+Regression test fails on prior source and passes fixed. Existing profile retry/A-B-A/unsubscribe focused59pass (before final mock improvement); final full4543pass6skip. Build/native/budget1101.2KB raw334.4KB gzip/types/lint pass, five existing warnings. RealSDK demo-vybe-preview Auth9199 confirms accountEvents1/tokenEvents2 after force refresh across iat boundary; same-second first probe correctly showed identical token/no event. Logs work/token-observer-{before,focused,full,build,types,lint,sdk}. Saved local synthetic session reload returns to working3Dmap, zeroactiveGPSshares. Release releases/token-observer-recovery-20261006/README.md. Exactclient publication pending; realphone source/network/GPS/codecs remain open.
+
+Next three tasks: publish/verify token-observer fix; verify currentphone network/location/Clips; continue existing safe Firebase content/discovery restoration. Goal active, no new features.
+
 
 
 
