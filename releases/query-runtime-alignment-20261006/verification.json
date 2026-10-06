@@ -1,0 +1,87 @@
+{
+  "testedMain": "7a6bf35ef413e3d9e1639df3ff59b9562eb83919",
+  "deploymentId": "3f42a291-c7e9-44be-8352-f7af32527403",
+  "source": [
+    {
+      "host": "https://vybehub.app",
+      "resolvedOrigin": "https://vybehub.app",
+      "redirected": false,
+      "routes": [
+        "/",
+        "/home",
+        "/map",
+        "/clips",
+        "/onboarding",
+        "/spaces",
+        "/space/qa-route-check",
+        "/messages",
+        "/community"
+      ],
+      "sourceSha": "7dc1d682a025895fb5e2a898d1a3c6bd582d58b6f73f30039ee62484a7197e40",
+      "schema": "vybe-client-source-v2",
+      "files": 2583,
+      "built": "2026-10-06T15:46:46.060Z",
+      "entry": "/assets/app-Db6jfpx2.js",
+      "entrySha": "ca0a1a67cda7f29a28697a6388254b3d4ebd38d978865b4820cd8d32115f022e"
+    },
+    {
+      "host": "https://vybesocials.lovable.app",
+      "resolvedOrigin": "https://vybehub.app",
+      "redirected": true,
+      "routes": [
+        "/",
+        "/home",
+        "/map",
+        "/clips",
+        "/onboarding",
+        "/spaces",
+        "/space/qa-route-check",
+        "/messages",
+        "/community"
+      ],
+      "sourceSha": "7dc1d682a025895fb5e2a898d1a3c6bd582d58b6f73f30039ee62484a7197e40",
+      "schema": "vybe-client-source-v2",
+      "files": 2583,
+      "built": "2026-10-06T15:46:46.060Z",
+      "entry": "/assets/app-Db6jfpx2.js",
+      "entrySha": "ca0a1a67cda7f29a28697a6388254b3d4ebd38d978865b4820cd8d32115f022e"
+    }
+  ],
+  "verifiedRuntimeDependencies": {
+    "@tanstack/react-query": "5.101.0",
+    "@tanstack/query-core": "5.101.0",
+    "@tanstack/react-query-persist-client": "5.101.0",
+    "@tanstack/query-persist-client-core": "5.101.0",
+    "@tanstack/query-async-storage-persister": "5.101.0"
+  },
+  "checks": {
+    "fullTestsPassed": 4769,
+    "skipped": 6,
+    "typecheck": "pass",
+    "build": "pass",
+    "nativeEntry": "pass",
+    "lint": "0 errors /5 existing warnings",
+    "bunFrozenLock": "pass",
+    "budget": "1098.4 KB raw /333.3 KB gzip"
+  },
+  "apiProof": {
+    "oldVersion": "5.83.0",
+    "old": {
+      "ok": false,
+      "requests": 0,
+      "error": "Invalid value used as weak map key"
+    },
+    "currentVersion": "5.101.0",
+    "current": {
+      "ok": true,
+      "requests": 1
+    }
+  },
+  "browserProof": "Actual useCommunityMutation with synthetic action completed once on tested runtime. No production mutation from fixture.",
+  "productionRecoveryAttempt": "One existing owner recovery button attempt on old signed-in document; subsequent Firebase audit remained zero current owner grants. Not retried after release because document remained old after ordinary reload.",
+  "limitations": [
+    "Signed-in IAB document still CGCcULTp after final ordinary reload; repair adoption remains unresolved.",
+    "Actual production owner recovery, native map sharing, mobile Auth transport and Clips decoding/FPS remain unverified."
+  ],
+  "publisherScreenshot": "outputs/vybe-query-runtime-published.png"
+}
