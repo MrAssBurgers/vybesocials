@@ -1,4 +1,24 @@
-# Migration data connectivity report
+# Historical migration data connectivity report
+
+This report describes references in the old export, not verified current access
+to production accounts or content. Do not run the historical Auth seed or repair
+scripts as an account-recovery procedure: a public profile email or seeded index
+does not independently establish ownership.
+
+A read-only production review on 2026-10-06 sampled the latest 120 profiles.
+77 referenced UIDs were absent from Firebase Auth. All 77 had matching historical
+indices, but none had protected account bindings, foreign indices, retirement
+transfers or reviewed recovery records. Queries by those UIDs found no posts and
+10 sent messages across two profiles. These counts are limited to the sample and
+those exact fields; they do not establish a complete migration or data loss.
+
+The other 43 sampled profiles had enabled Auth accounts: one had a current
+binding/index, 41 had legacy indices without bindings and one lacked both.
+Returning users with an unchanged, authenticated UID use the canonical profile
+setup checks. Transferring a legacy profile to another UID requires independently
+reviewed ownership evidence and the existing recovery authority. Never infer a
+new owner from email/name matches, create replacement Auth users from public
+profiles, or rewrite content ownership to make this historical report appear true.
 
 **Project:** `vybe-daaab` (Firebase)  
 **Source:** Lovable Cloud export (`export/lovable-cloud-export/tables/`)  
@@ -6,7 +26,9 @@
 
 ## Bottom line
 
-Every user keeps their **friends, chats, DMs, and posts** after import. No UID remapping is required on the client.
+The historical export referenced the original profile UIDs. Keeping those UIDs
+would preserve these references, but this table does not verify that the matching
+Auth accounts exist today or that clients can read the corresponding content.
 
 | Metric | Result |
 |--------|--------|
@@ -67,4 +89,7 @@ node scripts/verify-user-data-connections.mjs --firestore
 
 ## Passwords
 
-Supabase bcrypt hashes are **not** exportable from Lovable Cloud. Users use **Forgot password** once on first email login; OAuth accounts re-link automatically.
+The historical export did not include usable password hashes. Password reset
+requires an existing Firebase Auth account. OAuth sign-in must not be assumed to
+relink a legacy profile automatically; current authenticated identity and reviewed
+recovery evidence determine the profile connection.
