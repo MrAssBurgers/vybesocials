@@ -1,0 +1,14 @@
+{
+  "indexes": [
+    { "collectionGroup": "_space_authority", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "status", "order": "ASCENDING" },
+      { "fieldPath": "created_at", "order": "DESCENDING" }
+    ] },
+    { "collectionGroup": "_space_members", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "space_id", "order": "ASCENDING" },
+      { "fieldPath": "left_at", "order": "ASCENDING" },
+      { "fieldPath": "joined_at", "order": "ASCENDING" }
+    ] }
+  ],
+  "fieldOverrides": []
+}
