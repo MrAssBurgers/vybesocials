@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { AlertTriangle, Download, Trash2, Loader2, Clock, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { db } from '@/lib/firebase';
@@ -16,9 +16,18 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
+import { useVerifiedSettingsScope } from '@/hooks/useVerifiedSettingsScope';
 
 export function AccountDangerZone() {
   const { user, profile, signOut } = useAuth();
+  const exportScope = useVerifiedSettingsScope();
+  const exportFlight = useRef<symbol | null>(null);
+  const downloadUrls = useRef(new Map<string, number>());
+  useEffect(() => {
+    const clearDownloads = () => { for (const [url, timer] of downloadUrls.current) { window.clearTimeout(timer); URL.revokeObjectURL(url); } downloadUrls.current.clear(); };
+    exportFlight.current = null; setExporting(false); clearDownloads();
+    return () => { exportFlight.current = null; clearDownloads(); };
+  }, [exportScope.account.epoch, exportScope.profileId, exportScope.creationTime]);
   const [exporting, setExporting] = useState(false);
   const [requesting, setRequesting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -39,33 +48,36 @@ export function AccountDangerZone() {
   })();
 
   const handleExport = async () => {
-    if (!user || exporting) return;
+    if (!user || exportFlight.current) return;
+    let scope: ReturnType<typeof exportScope.capture>;
+    try { scope = exportScope.capture(); } catch { toast.error('Load your current profile before exporting.'); return; }
+    const flight = Symbol('account-export'); exportFlight.current = flight;
+    const guard = () => { scope.guard(); if (exportFlight.current !== flight) throw new Error('Export retired.'); };
     setExporting(true);
     try {
-      const { data, error } = await db.functions.invoke('manage-account', {
-        body: { action: 'export' },
-      });
-      if (error) throw error;
-      // CF returns { ok: true } (legacy clients checked success).
-      if (data && data.ok === false && data.success === false) {
-        throw new Error(data?.error || 'Export failed');
-      }
-
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const { collectAccountDataExport } = await import('@/lib/accountDataExport'); guard();
+      const blob = await collectAccountDataExport(scope.fields.expectedOwnerUid, scope.fields.expectedProfileId, guard); guard();
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `vybe-data-export-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success('Data exported successfully!');
-    } catch (err) {
-      console.error('Export error:', err);
-      toast.error('Failed to export data. Please try again.');
+      const a = document.createElement('a'); let started = false;
+      try {
+        guard(); a.href = url;
+        a.download = `vybe-data-export-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a); a.click(); started = true;
+      } finally {
+        a.remove();
+        if (started) {
+          // Give mobile browsers time to consume the Blob URL. Account changes
+          // and unmount still revoke it immediately through the effect cleanup.
+          const timer = window.setTimeout(() => { URL.revokeObjectURL(url); downloadUrls.current.delete(url); }, 1500);
+          downloadUrls.current.set(url, timer);
+        } else URL.revokeObjectURL(url);
+      }
+      guard(); toast.success('Your data export is ready.');
+    } catch (error) {
+      try { guard(); } catch { return; }
+      toast.error(error instanceof Error ? error.message : 'The export failed. No partial download was created. Try again.');
     } finally {
-      setExporting(false);
+      if (exportFlight.current === flight) { exportFlight.current = null; setExporting(false); }
     }
   };
 
@@ -155,14 +167,14 @@ export function AccountDangerZone() {
       <div className="p-4 rounded-xl border border-border bg-card space-y-2">
         <h4 className="text-sm font-medium text-foreground">Export Your Data</h4>
         <p className="text-xs text-muted-foreground">
-          Download a copy of all your data including profile, posts, messages, and activity.
+          Download your profile, authored posts and messages, and activity as JSON. Media links are included; media files and other people’s messages are not included.
         </p>
         <Button
           variant="outline"
           size="sm"
           type="button"
           onClick={handleExport}
-          disabled={exporting}
+          disabled={exporting || !exportScope.ready}
           aria-label="Export your account data as JSON"
           aria-busy={exporting}
           className="mt-2 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background outline-none disabled:opacity-60 disabled:cursor-not-allowed"

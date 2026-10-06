@@ -13,6 +13,7 @@ import { gateKnownSession, shouldExpireStaleLoginChallenge } from './_shared/log
 import { loginDeviceVersion, registerLoginDevice, withCurrentLoginDevice } from './_shared/loginDeviceAuthority.js';
 import { renderAuthEmail, AUTH_EMAIL_SUBJECTS } from './_shared/emailTemplates/index.js';
 import { premiumStatusForRequest } from './_shared/premiumAuthority.js';
+import { exportAccountPage } from './_shared/accountExportAuthority.js';
 /** Must match Firebase Console Google web client (public). Used by native-callback exchange. */
 const GOOGLE_WEB_CLIENT_ID = '728651793473-71p1iahdr79ali0o7en8ktirklfjf3pf.apps.googleusercontent.com';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1744,16 +1745,7 @@ export const manageAccount = onCall(async (request) => {
         await db.collection('account_deletion_requests').doc(uid).delete();
     }
     else if (action === 'export') {
-        // Lightweight export stub — full dump is still via support / future job.
-        const profile = await db.collection('profiles').where('user_id', '==', uid).limit(1).get();
-        const profileData = profile.empty ? null : profile.docs[0].data();
-        return {
-            ok: true,
-            success: true,
-            exported_at: new Date().toISOString(),
-            user_id: uid,
-            profile: profileData,
-        };
+        return exportAccountPage(db, auth, request);
     }
     else if (action) {
         throw new HttpsError('invalid-argument', `Unknown action: ${action}`);
