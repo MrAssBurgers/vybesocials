@@ -1,0 +1,42 @@
+{
+  "verified_at": "2026-10-06T13:49:11.687347+00:00",
+  "read_before": {
+    "projectId": "demo-vybe-space-authority",
+    "participants": 200,
+    "individualAuthRequests": 200,
+    "batchAuthRequests": 0,
+    "elapsedMs": 549,
+    "productionWrites": false,
+    "scope": "Isolated full-capacity read; emulator latency is not production latency"
+  },
+  "read_after": {
+    "projectId": "demo-vybe-space-authority",
+    "participants": 200,
+    "individualAuthRequests": 1,
+    "batchAuthRequests": 2,
+    "elapsedMs": 587,
+    "productionWrites": false,
+    "scope": "Isolated full-capacity read; emulator latency is not production latency"
+  },
+  "provider_worker": {
+    "project": "vybe-daaab",
+    "provider": "livekit-cloud",
+    "scope": "Isolated demo Firestore jobs and empty temporary provider room; no production Firestore/Auth/user/microphone changes",
+    "created": true,
+    "revoke": true,
+    "close": true,
+    "absentAfterClose": true,
+    "replay": true,
+    "cleanup": true,
+    "workerRevoke": true,
+    "workerClose": true,
+    "workerReplayNoExtraCalls": true,
+    "phase": "worker-close",
+    "providerCalls": 4
+  },
+  "limits": [
+    "No production latency or Firestore read-cost certification",
+    "No real microphone/media delivery or old JWT reconnect check",
+    "Deployed Eventarc delivery not yet tested"
+  ]
+}

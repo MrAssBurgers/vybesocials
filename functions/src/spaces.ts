@@ -8,8 +8,7 @@ import { synchronizeSpaceAudioEffect } from './_shared/spaceAudioSync.js';
 
 const secrets = ['LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'LIVEKIT_URL'];
 
-// Prepared module: deliberately not exported from the deployed entry point
-// until matching client, indexes, Rules and provider-flow checks are complete.
+// Release together with the matching checked room client. Raw room access stays denied.
 export const manageSpaces = onCall({ region: 'us-central1' }, async request => {
   const uid = requireAuth(request), input = normalizeSpaceInput(request.data, uid);
   if (input.action === 'audio') throw new HttpsError('invalid-argument', 'Use the audio admission service.');

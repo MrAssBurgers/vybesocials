@@ -178,8 +178,8 @@ export const communityVoiceToken = onCall({ secrets: SECRETS }, async (request) 
   return { token: await at.toJwt(), url: wsUrl, room: roomName, roomName };
 });
 
-/** spaces-token — alias used by audio spaces UI. */
-export const spacesToken = communityVoiceToken;
+/** Audio spaces use checked room membership independently of community voice. */
+export { spacesAudioToken as spacesToken } from './spaces.js';
 
 /** api-calls-create-room — placeholder; LiveKit auto-creates rooms on first join. */
 export const apiCallsCreateRoom = onCall(async (request) => {

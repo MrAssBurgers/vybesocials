@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import type { Auth } from 'firebase-admin/auth';
 import type { Firestore, Transaction } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
+import { checkedSpaceAuthBatch, type SpaceAuth } from './spaceAuthBatch.js';
 import { resolveIdentity, validAudienceId, type AudienceIdentity } from './profileAudienceAuthority.js';
 
 type Row = Record<string, unknown>;
@@ -63,7 +63,7 @@ export function normalizeSpaceInput(raw: unknown, uid: string): SpaceInput {
   return raw as SpaceInput;
 }
 
-async function actorFor(db: Firestore, tx: Transaction, auth: Pick<Auth, 'getUser'>, uid: string, profileId: string): Promise<Actor> {
+async function actorFor(db: Firestore, tx: Transaction, auth: SpaceAuth, uid: string, profileId: string): Promise<Actor> {
   const binding = (await tx.get(db.doc(`_account_profile_bindings/${uid}`))).data();
   if (binding?.version !== 1 || binding.status !== 'active' || binding.owner_uid !== uid || binding.profile_id !== profileId
     || !Number.isSafeInteger(binding.auth_created_at_ms) || Number(binding.auth_created_at_ms) <= 0
@@ -96,24 +96,25 @@ function roomView(row: Row) {
 }
 
 /** Server-owned rooms and memberships. Historical client-written roles do not confer audio grants. */
-export async function manageSpaceAuthority(db: Firestore, auth: Pick<Auth, 'getUser'>, uid: string, raw: unknown, now = Date.now()) {
+export async function manageSpaceAuthority(db: Firestore, auth: SpaceAuth, uid: string, raw: unknown, now = Date.now()) {
   const input = normalizeSpaceInput(raw, uid);
   const fingerprint = digest([Object.entries(input).sort(([a], [b]) => a.localeCompare(b))]);
   return db.runTransaction(async tx => {
     const actor = await actorFor(db, tx, auth, uid, input.expectedProfileId);
     const base = { ok: true, ownerUid: uid, profileId: actor.profileId, action: input.action };
     const hosts = new Map<string, Promise<Actor>>([[JSON.stringify([actor.uid, actor.profileId]), Promise.resolve(actor)]]);
-    const roomHost = (row: Row) => {
+    const roomHost = (row: Row, checkedAuth: SpaceAuth = auth) => {
       const key = JSON.stringify([row.owner_uid, row.profile_id]);
-      if (!hosts.has(key)) hosts.set(key, actorFor(db, tx, auth, row.owner_uid as string, row.profile_id as string));
+      if (!hosts.has(key)) hosts.set(key, actorFor(db, tx, checkedAuth, row.owner_uid as string, row.profile_id as string));
       return hosts.get(key)!;
     };
     if (input.action === 'list') {
       const statuses = input.status ? [input.status] : ['live', 'scheduled'];
       const docs = await tx.get(db.collection('_space_authority').where('status', 'in', statuses).orderBy('created_at', 'desc').limit(50));
+      const checkedAuth = await checkedSpaceAuthBatch(auth, docs.docs.filter(doc => validRoomProof(doc.data(), doc.id)).map(doc => doc.data().owner_uid as string).filter(uid => uid !== actor.uid));
       const visible = await Promise.all(docs.docs.map(async doc => {
         const row = doc.data(); if (!validRoomProof(row, doc.id)) return null;
-        try { const host = await roomHost(row); return owns(row, host) ? roomView({ ...row, profile: profileView(host) }) : null; }
+        try { const host = await roomHost(row, checkedAuth); return owns(row, host) ? roomView({ ...row, profile: profileView(host) }) : null; }
         catch (error) {
           if (['failed-precondition', 'permission-denied', 'unauthenticated'].includes((error as { code?: string }).code || '')) return null;
           throw error;
@@ -153,9 +154,10 @@ export async function manageSpaceAuthority(db: Firestore, auth: Pick<Auth, 'getU
     if (member && !validMemberProof(member, id)) throw fail();
     if (input.action === 'read') {
       const participants = await tx.get(db.collection('_space_members').where('space_id', '==', id).where('left_at', '==', null).orderBy('joined_at').limit(200));
+      const checkedAuth = await checkedSpaceAuthBatch(auth, participants.docs.filter(doc => validMemberProof(doc.data(), id)).map(doc => doc.data().owner_uid as string).filter(uid => uid !== actor.uid && uid !== currentHost.uid));
       const visible = await Promise.all(participants.docs.map(async doc => {
         const row = doc.data(); if (!validMemberProof(row, id) || row.id !== doc.id) return null;
-        try { const who = await roomHost(row); return owns(row, who) ? memberView({ ...row, profile: profileView(who) }) : null; }
+        try { const who = await roomHost(row, checkedAuth); return owns(row, who) ? memberView({ ...row, profile: profileView(who) }) : null; }
         catch (error) {
           if (['failed-precondition', 'permission-denied', 'unauthenticated'].includes((error as { code?: string }).code || '')) return null;
           throw error;

@@ -114,3 +114,5 @@ export { manageMapSocial } from './mapSocial.js';
 export { manageMapSquad } from './mapSquads.js';
 export { manageMapWave } from './mapWaves.js';
 export { manageMapPin } from './mapPins.js';
+
+export { manageSpaces, processSpaceAudioEffect } from './spaces.js';

@@ -191,6 +191,8 @@ await check('closing a room reconciles pending member work without a later repla
 });
 await check('prepared callable wrappers use the room contract and reject guest/client role substitution', async () => {
   const { manageSpaces, spacesAudioToken, processSpaceAudioEffect } = await import('../functions/lib/spaces.js');
+  const realtime = await import('../functions/lib/realtime.js');
+  assert.equal(realtime.spacesToken, spacesAudioToken); assert.notEqual(realtime.spacesToken, realtime.communityVoiceToken);
   await assert.rejects(manageSpaces.run({ data: {} }), { code: 'unauthenticated' });
   await assert.rejects(spacesAudioToken.run({ data: {} }), { code: 'unauthenticated' });
   const room = await manageSpaces.run({ auth: { uid: host.uid }, data: input(host, 'create', { requestId: randomUUID(), title: 'Callable contract check' }) });
@@ -231,6 +233,18 @@ await check('ending a room cannot create another close job after a confirmed end
   assert.deepEqual(await call(host, 'end', details), ended);
   await assert.rejects(change(host, 'end', { spaceId: room.space.id, revision: ended.space.revision }), { code: 'failed-precondition' });
   await sync(db, ended.audioEffectId, audioProvider);
+});
+await check('batched room reads exclude disabled peers and reject batch transport failure', async () => {
+  const room = await change(host, 'create', { title: 'Batched identity checks' });
+  await change(listener, 'join', { spaceId: room.space.id, revision: 0 });
+  await auth.updateUser(listener.uid, { disabled: true });
+  try {
+    const read = await call(host, 'read', { spaceId: room.space.id });
+    assert.equal(read.participants.length, 1); assert.equal(read.participants[0].user_id, host.uid);
+  } finally { await auth.updateUser(listener.uid, { disabled: false }); }
+  assert.equal((await call(host, 'read', { spaceId: room.space.id })).participants.length, 2);
+  const unavailable = { getUser: uid => auth.getUser(uid), getUsers: async () => { throw Error('Synthetic transport failure'); } };
+  await assert.rejects(run(db, unavailable, host.uid, input(host, 'read', { spaceId: room.space.id })), { code: 'unavailable' });
 });
 console.log(JSON.stringify({ checks, projectId, productionWrites: false, scope: 'Isolated domain, worker coordination and prepared callable contracts; live trigger delivery, UI, real provider mutation and historical restoration remain unverified.' }));
 await db.terminate();

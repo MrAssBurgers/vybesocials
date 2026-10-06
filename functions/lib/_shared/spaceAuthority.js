@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { HttpsError } from 'firebase-functions/v2/https';
+import { checkedSpaceAuthBatch } from './spaceAuthBatch.js';
 import { resolveIdentity, validAudienceId } from './profileAudienceAuthority.js';
 const actions = ['list', 'read', 'create', 'join', 'leave', 'mute', 'hand', 'role', 'end', 'start', 'audio'];
 const object = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -110,21 +111,22 @@ export async function manageSpaceAuthority(db, auth, uid, raw, now = Date.now())
         const actor = await actorFor(db, tx, auth, uid, input.expectedProfileId);
         const base = { ok: true, ownerUid: uid, profileId: actor.profileId, action: input.action };
         const hosts = new Map([[JSON.stringify([actor.uid, actor.profileId]), Promise.resolve(actor)]]);
-        const roomHost = (row) => {
+        const roomHost = (row, checkedAuth = auth) => {
             const key = JSON.stringify([row.owner_uid, row.profile_id]);
             if (!hosts.has(key))
-                hosts.set(key, actorFor(db, tx, auth, row.owner_uid, row.profile_id));
+                hosts.set(key, actorFor(db, tx, checkedAuth, row.owner_uid, row.profile_id));
             return hosts.get(key);
         };
         if (input.action === 'list') {
             const statuses = input.status ? [input.status] : ['live', 'scheduled'];
             const docs = await tx.get(db.collection('_space_authority').where('status', 'in', statuses).orderBy('created_at', 'desc').limit(50));
+            const checkedAuth = await checkedSpaceAuthBatch(auth, docs.docs.filter(doc => validRoomProof(doc.data(), doc.id)).map(doc => doc.data().owner_uid).filter(uid => uid !== actor.uid));
             const visible = await Promise.all(docs.docs.map(async (doc) => {
                 const row = doc.data();
                 if (!validRoomProof(row, doc.id))
                     return null;
                 try {
-                    const host = await roomHost(row);
+                    const host = await roomHost(row, checkedAuth);
                     return owns(row, host) ? roomView({ ...row, profile: profileView(host) }) : null;
                 }
                 catch (error) {
@@ -176,12 +178,13 @@ export async function manageSpaceAuthority(db, auth, uid, raw, now = Date.now())
             throw fail();
         if (input.action === 'read') {
             const participants = await tx.get(db.collection('_space_members').where('space_id', '==', id).where('left_at', '==', null).orderBy('joined_at').limit(200));
+            const checkedAuth = await checkedSpaceAuthBatch(auth, participants.docs.filter(doc => validMemberProof(doc.data(), id)).map(doc => doc.data().owner_uid).filter(uid => uid !== actor.uid && uid !== currentHost.uid));
             const visible = await Promise.all(participants.docs.map(async (doc) => {
                 const row = doc.data();
                 if (!validMemberProof(row, id) || row.id !== doc.id)
                     return null;
                 try {
-                    const who = await roomHost(row);
+                    const who = await roomHost(row, checkedAuth);
                     return owns(row, who) ? memberView({ ...row, profile: profileView(who) }) : null;
                 }
                 catch (error) {
