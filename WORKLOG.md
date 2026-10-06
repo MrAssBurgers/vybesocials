@@ -1,3 +1,12 @@
+## ACTIVE (2026-10-06) — Clip native foreground continuity
+
+- Previous turn was authoritative progress: exact production message index READY and all4 preserved-room queries succeeded; main e8beb726 clean at start. Overall user-ready/mobile map/clips/Auth/restoration scope unchanged.
+- Found existing clip visibility hook forgot native pause across card unmount/remount; new cards treated a still-visible background WebView as foreground. Two new real-hook regressions fail before. Clip cards now consume existing shared page foreground phase, preserving native pause across mounts and removing3 lifecycle listeners per card. Existing card autoplay/mute/explicit user pause policies unchanged. No backend/Rules/Auth/location/content change or new feature.
+- Four visibility and10 buffering recovery cases pass. Full497files4771pass6skip; app/native build/budget1098.4KBraw333.3KBgzip, types and lint0errors5existingwarnings pass. Logs work/clip-phase-{before,focused,full,build,types,lint}.log. Synthetic Chrome real-hook check confirms paused/remount1 eligibilityfalse, resume eligibilitytrue; screenshot task outputs/vybe-clip-phase-browser-qa.png. No physical-phone video or FPS proof.
+- Generated public files restored. Tested current source metadata prepared at work/source-public-expected.json. Exact production publication pending; stale mounted source adoption and actual phone map/clip/network/session outcomes remain open.
+Next3tasks: publish verified clip continuity source and confirm hosted bytes; diagnose actual current mobile map/clip/Auth behavior and retained old client adoption; continue preserved Firebase content/media/community restoration and security review.
+
+---
 ## ACTIVE (2026-10-06) — Existing community message index repair
 
 - Previous turn published tested query runtime source7a6bf35e, recorded by docs21bce712. Current source/runtime remain unchanged. Full user-ready scope active; phone onboarding network/Auth, map sharing, clips, retained old browser adoption and historical restoration are not certified.
