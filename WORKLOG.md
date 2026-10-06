@@ -9748,6 +9748,14 @@ Published8a994a23, deploymentf15f6574-c37e-4dc2-905a-088510384b34, actual websit
 
 Next three tasks: verify actual phone current source/network/location/Clips; restore existing safe Firebase discovery/content; continue full user-readiness and performance checks. No new features.
 
+## 2026-10-06 — GPS denial retires queued positioning
+
+Previous turn made progress: token-observer client published/verified. Found denied GPS watch retains current callbacks: queued old successes can cleardenied and restore/publishcoordinates. Stopwatch+retiregeneration ondenial, preserve deniedstate acrossforeground until existingexplicitRetry. Addedregression failsprior source thenpasses; adjusted olderGhosttest requiring stalecallbacksuccess to use explicitRetry/newwatch. Focused24pass; full4544pass6skip; build/native/budget1101.3KB raw334.4KB gzip/types/lint pass, fiveexistingwarnings.
+
+Functions compiled, no backenddeployment. Actual client QAread133ms zero locations/shares/requests. Disposable demo-vybe-contacts-qa backend8387/9297:20grouped sharing/189raw-rule checks pass againstsourceRules andactive8cproductionRules snapshot. QAonly8387reset; preview8280 untouched. ActiveRules8c9ac23d/Storagea6aa1032 unchanged. Savedsynthetic3Dmap/privacysheet load; no realGPS/consentmutation. Logs work/location-denial-*. Release releases/location-denial-recovery-20261006/README.md. Client publicationpending; physicalphoneadoption/network/GPS/codecs remainopen. Goalactive.
+
+Next three tasks: publish/verify denialfix; verify realmobile sharing/Clips/network; restoreexisting safeFirebase content/discovery. No newfeatures.
+
 
 
 

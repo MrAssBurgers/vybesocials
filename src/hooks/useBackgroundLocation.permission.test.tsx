@@ -125,7 +125,8 @@ describe('explicit GPS recovery', () => {
     act(() => hook.result.current.requestLocation());
     act(() => gps.watchPosition.mock.calls[0][1]({ code: 1, message: 'Permission denied' }));
     expect(hook.result.current.sharingError).toMatch(/permission is denied/);
-    await act(async () => gps.watchPosition.mock.calls[0][0](sample()));
+    act(() => hook.result.current.requestLocation());
+    await act(async () => gps.watchPosition.mock.calls.at(-1)![0](sample()));
     expect(hook.result.current.locationAvailable).toBe(true);
     expect(hook.result.current.sharingError).toBeNull();
     expect(hook.result.current.sharingEnabled).toBe(false);
@@ -158,6 +159,27 @@ it('a local GPS success cannot clear an unconfirmed sharing publication error', 
   expect(hook.result.current.locationAvailable).toBe(true);
   expect(hook.result.current.sharingError).toBe('Share upload failed');
   expect(hook.result.current.sharing).toBe(false);
+});
+it('retires every pending GPS callback when permission is denied until the user explicitly retries', async () => {
+  state.enabled = true;
+  const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
+  act(() => hook.result.current.requestLocation());
+  const staleWatch = gps.watchPosition.mock.calls[0][0];
+  const staleInitial = gps.getCurrentPosition.mock.calls[0][0];
+  act(() => gps.watchPosition.mock.calls[0][1]({ code: 1, message: 'Permission denied' }));
+  await act(async () => { staleWatch(sample()); staleInitial(sample()); });
+  expect(hook.result.current.locationDenied).toBe(true);
+  expect(hook.result.current.coords).toBeNull();
+  expect(state.invoke.mock.calls.some(([, input]) => input.action === 'publishPosition')).toBe(false);
+  expect(gps.clearWatch).toHaveBeenCalledWith(17);
+  act(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' }); document.dispatchEvent(new Event('visibilitychange')); });
+  act(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' }); document.dispatchEvent(new Event('visibilitychange')); });
+  expect(gps.watchPosition).toHaveBeenCalledOnce();
+  expect(hook.result.current.locationDenied).toBe(true);
+  act(() => hook.result.current.requestLocation());
+  await act(async () => gps.watchPosition.mock.calls.at(-1)![0](sample()));
+  expect(hook.result.current.locationDenied).toBe(false);
+  expect(hook.result.current.coords).toEqual([10, 20]);
 });
 it('a deferred fresh sample is retired when the user restarts GPS', async () => {
   state.enabled = true;

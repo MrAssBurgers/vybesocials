@@ -147,7 +147,7 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
       setPositionProblem({ scope, message: 'Location is unavailable on this device.' });
       return;
     }
-    let active = true, fellBack = false;
+    let active = true, fellBack = false, permissionDenied = false;
     let watchRevision = 0;
     let watchId: number | undefined;
     const current = (revision: number) => { try { latest.current.guard(); return active && revision === watchRevision && document.visibilityState !== 'hidden' && latest.current.scope === scope; } catch { return false; } };
@@ -162,6 +162,13 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
     const failure = (error: GeolocationPositionError, revision: number) => {
       if (!current(revision)) return;
       if (error.code === 1) {
+        // Permission denial retires both the watch and the initial lookup.
+        // A queued success from either must not restore coordinates or publish
+        // them after the phone has refused access. Explicit Retry starts anew.
+        watchRevision++;
+        permissionDenied = true;
+        if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
+        watchId = undefined;
         context.intent++; setPublished(null);
         setPosition({ ...EMPTY_POSITION, scope, denied: true });
         setPositionProblem({ scope, message: 'Location permission is denied. New updates stopped; a previously shared position expires within two minutes. Use Ghost Mode to stop access now.' });
@@ -175,7 +182,7 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
       }
     };
     const start = () => {
-      if (document.visibilityState === 'hidden') return;
+      if (document.visibilityState === 'hidden' || permissionDenied) return;
       fellBack = false;
       const revision = ++watchRevision;
       navigator.geolocation.getCurrentPosition(pos => success(pos, revision), error => failure(error, revision), { enableHighAccuracy: false, timeout: 10_000, maximumAge: 30_000 });
