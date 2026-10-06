@@ -18,6 +18,17 @@ function fixture() {
   return { video, load, ref, paused, reload, hook };
 }
 describe('foreground clip buffering recovery', () => {
+  it('recovers a network error received after playback started, once per failure', () => {
+    const f = fixture();
+    Object.defineProperty(f.video, 'readyState', { configurable: true, value: 4 });
+    act(() => f.video.dispatchEvent(new Event('playing')));
+    Object.defineProperty(f.video, 'error', { configurable: true, value: { code: 2 } });
+    act(() => f.video.dispatchEvent(new Event('error')));
+    expect(f.load).toHaveBeenCalledOnce();
+    act(() => { f.video.dispatchEvent(new Event('error')); vi.advanceTimersByTime(12_000); });
+    expect(f.load).toHaveBeenCalledOnce();
+    expect(f.hook.result.current.stalled).toBe(true);
+  });
   it('retries a silent loading stall once, then offers retry instead of spinning forever', () => {
     const f = fixture();
     act(() => vi.advanceTimersByTime(12_000));
@@ -53,7 +64,7 @@ describe('foreground clip buffering recovery', () => {
     if (kind === 'offline') Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
     if (kind === 'decoder') Object.defineProperty(f.video, 'error', { configurable: true, value: { code: 3 } });
     if (kind === 'inactive') f.hook.rerender({ active: false, source: 'https://example.test/clip.mp4', scope: 'alice:1' });
-    act(() => { window.dispatchEvent(new Event('online')); vi.advanceTimersByTime(60_000); });
+    act(() => { f.video.dispatchEvent(new Event('error')); window.dispatchEvent(new Event('online')); vi.advanceTimersByTime(60_000); });
     expect(f.load).not.toHaveBeenCalled(); expect(f.hook.result.current.stalled).toBe(false);
   });
   it('retires old timers on an account or source change and teardown', () => {

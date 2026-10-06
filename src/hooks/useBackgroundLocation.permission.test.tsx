@@ -29,6 +29,18 @@ beforeEach(() => {
 afterEach(() => { cleanup(); clients.forEach(client => client.clear()); clients.length = 0; });
 const create = () => renderHook(() => useBackgroundLocation(`profile-${state.uid}`, { watchOnMap: true }), { wrapper: wrapper() });
 describe('map GPS consent and checked publication', () => {
+  it('rechecks an approved stationary share immediately on reconnect using a fresh GPS sample', async () => {
+    state.enabled = true;
+    const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
+    act(() => hook.result.current.requestLocation());
+    const freshCalls = () => gps.getCurrentPosition.mock.calls.filter(([, , options]) => options.maximumAge === 0);
+    await act(async () => freshCalls()[0][0](sample()));
+    const before = freshCalls().length;
+    act(() => window.dispatchEvent(new Event('online')));
+    await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
+    await waitFor(() => expect(freshCalls().length).toBeGreaterThan(before));
+    expect(state.invoke.mock.calls.some(([, input]) => input.action === 'setSharing')).toBe(false);
+  });
   it('retires native background GPS callbacks and restarts only the requested watch on resume', async () => {
     const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
     act(() => hook.result.current.requestLocation());

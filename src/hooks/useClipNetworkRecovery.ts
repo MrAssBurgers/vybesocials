@@ -39,6 +39,11 @@ export function useClipNetworkRecovery(
       if (eligible() && networkFailure()) { context.retries = 1; retry(); }
       watch();
     };
+    const error = () => {
+      if (video.error?.code !== 2 || !eligible()) return;
+      if (context.retries === 0) { context.retries = 1; retry(); }
+      else watch();
+    };
     // Some mobile transports stall without emitting a MediaError. Bound both
     // initial buffering and later waits, without polling every rendered card.
     // A foreground remount already carrying a network error needs immediate
@@ -47,6 +52,7 @@ export function useClipNetworkRecovery(
     else watch();
     video.addEventListener('waiting', watch);
     video.addEventListener('stalled', watch);
+    video.addEventListener('error', error);
     video.addEventListener('playing', playing);
     window.addEventListener('online', recover);
     document.addEventListener('visibilitychange', recover);
@@ -54,6 +60,7 @@ export function useClipNetworkRecovery(
       stop();
       video.removeEventListener('waiting', watch);
       video.removeEventListener('stalled', watch);
+      video.removeEventListener('error', error);
       video.removeEventListener('playing', playing);
       window.removeEventListener('online', recover);
       document.removeEventListener('visibilitychange', recover);

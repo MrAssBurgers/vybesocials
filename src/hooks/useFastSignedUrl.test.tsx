@@ -20,6 +20,26 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 const advance = async (ms = 0) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
 describe('media URL recovery', () => {
+  it('retries unresolved media on native resume without a browser visibility event', async () => {
+    mock.resolve.mockRejectedValue(new Error('Network unavailable'));
+    const f = renderHook(() => useResolvedMediaUrl('gs://bucket/native-return'));
+    await advance(2000); expect(f.result.current.error).toBe(true);
+    mock.resolve.mockResolvedValue('https://storage.test/native-return?token=resolved');
+    act(() => window.dispatchEvent(new Event('app-resumed'))); await advance();
+    expect(f.result.current.url).toContain('/native-return?');
+  });
+  it.each(['hidden', 'offline', 'disabled', 'unmounted'])('does not retry media on native resume while %s', async kind => {
+    mock.resolve.mockRejectedValue(new Error('Network unavailable'));
+    const f = renderHook(({ enabled }) => useResolvedMediaUrl(`gs://bucket/native-${kind}`, enabled), { initialProps: { enabled: true } });
+    await advance(2000);
+    const before = mock.resolve.mock.calls.length;
+    if (kind === 'hidden') Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    if (kind === 'offline') Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    if (kind === 'disabled') f.rerender({ enabled: false });
+    if (kind === 'unmounted') f.unmount();
+    act(() => window.dispatchEvent(new Event('app-resumed'))); await advance();
+    expect(mock.resolve).toHaveBeenCalledTimes(before);
+  });
   it('retries an unresolved Firebase URL once, then exposes an explicit retry', async () => {
     mock.resolve.mockImplementation(async (url: string) => url);
     const f = renderHook(() => useResolvedMediaUrl('gs://bucket/clip'));

@@ -56,15 +56,13 @@ beforeEach(() => {
 afterEach(() => { cleanup(); client.clear(); vi.restoreAllMocks(); });
 
 describe('actual mobile clip playback lifecycle', () => {
-  it('retries an active network-failed clip when connectivity returns', async () => {
+  it('automatically retries an active network-failed clip without waiting for reconnect', async () => {
     const load = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
     const view = render(<MobileShortCard post={clip} isActive />, { wrapper });
     await new Promise(resolve => setTimeout(resolve, 180));
     const video = view.container.querySelector('video')!;
     Object.defineProperty(video, 'error', { configurable: true, value: { code: 2 } });
     fireEvent.error(video);
-    expect(screen.getByRole('button', { name: 'Retry clip' })).toBeInTheDocument();
-    fireEvent(window, new Event('online'));
     await waitFor(() => expect(load).toHaveBeenCalledOnce());
     await waitFor(() => expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(2));
     fireEvent.loadedData(video);
