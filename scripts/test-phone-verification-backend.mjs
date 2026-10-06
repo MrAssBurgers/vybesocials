@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 assert.equal(process.env.GCLOUD_PROJECT, 'demo-vybe-contacts-qa');
 for (const key of ['FIRESTORE_EMULATOR_HOST', 'FIREBASE_AUTH_EMULATOR_HOST']) assert.match(process.env[key] || '', /^(127\.0\.0\.1|localhost):\d+$/);
+assert.notEqual(process.env.FIRESTORE_EMULATOR_HOST?.split(':')[1], '8280', 'Never overwrite the retained live preview');
 process.env.FIREBASE_CONFIG = JSON.stringify({ projectId: process.env.GCLOUD_PROJECT });
 const { db, auth } = await import('../functions/lib/_shared/admin.js');
 const { readPhoneVerification: state, requestPhoneVerification: request, confirmPhoneVerification: confirm } = await import('../functions/lib/_shared/phoneVerificationAuthority.js');

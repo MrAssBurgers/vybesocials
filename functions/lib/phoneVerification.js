@@ -25,7 +25,7 @@ const provider = {
     },
 };
 const options = { cors: true, timeoutSeconds: 60, secrets: [...TWILIO_SECRETS] };
-export const phoneVerificationState = onCall({ cors: true }, request => readPhoneVerification(db, auth, requireAuth(request), request.data));
+export const phoneVerificationState = onCall({ cors: true, timeoutSeconds: 30, invoker: 'public' }, request => readPhoneVerification(db, auth, requireAuth(request), request.data));
 export const phoneVerifyRequest = onCall(options, request => requestPhoneVerification(db, auth, provider, recentUid(request), request.data));
 export const phoneVerifyConfirm = onCall(options, request => confirmPhoneVerification(db, auth, provider, recentUid(request), request.data));
 //# sourceMappingURL=phoneVerification.js.map

@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 assert.equal(process.env.GCLOUD_PROJECT, 'demo-vybe-contacts-qa');
 assert.match(process.env.FIRESTORE_EMULATOR_HOST || '', /^(127\.0\.0\.1|localhost):\d+$/);
+assert.notEqual(process.env.FIRESTORE_EMULATOR_HOST?.split(':')[1], '8280', 'Never overwrite the retained live preview');
 assert.match(process.env.FIREBASE_AUTH_EMULATOR_HOST || '', /^(127\.0\.0\.1|localhost):\d+$/);
 process.env.FIREBASE_CONFIG = JSON.stringify({ projectId: process.env.GCLOUD_PROJECT });
 const { db, auth } = await import('../functions/lib/_shared/admin.js');
@@ -117,7 +118,7 @@ try {
     const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
     const { getDoc, getDocs, doc, collection, setDoc, updateDoc, deleteDoc } = require('firebase/firestore');
     const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
-    const env = await initializeTestEnvironment({ projectId: process.env.GCLOUD_PROJECT, firestore: { host, port: Number(port), rules: await readFile(new URL('../firestore.rules', import.meta.url), 'utf8') } });
+    const env = await initializeTestEnvironment({ projectId: process.env.GCLOUD_PROJECT, firestore: { host, port: Number(port), rules: await readFile(process.env.FIRESTORE_RULES_FILE || new URL('../firestore.rules', import.meta.url), 'utf8') } });
     const owner = uid(); await db.doc(`user_2fa_settings/${owner}`).set({ user_id: owner, email_2fa_enabled: true });
     const privateNames = ['_sign_in_preference_receipts', '_sign_in_preference_limits', '_auth_session_revocations', '_auth_session_revoke_limits'];
     for (const name of privateNames) await db.doc(`${name}/${owner}`).set({ owner_uid: owner });

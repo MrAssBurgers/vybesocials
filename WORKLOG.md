@@ -1,3 +1,14 @@
+## ACTIVE (2026-10-06) — Existing account readers restored
+
+- User clarified that phone profile initially failed, then recovered itself; sign-in persisted. Platform is still unspecified. Do not recreate the account or claim the transient startup defect fixed.
+- Scoped deployment completed for manageSignInPreferences and read-only phoneVerificationState. Exact active Rules 00d7a6c4… / SHA6217f4… were verified unchanged; no whole Rules/Functions release, SMS delivery, secrets or Auth changes.
+- Only two missing device/login-history indexes added, both READY; two sign-in receipt/quota TTLs ACTIVE. Actual signed-in live Security screen now loads saved choices, tracked devices, recent login activity and legacy-phone verification status. No preferences or credentials changed.
+- Functions build passed; 13 isolated security backend/Rules groups, 17 injected-provider phone groups (no SMS), 18 security client tests and 34 phone client tests passed. Exact resources, scope and limits: releases/sign-in-settings-recovery-20261006/README.md.
+- Existing contact discovery still returns hashes required, indicating an incompatible deployed contract. Next matched slice is existing matchContacts, after exact baseline private Rules and isolated real Auth tests. Production client remains published84614d15715849490ec246a07e96e4afbb89fe15.
+
+Next 3 tasks: restore checked contact discovery; investigate transient phone profile startup and mounted-tab version adoption; continue guarded Firebase media/DM/hub recovery and native/provider verification before claiming readiness.
+
+---
 ## ACTIVE (2026-10-06) — Recovery preserves drafts, account state and customization
 
 - Recovery repair actually published through deploymentd338d7b4-e913-404d-88fa-226c4327fc67. Both public version manifests confirm84614d15715849490ec246a07e96e4afbb89fe15, built2026-10-06T01:42:35.334Z, entry/assets/app-C5IrGW10.js, SHAeb8c9cdc89c11b85242919c6dcec0438574b52f8842ff16d3835e4007ec39d53. Public Despia manifest is current(deployed_at1791250955128). No inference that an installed phone already downloaded that pack.
@@ -9410,10 +9421,3 @@ All eight migration phases complete. See `.lovable/plan.md` for per-phase detail
 1. Run the iOS manual checklist above on an iPhone build and collect screenshots/recording for each auth flow.
 2. If iOS deep-link takeover is still flaky on QR camera scans, verify associated domains/Universal Link entitlement for `vybehub.app` in the native shell.
 3. Push to `origin/main`, then run Lovable Publish and production smoke test on `vybehub.app`.
-
-
-
-
-
-
-
