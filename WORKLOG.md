@@ -1,3 +1,12 @@
+## ACTIVE (2026-10-06) — Location background job parity
+
+- Previous turn made progress updating/independently verifying four exact location action callables; main2b098ac8 clean at start. Full user-ready scope unchanged. Snapshot scheduler remains July13; heatmap/snapshot current reviewed source limits cleanup and never republishes private coordinates. Timestamp alone is not proof of previous source contents.
+- Current Functions build and20 grouped backend/189 raw Rules checks pass again on isolated demo-vybe-contacts-qa8387 using active8c candidate. Four exact request/grant indexes independently READY now. Prepared named two-job release with existing unchanged code; precise intended cleanup scopes documented in releases/location-jobs-recovery-20261006. No manual production job invocation, new feature, broad Functions/Rules/index/TTL/Auth/secrets/client mutation.
+- Stale mounted client/phone map/clip and full historical Firebase restoration/security gates remain active. Exact deployment and actual scheduler execution pending; no cleanup success or broad readiness claim.
+
+Next3tasks: deploy/verify two exact scheduled location exports and unchanged Rules/Storage; diagnose current-client browser/phone map and clips; continue retained Firebase content/media and security review.
+
+---
 ## ACTIVE (2026-10-06) — Location action endpoint parity
 
 - Previous turn made authoritative progress publishing exact-source profile recovery; source53524142 clean at start. User readiness/mobile map/clips/loading/restoration scope unchanged. Metadata confirms four older location action exports last July13 while checked manage endpoint was restored Oct6; timestamp alone does not prove their previous implementation or explain failed map reads.
@@ -9661,6 +9670,7 @@ All eight migration phases complete. See `.lovable/plan.md` for per-phase detail
 - Live signed-in Clips read succeeds: one active Firebase Storage video readyState4/pausedfalse/errornull while two others paused. Desktop observation only, no physical phone/FPS/codec proof. Direct map navigation in older CGCcULTp client triggers real retained-account profile timeout; read retry started. No sign-out/account storage/cache/worker/GPS permission/share mutation. Browser adoption remains unresolved.
 
 Next3tasks: publish/verify corrected source schema against full input map; diagnose mounted old-client/profile timeout and physical phone location/clips; continue Firebase retained content/media and separate security review.
+
 
 
 
