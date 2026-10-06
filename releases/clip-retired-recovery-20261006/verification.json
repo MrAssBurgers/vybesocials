@@ -1,0 +1,151 @@
+{
+  "sourceCommit": "1213702df2e686ba016ba1127237484b2c9d1d4f",
+  "deployment": "2040b8d1-ef71-4a59-bfcc-296c51149c9f",
+  "updatedDialog": true,
+  "publicationScreenshot": "outputs/vybe-clip-retired-recovery-published.png",
+  "focusedTests": 48,
+  "testsPassed": 4844,
+  "testsSkipped": 6,
+  "types": "pass",
+  "build": "pass",
+  "bundleBudget": {
+    "rawKB": 1095,
+    "gzipKB": 332.1
+  },
+  "lint": {
+    "errors": 0,
+    "existingWarnings": 5
+  },
+  "origins": [
+    {
+      "host": "https://vybehub.app",
+      "resolvedOrigin": "https://vybehub.app",
+      "redirected": false,
+      "routes": [
+        "/",
+        "/home",
+        "/map",
+        "/clips",
+        "/onboarding",
+        "/spaces",
+        "/space/qa-route-check",
+        "/messages",
+        "/community"
+      ],
+      "sourceSha": "7875f3895705740464eaeb1136eaa8763abe933b4bf2bdd092c466a3b67c167a",
+      "schema": "vybe-client-source-v2",
+      "files": 2589,
+      "built": "2026-10-06T19:30:02.957Z",
+      "entry": "/assets/app-B66PSx_7.js",
+      "entrySha": "b1eb74b8cb4bbd939da689d6f23c09283d7ea8d2f6c1383384a422fa0a75c0d3"
+    },
+    {
+      "host": "https://vybesocials.lovable.app",
+      "resolvedOrigin": "https://vybehub.app",
+      "redirected": true,
+      "routes": [
+        "/",
+        "/home",
+        "/map",
+        "/clips",
+        "/onboarding",
+        "/spaces",
+        "/space/qa-route-check",
+        "/messages",
+        "/community"
+      ],
+      "sourceSha": "7875f3895705740464eaeb1136eaa8763abe933b4bf2bdd092c466a3b67c167a",
+      "schema": "vybe-client-source-v2",
+      "files": 2589,
+      "built": "2026-10-06T19:30:02.957Z",
+      "entry": "/assets/app-B66PSx_7.js",
+      "entrySha": "b1eb74b8cb4bbd939da689d6f23c09283d7ea8d2f6c1383384a422fa0a75c0d3"
+    }
+  ],
+  "normalPages": [
+    {
+      "path": "/",
+      "status": 200,
+      "cache": "no-cache, must-revalidate, max-age=0",
+      "age": null,
+      "etag": null,
+      "vary": null,
+      "modules": [
+        "<script type=\"module\" crossorigin src=\"/assets/app-B66PSx_7.js\">"
+      ]
+    },
+    {
+      "path": "/home",
+      "status": 200,
+      "cache": "no-cache, must-revalidate, max-age=0",
+      "age": null,
+      "etag": null,
+      "vary": null,
+      "modules": [
+        "<script type=\"module\" crossorigin src=\"/assets/app-B66PSx_7.js\">"
+      ]
+    },
+    {
+      "path": "/settings",
+      "status": 200,
+      "cache": "no-cache, must-revalidate, max-age=0",
+      "age": null,
+      "etag": null,
+      "vary": null,
+      "modules": [
+        "<script type=\"module\" crossorigin src=\"/assets/app-B66PSx_7.js\">"
+      ]
+    },
+    {
+      "path": "/login",
+      "status": 200,
+      "cache": "no-cache, must-revalidate, max-age=0",
+      "age": null,
+      "etag": null,
+      "vary": null,
+      "modules": [
+        "<script type=\"module\" crossorigin src=\"/assets/app-B66PSx_7.js\">"
+      ]
+    }
+  ],
+  "nativeDelivery": {
+    "source": "7875f3895705740464eaeb1136eaa8763abe933b4bf2bdd092c466a3b67c167a",
+    "entry": "/assets/app-B66PSx_7.js",
+    "manifestEntry": "/index.html",
+    "deployedAt": "1791315001779",
+    "listedAssets": 628,
+    "checkedAssets": 628,
+    "failures": [],
+    "manifestCache": null,
+    "manifestAge": null,
+    "manifestEtag": "W/\"faec078fdb3a768a2950d54f4583ab32\"",
+    "limits": [
+      "Public native-package assets and metadata only; no proof the installed Play Store binary downloaded or mounted this package",
+      "HEAD checks prove resource availability, not media decoding or device permissions"
+    ]
+  },
+  "manual": {
+    "syntheticAccountAndMediaApis": true,
+    "mobileInitialPlays": 1,
+    "mobilePausedSourceReloads": 0,
+    "mobilePausedReleases": 1,
+    "mobileResumedPlays": 2,
+    "mobileForegroundFailureReloads": 1,
+    "mobileFinalPlays": 3,
+    "desktopInitialTotalPlays": 4,
+    "desktopPausedTotalSourceReloads": 1,
+    "desktopPausedTotalReleases": 2,
+    "desktopResumedTotalPlays": 5,
+    "desktopFinalTotalSourceReloads": 2,
+    "desktopFinalTotalPlays": 6,
+    "browserErrors": 0,
+    "screenshot": "outputs/vybe-clip-retired-recovery-check.png"
+  },
+  "userPhone": "Installed from Play Store",
+  "limits": [
+    "No physical-phone codec/FPS/battery/current installed package adoption proof",
+    "No guarantee of instant profile or post loading over real networks",
+    "No Functions/Rules/provider/OS permission/native binary or production content change",
+    "Earlier fresh Chrome mounted an older entry; device/browser adoption cause remains unresolved"
+  ]
+}
