@@ -1,3 +1,14 @@
+## ACTIVE (2026-10-06) — Hosted source identity and release adoption
+
+- Previous turn made real progress repairing scheduled/foreground/reconnect token recovery and completing a hosting update. Started clean maina146eed4. Unknown manifest commit prevented exact source verification; signed-in browser still mountsCGCcULTp with correctmoduletype, while independent requests serveDohoRlVT. No speculation about cache/DNS/SW origin.
+- Version writer now adds deterministic source_schema/source_sha256/source_files independent of Git, preserving unknown when Git is truly unavailable and avoiding parent-repository labels in archives. Admitted src/public/scripts and root build/package/lock/type/style inputs use sorted length-delimited paths, text newline normalization and exact binary bytes. Native link/header inputs included. Environment/private/local/generated metadata excluded, symlinks rejected. Entry SHA still covers output. This attests client source tree only, not compiler/environment/backend/native/data.
+- Five meaningful Node groups pass including actual archive version writer. Full474 files/4503 tests pass6 skip; app/native build/budget1099.8KBraw333.9KBgzip and lint5existingwarnings pass. Final writer regeneration verifies extensionless-text normalization correction; runtime source untouched. Logs work/source-identity-{tests,full,build-final,lint}.log. Tested fingerprint6f43216ffc2fe8d56da85ffceaa9c8f924324a062b7e600fd2ff9834db735116/2537files. Actual committed archive and exact publication checks pending.
+- Scope and limits in releases/source-identity-recovery-20261006/README.md. No new user feature, Firebase/Auth/Rules/index/TTL/secret/data change or account/cache/worker/GPS/permission purge. Entire readiness goal remains active.
+
+Next3tasks: verify committed non-Git archive and publish matching fingerprint; diagnose browser adoption and verify actual phone Firebase map/clip/session recovery; restore remaining guarded content/media/DM/hubs/provider paths.
+
+---
+
 ## ACTIVE (2026-10-06) — Temporary Firebase token recovery
 
 - Previous turn made verified production progress: theme services and actual community/saved reads restored. Started clean main56b9a7af. User readiness, phone map/clips/auth and old mounted release adoption remain active; no new feature.

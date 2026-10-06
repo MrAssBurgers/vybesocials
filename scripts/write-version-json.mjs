@@ -7,12 +7,14 @@ import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
+import { clientSourceIdentity } from './build-source-identity.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 
 let commit = 'unknown';
 try {
+  if (!existsSync(join(root, '.git'))) throw new Error('Source archive has no Git metadata');
   commit = execSync('git rev-parse HEAD', { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] })
     .toString()
     .trim();
@@ -32,6 +34,7 @@ if (existsSync(assetsDir)) {
 }
 
 const version = {
+  ...clientSourceIdentity(root),
   app_version: pkg.version || '0.0.0',
   commit,
   commit_short: commit.slice(0, 7),
