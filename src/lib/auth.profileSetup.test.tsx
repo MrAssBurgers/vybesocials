@@ -110,6 +110,8 @@ async function switchAccount(uid: string, event = 'SIGNED_IN') {
 
 beforeEach(() => {
   stopNativeEvents = installNativeLifecycleEvents();
+  // Shared page lifecycle survives provider remounts; each test starts foreground.
+  window.dispatchEvent(new Event('app-resumed'));
   vi.clearAllMocks(); state.ensure.mockReset(); state.recover.mockReset(); state.signup.mockReset();
   state.account = { uid: undefined, epoch: 0 }; state.listener = null; state.subscribers.clear(); state.restoreSubscribers.clear(); state.restoreState = 'ready'; state.firebaseUser = null; state.refresh.mockReset(); state.signOut.mockReset();
   state.getSession.mockImplementation(() => new Promise(() => {}));
@@ -410,6 +412,52 @@ describe('AuthProvider checked profile setup', () => {
 });
 
 describe('AuthProvider restoration and refresh ownership', () => {
+  it.each(['window', 'document'])('pauses a queued profile retry on native %s pause and recovers on resume', async target => {
+    vi.useFakeTimers(); state.ensure.mockRejectedValueOnce({ code: 'auth/network-request-failed' }).mockResolvedValueOnce(profile('alice', 'recovered'));
+    state.getSession.mockResolvedValue({ data: { session: { ...session('alice'), expires_at: Math.floor(Date.now() / 1000) + 3600 } }, error: null });
+    mount(); await switchAccount('alice', 'INITIAL_SESSION');
+    act(() => { (target === 'document' ? document : window).dispatchEvent(new Event('app-paused')); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(1100); });
+    expect(state.ensure).toHaveBeenCalledTimes(1); expect(current.profileSetupLoading).toBe(false);
+    expect(current.user?.id).toBe('alice'); expect(state.signOut).not.toHaveBeenCalled();
+    await act(async () => { (target === 'document' ? document : window).dispatchEvent(new Event('app-resumed')); });
+    expect(state.ensure).toHaveBeenCalledTimes(2); expect(current.profile?.username).toBe('recovered');
+  });
+  it('does not let a token event restart a failed bootstrap while native-paused', async () => {
+    vi.useFakeTimers(); state.ensure.mockRejectedValueOnce({ code: 'auth/network-request-failed' }).mockResolvedValueOnce(profile('alice', 'recovered'));
+    state.getSession.mockResolvedValue({ data: { session: { ...session('alice'), expires_at: Math.floor(Date.now() / 1000) + 3600 } }, error: null });
+    mount(); await switchAccount('alice', 'INITIAL_SESSION');
+    act(() => { window.dispatchEvent(new Event('app-paused')); });
+    await act(async () => { await state.listener?.('TOKEN_REFRESHED', session('alice')); await vi.advanceTimersByTimeAsync(1100); });
+    expect(state.ensure).toHaveBeenCalledTimes(1); expect(current.profileSetupLoading).toBe(false);
+    await act(async () => { window.dispatchEvent(new Event('app-resumed')); });
+    expect(state.ensure).toHaveBeenCalledTimes(2); expect(current.profile?.username).toBe('recovered');
+  });
+  it('skips scheduled token refresh and online reads while native-paused', async () => {
+    vi.useFakeTimers(); state.ensure.mockImplementation(async uid => profile(uid, uid)); mount();
+    const near = { ...session('alice'), expires_at: Math.floor(Date.now() / 1000) + 301 };
+    state.getSession.mockResolvedValue({ data: { session: near }, error: null });
+    state.refresh.mockResolvedValue({ data: { session: { ...near, expires_at: near.expires_at + 3600 } }, error: null });
+    await act(async () => { state.account = { uid: 'alice', epoch: 1 }; state.subscribers.forEach(notify => notify()); await state.listener?.('INITIAL_SESSION', near); });
+    const reads = state.getSession.mock.calls.length;
+    act(() => { window.dispatchEvent(new Event('app-paused')); window.dispatchEvent(new Event('online')); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(1100); });
+    expect(state.refresh).not.toHaveBeenCalled(); expect(state.getSession).toHaveBeenCalledTimes(reads);
+    await act(async () => { window.dispatchEvent(new Event('app-resumed')); await vi.advanceTimersByTimeAsync(1100); });
+    expect(state.refresh).toHaveBeenCalledOnce(); expect(state.signOut).not.toHaveBeenCalled();
+  });
+  it('retires a delayed resume read on pause and admits a new resume inside the debounce', async () => {
+    vi.useFakeTimers(); state.ensure.mockImplementation(async uid => profile(uid, uid)); mount(); await switchAccount('alice');
+    const pending = deferred<any>(); const near = { ...session('alice'), expires_at: Math.floor(Date.now() / 1000) + 60 };
+    state.getSession.mockReturnValueOnce(pending.promise).mockResolvedValue({ data: { session: near }, error: null });
+    state.refresh.mockResolvedValue({ data: { session: { ...near, expires_at: near.expires_at + 3600 } }, error: null });
+    act(() => { window.dispatchEvent(new Event('app-resumed')); window.dispatchEvent(new Event('app-paused')); });
+    await act(async () => { pending.resolve({ data: { session: near }, error: null }); await vi.advanceTimersByTimeAsync(1100); });
+    expect(state.refresh).not.toHaveBeenCalled();
+    await act(async () => { window.dispatchEvent(new Event('app-resumed')); await vi.advanceTimersByTimeAsync(1100); });
+    expect(state.refresh).toHaveBeenCalledOnce(); expect(state.signOut).not.toHaveBeenCalled();
+  });
+
   it('recovers a temporary startup token failure without waiting for a new browser event', async () => {
     vi.useFakeTimers();
     state.ensure.mockRejectedValueOnce({ code: 'auth/network-request-failed' }).mockResolvedValueOnce(profile('alice', 'recovered'));
