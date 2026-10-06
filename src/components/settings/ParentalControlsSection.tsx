@@ -34,7 +34,7 @@ const CHILD_SAFE_DEFAULTS = {
 };
 
 export function ParentalControlsSection() {
-  const { data: controls, isLoading, isError, refetch } = useParentalControls();
+  const { data: controls, isLoading, isError, refetch, isFetching: checkingControls } = useParentalControls();
   const account = useSyncExternalStore(reportAccountSubscribe, reportAccountSnapshot, reportAccountSnapshot);
   const [unlockProof, setUnlockProof] = useState<ParentalUnlockProof | null>(null);
   const { data: safety, isError: safetyError, isLoading: safetyLoading, refetch: refetchSafety } = useSafetySettings();
@@ -357,7 +357,7 @@ export function ParentalControlsSection() {
         <div className="flex w-full flex-col items-center space-y-4">
           <div>
             <p className="mb-2 text-center text-sm font-medium">Create PIN</p>
-            <InputOTP maxLength={4} value={pin} onChange={setPin}>
+            <InputOTP disabled={setupMutation.isPending} maxLength={4} value={pin} onChange={setPin}>
               <InputOTPGroup>
                 <InputOTPSlot index={0} />
                 <InputOTPSlot index={1} />
@@ -368,7 +368,7 @@ export function ParentalControlsSection() {
           </div>
           <div>
             <p className="mb-2 text-center text-sm font-medium">Confirm PIN</p>
-            <InputOTP maxLength={4} value={confirmPin} onChange={setConfirmPin}>
+            <InputOTP disabled={setupMutation.isPending} maxLength={4} value={confirmPin} onChange={setConfirmPin}>
               <InputOTPGroup>
                 <InputOTPSlot index={0} />
                 <InputOTPSlot index={1} />
@@ -378,6 +378,13 @@ export function ParentalControlsSection() {
             </InputOTP>
           </div>
         </div>
+
+        {setupMutation.isError && <div role="alert" className="w-full space-y-3 rounded-xl border border-border/50 p-4 text-sm">
+          <p>We couldn't confirm setup. Retry the same PIN and settings, or check whether they were saved.</p>
+          <Button variant="outline" disabled={setupMutation.isPending || checkingControls} onClick={() => void refetch()}>
+            {checkingControls ? 'Checking setup...' : 'Check setup'}
+          </Button>
+        </div>}
 
         <Button
           onClick={() => {
@@ -403,8 +410,9 @@ export function ParentalControlsSection() {
                 setUnlockProof({ pin, uid: account.uid, epoch: account.epoch });
                 setPin(''); setConfirmPin('');
               },
-              onError: () => {
-                toast.error('Failed to set up parental controls');
+              onError: (error) => {
+                if (!isCurrentAccount() || (error as { code?: string }).code === 'account-changed') return;
+                toast.error('Could not confirm setup. Retry the same details or check setup.');
                 haptics.error();
               },
             });

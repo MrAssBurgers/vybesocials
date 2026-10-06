@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({
-  account: { uid: 'alice', epoch: 1 }, listeners: new Set<() => void>(), error: false, safetyError: false,
+  account: { uid: 'alice', epoch: 1 }, listeners: new Set<() => void>(), error: false, controls: true, setupError: false, safetyError: false,
   verify: vi.fn(), update: vi.fn(), proof: vi.fn(), refetch: vi.fn(), safety: vi.fn(), refetchSafety: vi.fn(),
 }));
 vi.mock('@/lib/reportModerationService', () => ({ reportAccountSnapshot: () => state.account,
@@ -9,8 +9,8 @@ vi.mock('@/lib/reportModerationService', () => ({ reportAccountSnapshot: () => s
 vi.mock('@/lib/haptics', () => ({ haptics: { tap: vi.fn(), success: vi.fn(), error: vi.fn() } }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@/hooks/useParentalControls', () => ({
-  useParentalControls: () => ({ data: state.error ? undefined : { has_pin: true, is_active: true, max_screen_time_minutes: 120 }, isError: state.error, refetch: state.refetch, isLoading: false }),
-  useSetupParentalControls: () => ({ mutate: vi.fn() }),
+  useParentalControls: () => ({ data: state.error ? undefined : state.controls ? { has_pin: true, is_active: true, max_screen_time_minutes: 120 } : null, isError: state.error, refetch: state.refetch, isLoading: false }),
+  useSetupParentalControls: () => ({ mutate: vi.fn(), isError: state.setupError }),
   useUpdateParentalControls: (proof: unknown) => { state.proof(proof); return { mutate: state.update }; },
   useVerifyParentalPin: () => ({ mutateAsync: state.verify, isPending: false }),
 }));
@@ -20,8 +20,8 @@ vi.mock('@/hooks/useScreenTime', () => ({ useTodayScreenTime: () => ({ data: 0 }
 vi.mock('@/components/ui/slider', () => ({ Slider: ({ value, onValueChange, onValueCommit }: { value: number[]; onValueChange: (v: number[]) => void; onValueCommit: (v: number[]) => void }) =>
   <input aria-label="Daily limit" type="range" value={value[0]} onChange={e => onValueChange([Number(e.target.value)])} onMouseUp={e => onValueCommit([Number(e.currentTarget.value)])} /> }));
 import { ParentalControlsSection } from './ParentalControlsSection';
-beforeEach(() => { state.account = { uid: 'alice', epoch: 1 }; state.error = false; state.safetyError = false; state.safety.mockClear(); state.refetchSafety.mockClear(); state.verify.mockReset().mockResolvedValue(true); state.update.mockClear(); state.proof.mockClear(); state.refetch.mockClear(); });
-afterEach(cleanup);
+beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); state.account = { uid: 'alice', epoch: 1 }; state.error = false; state.controls = true; state.setupError = false; state.safetyError = false; state.safety.mockClear(); state.refetchSafety.mockClear(); state.verify.mockReset().mockResolvedValue(true); state.update.mockClear(); state.proof.mockClear(); state.refetch.mockClear(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const unlock = async (pin = '1234') => {
   fireEvent.change(screen.getByLabelText('Parental PIN, four to eight digits'), { target: { value: pin } });
   fireEvent.click(screen.getByRole('button', { name: 'Unlock Controls' }));
@@ -32,6 +32,11 @@ describe('parental section loading, PIN length and account retirement', () => {
     state.error = true; render(<ParentalControlsSection />);
     expect(screen.queryByRole('button', { name: 'Enable Parental Controls' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Try again' })); expect(state.refetch).toHaveBeenCalledOnce();
+  });
+  it('offers a saved-setup check after an unknown first setup result', () => {
+    state.controls = false; state.setupError = true; render(<ParentalControlsSection />);
+    expect(screen.getByRole('alert')).toHaveTextContent('Retry the same PIN');
+    fireEvent.click(screen.getByRole('button', { name: 'Check setup' })); expect(state.refetch).toHaveBeenCalledOnce();
   });
   it('does not offer editable defaults when safety settings failed to load', () => {
     state.safetyError = true; render(<ParentalControlsSection />);

@@ -76,4 +76,25 @@ describe('parental PIN proof transport and retirement', () => {
     await act(async () => { await expect(hook.result.current.mutateAsync('1234')).rejects.toThrow('verified profile'); }); expect(state.call).not.toHaveBeenCalled();
   });
 
+  it('retries an unknown setup outcome using the same request ID and original details', async () => {
+    state.call.mockRejectedValueOnce(Object.assign(new Error('Response lost'), { code: 'functions/unavailable' })).mockImplementation(async (_name, body) => ({ data: { ok: true, requestId: body.requestId, replayed: true, controls: { user_id: 'alice', has_pin: true } } }));
+    const hook = renderHook(() => useSetupParentalControls(), { wrapper });
+    await act(async () => { await expect(hook.result.current.mutateAsync({ pin: '1234', settings: { max_screen_time_minutes: 90 } })).rejects.toThrow('Response lost'); });
+    await act(async () => { await hook.result.current.mutateAsync({ pin: '1234', settings: { max_screen_time_minutes: 90 } }); });
+    expect(state.call.mock.calls[1][1]).toEqual(state.call.mock.calls[0][1]);
+    expect(state.call.mock.calls[0][1].requestId).toMatch(/^[a-f0-9-]{36}$/);
+  });
+  it('does not turn an unresolved setup into a new request with different settings', async () => {
+    state.call.mockRejectedValue(new Error('Offline')); const hook = renderHook(() => useSetupParentalControls(), { wrapper });
+    await act(async () => { await expect(hook.result.current.mutateAsync({ pin: '1234' })).rejects.toThrow('Offline'); });
+    await act(async () => { await expect(hook.result.current.mutateAsync({ pin: '5678' })).rejects.toThrow('original setup'); }); expect(state.call).toHaveBeenCalledOnce();
+  });
+  it('keeps an incomplete confirmation retry bound to its original request', async () => {
+    state.call.mockResolvedValue({ data: { ok: true, requestId: 'wrong', replayed: false, controls: { user_id: 'alice', has_pin: true } } });
+    const hook = renderHook(() => useSetupParentalControls(), { wrapper });
+    await act(async () => { await expect(hook.result.current.mutateAsync({ pin: '1234' })).rejects.toThrow('incomplete'); });
+    await act(async () => { await expect(hook.result.current.mutateAsync({ pin: '1234' })).rejects.toThrow('incomplete'); });
+    expect(state.call.mock.calls[0][1].requestId).toEqual(state.call.mock.calls[1][1].requestId);
+  });
+
 });

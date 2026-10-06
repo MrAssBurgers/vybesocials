@@ -94,6 +94,8 @@ export function useParentalControls() {
 export function useSetupParentalControls() {
   const queryClient = useQueryClient();
   const { user, capture, profileId, creationTime } = useParentalScope();
+  // Keep only the uncertain request in memory. No PIN/request is serialized.
+  const pending = useRef<{ scope: string; effect: string; requestId: string } | null>(null);
 
   return useMutation({
     retry: false, networkMode: 'always', gcTime: 0,
@@ -101,16 +103,28 @@ export function useSetupParentalControls() {
     mutationFn: async ({ pin, settings }: { pin: string; settings?: Partial<ParentalControls> }) => {
       if (!user) throw new Error('Not authenticated');
       const { guard, fields } = capture();
-      const call = httpsCallable<unknown, { ok: boolean; controls: ParentalControls }>(
-        fns(),
-        'setParentalPin',
-      );
-      const res = await call({ pin, settings, ...fields });
-      guard();
-      return res.data.controls;
+      if (!/^\d{4,8}$/.test(pin)) throw new Error('Use a four to eight digit PIN.');
+      const scope = JSON.stringify([fields, reportAccountSnapshot().epoch]);
+      const effect = JSON.stringify([pin, Object.entries(settings ?? {}).sort(([a], [b]) => a.localeCompare(b))]);
+      if (pending.current?.scope !== scope) pending.current = null;
+      if (pending.current && pending.current.effect !== effect) throw new Error('Retry the original setup details or reload parental controls before changing them.');
+      pending.current ??= { scope, effect, requestId: crypto.randomUUID() };
+      const requestId = pending.current.requestId;
+      const call = httpsCallable<unknown, { ok: boolean; requestId: string; replayed: boolean; controls: ParentalControls }>(fns(), 'setParentalPin');
+      try {
+        const res = await call({ pin, ...(settings === undefined ? {} : { settings }), requestId, ...fields });
+        guard();
+        if (res.data?.ok !== true || res.data.requestId !== requestId || typeof res.data.replayed !== 'boolean' || res.data.controls?.user_id !== fields.expectedOwnerUid || res.data.controls.has_pin !== true) throw new Error('Your setup confirmation was incomplete. Retry the same details.');
+        return res.data.controls;
+      } catch (error) {
+        const code = String((error as { code?: string }).code ?? '').replace(/^functions\//, '');
+        if (code === 'invalid-argument' && pending.current?.scope === scope && pending.current.requestId === requestId) pending.current = null;
+        throw error;
+      }
     },
     onSuccess: (data, _variables, context) => {
       try { context?.guard(); } catch { return; }
+      pending.current = null;
       queryClient.setQueryData(['parental-controls', user?.id, reportAccountSnapshot().epoch, profileId, creationTime], data);
       queryClient.invalidateQueries({ queryKey: ['parental-controls', user?.id] });
     },

@@ -1,5 +1,5 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { db, auth, requireAuth } from './_shared/admin.js';
 
 import { parentalScopeFields, parentalRequestIdentity, checkParentalAuth, resolveParentalActor, parentalBinding, readParentalRow } from './_shared/parentalAccountAuthority.js';
@@ -7,6 +7,10 @@ import { parentalScopeFields, parentalRequestIdentity, checkParentalAuth, resolv
 type Row = Record<string, unknown>;
 const object = (value: unknown): value is Row => !!value && typeof value === 'object' && !Array.isArray(value);
 const validPin = (pin: unknown): pin is string => typeof pin === 'string' && /^\d{4,8}$/.test(pin);
+const requestId = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value);
+const effect = (pin: string, input: Row) => JSON.stringify([pin, Object.entries(input).sort(([a], [b]) => a.localeCompare(b))]);
+const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const pinVersion = (row: Row) => { const value = material(row); return digest([value.algorithm ?? 'sha256-v1', value.salt, value.hash]); };
 const lockWindow = 5 * 60 * 1000;
 const fields = new Set(['is_active', 'content_filter_level', 'max_screen_time_minutes', 'allowed_features']);
 
@@ -69,15 +73,33 @@ export const setParentalPin = onCall(async request => {
   const identity = parentalRequestIdentity(request, raw);
   await checkParentalAuth(auth, identity);
   if (!validPin(raw.pin)) throw new HttpsError('invalid-argument', 'PIN must be 4–8 digits.');
-  if (Object.keys(raw).some(key => !['pin', 'currentPin', 'settings', ...parentalScopeFields].includes(key))) throw new HttpsError('invalid-argument', 'Invalid PIN setup details.');
+  if (Object.keys(raw).some(key => !['pin', 'currentPin', 'settings', 'requestId', ...parentalScopeFields].includes(key))) throw new HttpsError('invalid-argument', 'Invalid PIN setup details.');
+  if (!requestId(raw.requestId)) throw new HttpsError('invalid-argument', 'A valid PIN setup request is required.');
   const input = raw.settings === undefined ? {} : settings(raw.settings);
   let nextMaterial: { salt: string; hash: string } | undefined;
+  let receiptNonce: string | undefined, resultRevision: string | undefined;
+  const receiptRef = db.collection('_parental_pin_receipts').doc(digest([uid, identity.profileId, identity.created, raw.requestId]));
   const ref = db.collection('parental_controls').doc(uid);
   const result = await db.runTransaction(async tx => {
     const actor = await resolveParentalActor(db, tx, identity);
     const prev = await readParentalRow(db, tx, actor); owned(prev, uid);
+    const receipt = (await tx.get(receiptRef)).data();
     await checkParentalAuth(auth, identity);
     const now = Date.now();
+    if (receipt) {
+      if (!prev || receipt.version !== 1 || receipt.owner_uid !== uid || receipt.profile_id !== actor.profileId || receipt.auth_created_at_ms !== actor.created
+        || receipt.binding_revision !== actor.bindingRevision || receipt.request_id !== raw.requestId || typeof receipt.nonce !== 'string' || !/^[a-f0-9]{64}$/.test(receipt.nonce)
+        || typeof receipt.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(receipt.fingerprint) || typeof receipt.result_revision !== 'string' || !/^[a-f0-9]{48}$/.test(receipt.result_revision)
+        || typeof receipt.pin_version !== 'string' || !/^[a-f0-9]{64}$/.test(receipt.pin_version)) throw new HttpsError('failed-precondition', 'This setup confirmation needs a review. Nothing was changed.');
+      if (prev.control_revision !== receipt.result_revision || pinVersion(prev) !== receipt.pin_version) throw new HttpsError('failed-precondition', 'This setup was saved, but the controls changed later. Refresh parental controls before continuing.');
+      const proof = check(prev, raw.pin, now);
+      if (proof.limited) return { limited: true };
+      if (!proof.ok) { tx.set(ref, proof.patch, { merge: true }); return { denied: true }; }
+      const fingerprint = createHmac('sha256', receipt.nonce).update(effect(raw.pin as string, input)).digest();
+      if (!timingSafeEqual(fingerprint, Buffer.from(receipt.fingerprint, 'hex'))) throw new HttpsError('failed-precondition', 'Retry the original setup details or refresh parental controls.');
+      if (prev.pin_failures || prev.pin_lock_until) tx.set(ref, proof.patch, { merge: true });
+      return { controls: safe(prev), replayed: true };
+    }
     if (prev) {
       const proof = check(prev, raw.currentPin, now);
       if (proof.limited) return { limited: true };
@@ -87,16 +109,21 @@ export const setParentalPin = onCall(async request => {
       const salt = randomBytes(16).toString('hex');
       nextMaterial = { salt, hash: scryptSync(raw.pin as string, salt, 32, { N: 16384, r: 8, p: 1 }).toString('hex') };
     }
+    receiptNonce ??= randomBytes(32).toString('hex'); resultRevision ??= randomBytes(24).toString('hex');
     const time = new Date(now).toISOString();
     const merged = { ...(prev ?? {}), ...parentalBinding(actor), user_id: uid, is_active: prev?.is_active ?? true,
       content_filter_level: prev?.content_filter_level ?? 'protected',
       max_screen_time_minutes: prev && Object.hasOwn(prev, 'max_screen_time_minutes') ? prev.max_screen_time_minutes : 120,
       allowed_features: prev && Object.hasOwn(prev, 'allowed_features') ? prev.allowed_features : ['messaging', 'feed', 'profile'], ...input,
-      pin_hash: nextMaterial.hash, pin_salt: nextMaterial.salt, pin_algo: 'scrypt-v2', pin_failures: 0, pin_lock_until: 0,
+      control_revision: resultRevision, pin_hash: nextMaterial.hash, pin_salt: nextMaterial.salt, pin_algo: 'scrypt-v2', pin_failures: 0, pin_lock_until: 0,
       created_at: prev?.created_at ?? time, updated_at: time };
-    tx.set(ref, merged); return { controls: safe(merged) };
+    tx.set(ref, merged);
+    tx.set(receiptRef, { version: 1, owner_uid: uid, profile_id: actor.profileId, auth_created_at_ms: actor.created, binding_revision: actor.bindingRevision,
+      request_id: raw.requestId, nonce: receiptNonce, fingerprint: createHmac('sha256', receiptNonce).update(effect(raw.pin as string, input)).digest('hex'),
+      result_revision: resultRevision, pin_version: pinVersion(merged), created_at_ms: now });
+    return { controls: safe(merged), replayed: false };
   });
-  fail(result); return { ok: true, controls: 'controls' in result ? result.controls : undefined };
+  fail(result); return { ok: true, controls: 'controls' in result ? result.controls : undefined, replayed: 'replayed' in result ? result.replayed : undefined, requestId: raw.requestId };
 });
 
 export const verifyParentalPin = onCall(async request => {
@@ -145,7 +172,7 @@ export const updateParentalControls = onCall(async request => {
     const proof = check(row, raw.pin, Date.now());
     if (proof.limited) return { limited: true };
     if (!proof.ok) { tx.set(ref, proof.patch, { merge: true }); return { denied: true }; }
-    tx.set(ref, { ...input, ...proof.patch, updated_at: new Date().toISOString() }, { merge: true });
+    tx.set(ref, { ...input, ...proof.patch, control_revision: randomBytes(24).toString('hex'), updated_at: new Date().toISOString() }, { merge: true });
     return {};
   });
   fail(result); return { ok: true };
