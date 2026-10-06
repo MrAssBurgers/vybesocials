@@ -2,10 +2,10 @@ import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { extname, join } from 'node:path';
 
-export const SOURCE_SCHEMA = 'vybe-client-source-v1';
+export const SOURCE_SCHEMA = 'vybe-client-source-v2';
 const generated = new Set(['public/version.json', 'public/despia/local.json', 'public/boot-theme.js']);
 const ignoredDirectories = new Set(['node_modules', 'dist', 'dist-ssr', 'work', 'bin', 'obj']);
-const textExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json', '.css', '.html', '.svg', '.md', '.yml', '.yaml', '.txt', '.sh', '.ps1', '.bat', '.lock']);
+const textExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json', '.webmanifest', '.xml', '.css', '.html', '.svg', '.md', '.yml', '.yaml', '.txt', '.sh', '.ps1', '.bat', '.lock']);
 const extensionlessText = new Set(['public/_headers', 'public/.well-known/apple-app-site-association']);
 
 /** Identify client inputs independently of Git or generated build metadata. */

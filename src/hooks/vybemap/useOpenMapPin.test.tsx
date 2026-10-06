@@ -68,7 +68,8 @@ describe('opening current map sources', () => {
     const pin = mapPinFixture(), other = mapPinFixture({ id: 'e'.repeat(64), sourceId: 'other' });
     const prefix = ['map-pins', 'uid-alice', 'alice', 1], key = [...prefix, 'list', 'post', null, 0];
     const data = { pages: [{ kind: 'post', items: [pin, other], nextCursor: null, validUntil: Date.now() + 15000 }], pageParams: [undefined] };
-    client.setQueryData(key, data); client.setQueryData([...prefix, 'state', 'post', pin.sourceId, 0], { pin, validUntil: Date.now() + 15000 });
+    const stateValidUntil = Date.now() + 15000;
+    client.setQueryData(key, data); client.setQueryData([...prefix, 'state', 'post', pin.sourceId, 0], { pin, validUntil: stateValidUntil });
     const foreignKey = ['map-pins', 'uid-bob', 'bob', 2, 'list', 'post', null, 0]; client.setQueryData(foreignKey, data);
     if (reason === 'network') state.read.mockRejectedValue(new Error('Network unavailable'));
     else state.read.mockResolvedValue({ pin: reason === 'denied' ? null : { ...pin, revision: 'd'.repeat(48) }, validUntil: Date.now() + 15000 });
@@ -76,7 +77,7 @@ describe('opening current map sources', () => {
     await act(async () => { await hook.result.current.open(pin); });
     expect((client.getQueryData(key) as typeof data).pages[0].items).toEqual(reason === 'network' ? [pin, other] : [other]);
     expect((client.getQueryData(foreignKey) as typeof data).pages[0].items).toEqual([pin, other]);
-    expect((client.getQueryData([...prefix, 'state', 'post', pin.sourceId, 0]) as { validUntil: number }).validUntil).toBe(reason === 'network' ? data.pages[0].validUntil : 0);
+    expect((client.getQueryData([...prefix, 'state', 'post', pin.sourceId, 0]) as { validUntil: number }).validUntil).toBe(reason === 'network' ? stateValidUntil : 0);
     expect(navigate).not.toHaveBeenCalled();
   });
 });

@@ -54,7 +54,7 @@ test('the real version writer records archive source identity and keeps an absen
   const run = spawnSync(process.execPath, ['scripts/write-version-json.mjs'], { cwd: root, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   const version = JSON.parse(readFileSync(join(root, 'dist/version.json'), 'utf8'));
-  assert.equal(version.commit, 'unknown'); assert.equal(version.source_schema, 'vybe-client-source-v1');
+  assert.equal(version.commit, 'unknown'); assert.equal(version.source_schema, 'vybe-client-source-v2');
   assert.equal(version.source_sha256, clientSourceIdentity(root).source_sha256);
   assert.equal(version.entry, '/assets/app-fixture.js'); assert.match(version.entry_sha256, /^[a-f0-9]{64}$/);
   assert.deepEqual(JSON.parse(readFileSync(join(root, 'public/version.json'), 'utf8')), version);
@@ -79,4 +79,20 @@ test('diagnostics identify the changed input without weakening the overall finge
   assert.match(worker.source_public['worker.js'], /^[a-f0-9]{64}$/);
   assert.equal(worker.source_public['.env'], undefined);
   assert.equal(worker.source_public['version.json'], undefined);
+});
+
+test('manifest and sitemap normalize checkout newlines while retaining content changes', t => {
+  const root = fixture(t);
+  const files = { 'manifest.webmanifest': '{\n"name":"Vybe"\n}\n', 'sitemap.xml': '<urlset>\n<url/>\n</urlset>\n' };
+  for (const [name, content] of Object.entries(files)) writeFileSync(join(root, 'public', name), content);
+  const lf = clientSourceIdentity(root);
+  for (const [name, content] of Object.entries(files)) writeFileSync(join(root, 'public', name), content.replace(/\n/g, '\r\n'));
+  assert.deepEqual(clientSourceIdentity(root), lf);
+  for (const [name, content] of Object.entries(files)) {
+    writeFileSync(join(root, 'public', name), content + 'changed');
+    const changed = clientSourceIdentity(root);
+    assert.notEqual(changed.source_sha256, lf.source_sha256);
+    assert.notEqual(changed.source_public[name], lf.source_public[name]);
+    writeFileSync(join(root, 'public', name), content);
+  }
 });
