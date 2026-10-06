@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   restoreState: 'ready' as 'pending' | 'ready' | 'error', restoreSubscribers: new Set<() => void>(), firebaseUser: null as null | { uid: string },
   bans: [] as Array<{ reason: string; is_permanent: boolean; is_meme_ban: boolean }>, banLoad: null as null | Promise<void>,
   confirmation: vi.fn(), notify: vi.fn(), password: vi.fn(), gate: false,
+  sentryReady: Promise.resolve(), sentryUser: vi.fn(),
 }));
 vi.mock('@/lib/firebase', () => ({ db: {
   auth: {
@@ -70,7 +71,7 @@ vi.mock('@/lib/firebase/authService', () => ({
   subscribeAuthRestoreState: (callback: () => void) => { state.restoreSubscribers.add(callback); return () => state.restoreSubscribers.delete(callback); },
 }));
 vi.mock('@/lib/authSessionMirror', () => ({ clearMirroredAuth: vi.fn() }));
-vi.mock('@/lib/sentry', () => ({ setSentryUser: vi.fn() }));
+vi.mock('@/lib/sentry', async () => { await state.sentryReady; return { setSentryUser: state.sentryUser }; });
 vi.mock('@/components/auth/BannedScreen', async () => { await state.banLoad; return { BannedScreen: BanProbe }; });
 vi.mock('@/components/auth/MemeBanScreen', async () => { await state.banLoad; return { MemeBanScreen: BanProbe }; });
 
@@ -119,6 +120,27 @@ beforeEach(() => {
 afterEach(() => { cleanup(); stopNativeEvents(); vi.useRealTimers(); delete (window as any).__REACT_QUERY_CLIENT__; document.body.style.backgroundImage = ''; });
 
 describe('AuthProvider checked profile setup', () => {
+  it('loads profiles while diagnostics is delayed and retires the old diagnostic identity', async () => {
+    const diagnostics = deferred<void>(); state.sentryReady = diagnostics.promise;
+    state.ensure.mockImplementation(async (uid: string) => profile(uid, `confirmed-${uid}`));
+    mount();
+    let aliceEvent: Promise<void> | undefined;
+    try {
+      act(() => {
+        state.account = { uid: 'alice', epoch: 1 }; state.subscribers.forEach(notify => notify());
+        aliceEvent = state.listener?.('INITIAL_SESSION', session('alice'));
+      });
+      await waitFor(() => expect(current.profile?.username).toBe('confirmed-alice'));
+      expect(state.sentryUser).not.toHaveBeenCalled();
+      act(() => { state.account = { uid: 'bob', epoch: 2 }; state.subscribers.forEach(notify => notify()); });
+    } finally {
+      await act(async () => { diagnostics.resolve(); await aliceEvent; await vi.dynamicImportSettled(); });
+    }
+    expect(state.sentryUser).not.toHaveBeenCalled();
+    await act(async () => { await state.listener?.('SIGNED_IN', session('bob')); await vi.dynamicImportSettled(); });
+    await waitFor(() => expect(current.profile?.username).toBe('confirmed-bob'));
+    expect(state.sentryUser).toHaveBeenCalledExactlyOnceWith({ id: 'bob', username: 'bob@example.test' });
+  });
   it('finishes the first checked bootstrap without restarting it for a duplicate sign-in event', async () => {
     const first = deferred<ReturnType<typeof profile>>();
     state.ensure.mockReturnValueOnce(first.promise).mockImplementation(() => new Promise(() => {}));

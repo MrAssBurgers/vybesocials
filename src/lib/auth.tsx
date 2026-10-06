@@ -720,12 +720,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
 
-        // Identify the user in Sentry so errors carry user context.
-        try {
+        // Diagnostics must not hold profile loading behind another chunk fetch.
+        // A late module still belongs to this exact account/provider lifetime.
+        const diagnosticLifetime = providerLifetimeRef.current;
+        void (async () => {
           const { setSentryUser } = await import('@/lib/sentry');
+          if (!mountedRef.current || providerLifetimeRef.current !== diagnosticLifetime) return;
           eventGuard();
           setSentryUser(session?.user ? { id: session.user.id, username: session.user.email ?? undefined } : null);
-        } catch { /* noop */ }
+        })().catch(() => { /* Diagnostics cannot block session restoration. */ });
         try { eventGuard(); } catch { return; }
 
         // Keep the Realtime socket authenticated so RLS-filtered postgres_changes
