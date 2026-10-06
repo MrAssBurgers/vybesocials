@@ -230,21 +230,23 @@ export async function readSocialFeedPage(db, uid, raw, nowMs = Date.now(), exter
         const snapshot = await tx.get(query);
         const candidates = snapshot.docs.slice(0, PAGE_SIZE);
         const admissions = new Map();
-        let posts = [];
-        for (const post of candidates) {
+        const eligible = candidates.filter(post => {
             const row = post.data();
-            if (input.contentType && row.type !== input.contentType)
-                continue;
             // Historical aliases may identify the same account; conflicting owners cannot.
-            if (!validAudienceId(row.author_id))
-                continue;
+            return (!input.contentType || row.type === input.contentType) && validAudienceId(row.author_id);
+        });
+        // One bounded page shares each author check; independent candidates do not
+        // wait for every earlier post's network round trips. Keep all reads within
+        // the same transaction and await every check before returning any content.
+        const projectedPosts = await Promise.all(eligible.map(async (post) => {
+            const row = post.data();
             if (!admissions.has(row.author_id))
                 admissions.set(row.author_id, authorAdmission(db, tx, viewer, row.author_id));
             const admission = await admissions.get(row.author_id);
             if (!admission || (row.user_id !== undefined && (typeof row.user_id !== 'string' || !admission.author.aliases.includes(row.user_id))))
-                continue;
+                return null;
             if (input.feed === 'following' && !admission.connected)
-                continue;
+                return null;
             if (external) {
                 // Relationships and self access must never widen this initial external
                 // surface. Require an explicit public author and public post audience.
@@ -254,19 +256,20 @@ export async function readSocialFeedPage(db, uid, raw, nowMs = Date.now(), exter
                     || !(publicLevel(row.visibility) || publicLevel(row.audience))
                     || ['visibility', 'audience'].some(key => Object.hasOwn(row, key) && !publicLevel(row[key]))
                     || (row.is_private !== undefined && row.is_private !== false))
-                    continue;
+                    return null;
             }
             const publicationProof = (await tx.get(db.collection('_post_publications').doc(post.id))).data();
             const projected = projectPost(post.id, row, admission, publicationProof, external ? undefined : viewer.uid);
             if (!projected)
-                continue;
+                return null;
             if (input.feed === 'local') {
                 const proof = (await tx.get(db.collection('_post_local_areas').doc(post.id))).data();
                 if (!validPostLocalProof(proof, admission.author, post.id) || !proof?.enabled || !isLocalArea(proof.area) || !nearbyLocalArea(input.area, proof.area))
-                    continue;
+                    return null;
             }
-            posts.push(projected);
-        }
+            return projected;
+        }));
+        let posts = projectedPosts.filter(post => post !== null);
         if (input.feed === 'personalized' && posts.length) {
             const history = [];
             for (const alias of viewer.aliases) {
