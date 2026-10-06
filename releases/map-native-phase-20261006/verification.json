@@ -1,0 +1,147 @@
+{
+  "sourceCommit": "df711f8c7ac042928576734ba9f9922ea9ea6ee2",
+  "deployment": "478805c2-9a08-4314-9b2b-320048d6022b",
+  "updatedDialog": true,
+  "testsPassed": 4840,
+  "testsSkipped": 6,
+  "focusedTests": 51,
+  "lint": {
+    "errors": 0,
+    "existingWarnings": 5
+  },
+  "origins": [
+    {
+      "host": "https://vybehub.app",
+      "resolvedOrigin": "https://vybehub.app",
+      "redirected": false,
+      "routes": [
+        "/",
+        "/home",
+        "/map",
+        "/clips",
+        "/onboarding",
+        "/spaces",
+        "/space/qa-route-check",
+        "/messages",
+        "/community"
+      ],
+      "sourceSha": "3f13a45d2a7a10de9c242358447aa849ca642d7289255f7ef7798027e75e88fd",
+      "schema": "vybe-client-source-v2",
+      "files": 2589,
+      "built": "2026-10-06T19:15:14.818Z",
+      "entry": "/assets/app-DmvIb7k0.js",
+      "entrySha": "c641b85f6339bedad4f5e6790680715e3822e78b250948d4375d5bae452d30c7"
+    },
+    {
+      "host": "https://vybesocials.lovable.app",
+      "resolvedOrigin": "https://vybehub.app",
+      "redirected": true,
+      "routes": [
+        "/",
+        "/home",
+        "/map",
+        "/clips",
+        "/onboarding",
+        "/spaces",
+        "/space/qa-route-check",
+        "/messages",
+        "/community"
+      ],
+      "sourceSha": "3f13a45d2a7a10de9c242358447aa849ca642d7289255f7ef7798027e75e88fd",
+      "schema": "vybe-client-source-v2",
+      "files": 2589,
+      "built": "2026-10-06T19:15:14.818Z",
+      "entry": "/assets/app-DmvIb7k0.js",
+      "entrySha": "c641b85f6339bedad4f5e6790680715e3822e78b250948d4375d5bae452d30c7"
+    }
+  ],
+  "normalDelivery": [
+    {
+      "path": "/",
+      "status": 200,
+      "cache": "no-cache, must-revalidate, max-age=0",
+      "age": null,
+      "etag": null,
+      "vary": null,
+      "modules": [
+        "<script type=\"module\" crossorigin src=\"/assets/app-DmvIb7k0.js\">"
+      ]
+    },
+    {
+      "path": "/home",
+      "status": 200,
+      "cache": "no-cache, must-revalidate, max-age=0",
+      "age": null,
+      "etag": null,
+      "vary": null,
+      "modules": [
+        "<script type=\"module\" crossorigin src=\"/assets/app-DmvIb7k0.js\">"
+      ]
+    },
+    {
+      "path": "/settings",
+      "status": 200,
+      "cache": "no-cache, must-revalidate, max-age=0",
+      "age": null,
+      "etag": null,
+      "vary": null,
+      "modules": [
+        "<script type=\"module\" crossorigin src=\"/assets/app-DmvIb7k0.js\">"
+      ]
+    },
+    {
+      "path": "/login",
+      "status": 200,
+      "cache": "no-cache, must-revalidate, max-age=0",
+      "age": null,
+      "etag": null,
+      "vary": null,
+      "modules": [
+        "<script type=\"module\" crossorigin src=\"/assets/app-DmvIb7k0.js\">"
+      ]
+    }
+  ],
+  "nativePackage": {
+    "source": "3f13a45d2a7a10de9c242358447aa849ca642d7289255f7ef7798027e75e88fd",
+    "entry": "/assets/app-DmvIb7k0.js",
+    "manifestEntry": "/index.html",
+    "deployedAt": "1791314113667",
+    "listedAssets": 628,
+    "checkedAssets": 628,
+    "failures": [],
+    "manifestCache": null,
+    "manifestAge": null,
+    "manifestEtag": "W/\"a9d1080fed6ce0e4ca56ba9ab3d1933b\"",
+    "limits": [
+      "Public native-package assets and metadata only; no proof the installed Play Store binary downloaded or mounted this package",
+      "HEAD checks prove resource availability, not media decoding or device permissions"
+    ]
+  },
+  "manual": {
+    "syntheticAccountDeviceTransportClock": true,
+    "pausedMountGps": 0,
+    "foregroundGps": 3,
+    "ghostPausedGps": 3,
+    "ghostPausedServerEnabled": false,
+    "ghostPausedToggles": 1,
+    "resumedGps": 6,
+    "resumedToggles": 2,
+    "resumedServerEnabled": true,
+    "errors": 0
+  },
+  "liveBrowser": {
+    "entry": "/assets/app-5p_yKDY_.js",
+    "posts": 2,
+    "loadedArticleImages": 4,
+    "alerts": 0,
+    "consoleErrors": 0,
+    "currentSourceProof": false
+  },
+  "userPhone": "Installed from Play Store",
+  "limits": [
+    "No physical-phone GPS/codec/FPS/current-native-adoption proof; phone check requested",
+    "No Functions/Rules/provider/OS permission/native binary change",
+    "Current fresh Chrome still mounts an older entry despite verified public release; cause unresolved",
+    "Native manifest cache-control and age absent; weak ETag present, no proof of a device caching cause"
+  ]
+}
