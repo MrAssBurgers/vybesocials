@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense, Component, memo, type ReactNode, type ErrorInfo } from 'react';
+import { createMapRenderers } from '@/components/vybemap/map/createMapRenderers';
+import { MapErrorBoundary } from '@/components/vybemap/map/MapErrorBoundary';
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import type L from 'leaflet';
 
@@ -32,7 +34,6 @@ import { GroupMapSheet } from '@/components/vybemap/GroupMapSheet';
 import { MapRouteBar, MapRouteMinimizedChip } from '@/components/vybemap/MapRouteBar';
 import { RouteOriginPicker, type RouteOriginChoice } from '@/components/vybemap/RouteOriginPicker';
 import { useLocationIntel } from '@/hooks/vybemap/useLocationIntel';
-import { hasMapbox } from '@/lib/vybemap/mapbox/config';
 import { fetchMapboxRoute } from '@/lib/vybemap/mapbox/directions';
 import { useMapSearch } from '@/hooks/vybemap/useMapSearch';
 import { externalDirectionsUrl } from '@/lib/vybemap/mapNavigation';
@@ -51,20 +52,6 @@ import { useMapFriendChat } from '@/hooks/vybemap/useMapFriendChat';
 import { useOpenMapPin } from '@/hooks/vybemap/useOpenMapPin';
 import { currentMapSocialRoute, mapRouteAccountScope, type MapSocialRouteLease } from '@/lib/vybemap/mapSocialRouteLease';
 
-// Use the existing 3D renderer by default in both preview and production.
-const mapboxCanvasImport = hasMapbox() ? import('@/components/vybemap/map/VybeMapboxCanvas') : null;
-const VybeMapboxCanvas = lazy(() =>
-  (mapboxCanvasImport || import('@/components/vybemap/map/VybeMapboxCanvas')).then((m) => ({
-    default: m.VybeMapboxCanvas,
-  })),
-);
-
-const VybeMapLeafletFallback = lazy(() =>
-  import('@/components/vybemap/map/VybeMapLeafletFallback').then((m) => ({
-    default: m.VybeMapLeafletFallback,
-  })),
-);
-
 /** Same pulse the canvas shows while the style loads — no flash of nothing. */
 function MapCanvasLoading() {
   return (
@@ -74,27 +61,8 @@ function MapCanvasLoading() {
   );
 }
 
-class MapErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
-  state = { hasError: false };
-  static getDerivedStateFromError() { return { hasError: true }; }
-  componentDidCatch(e: Error, i: ErrorInfo) { console.error('[VybeMap]', e, i); }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="flex flex-col items-center justify-center h-full gap-4 p-8 bg-background">
-          <MapPin className="h-12 w-12 text-muted-foreground" />
-          <p className="text-lg font-bold">VybeMap couldn&apos;t load</p>
-          <button type="button" onClick={() => this.setState({ hasError: false })} className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">
-            <RefreshCw className="inline h-4 w-4 mr-2" />Retry
-          </button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
 function VybeMapInner() {
+  const { VybeMapboxCanvas, VybeMapLeafletFallback } = useMemo(() => createMapRenderers(), []);
   const navigate = useNavigate();
   const mapLocation = useLocation();
   const locationAccount = useProfileAccount();

@@ -38,6 +38,9 @@ export default defineConfig(({ mode }) => {
   );
 
   return {
+    // Tests and the retained live preview run together. Sharing optimized files
+    // lets one process invalidate the other's lazy map dependency URLs (504).
+    cacheDir: path.resolve(process.cwd(), 'node_modules', '.vite', `vybe-${mode}`),
     server: {
       host: '127.0.0.1',
       port: 8080,
