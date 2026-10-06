@@ -6,7 +6,8 @@
 - Full474files4515pass6skip, app/native build and budget1100.3KBraw334.1KBgzip pass; typecheck and lint pass (5 existing warnings). Focused actual mobile-card/transport regressions cover reconnect, foreground/departure, unsupported media and late transport/timeouts. Initial transport local variable shadowed request validator and was corrected; final tests green. Logs work/mobile-reconnect-*.log.
 - Deferred unfinished discovery source is safely retained as work/peopleDiscoveryAuthority.candidate.ts and work/profilePrivacy.candidate.ts; not committed, deployed or claimed complete. Functions working source restored to checkpoint. Both exact location job schedules independently have new-code attempts at06:41Z/status0; acknowledgment does not prove deleted-row counts.
 - Tested client source5cca732e454d7ac1896fbc3ffc123d3a8ffebc23a238e6e4022265511367138d/2538inputs ready for exact publication. Publication/mounted/physical phone outcome pending. No Firebase backend/Rules/Storage/Auth/secrets/data mutation.
-Next3tasks: publish and independently verify this client; diagnose mobile map/clip/current mounted adoption; finish checked discovery and retained Firebase content/security restoration.
+- Publication06fcc29f-5896-43e1-a9ea-18ac68106f54 finished: actual Lovable dialog says website updated. Both origins independently match all2538 source inputs5cca732e... and fetched CnVHL7T8 entry SHAeee6c9f2... built06:50:24Z. Proof outputs/vybe-mobile-reconnect-published.png and work/mobile-reconnect-public-check.log. Publication confirmed separately from mounted/native adoption; overall readiness remains active.
+Next3tasks: verify mobile map/clip/current mounted adoption; finish checked discovery; continue retained Firebase content/security restoration.
 
 ---
 ## ACTIVE (2026-10-06) — Location background job parity
