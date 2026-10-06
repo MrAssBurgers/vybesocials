@@ -102,8 +102,11 @@ export async function ensureAccountProfileForUid(database, auth, uid, raw, now =
     return database.runTransaction(async (tx) => {
         const bindingRef = database.doc(`_account_profile_bindings/${uid}`), indexRef = database.doc(`user_auth_index/${uid}`);
         const evidenceRef = database.doc(`_account_profile_recovery/${uid}`), receiptRef = database.doc(`_account_profile_receipts/${sha256(`${uid}:${input.requestId}`)}`);
-        const [bindingDoc, indexDoc, direct, owned, evidenceDoc, receiptDoc] = await Promise.all([
-            tx.get(bindingRef), tx.get(indexRef), tx.get(database.doc(`profiles/${uid}`)), tx.get(database.collection('profiles').where('user_id', '==', uid).limit(3)), tx.get(evidenceRef), tx.get(receiptRef),
+        // Fetch the initial point reads in one request while retaining the same
+        // transaction snapshot and every ownership/recovery/idempotency check.
+        const [[bindingDoc, indexDoc, direct, evidenceDoc, receiptDoc], owned] = await Promise.all([
+            tx.getAll(bindingRef, indexRef, database.doc(`profiles/${uid}`), evidenceRef, receiptRef),
+            tx.get(database.collection('profiles').where('user_id', '==', uid).limit(3)),
         ]);
         const binding = bindingDoc.data(), index = indexDoc.data(), evidence = evidenceDoc.data(), prior = receiptDoc.data();
         if (binding && (binding.version !== 1 || binding.owner_uid !== uid || binding.status !== 'active' || binding.auth_created_at_ms !== input.expectedAccountCreatedAt || !validRevision(binding.revision)))

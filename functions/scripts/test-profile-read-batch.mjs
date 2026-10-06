@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {createRequire} from 'node:module';
+import path from 'node:path';
+const projectId=process.env.GCLOUD_PROJECT;
+assert.match(projectId||'',/^demo-[a-z0-9-]+$/);assert.notEqual(projectId,'demo-vybe-preview');
+assert.match(process.env.FIRESTORE_EMULATOR_HOST||'',/^127\.0\.0\.1:\d+$/);
+assert.match(process.env.FIREBASE_AUTH_EMULATOR_HOST||'',/^127\.0\.0\.1:\d+$/);
+process.env.FIREBASE_CONFIG=JSON.stringify({projectId});
+const require=createRequire(path.resolve(process.env.FIREBASE_TEST_TOOLS_ROOT||'.','package.json'));
+const {initializeTestEnvironment}=require('@firebase/rules-unit-testing');
+const {db,auth}=await import('../lib/_shared/admin.js');
+const {ensureAccountProfileForUid}=await import('../lib/_shared/accountProfileAuthority.js');
+const [host,port]=process.env.FIRESTORE_EMULATOR_HOST.split(':');
+const env=await initializeTestEnvironment({projectId,firestore:{host,port:Number(port),rules:'rules_version = "2"; service cloud.firestore { match /databases/{database}/documents { match /{document=**} { allow read, write: if false; } } }'}});
+try{
+ await env.clearFirestore();
+ const user=await auth.createUser({uid:'profile-batch-owner',email:'profile-batch@example.test',emailVerified:true});
+ await db.doc('profiles/profile-batch-canonical').set({user_id:user.uid,username:'profile_batch'});
+ await db.doc(`user_auth_index/${user.uid}`).set({profile_id:'profile-batch-canonical'});
+ let requests=0,authChecks=0;const initialDocuments=new Set();
+ const bind=(target,key)=>typeof target[key]==='function'?target[key].bind(target):target[key];
+ const record=refs=>{const docs=refs.filter(ref=>typeof ref?.path==='string');if(docs.some(ref=>/^(_account_profile_bindings|user_auth_index|profiles|_account_profile_recovery|_account_profile_receipts)\//.test(ref.path))){requests++;for(const ref of docs)initialDocuments.add(ref.path);}};
+ const measuredDb=new Proxy(db,{get(target,key){if(key!=='runTransaction')return bind(target,key);return callback=>target.runTransaction(tx=>callback(new Proxy(tx,{get(transaction,method){if(!['get','getAll'].includes(method))return bind(transaction,method);return (...refs)=>{record(refs);return transaction[method](...refs);};}})));}});
+ const body={action:'ensure',expectedOwnerUid:user.uid,expectedAccountCreatedAt:Date.parse(user.metadata.creationTime),requestId:randomUUID()};
+ const authority={getUser:async uid=>{authChecks++;return auth.getUser(uid);}};
+ const result=await ensureAccountProfileForUid(measuredDb,authority,user.uid,body);
+ assert.equal(result.profileId,'profile-batch-canonical');assert.equal(result.profile.user_id,user.uid);
+ assert.equal(initialDocuments.size,5,'All five initial identity/recovery/receipt documents are read.');
+ assert.equal(requests,1,'Initial document reads should use one transaction request.');
+ assert.equal(authChecks,2,'Account incarnation is checked both before reads and before writes.');
+ console.log('PASS existing canonical profile confirmed with one initial document request and both Auth checks');
+ await db.doc(`user_auth_index/${user.uid}`).set({profile_id:'conflicting-profile'});
+ await assert.rejects(ensureAccountProfileForUid(db,auth,user.uid,{...body,requestId:randomUUID()}),error=>error.code==='failed-precondition');
+ console.log('PASS conflicting canonical index remains rejected');
+}finally{await env.cleanup();await db.terminate();}
