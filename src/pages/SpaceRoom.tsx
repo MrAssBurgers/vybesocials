@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useSpace, useSpaceParticipants, useJoinSpace, useLeaveSpace, useEndSpace, useUpdateParticipantRole, useSetSpaceMute, useRaiseHand } from '@/hooks/useSpaces';
@@ -6,7 +6,7 @@ import { useSpaceAudio } from '@/hooks/useSpaceAudio';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Radio, Mic, MicOff, ArrowLeft, Users, Hand, X, LogOut, Crown, UserPlus, Loader2, Volume2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -18,8 +18,8 @@ export default function SpaceRoom() {
   const { spaceId } = useParams<{ spaceId: string }>();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
-  const { data: space, isLoading } = useSpace(spaceId);
-  const { data: participants = [] } = useSpaceParticipants(spaceId);
+  const { data: space, isLoading, error: roomError, refetch } = useSpace(spaceId);
+  const { data: participants = [], error: participantsError } = useSpaceParticipants(spaceId);
   const joinSpace = useJoinSpace();
   const leaveSpace = useLeaveSpace();
   const endSpace = useEndSpace();
@@ -28,6 +28,10 @@ export default function SpaceRoom() {
   const raiseHand = useRaiseHand();
   const audio = useSpaceAudio();
 
+  const [leaving, setLeaving] = useState(false);
+  const joinKey = JSON.stringify([spaceId, user?.id, profile?.id]);
+  const joinedAttempt = useRef<string | null>(null);
+  const notifyError = (error: unknown) => toast.error(error instanceof Error ? error.message : 'This change could not be confirmed. Please retry.');
   const myParticipation = participants.find(p => p.user_id === user?.id);
   const isHost = space?.host_id === user?.id;
   const isSpeaker = myParticipation?.role === 'speaker' || myParticipation?.role === 'host' || myParticipation?.role === 'co_host';
@@ -44,56 +48,40 @@ export default function SpaceRoom() {
     return () => navVisibility.setImmersiveView(false);
   }, []);
 
-  // Auto-join on mount
   useEffect(() => {
-    if (spaceId && user?.id && !isInSpace && space?.status === 'live') {
-      joinSpace.mutate({ spaceId });
-    }
-  }, [spaceId, user?.id, isInSpace, space?.status]);
+    if (!spaceId || !user?.id || !profile?.id || leaving || isInSpace || space?.status !== 'live' || roomError || participantsError || joinedAttempt.current === joinKey) return;
+    joinedAttempt.current = joinKey;
+    joinSpace.mutate({ spaceId }, { onError: notifyError });
+  }, [joinKey, isInSpace, space?.status, leaving, roomError, participantsError]);
 
-  // Connect LiveKit audio once participating; reconnects when role changes
-  // (e.g. promoted listener → speaker gets a publish-capable token).
   const prevRoleRef = useRef<string | null>(null);
   useEffect(() => {
     const role = myParticipation?.role;
-    if (!spaceId || !role || space?.status !== 'live') return;
-    if (prevRoleRef.current && prevRoleRef.current !== role && ['speaker', 'co_host'].includes(role)) {
-      toast.success("You're a speaker now! Unmute to talk 🎙️");
-    }
+    if (!spaceId || !role || leaving || space?.status !== 'live' || myParticipation.audio_pending || roomError || participantsError) { void audio.disconnect(); return; }
+    if (prevRoleRef.current && prevRoleRef.current !== role && ['speaker', 'co_host'].includes(role)) toast.success('You can now unmute to speak.');
     prevRoleRef.current = role;
-    void audio.connect(spaceId, role);
-  }, [spaceId, myParticipation?.role, space?.status]);
-
-  // Host ended the space while we were in it — kill audio
-  useEffect(() => {
-    if (space?.status === 'ended') {
-      void audio.disconnect();
-    }
-  }, [space?.status]);
+    void audio.connect(spaceId, role, myParticipation.audio_generation);
+  }, [joinKey, myParticipation?.role, myParticipation?.audio_pending, myParticipation?.audio_generation, space?.status, leaving, roomError, participantsError]);
 
   const handleLeave = useCallback(async () => {
     if (!spaceId) return;
     triggerHaptic('medium');
-    await audio.disconnect();
-    await leaveSpace.mutateAsync(spaceId);
-    navigate('/spaces');
+    setLeaving(true); await audio.disconnect();
+    try { await leaveSpace.mutateAsync(spaceId); navigate('/spaces'); } catch (error) { notifyError(error); } finally { setLeaving(false); }
   }, [spaceId, leaveSpace, navigate, audio]);
 
   const handleEnd = useCallback(async () => {
     if (!spaceId) return;
     triggerHaptic('heavy');
-    await audio.disconnect();
-    await endSpace.mutateAsync(spaceId);
-    toast.success('Space ended');
-    navigate('/spaces');
+    setLeaving(true); await audio.disconnect();
+    try { await endSpace.mutateAsync(spaceId); toast.success('Space ended'); navigate('/spaces'); } catch (error) { notifyError(error); } finally { setLeaving(false); }
   }, [spaceId, endSpace, navigate, audio]);
 
-  const handleRaiseHand = useCallback(() => {
+  const handleRaiseHand = useCallback(async () => {
     if (!spaceId) return;
     triggerHaptic('light');
     const next = !handRaised;
-    raiseHand.mutate({ spaceId, raised: next });
-    toast.info(next ? 'Hand raised! The host will see your request.' : 'Hand lowered');
+    try { await raiseHand.mutateAsync({ spaceId, raised: next }); toast.info(next ? 'Hand raised!' : 'Hand lowered'); } catch (error) { notifyError(error); }
   }, [spaceId, handRaised, raiseHand]);
 
   const handleToggleMute = useCallback(async () => {
@@ -105,13 +93,12 @@ export default function SpaceRoom() {
       toast.error(nextEnabled ? 'Could not unmute — check mic permission' : 'Could not mute');
       return;
     }
-    setSpaceMute.mutate({ spaceId, isMuted: !nextEnabled });
+    try { await setSpaceMute.mutateAsync({ spaceId, isMuted: !nextEnabled }); } catch (error) { await audio.setMic(false); notifyError(error); }
   }, [spaceId, isMuted, audio, setSpaceMute]);
 
   const handlePromoteToSpeaker = useCallback(async (participantId: string) => {
     if (!spaceId) return;
-    await updateRole.mutateAsync({ participantId, spaceId, role: 'speaker' });
-    toast.success('Promoted to speaker!');
+    try { await updateRole.mutateAsync({ participantId, spaceId, role: 'speaker' }); toast.success('Speaker change saved; audio is reconnecting.'); } catch (error) { notifyError(error); }
   }, [spaceId, updateRole]);
 
   if (isLoading) {
@@ -122,6 +109,10 @@ export default function SpaceRoom() {
         </div>
       </AppLayout>
     );
+  }
+
+  if (roomError || participantsError) {
+    return <AppLayout hideNav><div className="flex flex-col items-center justify-center min-h-screen gap-4 p-6 text-center"><p>This room could not be refreshed. Your audio is paused.</p><Button onClick={() => refetch()}>Try again</Button><Button variant="ghost" onClick={() => navigate('/spaces')}>Back to Spaces</Button></div></AppLayout>;
   }
 
   if (!space) {
@@ -155,7 +146,7 @@ export default function SpaceRoom() {
           className="flex items-center justify-between p-4 border-b border-border/50"
           style={{ paddingTop: 'calc(var(--sat, 0px) + 1rem)' }}
         >
-          <Button variant="ghost" size="icon" onClick={handleLeave}>
+          <Button variant="ghost" size="icon" disabled={leaving} onClick={handleLeave}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           
@@ -171,10 +162,10 @@ export default function SpaceRoom() {
               {audio.state === 'connected' && (
                 <><Volume2 className="h-3 w-3 text-green-500" /> Live audio</>
               )}
-              {audio.state === 'error' && (
+              {(audio.state === 'error' || (audio.state === 'idle' && isInSpace && !myParticipation?.audio_pending && !leaving)) && (
                 <button
                   className="text-destructive underline"
-                  onClick={() => myParticipation && spaceId && audio.connect(spaceId, myParticipation.role)}
+                  onClick={() => myParticipation && spaceId && audio.connect(spaceId, myParticipation.role, myParticipation.audio_generation)}
                 >
                   Audio failed — tap to retry
                 </button>
@@ -188,6 +179,8 @@ export default function SpaceRoom() {
           </div>
         </div>
 
+        {joinSpace.isError && !isInSpace && <div className="p-4 text-center"><p>You haven’t joined yet.</p><Button disabled={joinSpace.isPending} onClick={() => spaceId && joinSpace.mutate({ spaceId }, { onError: notifyError })}>Retry joining</Button></div>}
+        {myParticipation?.audio_pending && <p role="status" className="p-4 text-center text-sm text-muted-foreground">Confirming audio permissions…</p>}
         {/* Speakers grid */}
         <div className="flex-1 overflow-y-auto p-4">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
@@ -203,7 +196,7 @@ export default function SpaceRoom() {
               >
                 <div className={cn(
                   "relative rounded-full p-1 transition-all",
-                  audio.activeSpeakerIds.has(speaker.user_id) && "ring-2 ring-primary"
+                  audio.activeSpeakerIds.has(speaker.profile?.id || '') && "ring-2 ring-primary"
                 )}>
                   <Avatar className="h-16 w-16">
                     <AvatarImage src={speaker.profile?.avatar_url || undefined} />
@@ -270,7 +263,7 @@ export default function SpaceRoom() {
                       <AvatarFallback>{req.profile?.username?.[0]?.toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <span className="flex-1 text-sm">{req.profile?.username}</span>
-                    <Button size="sm" variant="ghost" onClick={() => handlePromoteToSpeaker(req.id)}>
+                    <Button size="sm" variant="ghost" disabled={updateRole.isPending || req.audio_pending} onClick={() => handlePromoteToSpeaker(req.id)}>
                       <UserPlus className="h-4 w-4" />
                     </Button>
                   </div>
@@ -288,7 +281,7 @@ export default function SpaceRoom() {
                 variant={handRaised ? 'default' : 'outline'}
                 size="lg"
                 className="rounded-full gap-2"
-                onClick={handleRaiseHand}
+                disabled={!isInSpace || raiseHand.isPending || leaving || space.status !== 'live'} onClick={handleRaiseHand}
               >
                 <Hand className={cn("h-5 w-5", handRaised && "animate-bounce")} />
                 {handRaised ? 'Lower Hand' : 'Raise Hand'}
@@ -300,7 +293,7 @@ export default function SpaceRoom() {
                 variant={isMuted ? 'destructive' : 'default'}
                 size="lg"
                 className="rounded-full h-14 w-14"
-                onClick={handleToggleMute}
+                disabled={audio.state !== 'connected' || !audio.canPublish || setSpaceMute.isPending || leaving} onClick={handleToggleMute}
               >
                 {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
               </Button>
@@ -310,7 +303,7 @@ export default function SpaceRoom() {
               variant="outline"
               size="lg"
               className="rounded-full gap-2"
-              onClick={handleLeave}
+              disabled={leaving} onClick={handleLeave}
             >
               <LogOut className="h-5 w-5" />
               Leave
@@ -321,7 +314,7 @@ export default function SpaceRoom() {
                 variant="destructive"
                 size="lg"
                 className="rounded-full gap-2"
-                onClick={handleEnd}
+                disabled={leaving} onClick={handleEnd}
               >
                 <X className="h-5 w-5" />
                 End

@@ -1,10 +1,9 @@
 /**
  * useSpaceAudio — real LiveKit audio for VYBE Spaces.
  *
- * Connects to the `space-{id}` LiveKit room via the `spaces-token` edge
- * function. Speakers (host/co_host/speaker) publish their mic; listeners are
- * subscribe-only. Promotion to speaker reconnects with a publish-capable
- * token automatically (callers re-invoke connect when their role changes).
+ * Checked Firebase admission supplies the room, current role and generation.
+ * Participants reconnect after role or generation changes; the mic stays off
+ * until explicitly enabled with a current publish grant.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -17,6 +16,7 @@ import {
   type Participant,
 } from 'livekit-client';
 import { db } from '@/lib/firebase';
+import { useSpaceActor } from '@/hooks/useSpaceActor';
 
 export type SpaceAudioState = 'idle' | 'connecting' | 'connected' | 'error';
 
@@ -26,9 +26,14 @@ interface SpaceTokenResponse {
   roomName: string;
   canPublish: boolean;
   role: string;
+  generation: number;
 }
 
 export function useSpaceAudio() {
+  const session = useSpaceActor();
+  const sessionRef = useRef(session); sessionRef.current = session;
+  const accountKey = JSON.stringify(session.key);
+  const audioGuardRef = useRef<(() => void) | null>(null);
   const roomRef = useRef<Room | null>(null);
   const audioElsRef = useRef(new Map<string, HTMLAudioElement>());
   const connectedKeyRef = useRef<string | null>(null);
@@ -62,6 +67,7 @@ export function useSpaceAudio() {
     connectedKeyRef.current = null;
     pendingRef.current = null;
     publishRef.current = false;
+    audioGuardRef.current = null;
     micIntentRef.current = false;
     micPendingRef.current = Promise.resolve();
     audioElsRef.current.forEach((el) => {
@@ -84,9 +90,9 @@ export function useSpaceAudio() {
    * Connect (or reconnect after a role change). Safe to call repeatedly —
    * coalesces pending attempts and no-ops for the same connected room/role.
    */
-  const connect = useCallback((spaceId: string, role: string): Promise<void> => {
+  const connect = useCallback((spaceId: string, role: string, audioGeneration?: number): Promise<void> => {
     if (!mountedRef.current) return Promise.resolve();
-    const key = JSON.stringify([spaceId, role]);
+    const key = JSON.stringify([spaceId, role, audioGeneration, sessionRef.current.key]);
     if (pendingRef.current?.key === key) return pendingRef.current.promise;
     if (roomRef.current && connectedKeyRef.current === key) return Promise.resolve();
     // Invalidate even token-only attempts before waiting for a previous room.
@@ -99,19 +105,25 @@ export function useSpaceAudio() {
       try {
         await stopped;
         if (!current()) return;
+        const { actor, guard } = sessionRef.current.capture();
         const { data, error: fnError } = await db.functions.invoke<SpaceTokenResponse>(
           'spaces-token',
-          { body: { spaceId } },
+          { body: { spaceId, expectedOwnerUid: actor.uid, expectedProfileId: actor.profileId } },
         );
         if (!current()) return;
+        guard();
         if (fnError || !data?.token || !data.url) {
           throw new Error(fnError?.message || 'Could not get audio token');
         }
 
+        if (!/^space_v1_[a-f0-9]{64}$/.test(data.roomName) || !Number.isSafeInteger(data.generation) || data.generation < 1
+          || (audioGeneration !== undefined && data.generation !== audioGeneration) || data.role !== role
+          || data.canPublish !== ['host', 'co_host', 'speaker'].includes(data.role)) throw new Error('The audio permissions changed. Refresh this room.');
+        audioGuardRef.current = guard;
         const room = new Room({ adaptiveStream: true, dynacast: true });
         const activeRoom = room;
         roomRef.current = activeRoom;
-        const active = () => current() && roomRef.current === activeRoom;
+        const active = () => { try { guard(); return current() && roomRef.current === activeRoom; } catch { return false; } };
 
         room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant: RemoteParticipant) => {
           if (!active() || track.kind !== Track.Kind.Audio) return;
@@ -176,6 +188,7 @@ export function useSpaceAudio() {
   /** Publish/unpublish the local mic (speakers only). */
   const setMic = useCallback(async (enabled: boolean): Promise<boolean> => {
     const room = roomRef.current;
+    try { audioGuardRef.current?.(); } catch { await disconnect(); return false; }
     if (!room || !publishRef.current) return false;
     const change = ++micChangeRef.current;
     micIntentRef.current = enabled;
@@ -184,7 +197,9 @@ export function useSpaceAudio() {
       // would let an older enable finish after the user's latest mute.
       const operation = micPendingRef.current.catch(() => {}).then(async () => {
         if (!mountedRef.current || roomRef.current !== room || micChangeRef.current !== change) return;
+        audioGuardRef.current?.();
         await room.localParticipant.setMicrophoneEnabled(enabled);
+        audioGuardRef.current?.();
         if (roomRef.current !== room) await room.disconnect().catch(() => {});
       });
       micPendingRef.current = operation;
@@ -193,12 +208,15 @@ export function useSpaceAudio() {
       setMicEnabled(enabled);
       return true;
     } catch (err) {
+      try { audioGuardRef.current?.(); } catch { await disconnect(); return false; }
       if (!mountedRef.current || roomRef.current !== room || micChangeRef.current !== change) return false;
       micIntentRef.current = false;
       console.warn('[SpaceAudio] mic toggle failed:', err);
       return false;
     }
-  }, []);
+  }, [disconnect]);
+
+  useEffect(() => { void disconnect(); }, [accountKey, disconnect]);
 
   // Resume playback + mic after app background (iOS suspends media)
   useEffect(() => {

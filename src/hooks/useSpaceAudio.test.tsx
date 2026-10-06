@@ -1,8 +1,9 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ invoke: vi.fn(), rooms: [] as any[], roomConnect: vi.fn() }));
+const mocks = vi.hoisted(() => ({ invoke: vi.fn(), rooms: [] as any[], roomConnect: vi.fn(), accountChanged: false }));
 vi.mock('@/lib/firebase', () => ({ db: { functions: { invoke: mocks.invoke } } }));
+vi.mock('@/hooks/useSpaceActor', () => ({ useSpaceActor: () => ({ key: ['account', 1, 'profile'], capture: () => ({ actor: { uid: 'account', profileId: 'profile', epoch: 1 }, guard: () => { if (mocks.accountChanged) throw new Error('Account changed'); } }) }) }));
 vi.mock('livekit-client', () => ({
   Room: class {
     handlers = new Map<string, (...args: any[]) => void>();
@@ -23,8 +24,8 @@ function deferred<T>() {
   const promise = new Promise<T>(r => { resolve = r; });
   return { promise, resolve };
 }
-const token = { data: { token: 'test-token', url: 'wss://audio.test', roomName: 'space-one', canPublish: false, role: 'listener' }, error: null };
-beforeEach(() => { vi.clearAllMocks(); mocks.rooms.length = 0; mocks.invoke.mockResolvedValue(token); mocks.roomConnect.mockResolvedValue(undefined); });
+const token = { data: { token: 'test-token', url: 'wss://audio.test', roomName: 'space_v1_' + 'a'.repeat(64), generation: 1, canPublish: false, role: 'listener' }, error: null };
+beforeEach(() => { vi.clearAllMocks(); mocks.accountChanged = false; mocks.rooms.length = 0; mocks.invoke.mockResolvedValue(token); mocks.roomConnect.mockResolvedValue(undefined); });
 
 it('leaving during token loading prevents a late room join', async () => {
   const request = deferred<typeof token>(); mocks.invoke.mockReturnValue(request.promise);
@@ -157,5 +158,26 @@ it('listener tokens never enable the microphone, including after resume', async 
   const { result } = renderHook(() => useSpaceAudio());
   await act(async () => { await result.current.connect('one', 'speaker'); });
   await act(async () => { expect(await result.current.setMic(true)).toBe(false); window.dispatchEvent(new Event('app-resumed')); });
-  expect(mocks.rooms[0].localParticipant.setMicrophoneEnabled).not.toHaveBeenCalled();
+  expect(mocks.rooms).toHaveLength(0);
+  expect(result.current.state).toBe('error');
+});
+
+it('a stale audio generation cannot open a room', async () => {
+  const { result } = renderHook(() => useSpaceAudio());
+  await act(async () => { await result.current.connect('one', 'listener', 2); });
+  expect(mocks.rooms).toHaveLength(0); expect(result.current.state).toBe('error');
+});
+it('unexpected publish permissions cannot open a listener room', async () => {
+  mocks.invoke.mockResolvedValue({ ...token, data: { ...token.data, canPublish: true } });
+  const { result } = renderHook(() => useSpaceAudio());
+  await act(async () => { await result.current.connect('one', 'listener', 1); });
+  expect(mocks.rooms).toHaveLength(0); expect(result.current.canPublish).toBe(false);
+});
+it('an account change during token loading prevents a late room join', async () => {
+  const request = deferred<typeof token>(); mocks.invoke.mockReturnValue(request.promise);
+  const { result } = renderHook(() => useSpaceAudio());
+  let joining!: Promise<void>;
+  await act(async () => { joining = result.current.connect('one', 'listener', 1); await Promise.resolve(); });
+  await act(async () => { mocks.accountChanged = true; request.resolve(token); await joining; });
+  expect(mocks.rooms).toHaveLength(0); expect(result.current.canPublish).toBe(false);
 });

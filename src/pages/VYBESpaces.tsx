@@ -5,8 +5,8 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Radio, Plus, Users, Mic, MicOff, ArrowLeft, Sparkles, Calendar } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Radio, Plus, Users, Mic, ArrowLeft, Sparkles, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -124,14 +124,14 @@ function CreateSpaceDialog({ onCreated }: { onCreated: (space: Space) => void })
         
         <div className="space-y-4 pt-2">
           <Input
-            placeholder="What's the vibe?"
+            maxLength={120} placeholder="What's the vibe?"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className="rounded-xl"
           />
           
           <Textarea
-            placeholder="Tell people what you'll be talking about..."
+            maxLength={2000} placeholder="Tell people what you'll be talking about..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
@@ -160,7 +160,7 @@ function CreateSpaceDialog({ onCreated }: { onCreated: (space: Space) => void })
 
 export default function VYBESpaces() {
   const navigate = useNavigate();
-  const { data: spaces = [], isLoading } = useSpaces();
+  const { data: spaces = [], isLoading, error, refetch } = useSpaces();
   
   const liveSpaces = spaces.filter(s => s.status === 'live');
   const scheduledSpaces = spaces.filter(s => s.status === 'scheduled');
@@ -192,6 +192,7 @@ export default function VYBESpaces() {
           <CreateSpaceDialog onCreated={handleSpaceClick} />
         </div>
 
+        {error && <div role="alert" className="p-6 text-center space-y-3"><p>Audio rooms could not be loaded.</p><Button onClick={() => refetch()}>Try again</Button></div>}
         {/* Live Spaces */}
         {liveSpaces.length > 0 && (
           <div className="mb-6">
@@ -222,7 +223,7 @@ export default function VYBESpaces() {
         )}
 
         {/* Empty state */}
-        {!isLoading && spaces.length === 0 && (
+        {!isLoading && !error && spaces.length === 0 && (
           <motion.div 
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
