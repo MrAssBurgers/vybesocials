@@ -1,0 +1,101 @@
+{
+  "sourceCommit": "f01e7c77806b9c488bbf141550397933557c47a4",
+  "deployment": "f302b491-3caf-4550-be10-e03f1dd152b6",
+  "updatedDialog": true,
+  "testsPassed": 4798,
+  "testsSkipped": 6,
+  "origins": [
+    {
+      "host": "https://vybehub.app",
+      "resolvedOrigin": "https://vybehub.app",
+      "redirected": false,
+      "routes": [
+        "/",
+        "/home",
+        "/map",
+        "/clips",
+        "/onboarding",
+        "/spaces",
+        "/space/qa-route-check",
+        "/messages",
+        "/community"
+      ],
+      "sourceSha": "382fde9e7ab2c7c986c67247cf5189bfc624a7b819cb4300f6f5db2f8f3bea44",
+      "schema": "vybe-client-source-v2",
+      "files": 2587,
+      "built": "2026-10-06T18:03:37.183Z",
+      "entry": "/assets/app-B-LLt_Ac.js",
+      "entrySha": "25522ea00164fd39745210f5780ba848e026e29820a4a55d7a1c5888cf1d1eca"
+    },
+    {
+      "host": "https://vybesocials.lovable.app",
+      "resolvedOrigin": "https://vybehub.app",
+      "redirected": true,
+      "routes": [
+        "/",
+        "/home",
+        "/map",
+        "/clips",
+        "/onboarding",
+        "/spaces",
+        "/space/qa-route-check",
+        "/messages",
+        "/community"
+      ],
+      "sourceSha": "382fde9e7ab2c7c986c67247cf5189bfc624a7b819cb4300f6f5db2f8f3bea44",
+      "schema": "vybe-client-source-v2",
+      "files": 2587,
+      "built": "2026-10-06T18:03:37.183Z",
+      "entry": "/assets/app-B-LLt_Ac.js",
+      "entrySha": "25522ea00164fd39745210f5780ba848e026e29820a4a55d7a1c5888cf1d1eca"
+    }
+  ],
+  "normalDelivery": [
+    {
+      "path": "/",
+      "status": 200,
+      "cache": "no-cache, must-revalidate, max-age=0",
+      "age": null,
+      "etag": null,
+      "vary": null,
+      "modules": [
+        "<script type=\"module\" crossorigin src=\"/assets/app-B-LLt_Ac.js\">"
+      ]
+    },
+    {
+      "path": "/home",
+      "status": 200,
+      "cache": "no-cache, must-revalidate, max-age=0",
+      "age": null,
+      "etag": null,
+      "vary": null,
+      "modules": [
+        "<script type=\"module\" crossorigin src=\"/assets/app-B-LLt_Ac.js\">"
+      ]
+    },
+    {
+      "path": "/settings",
+      "status": 200,
+      "cache": "no-cache, must-revalidate, max-age=0",
+      "age": null,
+      "etag": null,
+      "vary": null,
+      "modules": [
+        "<script type=\"module\" crossorigin src=\"/assets/app-B-LLt_Ac.js\">"
+      ]
+    },
+    {
+      "path": "/login",
+      "status": 200,
+      "cache": "no-cache, must-revalidate, max-age=0",
+      "age": null,
+      "etag": null,
+      "vary": null,
+      "modules": [
+        "<script type=\"module\" crossorigin src=\"/assets/app-B-LLt_Ac.js\">"
+      ]
+    }
+  ],
+  "physicalPhoneVerified": false,
+  "backendChanged": false
+}
