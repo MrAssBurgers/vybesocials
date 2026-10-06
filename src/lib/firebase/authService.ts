@@ -105,7 +105,7 @@ export async function abandonAuthRestore() {
 }
 
 const NOT_CONFIGURED: VybeAuthError = {
-  message: 'Firebase is not configured. Set VITE_FIREBASE_* variables (see .env.example).',
+  message: 'Vybe is not configured for sign-in yet.',
   name: 'firebase/not-configured',
 };
 
@@ -350,7 +350,7 @@ export const firebaseAuth = {
     const auth = resolveAuth();
     if (!auth) return { data: { session: null }, error: isFirebaseConfigured() ? { name: 'auth/restore-unavailable', message: 'Your saved session has not finished restoring. Try again.' } : NOT_CONFIGURED };
     if (!sdkReady) {
-      try { await withAuthTimeout(waitForSdk(auth), 2000, 'Session recovery is still pending.'); } catch { /* A null before SDK readiness is not a signed-out decision. */ }
+      try { await withAuthTimeout(waitForSdk(auth), 2000, 'Session recovery timed out. Try again.'); } catch { /* A null before SDK readiness is not a signed-out decision. */ }
     }
     if (getAuthRestoreState() !== 'ready') return {
       data: { session: null }, error: { name: getAuthRestoreState() === 'error' ? 'auth/restore-unavailable' : 'auth/restore-pending', message: 'Your saved session has not finished restoring. Try again.' },
@@ -379,7 +379,7 @@ export const firebaseAuth = {
     const retired = { data: { session: null }, error: { name: 'auth/session-changed', message: 'The signed-in session changed.' } };
     if (!user) return { data: { session: null }, error: { message: 'Not authenticated' } };
     try {
-      await withAuthTimeout(user.getIdToken(true), 8000, 'Session refresh timed out');
+      await withAuthTimeout(user.getIdToken(true), 8000, 'Token fetch timed out');
       if (changed()) return retired;
       const session = await toVybeSession(user);
       return changed() ? retired : { data: { session }, error: null };
@@ -391,7 +391,7 @@ export const firebaseAuth = {
   },
 
   async exchangeCodeForSession(_code: string): Promise<{ data: { session: VybeSession | null }; error: VybeAuthError | null }> {
-    return { data: { session: null }, error: { message: 'exchangeCodeForSession not supported on Firebase Auth — use email link or oauth flow' } };
+    return { data: { session: null }, error: { message: 'Use email or provider sign-in.' } };
   },
 
   onAuthStateChange(callback: AuthStateCallback) {
@@ -410,6 +410,7 @@ export const firebaseAuth = {
       let initialFired = false;
       let lastUser: FirebaseUser | null = null;
       let eventGeneration = 0, withheldNull = false;
+      let stopTokenRecovery = () => {};
       const emit = (event: string, session: VybeSession | null) => {
         try {
           callback(event, session);
@@ -432,7 +433,8 @@ export const firebaseAuth = {
       // Token refreshes do not trigger onAuthStateChanged. Profile bootstrap
       // recovery depends on receiving the same-account token once connectivity
       // returns; it must not restart the interactive sign-in flow.
-      unsubscribe = onIdTokenChanged(auth, (firebaseUser) => {
+      const unsubscribeTokens = onIdTokenChanged(auth, (firebaseUser) => {
+      stopTokenRecovery();
       const currentEvent = ++eventGeneration, intent = authIntent;
       if (cancelled) return;
       if (firebaseUser && !sdkReady && hasAuthLogoutTombstone() && !isLocalPreview()) { withheldNull = true; return; }
@@ -450,16 +452,27 @@ export const firebaseAuth = {
       }
       lastUser = firebaseUser;
 
-      void enrichSessionToken(instant, firebaseUser, 5000).then((enriched) => {
-        try { guard(); } catch { return; }
-        if (!enriched.access_token) return;
+      const enrich = async () => {
+        const enriched = await enrichSessionToken(instant, firebaseUser, 5000);
+        try { guard(); } catch { return false; }
+        if (!enriched.access_token) return false;
         emit('TOKEN_REFRESHED', enriched);
         // Retry failed foreground reads after token transport recovers, even
         // when the device never went offline. No token leaves this service.
-        try { guard(); } catch { return; }
+        try { guard(); } catch { return false; }
         window.dispatchEvent(new Event('vybe-auth-token-ready'));
+        return true;
+      };
+      void enrich().then(async ready => {
+        if (ready) return;
+        try {
+          const { recoverTokenTransport } = await import('./tokenTransportRecovery');
+          guard();
+          stopTokenRecovery = recoverTokenTransport(enrich, guard);
+        } catch { /* A departed account or an offline chunk cannot resume here. */ }
       });
       });
+      unsubscribe = () => { stopTokenRecovery(); unsubscribeTokens(); };
     };
     const unsubscribeStartup = subscribeAuthRestoreState(() => {
       if (!attached && storageRestoreState() === 'ready') void settleAuthStorage().then(attach);
@@ -786,10 +799,10 @@ export const firebaseAuth = {
   // These keep the codebase compiling; Phase 5 ports each caller to the proper
   // Firebase Auth flow (linkWithPopup, updateEmail, updatePassword, etc.).
   async signInWithOtp(_payload: { email?: string; phone?: string; options?: any }) {
-    return { data: null, error: { message: 'signInWithOtp not supported on Firebase Auth — use email link or password instead' } };
+    return { data: null, error: { message: 'Use email or provider sign-in.' } };
   },
   async verifyOtp(_payload: { email?: string; phone?: string; token?: string; token_hash?: string; type: string }) {
-    return { data: { session: null, user: null }, error: { message: 'verifyOtp not supported on Firebase Auth' } };
+    return { data: { session: null, user: null }, error: { message: 'Use email or provider sign-in.' } };
   },
   async linkIdentity(payload: { provider: string; options?: { redirectTo?: string; useRedirect?: boolean } }): Promise<{ data: any; error: VybeAuthError | null }> {
     const auth = resolveAuth();

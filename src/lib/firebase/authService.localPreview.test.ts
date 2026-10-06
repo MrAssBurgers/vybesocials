@@ -33,6 +33,21 @@ beforeEach(() => {
 });
 
 describe('isolated preview authentication persistence', () => {
+  it('recovers failed token transport on native resume without another SDK token event', async () => {
+    const { firebaseAuth } = await import('./authService');
+    const callback = vi.fn(); const subscription = firebaseAuth.onAuthStateChange(callback);
+    await Promise.resolve(); await Promise.resolve();
+    const alice = user(); alice.getIdToken.mockRejectedValueOnce(Object.assign(new Error('Network unavailable'), { code: 'auth/network-request-failed' }));
+    mock.listener(alice);
+    await vi.waitFor(() => expect(alice.getIdToken).toHaveBeenCalledOnce());
+    await new Promise(resolve => setTimeout(resolve, 50));
+    alice.getIdToken.mockResolvedValue('resume-token'); callback.mockClear();
+    window.dispatchEvent(new Event('app-resumed'));
+    try {
+      await vi.waitFor(() => expect(callback).toHaveBeenCalledWith('TOKEN_REFRESHED', expect.objectContaining({ access_token: 'resume-token' })));
+      expect(callback).not.toHaveBeenCalledWith('SIGNED_IN', expect.anything());
+    } finally { subscription.data.subscription.unsubscribe(); }
+  });
   it('emits a recovered same-account token without repeating sign-in after a network failure', async () => {
     const { firebaseAuth } = await import('./authService');
     const ready = vi.fn(); window.addEventListener('vybe-auth-token-ready', ready);
