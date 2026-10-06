@@ -1,5 +1,20 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "daily_brief_cache",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "slot",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "pinged",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
   "ttl": [
     {
       "collection": "_notification_preference_requests",

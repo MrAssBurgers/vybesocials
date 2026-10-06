@@ -8,6 +8,7 @@ import { db, requireAuth, messaging } from './_shared/admin.js';
 import { chatCompletion } from './_shared/geminiAi.js';
 import { modelForTier, TOKEN_BUDGET } from './_shared/aiModels.js';
 import { deliverBriefIfAllowed } from './_shared/briefDelivery.js';
+import { dispatchScheduledBrief } from './_shared/scheduledBriefDispatch.js';
 
 function slot(d = new Date()): 'morning' | 'midday' | 'evening' {
   const h = d.getUTCHours();
@@ -31,7 +32,7 @@ async function generateBrief(uid: string, currentSlot: string) {
     max_tokens: TOKEN_BUDGET.standard,
   });
   await db.collection('daily_brief_cache').doc(`${uid}_${currentSlot}`).set({
-    user_id: uid, slot: currentSlot, content, generated_at: new Date().toISOString(),
+    user_id: uid, slot: currentSlot, content, generated_at: new Date().toISOString(), pinged: false,
   });
   return content;
 }
@@ -85,12 +86,38 @@ export const smartBriefPings = onSchedule({ schedule: 'every 60 minutes' }, asyn
       await deliverBriefIfAllowed(data.user_id, 'daily_brief', async () => {
         const tokens = await db.collection('push_tokens').where('user_id', '==', data.user_id).get();
         if (tokens.empty) return;
-        await messaging.sendEachForMulticast({
-          tokens: tokens.docs.map((d) => (d.data() as any).token).filter(Boolean),
-          notification: { title: 'Your daily brief is ready', body: 'Tap to see your vybe' },
-          data: { type: 'daily_brief', slot: currentSlot },
+        const distinct = [...new Set(tokens.docs.map(d => d.data().token)
+          .filter((token): token is string => typeof token === 'string' && !!token.trim())
+          .map(token => token.trim()))];
+        if (!distinct.length) return;
+        await dispatchScheduledBrief(db, doc.ref, currentSlot, data, async () => {
+          let providerStarted = false;
+          try {
+            // Device lookup and claim can take time; recheck current opt-outs
+            // after those steps, immediately before external provider work.
+            const delivery = await deliverBriefIfAllowed(data.user_id, 'daily_brief', async () => {
+              let accepted = 0;
+              for (let offset = 0; offset < distinct.length; offset += 500) {
+                const batch = distinct.slice(offset, offset + 500);
+                providerStarted = true;
+                const result = await messaging.sendEachForMulticast({
+                  tokens: batch,
+                  notification: { title: 'Your daily brief is ready', body: 'Tap to see your vybe' },
+                  data: { type: 'daily_brief', slot: currentSlot },
+                });
+                if (!Number.isSafeInteger(result.successCount) || result.successCount < 0
+                  || result.successCount > batch.length) throw new Error('Brief provider result is uncertain.');
+                accepted += result.successCount;
+              }
+              return accepted;
+            });
+            return 'skipped' in delivery ? 0 : delivery.result;
+          } catch (error) {
+            if (providerStarted) throw error;
+            console.warn('brief preferences unavailable before delivery', error);
+            return 0; // Known no-send: retry is safe; no success acknowledgement.
+          }
         });
-        await doc.ref.update({ pinged: true });
       });
     } catch (e) { console.warn('brief push skipped or failed', e); }
   }

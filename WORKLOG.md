@@ -1,3 +1,14 @@
+## ACTIVE (2026-10-06) — Brief delivery recovery and notification cutover
+
+- Started clean main1804a993. Previous turn made source and missing-service verification progress; full readiness stays active. Five source regressions fail against prior briefs.ts: new generation omitted pending pinged=false, zero/invalid provider results acknowledged success. Corrected both. Two existing aliases now share durable per-generation claims, suppress overlapping sends, retain uncertain acknowledgement without blind resend, and acknowledge only the same generation after positive provider acceptance. Known zero acceptance is retryable. No durable attempt TTL.
+- Sender deduplicates nonempty strings, batches500, validates provider counts and rechecks saved choices after lookup/claim. Failed second preference read calls no provider and safely retries. Existing generic token routing/registration ownership remains separate launch work; it does not justify indefinitely leaving the missing settings reader unavailable. Coordinated preference cutover reduces ignored opt-outs without expanding device access.
+- Isolated demo-vybe-brief-dispatch on8387 passes9 backend groups/16 raw Rules assertions; concurrency/acknowledgement/provider faults injected, no real notification. Full474 files/4489 tests pass,6 skip; Functions/app builds/native manifest/budget1098.6KBraw/333.5KBgzip/typecheck/lint pass (5 existing warnings). Logs work/brief-dispatch-{before,backend,full,functions,build,types,lint}.log. Generated local web manifests reverted.
+- Preflight now confirms missing daily_brief_cache(slot ASC,pinged ASC) index as well as preference receipt expireAt TTL. Existing prewarmDailyBriefs July20 ACTIVE/GEMINIversion14 retained unchanged. Scope/resources/rollout in releases/notification-recovery-20261006. Release restricts legacy preference writes/installs resources/releases nine senders+generator before enabling manageNotificationPreferences/muteSmartPings. No unrelated Functions/Rules, secret/Auth, manual provider invocation or legacy data migration. Actual production release outcome pending.
+- Remaining: named notification cutover/live reads, generic device ownership/routing, native push receipt, all phone/map/clips/mounted adoption and Firebase posts/DM/hubs/media/theme/music restoration. Goal active, no readiness claim.
+
+Next3tasks: finish exact notification Rules/resources/named service release and verify live reads; restore missing attachment/theme/music/media readers; verify current mounted sessions and phone map/clip/account/provider flows.
+
+---
 ## ACTIVE (2026-10-06) — Notification recovery preflight and muted DM recipients
 
 - Started clean main4d13786f. Previous goal turn made verified production progress releasing clip preload ownership; full user-readiness goal stays active. This checkpoint restores source correctness and establishes the actual missing notification deployment/resource closure, not a production release or new feature.
