@@ -13,7 +13,8 @@ const { initializeTestEnvironment, assertFails } = require('@firebase/rules-unit
 const { doc, getDoc, setDoc, updateDoc, deleteDoc, setLogLevel } = require('firebase/firestore');
 setLogLevel('silent');
 const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
-const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile('firestore.rules', 'utf8') } });
+assert.notEqual(Number(port), 8280, 'Do not use the retained interactive preview');
+const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile(process.env.FIRESTORE_RULES_FILE || 'firestore.rules', 'utf8') } });
 const now = Date.parse('2026-10-04T12:00:00.000Z');
 const alice = { uid: 'note-alice', profile: 'note-alice-profile' }, bob = { uid: 'note-bob', profile: 'note-bob-profile' };
 const identity = who => ({ expectedOwnerUid: who.uid, expectedProfileId: who.profile });

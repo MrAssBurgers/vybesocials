@@ -57,8 +57,8 @@ let loggedRegistration = false;
 let updateFlowWired = false;
 let reloadingForUpdate = false;
 
-const SHELL_REFRESH_STORAGE_KEY = 'vybe-shell-refresh-public-readiness-v1';
-const ACTIVE_SHELL_CACHE = 'vybe-shell-v7';
+const SHELL_REFRESH_STORAGE_KEY = 'vybe-shell-refresh-firebase-recovery-v2';
+const ACTIVE_SHELL_CACHE = 'vybe-shell-v8';
 
 /**
  * One-time production repair for devices that cached the old reconstruction

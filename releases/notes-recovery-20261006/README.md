@@ -1,0 +1,9 @@
+# Notes service and cached-client recovery — 2026-10-06
+
+Deployed only getFriendsNotes and manageUserNote with callable ingress and mandatory Firebase Auth, canonical owner binding, current accepted friendship, bidirectional blocks, expiry, checked revision and retry receipts. Source references the existing Firebase project. The matching Rules slice changes only user_notes to deny direct browser access; protected operation/state namespaces remain denied by the baseline. Existing note/content records were preserved.
+
+Baseline SHA-256 e24d910b3a8dddf68eb70fc715e48e161c8b5fc288fc341a1d124ea23d715caa; candidate 6217f4c3bcd40a9e43e5af69980844a1945e3dab7fe099c9986d5921388aa924; active ruleset 00d7a6c4-2633-4da1-8045-daea63d99d89. Six existing friend/block index requirements verified READY; no TTL, Storage, Auth setting or secret changes. Twelve isolated real backend/Rules groups passed, including pagination, canonical collisions, blocks/expiry, retry/reassignment/deletion boundaries and raw denial. The real signed-in messages page now shows Add Note, replacing the unavailable state.
+
+The prior publish successfully serves the new HTML/artifact on both domains, but open browsers kept an old app and requested removed hashed chunks. Service worker v42 rotates only the app shell/static/JS caches, preserves the media cache and sign-in stores, warms the shell from the network, and uses the existing controlled-update path. The application shell refresh key and cache name match the worker. Existing offline fallback remains intact.
+
+Full suite: 460 files / 4373 tests passed, six skipped. Build, entry/native manifest checks and bundle budget passed; typecheck/lint remain green. No actual production post/media, conversation, account or preference record was rewritten.

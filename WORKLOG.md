@@ -1,3 +1,14 @@
+## ACTIVE (2026-10-06) — Missing chunk refresh and Notes completion
+
+- User supplied removed Community/menu/leaderboard/Spaces/Upload/Challenges chunks from the live Home page. Independently verified that production HTML and hashed artifact are current while open IAB/Chrome sessions still run an earlier entry. Added service-worker v42, a matching shell-v8/asset-v9 rotation and fresh shell repair key. Only shell/static/JS caches change; media cache, Firebase Auth persistence and preferences are preserved. Existing update flow promotes/reloads once; offline shell fallback remains.
+- Completed getFriendsNotes/manageUserNote rollout with matching scoped raw Notes restriction. Six friendship/block indexes READY, twelve real backend/Rules groups passed. Both Functions successfully deployed and the actual user inbox shows Add Note instead of the earlier unavailable error. Ruleset00d7a6c4-2633-4da1-8045-daea63d99d89, SHA6217f4…; adjacent release record has full hashes.
+- Initial repair client6075ba0 was actually published to both public domains at2026-10-06T01:15:35.749Z, artifact /assets/app-5p_yKDY_.js, independently verifiedSHA34d2b7…. Lovable's non-Git build reports commit unknown; its project source is6075ba0 and the deployed code contains new moderationCount/deletionHistory actions. Do not invent manifest commit proof. Open browser cache still requires v42 follow-up publish and visual verification.
+- Cache follow-up build/budget/native manifest passed. Full suite460 files/4373 tests passed, six skipped. Retained live messages inbox loads original conversations, original owned hub is in sidebar. Existing preserved public legacy post media still needs guarded Firebase migration; no blind publication/private membership grant.
+
+Next3tasks: publish the cache follow-up and verify all reported missing-chunk routes on the actual signed-in session; finish current hub/Reports history reads; continue guarded media/DM recovery and real phone provider/session checks without claiming universal readiness.
+
+---
+
 ## ACTIVE (2026-10-06) — Reports, challenge loading, reactive auth and existing hub recovery
 
 - User priority remains existing-feature stability and restored retained content before new features. Latest error attachment identified missing Reports callable and missing challenge activity index. The logs also contain historical development hot-reload errors; no current conditional-hook or myServers response-shape crash was reproduced in the reviewed source.

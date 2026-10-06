@@ -198,13 +198,13 @@ export async function runManageUserNote(store, uid, raw, now = Date.now()) {
         return receipt;
     });
 }
-export const getFriendsNotes = onCall({ timeoutSeconds: 60 }, async (request) => {
+export const getFriendsNotes = onCall({ timeoutSeconds: 60, invoker: 'public' }, async (request) => {
     const uid = requireAuth(request);
     identityInput(request.data, uid, ['cursor']);
     enforceRateLimit(await rateLimit(`notes-read:${hash(uid)}`, 120, 60));
     return readFriendsNotes(db, uid, request.data);
 });
-export const manageUserNote = onCall({ timeoutSeconds: 60 }, async (request) => {
+export const manageUserNote = onCall({ timeoutSeconds: 60, invoker: 'public' }, async (request) => {
     const uid = requireAuth(request);
     identityInput(request.data, uid, ['action', 'expectedRevision', 'requestId', 'content', 'gifUrl']);
     enforceRateLimit(await rateLimit(`notes-own:${hash(uid)}`, 120, 60));
