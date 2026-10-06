@@ -5,6 +5,7 @@ import { Sparkles } from 'lucide-react';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { clearAppUpdateFlag, isAppUpdateInProgress } from '@/lib/appUpdateBridge';
 import { Button } from '@/components/ui/button';
+import { clearOwnedAppFiles } from '@/lib/appFileRecovery';
 
 const STATUS_LINES = [
   'Applying update…',
@@ -55,18 +56,7 @@ function unlockUpdateShell() {
 }
 
 async function clearAppCachesAndReload() {
-  try {
-    if ('serviceWorker' in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map((r) => r.unregister()));
-    }
-    if ('caches' in window) {
-      const keys = await caches.keys();
-      await Promise.all(keys.map((k) => caches.delete(k)));
-    }
-  } catch {
-    /* best effort */
-  }
+  await clearOwnedAppFiles();
   sessionStorage.removeItem(RELOAD_ONCE_KEY);
   clearAppUpdateFlag();
   window.location.replace(`/?_vybe=${Date.now()}`);
