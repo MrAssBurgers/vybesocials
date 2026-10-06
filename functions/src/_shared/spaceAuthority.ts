@@ -194,8 +194,10 @@ export async function manageSpaceAuthority(db: Firestore, auth: Pick<Auth, 'getU
       const identities = [...new Set([...active.docs, ...pending.docs].map(doc => doc.data().profile_id))];
       if (identities.some(identity => !validAudienceId(identity))) throw fail();
       const effectId = receiptRef!.id;
+      const cutoffSeconds = Math.max(Math.floor(now / 1000) + 1, ...[...active.docs, ...pending.docs].map(doc => Number(doc.data().audio_ready_at ?? 0)));
+      if (!Number.isSafeInteger(cutoffSeconds)) throw fail();
       tx.create(db.doc(`_space_audio_effects/${effectId}`), { version: 1, status: 'pending', kind: 'close', space_id: id,
-        roomName: spaceAudioRoomName(stored), identities, cutoffSeconds: Math.floor(now / 1000) + 1, created_at: stamp });
+        roomName: spaceAudioRoomName(stored), identities, cutoffSeconds, created_at: stamp });
       nextRoom.status = 'ended'; nextRoom.ended_at = stamp; nextRoom.revision = Number(stored.revision) + 1;
       nextRoom.listener_count = 0; nextRoom.participant_count = 0; nextRoom.speaker_count = 0;
       tx.set(roomRef, nextRoom); tx.set(db.doc(`spaces/${id}`), roomView(nextRoom));

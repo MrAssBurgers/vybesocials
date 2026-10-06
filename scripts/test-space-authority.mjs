@@ -159,5 +159,55 @@ await check('account-incarnation changes and ambiguous profile owners are reject
   await db.doc(`profiles/${other.profileId}-duplicate`).set({ user_id: other.uid });
   await assert.rejects(call(other, 'list'), { code: 'failed-precondition' });
 });
-console.log(JSON.stringify({ checks, projectId, productionWrites: false, scope: 'Domain authority only; wrappers, UI, live token revocation and historical restoration remain unverified.' }));
+await check('concurrent worker deliveries claim one lease and expired claims can retry', async () => {
+  const room = await change(host, 'create', { title: 'Worker lease check' });
+  const member = await change(listener, 'join', { spaceId: room.space.id, revision: 0 });
+  const promoted = await call(host, 'role', { requestId: randomUUID(), spaceId: room.space.id, participantId: member.participant.id, revision: member.participant.revision, role: 'speaker' });
+  let entered, release;
+  const started = new Promise(resolve => { entered = resolve; }), held = new Promise(resolve => { release = resolve; });
+  let calls = 0;
+  const slow = { ...audioProvider, revoke: async () => { calls++; entered(); await held; } };
+  const running = sync(db, promoted.audioEffectId, slow); await started;
+  await assert.rejects(sync(db, promoted.audioEffectId, slow), { code: 'unavailable' });
+  assert.equal(calls, 1); release(); await running;
+  await sync(db, promoted.audioEffectId, slow); assert.equal(calls, 1);
+  const demoted = await call(host, 'role', { requestId: randomUUID(), spaceId: room.space.id, participantId: member.participant.id, revision: promoted.participant.revision, role: 'listener' });
+  await db.doc(`_space_audio_effects/${demoted.audioEffectId}`).update({ lease_token: 'synthetic-abandoned', lease_until_ms: Date.now() - 1 });
+  await sync(db, demoted.audioEffectId, audioProvider);
+  assert.equal((await db.doc(`_space_audio_effects/${demoted.audioEffectId}`).get()).data().status, 'complete');
+});
+await check('closing a room reconciles pending member work without a later replay', async () => {
+  const room = await change(host, 'create', { title: 'Pending close check' });
+  const member = await change(listener, 'join', { spaceId: room.space.id, revision: 0 });
+  const promoted = await call(host, 'role', { requestId: randomUUID(), spaceId: room.space.id, participantId: member.participant.id, revision: member.participant.revision, role: 'speaker' });
+  const ended = await call(host, 'end', { requestId: randomUUID(), spaceId: room.space.id, revision: room.space.revision });
+  const close = (await db.doc(`_space_audio_effects/${ended.audioEffectId}`).get()).data();
+  assert.ok(close.cutoffSeconds >= (await db.doc(`_space_members/${member.participant.id}`).get()).data().audio_ready_at);
+  await sync(db, ended.audioEffectId, audioProvider);
+  assert.equal((await db.doc(`_space_members/${member.participant.id}`).get()).data().audio_pending, false);
+  assert.equal((await db.doc(`_space_audio_effects/${promoted.audioEffectId}`).get()).data().status, 'complete');
+  assert.equal((await db.doc(`_space_authority/${room.space.id}`).get()).data().audio_pending_count, 0);
+  const before = audioCalls.length; await sync(db, promoted.audioEffectId, audioProvider); assert.equal(audioCalls.length, before);
+});
+await check('prepared callable wrappers use the room contract and reject guest/client role substitution', async () => {
+  const { manageSpaces, spacesAudioToken, processSpaceAudioEffect } = await import('../functions/lib/spaces.js');
+  await assert.rejects(manageSpaces.run({ data: {} }), { code: 'unauthenticated' });
+  await assert.rejects(spacesAudioToken.run({ data: {} }), { code: 'unauthenticated' });
+  const room = await manageSpaces.run({ auth: { uid: host.uid }, data: input(host, 'create', { requestId: randomUUID(), title: 'Callable contract check' }) });
+  assert.equal(room.audioEffectId, undefined);
+  await manageSpaces.run({ auth: { uid: listener.uid }, data: input(listener, 'join', { requestId: randomUUID(), spaceId: room.space.id, revision: 0 }) });
+  const body = { expectedOwnerUid: listener.uid, expectedProfileId: listener.profileId, spaceId: room.space.id };
+  await assert.rejects(spacesAudioToken.run({ auth: { uid: listener.uid }, data: { ...body, canPublish: true } }), { code: 'invalid-argument' });
+  const names = ['LIVEKIT_URL', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET']; const previous = Object.fromEntries(names.map(name => [name, process.env[name]]));
+  try {
+    process.env.LIVEKIT_URL = 'wss://synthetic.livekit.cloud'; process.env.LIVEKIT_API_KEY = 'synthetic-key'; process.env.LIVEKIT_API_SECRET = 'synthetic-secret-only-for-isolated-tests';
+    const issued = await spacesAudioToken.run({ auth: { uid: listener.uid }, data: body });
+    const claims = JSON.parse(Buffer.from(issued.token.split('.')[1], 'base64url').toString());
+    assert.equal(claims.video.canPublish, false); assert.equal(claims.video.canPublishData, false); assert.equal(claims.sub, listener.profileId);
+    assert.equal(issued.role, 'listener'); assert.ok(issued.roomName.startsWith('space_v1_'));
+  } finally { for (const name of names) { if (previous[name] === undefined) delete process.env[name]; else process.env[name] = previous[name]; } }
+  assert.equal(processSpaceAudioEffect.__endpoint.eventTrigger.retry, true);
+  assert.equal(processSpaceAudioEffect.__endpoint.timeoutSeconds, 480);
+});
+console.log(JSON.stringify({ checks, projectId, productionWrites: false, scope: 'Isolated domain, worker coordination and prepared callable contracts; live trigger delivery, UI, real provider mutation and historical restoration remain unverified.' }));
 await db.terminate();
