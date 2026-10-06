@@ -21,7 +21,7 @@ const { readSocialFeedPage, readSocialPostPreviewsPage } = await import('../func
 const { closeFriendAuthorityId } = await import('../functions/lib/_shared/profileAudienceAuthority.js');
 const { manageFollowAuthority, followAuthorityId } = await import('../functions/lib/_shared/followAuthority.js');
 const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
-const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile(new URL('../firestore.rules', import.meta.url), 'utf8') } });
+const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile(process.env.FIRESTORE_RULES_FILE || new URL('../firestore.rules', import.meta.url), 'utf8') } });
 const viewer = { uid: 'feed-viewer', profile: 'feed-viewer-profile' };
 const author = { uid: 'feed-author', profile: 'feed-author-profile' };
 const request = (who = viewer, patch = {}) => ({ expectedOwnerUid: who.uid, expectedProfileId: who.profile, ...patch });

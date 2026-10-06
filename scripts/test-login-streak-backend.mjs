@@ -14,7 +14,7 @@ const { db, auth } = await import('../functions/lib/_shared/admin.js');
 const { ensureAccountProfileForUid } = await import('../functions/lib/_shared/accountProfileAuthority.js');
 const { manageLoginStreakForUid } = await import('../functions/lib/_shared/loginStreakAuthority.js');
 const { manageLoginStreak } = await import('../functions/lib/loginStreak.js');
-const env = await initializeTestEnvironment({ projectId, firestore: { host: '127.0.0.1', port: 8387, rules: await readFile('firestore.rules', 'utf8') } });
+const env = await initializeTestEnvironment({ projectId, firestore: { host: '127.0.0.1', port: 8387, rules: await readFile(process.env.FIRESTORE_RULES_FILE || 'firestore.rules', 'utf8') } });
 const DAY = 86400000, start = Date.parse('2026-10-10T12:00:00Z');
 let groups = 0, rules = 0;
 const check = async (label, task) => { await task(); groups++; console.log(`PASS ${label}`); };

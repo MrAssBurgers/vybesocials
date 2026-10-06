@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { seedPostPublication } from './helpers/post-publication-fixture.mjs';
 const projectId = process.env.GCLOUD_PROJECT;
 assert.match(projectId || '', /^demo-[a-z0-9-]+$/); assert.notEqual(projectId, 'demo-vybe-preview');
 assert.match(process.env.FIRESTORE_EMULATOR_HOST || '', /^(127\.0\.0\.1|localhost):\d+$/);
@@ -14,7 +15,7 @@ const { manageFollow } = await import('../functions/lib/follow.js');
 const { followAuthorityId, manageFollowAuthority } = await import('../functions/lib/_shared/followAuthority.js');
 const { readSocialFeedPage } = await import('../functions/lib/_shared/socialFeedAuthority.js');
 const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
-const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile(new URL('../firestore.rules', import.meta.url), 'utf8') } });
+const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile(process.env.FIRESTORE_RULES_FILE || new URL('../firestore.rules', import.meta.url), 'utf8') } });
 const owner = { uid: 'follow-owner', profile: 'follow-owner-profile' }, follower = { uid: 'follow-fan', profile: 'follow-fan-profile' }, other = { uid: 'follow-other', profile: 'follow-other-profile' };
 const input = (who, action, extras = {}) => ({ expectedOwnerUid: who.uid, expectedProfileId: who.profile, action, ...extras });
 const run = (who, action, extras = {}) => manageFollowAuthority(db, who.uid, input(who, action, extras));
@@ -31,7 +32,7 @@ try {
     await db.doc(`profiles/${who.profile}`).set({ user_id: who.uid, username: who.uid, is_private: who === owner });
     await db.doc(`user_auth_index/${who.uid}`).set({ profile_id: who.profile });
   }
-  await db.doc('posts/private-post').set({ author_id: owner.profile, type: 'post', caption: 'Private moment', media_url: '', created_at: new Date().toISOString() });
+  await seedPostPublication(db, 'private-post', { author_id: owner.profile, type: 'post', caption: 'Private moment', media_url: '', created_at: new Date().toISOString() }, { uid: owner.uid, profileId: owner.profile });
   await check('callable rejects guests, account substitution and malformed actions before rate work', async () => {
     await assert.rejects(manageFollow.run({ data: {} }), { code: 'unauthenticated' });
     await assert.rejects(manageFollow.run({ auth: { uid: follower.uid }, data: input(owner, 'list', { view: 'requests' }) }), { code: 'failed-precondition' });

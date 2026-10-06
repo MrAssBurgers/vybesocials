@@ -16,7 +16,7 @@ const { readPublicSocialPost } = await import('../functions/lib/_shared/socialFe
 const { readSocialPostList } = await import('../functions/lib/socialFeed.js');
 const { getRecommendations, getRankedFeed, calculateFeedRanking } = await import('../functions/lib/social.js');
 const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
-const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile(new URL('../firestore.rules', import.meta.url), 'utf8') } });
+const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile(process.env.FIRESTORE_RULES_FILE || new URL('../firestore.rules', import.meta.url), 'utf8') } });
 const alice = { uid: 'alice', profile: 'profile-alice' }, bob = { uid: 'bob', profile: 'profile-bob' };
 const input = (patch = {}, owner = alice) => ({ expectedOwnerUid: owner.uid, expectedProfileId: owner.profile, scope: 'profile', targetId: bob.profile, ...patch });
 const read = (patch = {}, owner = alice, now) => readSocialPostListPage(db, owner.uid, input(patch, owner), now);

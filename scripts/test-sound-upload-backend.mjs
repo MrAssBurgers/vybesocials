@@ -14,7 +14,7 @@ const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@fir
 const { ref, uploadBytes, getMetadata, getDownloadURL, getBytes, deleteObject } = require('firebase/storage');
 const { doc, getDoc, setDoc, updateDoc, deleteDoc } = require('firebase/firestore');
 const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':'), [storageHost, storagePort] = process.env.FIREBASE_STORAGE_EMULATOR_HOST.split(':');
-const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile(path.join(root, 'firestore.rules'), 'utf8') }, storage: { host: storageHost, port: Number(storagePort), rules: await readFile(path.join(root, 'storage.rules'), 'utf8') } });
+const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile(process.env.FIRESTORE_RULES_FILE || path.join(root, 'firestore.rules'), 'utf8') }, storage: { host: storageHost, port: Number(storagePort), rules: await readFile(process.env.STORAGE_RULES_FILE || path.join(root, 'storage.rules'), 'utf8') } });
 const { db } = await import('../functions/lib/_shared/admin.js');
 const { getStorage } = await import('../functions/node_modules/firebase-admin/lib/storage/index.js');
 const { runUploadSound, runReadSoundLibrary, uploadSound } = await import('../functions/lib/soundUpload.js');

@@ -20,7 +20,7 @@ const { validPublicationMediaUrl } = await import('../functions/lib/_shared/post
 const { manageFollowAuthority } = await import('../functions/lib/_shared/followAuthority.js');
 const { claimTokenCredit } = await import('../functions/lib/_shared/tokenCreditAuthority.js');
 const { reconcileChallenge } = await import('../functions/lib/_shared/challengeRewardAuthority.js');
-const env = await initializeTestEnvironment({ projectId, firestore: { host: '127.0.0.1', port: 8387, rules: await readFile('firestore.rules', 'utf8') } });
+const env = await initializeTestEnvironment({ projectId, firestore: { host: '127.0.0.1', port: 8387, rules: await readFile(process.env.FIRESTORE_RULES_FILE || 'firestore.rules', 'utf8') } });
 const alice = { uid: 'publisher-alice', profileId: 'publisher-alice-profile' }, bob = { uid: 'publisher-bob', profileId: 'publisher-bob-profile' }, moderator = { uid: 'publisher-mod', profileId: 'publisher-mod-profile' };
 const binding = owner => ({ expectedOwnerUid: owner.uid, expectedProfileId: owner.profileId });
 const payload = patch => ({ type: 'post', caption: 'Synthetic publication', tags: ['qa'], mediaUrl: null, mediaUrls: [], thumbnailUrl: null, ageRating: 'unrated', visibility: 'public', ...patch });

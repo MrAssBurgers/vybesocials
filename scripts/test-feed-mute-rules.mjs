@@ -13,7 +13,7 @@ const require = createRequire(path.resolve(process.env.FIREBASE_TEST_TOOLS_ROOT 
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@firebase/rules-unit-testing');
 const { doc, collection, collectionGroup, setDoc, getDoc, getDocs, updateDoc, deleteDoc, runTransaction, serverTimestamp, Timestamp, setLogLevel } = require('firebase/firestore');
 setLogLevel('silent');
-const env = await initializeTestEnvironment({ projectId, firestore: { host, port, rules: await readFile(new URL('../firestore.rules', import.meta.url), 'utf8') } });
+const env = await initializeTestEnvironment({ projectId, firestore: { host, port, rules: await readFile(process.env.FIRESTORE_RULES_FILE || new URL('../firestore.rules', import.meta.url), 'utf8') } });
 const alice = env.authenticatedContext('mute-alice').firestore();
 const bob = env.authenticatedContext('mute-bob').firestore();
 const admin = env.authenticatedContext('mute-admin', { admin: true }).firestore();

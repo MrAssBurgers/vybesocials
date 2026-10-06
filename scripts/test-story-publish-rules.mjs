@@ -12,8 +12,8 @@ const { doc, collection, setDoc, getDoc, getDocs, updateDoc, deleteDoc, writeBat
 const { ref: storageRef, uploadBytes, getBytes, listAll } = require('firebase/storage');
 const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
 const [storageHost, storagePort] = process.env.FIREBASE_STORAGE_EMULATOR_HOST.split(':');
-const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile('firestore.rules', 'utf8') },
-  storage: { host: storageHost, port: Number(storagePort), rules: await readFile('storage.rules', 'utf8') } });
+const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile(process.env.FIRESTORE_RULES_FILE || 'firestore.rules', 'utf8') },
+  storage: { host: storageHost, port: Number(storagePort), rules: await readFile(process.env.STORAGE_RULES_FILE || 'storage.rules', 'utf8') } });
 const uid = 'story-alice'; const profile = 'story-alice-profile';
 const alice = env.authenticatedContext(uid), bob = env.authenticatedContext('story-bob'), guest = env.unauthenticatedContext(), admin = env.authenticatedContext('story-admin', { admin: true });
 let checks = 0;

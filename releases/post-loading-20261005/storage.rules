@@ -1,0 +1,97 @@
+rules_version = '2';
+
+// VYBE Storage rules — ported from Supabase bucket policies.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && request.auth.token.admin == true; }
+    function isOwner(userId) { return signedIn() && request.auth.uid == userId; }
+    function smallEnough() { return request.resource.size < 50 * 1024 * 1024; }
+    function isImage() { return request.resource.contentType.matches('image/.*'); }
+    function isAv() { return request.resource.contentType.matches('(image|video|audio)/.*'); }
+
+    // Per-user owned buckets
+    match /avatars/{userId}/{allPaths=**} {
+      allow read: if signedIn();
+      allow create, update: if isOwner(userId) && smallEnough() && isImage();
+      allow delete: if isOwner(userId);
+    }
+    match /media/{userId}/{allPaths=**} {
+      allow read: if signedIn();
+      allow create, update: if isOwner(userId) && smallEnough() && isAv();
+      allow delete: if isOwner(userId);
+    }
+    match /stories/{userId}/{allPaths=**} {
+      // Viewers receive an existing download URL only after story admission.
+      // Do not let other signed-in accounts enumerate the uploader's media.
+      allow read: if isOwner(userId) || isAdmin();
+      allow create, update: if isOwner(userId) && smallEnough() && isAv();
+      allow delete: if isOwner(userId);
+    }
+    // Private DM media. Direct read is restricted to the uploader; recipients
+    // must fetch via a Cloud Function that issues short-lived signed URLs
+    // after verifying conversation membership server-side.
+    match /chat-media/{userId}/{allPaths=**} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create, update: if isOwner(userId) && smallEnough() && isAv();
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+    match /clips/{userId}/{allPaths=**} {
+      allow read: if signedIn();
+      allow create, update: if isOwner(userId) && smallEnough();
+      allow delete: if isOwner(userId);
+    }
+    match /post-media/{userId}/{allPaths=**} {
+      allow read: if signedIn();
+      allow create, update: if isOwner(userId) && smallEnough() && isAv();
+      allow delete: if isOwner(userId);
+    }
+    match /community-assets/{userId}/{allPaths=**} {
+      allow read: if signedIn();
+      allow create, update: if isOwner(userId) && smallEnough();
+      allow delete: if isOwner(userId);
+    }
+    match /announcements/{allPaths=**} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin() && smallEnough();
+      allow delete: if isAdmin();
+    }
+
+    // Public reference assets (write via admin SDK only)
+    match /public/{allPaths=**} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /sound-uploads/{userId}/{uploadId}/source {
+      function upload() { return firestore.get(/databases/(default)/documents/_sound_uploads/$(uploadId)).data; }
+      allow create: if isOwner(userId) && resource == null
+        && uploadId.matches('[a-f0-9]{64}') && upload().version == 1
+        && upload().upload_id == uploadId && upload().owner_uid == userId
+        && upload().source_path == 'sound-uploads/' + userId + '/' + uploadId + '/source'
+        && upload().status == 'uploading' && upload().public_consent == true
+        && upload().expires_at_ms > request.time.toMillis()
+        && request.resource.size >= 16 && request.resource.size <= 20 * 1024 * 1024
+        && request.resource.size == upload().byte_size && request.resource.contentType == upload().content_type
+        && request.resource.contentType in ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/aac', 'audio/mp4'];
+      allow read, update, delete: if false;
+    }
+    match /original-sounds/{userId}/{uploadId}/{fileName} {
+      function proof() { return firestore.get(/databases/(default)/documents/_sound_uploads/$(uploadId)).data; }
+      function sound() { return firestore.get(/databases/(default)/documents/sounds/$(uploadId)).data; }
+      allow read: if uploadId.matches('[a-f0-9]{64}') && fileName.matches('[a-f0-9-]{36}\\.wav')
+        && proof().version == 1 && proof().upload_id == uploadId && proof().owner_uid == userId
+        && proof().status == 'published' && proof().object_path == 'original-sounds/' + userId + '/' + uploadId + '/' + fileName
+        && sound().publication_version == 1 && sound().sound_id == uploadId && sound().owner_uid == userId
+        && sound().status == 'published' && sound().is_approved == true
+        && sound().moderation_status in ['not_reviewed', 'approved']
+        && sound().get('is_deleted', false) == false && sound().get('deleted_at', null) == null;
+      allow create, update, delete: if false;
+    }
+    // Default deny
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

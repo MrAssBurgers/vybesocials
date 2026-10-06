@@ -16,7 +16,7 @@ const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@fir
 const { doc, getDoc, getDocs, collection, query, where, setDoc, updateDoc, deleteDoc, setLogLevel } = require('firebase/firestore');
 setLogLevel('silent');
 const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
-const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile('firestore.rules', 'utf8') } });
+const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile(process.env.FIRESTORE_RULES_FILE || 'firestore.rules', 'utf8') } });
 const now = Date.parse('2026-10-04T12:00:00.000Z');
 const alice = { uid: 'comment-alice', profile: 'comment-alice-profile' }, bob = { uid: 'comment-bob', profile: 'comment-bob-profile' }, charlie = { uid: 'comment-charlie', profile: 'comment-charlie-profile' };
 const binding = who => ({ expectedOwnerUid: who.uid, expectedProfileId: who.profile });

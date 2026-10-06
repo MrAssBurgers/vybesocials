@@ -12,6 +12,10 @@ Production web hosting is **Lovable**, with custom domain **`vybehub.app`**. Lov
 | Firebase Hosting staging frontend | https://vybe-daaab.web.app — shares the production Firebase project; not an isolated data environment |
 | Isolated local QA | `demo-vybe-preview`; follow [LOCAL_PREVIEW_QA.md](docs/LOCAL_PREVIEW_QA.md). Never deploy its configuration or fixtures. |
 
+## Production stability release (2026-10-05)
+
+User-authorized scoped post/feed/comments/follow/stories/streak/sound deployment is now live. See [exact release record](releases/post-loading-20261005/README.md) and firebase.post-loading.json for the 28-function slice, baseline-preserving Firestore/Storage candidates and additive resources. Actual Lovable production manifest confirms main 0503197824f066dc05b775b435e3675aa32f5064; latest client/auth motion is published. The previously blocked narrow sign-in/Home Rules candidate is also released; older 503 and auth2faRequest hold descriptions below describe earlier checkpoints, superseded only for the explicitly reviewed ordinary sign-in slice. Other documented matched release prerequisites remain applicable. No whole Functions/Rules deploy, new game platform, tokenMarketplace or native persistence certification is implied.
+
 ## Phone session repair checkpoint (2026-10-05)
 
 **Live sign-in incident:** read-only inspection on October 5 found `vybehub.app` already serving `ea52a9bf`, while `auth2faVerify` returned a platform 403 and `ensureAccountProfile` a platform 404. The live client/backend are incompatible; another frontend-only publish cannot repair this. The named compatibility preflight is `node scripts/check-auth-release.mjs --project vybe-daaab`. See [SIGN_IN_RECOVERY.md](docs/SIGN_IN_RECOVERY.md) for the six-function sign-in/profile slice, existing private resources, deployment-access blocker and required real-account verification. Review the actual deployed Rules baseline rather than releasing unrelated pending Rules changes. The new consumed-email completion fix adds no new export, namespace, index or TTL; its matching `authLoginNotify` must accompany the existing coordinated email/profile release.

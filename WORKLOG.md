@@ -2,7 +2,21 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-10-05) - Live sign-in/email services and auth motion
+## ACTIVE (2026-10-05) - Authorized production post and existing client release
+
+- User requested deployment of post and all existing fixes. Successfully pushed 0503197824f066dc05b775b435e3675aa32f5064 to main and published via Lovable. Actual vybehub.app version manifest confirms this commit and newest auth motion/client fixes (previous stale build cleared).
+- Google's Rules service recovered enough to release the exact sign-in/Home candidate d13db74d…; prior 503 blocker and Home-saving rule limitation below are historical. Then released the scoped post Firestore 0c53b71d… (initial 79b9a5dd… plus the required private feed mute block) and Storage a6aa1032… sources, independently verified live. Exact 28 Functions ACTIVE; 23 callable probes reach Auth guards. Added only 37 reviewed indexes and six ephemeral TTLs; all 37 indexes READY and six TTLs ACTIVE. See releases/post-loading-20261005/README.md for exact resources/hashes, tests and omitted slices.
+- Exact-release tests passed: feed mute60/publication16/feed25/list8/comments14/follow10/streak15+60/story144+22/sound12+76. Fresh app/Functions builds pass; prior identical app 4,370 tests and lint/typecheck pass. Follow QA fixture gained legitimate synthetic publication evidence; no production content adoption or secret changes. Combined isolated Storage QA resolves emulator registry failure without affecting saved preview.
+- Live @bakrix profile now loads six posts and engagement after reload; session persisted. Stories/streak respond. Home exposed additional likes ranking index, now READY. Live customization Save succeeds. Designated-account server admission returns six personalized/discover posts and passes client schema. Mounted For You feed visibly loads the original posts after reconnect; screenshot outputs/vybe-deployed-feed.png. Public production HTML/manifest verify the newest published client; mounted tabs still retained their prior cached entry, so newest auth-motion execution on those tabs is not independently verified. Existing legacy owner posts remain reviewable without automatic publication. Physical phone cold launch not yet verified.
+
+### Next 3 tasks
+1. Home/index verification is complete; verify mounted-tab update and physical native launch without clearing account storage.
+2. Independently finish any remaining matched existing services in DEPLOY.md before claiming every feature works; new SDK/mini-app work stays deferred.
+3. Verify physical Android/iOS close/reopen and live account settings/DM compatibility; browser reload alone does not certify native persistence.
+
+---
+
+## PRIOR CHECKPOINT (2026-10-05) - Live sign-in/email services and auth motion
 
 ### Changes and deployed scope
 - User explicitly requested live vybehub.app sign-in/email repair and smooth login/signup animation. Reviewed the old auth2faRequest hold against actual live state: request had no email provider bindings; verify had no invoker policy. Released **only auth2faRequest, auth2faVerify, authLoginApproval and authLoginNotify** with their existing configured Resend/from/Twilio/OneSignal bindings. Secret values, Auth provider settings and account flags were not changed. Runtime token-signing permission was already present. Explicitly repaired auth2faVerify's missing Cloud Run public callable invocation binding; the handler retains strict private single-use code proof. See releases/sign-in-20261005/README.md for exact hashes and logs.
