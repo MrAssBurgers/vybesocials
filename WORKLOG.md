@@ -4,7 +4,9 @@
 - Built unchanged current Functions.20 existing backend groups/189 raw Rules assertions pass on isolated demo-vybe-contacts-qa8387 against active8c Rules. New isolated actual-handler fixture passes four wrappers: guest/legacy denial, checked request, directional acceptance, pause, stale revision and stop. Random synthetic QA actors only, no production location/GPS/share/data mutation. Latest app4510tests/build/types/lint remain green from prior source; runtime web unchanged.
 - Prepared exact four-callable compatibility update using existing source only. No shared Rules/Storage/Auth/index/TTL/secrets/other Functions/client publication. Schedule/heatmap parity and current mounted/physical-phone map/clip/session/research gates remain separate open tasks.
 
-Next3tasks: deploy/verify four exact action exports and unchanged Rules/Storage; complete map read/browser/phone diagnosis; continue retained Firebase content/media and security review.
+- Exact four-target deploy73895 finished exit0 after source53d9091c; provider ACTIVE request/respond/pause06:20:12Z,stop06:20:15Z. All four guest probes401 UNAUTHENTICATED. Firestore9d06/8c and Storage3b9/a6 independently unchanged; manageLocationSharing timestamp and snapshot scheduler unchanged. Both web origins still verify prior runtime fingerprint14e29af0/entryBUIZS4A0. No production user/location/grant/Auth/index/TTL/Rules/client mutation. Deployment updates existing callable code only.
+- IAB Home still signed in/owner-review posts but mountsCGCcULTp even through the normal cache-busted route; DOM has no editable inputs. Independent old entry404. This establishes stale-session compatibility risk, not cache/worker/proxy root cause. No account/draft/media/cache/worker purge. Actual phone location, active checked-reader success and clips/performance remain unverified; scheduled legacy tasks remain pending. Full goal active.
+Next3tasks: review legacy scheduled location/heatmap parity; complete map read/browser/phone diagnosis; continue retained Firebase content/media and security review.
 
 ---
 ## ACTIVE (2026-10-06) — Profile recovery after transient bootstrap failure
@@ -9659,6 +9661,7 @@ All eight migration phases complete. See `.lovable/plan.md` for per-phase detail
 - Live signed-in Clips read succeeds: one active Firebase Storage video readyState4/pausedfalse/errornull while two others paused. Desktop observation only, no physical phone/FPS/codec proof. Direct map navigation in older CGCcULTp client triggers real retained-account profile timeout; read retry started. No sign-out/account storage/cache/worker/GPS permission/share mutation. Browser adoption remains unresolved.
 
 Next3tasks: publish/verify corrected source schema against full input map; diagnose mounted old-client/profile timeout and physical phone location/clips; continue Firebase retained content/media and separate security review.
+
 
 
 
