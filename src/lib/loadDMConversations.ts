@@ -16,7 +16,6 @@ import {
 
 import {
   buildConversationMembers,
-  inferOtherUserIdFromConversation,
 } from '@/lib/dmMemberResolve';
 import { maxLastReadAt } from '@/lib/markConversationRead';
 import { getDmConversationSortTime, sortDmConversations } from '@/lib/dmConversationSort';
@@ -429,31 +428,16 @@ async function loadDMConversationsOnce(
       }
     });
 
-    const seenOtherUserIds = new Set<string>();
-    const seenOtherUsernames = new Set<string>();
+    const seenConversationIds = new Set<string>();
     const result: LoadedDMConversation[] = [];
 
     conversationsData
       .filter((conv) => !hiddenIds.has(conv.id) && !trashedIds.has(conv.id))
       .forEach((conv) => {
-        if (!conv.is_group) {
-          const otherRawId = inferOtherUserIdFromConversation(
-            conv,
-            effectiveProfileId,
-            authUid,
-          );
-          const otherProfile = otherRawId ? profileByKey.get(otherRawId) : null;
-          const dedupeKey = otherProfile?.id
-            ? String(otherProfile.id)
-            : otherRawId || conv.id;
-          const uname = String(otherProfile?.username || '').toLowerCase();
-          if (dedupeKey) {
-            if (seenOtherUserIds.has(dedupeKey)) return;
-            if (uname && seenOtherUsernames.has(uname)) return;
-            seenOtherUserIds.add(dedupeKey);
-            if (uname) seenOtherUsernames.add(uname);
-          }
-        }
+        // Different conversation IDs can contain different message histories,
+        // even for the same person. Names and peer IDs are display identities.
+        if (seenConversationIds.has(conv.id)) return;
+        seenConversationIds.add(conv.id);
 
         const lastMessage =
           lastMessageMap.get(String(conv.id)) ??

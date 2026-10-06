@@ -117,7 +117,7 @@ describe('mergeLegacyAndProjection', () => {
     expect(result[0].unread_count).toBe(2);
   });
 
-  it('does not append projection-only 1:1 rows for a peer already in legacy', () => {
+  it('keeps distinct projection conversation IDs for a peer already in legacy', () => {
     const legacyPeer = {
       id: 'conv-a',
       is_group: false,
@@ -161,6 +161,19 @@ describe('mergeLegacyAndProjection', () => {
       viewerId: 'viewer',
     });
 
-    expect(result.map((c) => c.id)).toEqual(['conv-a']);
+    expect(result.map((c) => c.id)).toEqual(['conv-a', 'conv-dup']);
+  });
+
+  it('keeps a separately admitted thread for the same peer when merging histories', () => {
+    const row = { ...legacy('old'), members: [{user_id:'peer',profile:{id:'peer',username:'alex'}}] } as LoadedDMConversation;
+    const entry = { ...projectionEntry('new'), other_profile_id:'peer', username:'alex', latest_message_id:'new-message', latest_message_at:'2026-10-01T00:00:00Z' } as DmInboxEntryDoc;
+    const result = mergeLegacyAndProjection({legacy:[row],projectionEntries:[entry],lockedIds:new Set(),projectionReadEnabled:true,projectionReady:true,viewerId:'viewer'});
+    expect(result.map(c=>c.id)).toEqual(['old','new']);
+  });
+  it('keeps distinct peers with the same historical username, but removes duplicate IDs', () => {
+    const row = { ...legacy('old'), members: [{user_id:'peer-a',profile:{id:'peer-a',username:'alex'}}] } as LoadedDMConversation;
+    const entry = { ...projectionEntry('new'), other_profile_id:'peer-b', username:'alex' } as DmInboxEntryDoc;
+    const result = mergeLegacyAndProjection({legacy:[row],projectionEntries:[entry,entry],lockedIds:new Set(),projectionReadEnabled:true,projectionReady:true,viewerId:'viewer'});
+    expect(result.map(c=>c.id)).toEqual(['old','new']);
   });
 });

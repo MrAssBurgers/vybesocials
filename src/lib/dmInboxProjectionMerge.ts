@@ -9,7 +9,7 @@ export interface MergeLegacyProjectionInput {
   lockedIds: Set<string>;
   projectionReadEnabled: boolean;
   projectionReady: boolean;
-  /** Current viewer — used so 1:1 person-dedupe ignores self. */
+  /** Current viewer context supplied by the caller. */
   viewerId?: string | null;
   viewerAuthUid?: string | null;
 }
@@ -52,7 +52,7 @@ export function patchProjectionOntoLegacy(
  * Never replace the whole list with projection-only order (that remount-jumps rows).
  * Never drop legacy rows when projection is partial/empty.
  * Never let projection write-time reshuffle inbox order.
- * Never re-introduce 1:1 rows for a person legacy already deduped away.
+ * Keep separately admitted conversation histories, even for the same person.
  */
 export function mergeLegacyAndProjection(
   input: MergeLegacyProjectionInput,
@@ -63,8 +63,6 @@ export function mergeLegacyAndProjection(
     lockedIds,
     projectionReadEnabled,
     projectionReady,
-    viewerId = null,
-    viewerAuthUid = null,
   } = input;
 
   const filteredLegacy = legacy.filter((c) => !lockedIds.has(c.id));
@@ -80,51 +78,21 @@ export function mergeLegacyAndProjection(
 
   const ordered: LoadedDMConversation[] = [];
   const seen = new Set<string>();
-  const seenOtherKeys = new Set<string>();
-
-  const isSelfId = (id: string) =>
-    Boolean(id) && (id === viewerId || (viewerAuthUid != null && id === viewerAuthUid));
-
-  const otherKeyForConversation = (conversation: LoadedDMConversation): string | null => {
-    if (conversation.is_group) return null;
-    const members = conversation.members || [];
-    for (const m of members as Array<{ user_id?: string; profile?: { id?: string; username?: string } }>) {
-      const id = String(m.profile?.id || m.user_id || '');
-      if (!id || isSelfId(id)) continue;
-      const uname = String(m.profile?.username || '').toLowerCase();
-      if (uname) return `u:${uname}`;
-      return `id:${id}`;
-    }
-    return null;
-  };
-
-  const otherKeyForEntry = (entry: DmInboxEntryDoc): string | null => {
-    if (entry.conversation_type === 'group' || (entry as { is_group?: boolean }).is_group) return null;
-    const uname = String(entry.username || '').toLowerCase();
-    if (uname) return `u:${uname}`;
-    if (entry.other_profile_id) return `id:${entry.other_profile_id}`;
-    return null;
-  };
-
   for (const conversation of filteredLegacy) {
+    if (seen.has(conversation.id)) continue;
     const projected = projectionById.get(conversation.id);
     const row = projected ? patchProjectionOntoLegacy(conversation, projected) : conversation;
     ordered.push(row);
     seen.add(conversation.id);
-    const key = otherKeyForConversation(row);
-    if (key) seenOtherKeys.add(key);
   }
 
   for (const entry of projectionEntries) {
     const id = entry.conversation_id;
     if (lockedIds.has(id) || seen.has(id)) continue;
-    const key = otherKeyForEntry(entry);
-    if (key && seenOtherKeys.has(key)) continue;
     const row = projectionById.get(id);
     if (!row) continue;
     ordered.push(row);
     seen.add(id);
-    if (key) seenOtherKeys.add(key);
   }
 
   return ordered.length ? ordered : filteredLegacy;
