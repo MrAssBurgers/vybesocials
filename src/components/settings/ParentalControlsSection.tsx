@@ -34,7 +34,7 @@ const CHILD_SAFE_DEFAULTS = {
 };
 
 export function ParentalControlsSection() {
-  const { data: controls, isLoading, isError, refetch, isFetching: checkingControls } = useParentalControls();
+  const { data: controls, isLoading, isError, refetch, isFetching: checkingControls, error: controlsError } = useParentalControls();
   const account = useSyncExternalStore(reportAccountSubscribe, reportAccountSnapshot, reportAccountSnapshot);
   const [unlockProof, setUnlockProof] = useState<ParentalUnlockProof | null>(null);
   const { data: safety, isError: safetyError, isLoading: safetyLoading, refetch: refetchSafety } = useSafetySettings();
@@ -96,7 +96,9 @@ export function ParentalControlsSection() {
 
   if (isError || safetyError) {
     return <div className="liquid-glass-card p-6">
-      <p className="mb-3 text-sm text-muted-foreground">Your parental controls could not be loaded. Try again before making changes.</p>
+      {(controlsError as { details?: { reason?: string } })?.details?.reason === 'parental-controls-review-required'
+        ? <p role="alert" className="mb-3 text-sm text-muted-foreground">Your existing parental controls need an ownership review. Your settings and PIN are preserved. <a href="/contact" className="text-primary underline">Contact support for recovery</a>, then refresh after the review.</p>
+        : <p className="mb-3 text-sm text-muted-foreground">Your parental controls could not be loaded. Try again before making changes.</p>}
       <Button variant="outline" onClick={() => { void refetch(); void refetchSafety(); }}>Try again</Button>
     </div>;
   }
