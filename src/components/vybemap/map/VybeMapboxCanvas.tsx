@@ -14,7 +14,7 @@ import { clusterPoints, type MarkerCluster } from '@/lib/vybemap/clusterMarkers'
 import { isHeadingTowardYou } from '@/lib/vybemap/headingToward';
 import {
   lerpHeading,
-  subscribeDeviceHeading,
+  subscribeForegroundDeviceHeading,
 } from '@/lib/vybemap/deviceHeading';
 import { getRuntimeOs } from '@/lib/despiaBridge';
 import { createMapContentMarker } from './mapContentMarker';
@@ -199,6 +199,7 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   const targetHeadingRef = useRef<number | null>(null);
   const smoothedBearingRef = useRef<number | null>(null);
   const headingRafRef = useRef<number | null>(null);
+  const wakeHeadingRef = useRef(() => {});
   const applyingBearingRef = useRef(false);
 
   const isUserMapGesture = useCallback((e?: object) => {
@@ -225,6 +226,7 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
     if (headingInteractTimerRef.current) clearTimeout(headingInteractTimerRef.current);
     headingInteractTimerRef.current = setTimeout(() => {
       headingInteractPauseRef.current = false;
+      wakeHeadingRef.current();
     }, 1200);
   }, [isUserMapGesture]);
 
@@ -428,15 +430,23 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   }, [mapReady, followHeading, readyGeneration]);
 
   useEffect(() => {
-    return subscribeDeviceHeading((sample) => {
+    return subscribeForegroundDeviceHeading((sample) => {
       targetHeadingRef.current = sample.heading;
       setDeviceHeading(sample.heading);
+      wakeHeadingRef.current();
+    }, () => {
+      targetHeadingRef.current = null;
+      smoothedBearingRef.current = null;
+      setDeviceHeading(null);
+      if (headingRafRef.current != null) cancelAnimationFrame(headingRafRef.current);
+      headingRafRef.current = null;
     });
   }, []);
 
-  // Google Maps–style: rAF-lerp map bearing toward device heading (smooth, ~60fps).
+  // Smooth compass follow runs only while moving toward a current heading.
   useEffect(() => {
     if (!followHeading || !mapReady) {
+      wakeHeadingRef.current = () => {};
       if (headingRafRef.current != null) {
         cancelAnimationFrame(headingRafRef.current);
         headingRafRef.current = null;
@@ -446,6 +456,7 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
 
     const map = mapRef.current;
     const android = isAndroidMap();
+    let active = true;
     // Snap once so Follow engages instantly, then lerp for smoothness.
     const snapTarget = targetHeadingRef.current;
     if (map && snapTarget != null) {
@@ -461,11 +472,15 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
     // [Android-only] Higher alpha = near-instant compass lock.
     const alpha = android ? 0.42 : 0.22;
 
-    const tick = () => {
+    const wake = () => {
+      if (!active || headingRafRef.current != null || targetHeadingRef.current == null || headingInteractPauseRef.current || document.visibilityState === 'hidden') return;
       headingRafRef.current = requestAnimationFrame(tick);
+    };
+    const tick = () => {
+      headingRafRef.current = null;
       const liveMap = mapRef.current;
       const target = targetHeadingRef.current;
-      if (!liveMap || target == null || headingInteractPauseRef.current) return;
+      if (!active || !liveMap || liveMap !== map || target == null || headingInteractPauseRef.current || document.visibilityState === 'hidden') return;
 
       const current =
         smoothedBearingRef.current ??
@@ -482,10 +497,14 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
       } finally {
         applyingBearingRef.current = false;
       }
+      wake();
     };
 
-    headingRafRef.current = requestAnimationFrame(tick);
+    wakeHeadingRef.current = wake;
+    wake();
     return () => {
+      active = false;
+      if (wakeHeadingRef.current === wake) wakeHeadingRef.current = () => {};
       if (headingRafRef.current != null) {
         cancelAnimationFrame(headingRafRef.current);
         headingRafRef.current = null;
@@ -794,6 +813,7 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
       if (headingInteractTimerRef.current) clearTimeout(headingInteractTimerRef.current);
       headingInteractTimerRef.current = undefined;
       smoothedBearingRef.current = null;
+      wakeHeadingRef.current();
     };
     const pauseFollow = () => {
       followSelfRef.current = false;

@@ -14,7 +14,7 @@ vi.mock('mapbox-gl', () => ({ default: { accessToken: '', Map: class {
       }), addLayer: vi.fn((value: { id: string }) => layers.set(value.id, value)),
       removeSource: vi.fn((id: string) => sources.delete(id)), removeLayer: vi.fn((id: string) => layers.delete(id)), setTerrain: vi.fn(),
       setStyle: vi.fn(() => { sources.clear(); layers.clear(); }), setPitch: vi.fn(), setProjection: vi.fn(),
-      easeTo: vi.fn(), jumpTo: vi.fn(), fitBounds: vi.fn(),
+      easeTo: vi.fn(), jumpTo: vi.fn(), fitBounds: vi.fn(), setBearing: vi.fn(),
       on: vi.fn((event: string, callback: () => void) => { (handlers[event] ||= []).push(callback); (active[event] ||= new Set()).add(callback); }),
       off: vi.fn((event: string, callback: () => void) => { active[event]?.delete(callback); }),
       emit: (event: string) => active[event]?.forEach(callback => callback()),
@@ -32,15 +32,69 @@ vi.mock('mapbox-gl', () => ({ default: { accessToken: '', Map: class {
 }, LngLatBounds: class { extend() { return this; } } } }));
 vi.mock('@/lib/vybemap/mapbox/config', () => ({ MAPBOX_TOKEN: 'public-fixture-token', MAPBOX_STYLE_URL: { '3d': 'mapbox://styles/mapbox/standard', '2d': 'mapbox://styles/mapbox/streets-v12', satellite: 'mapbox://styles/mapbox/satellite-v9', terrain: 'mapbox://styles/mapbox/outdoors-v12' }, DEFAULT_MAP_CENTER: [-98, 39], pitchForMode: (mode: string) => mode === '3d' ? 52 : 0 }));
 vi.mock('@/lib/mediaUrl', () => ({ normalizeMediaUrl: (url: string) => url }));
-vi.mock('@/lib/vybemap/deviceHeading', () => ({ subscribeDeviceHeading: () => () => {}, lerpHeading: () => 0 }));
-vi.mock('@/lib/despiaBridge', () => ({ getRuntimeOs: () => 'web' }));
+vi.mock('@/lib/despiaBridge', () => ({ getRuntimeOs: () => 'web', isDespiaRuntime: () => false, isIOSUA: () => false }));
 import { DEFAULT_LAYERS } from '@/lib/vybemap/types';
 import { mapPinFixture } from '@/test/mapPinFixture';
 import { VybeMapboxCanvas, type VybeMapboxCanvasProps } from './VybeMapboxCanvas';
 const props = { center: null, mapMode: '3d' as const, layers: DEFAULT_LAYERS, friends: [], stories: [], posts: [], clips: [], meetups: [], places: [], eventPins: [], heatmap: [], onFriendTap: vi.fn(), onPlaceTap: vi.fn() };
-beforeEach(() => { vi.useFakeTimers(); state.maps.length = 0; state.markers.length = 0; state.fail = false; vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} }); });
+beforeEach(() => { vi.useFakeTimers(); state.maps.length = 0; state.markers.length = 0; state.fail = false; vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} }); vi.stubGlobal('DeviceOrientationEvent', class extends Event {}); Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' }); });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 describe('3D world map remains the requested renderer', () => {
+  it('resumes smoothing after a real rotate gesture and retires queued frames on teardown', async () => {
+    const frames = new Map<number, FrameRequestCallback>(); let id = 0;
+    vi.stubGlobal('requestAnimationFrame', (fn: FrameRequestCallback) => { frames.set(++id, fn); return id; });
+    vi.stubGlobal('cancelAnimationFrame', (n: number) => frames.delete(n));
+    const flush = () => { const batch = [...frames.values()]; frames.clear(); batch.forEach(fn => fn(0)); };
+    const view = render(<VybeMapboxCanvas {...props} followHeading />);
+    await act(async () => { state.maps[0].emit('style.load'); await Promise.resolve(); });
+    act(() => { flush(); window.dispatchEvent(Object.assign(new Event('deviceorientation'), { alpha: 270, absolute: true })); flush(); });
+    const map = state.maps[0]; map.setBearing.mockClear();
+    act(() => { map.handlers.rotatestart.forEach((fn: (event: object) => void) => fn({ originalEvent: new Event('touchmove') })); flush(); });
+    expect(frames.size).toBe(0); expect(map.setBearing).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(1200)); expect(frames.size).toBe(1);
+    act(flush); expect(map.setBearing).toHaveBeenCalled();
+    const late = [...frames.values()]; view.unmount(); map.setBearing.mockClear();
+    act(() => late.forEach(fn => fn(0))); expect(map.setBearing).not.toHaveBeenCalled(); expect(frames.size).toBe(0);
+  });
+  it('does not spin compass frames without a heading, and sleeps once rotation settles', async () => {
+    const frames = new Map<number, FrameRequestCallback>(); let id = 0;
+    vi.stubGlobal('requestAnimationFrame', (fn: FrameRequestCallback) => { frames.set(++id, fn); return id; });
+    vi.stubGlobal('cancelAnimationFrame', (n: number) => frames.delete(n));
+    const flush = () => { const batch = [...frames.values()]; frames.clear(); batch.forEach(fn => fn(0)); };
+    render(<VybeMapboxCanvas {...props} followHeading />);
+    await act(async () => { state.maps[0].emit('style.load'); await Promise.resolve(); });
+    act(() => { flush(); flush(); }); expect(frames.size).toBe(0);
+    const sample = Object.assign(new Event('deviceorientation'), { alpha: 270, absolute: true });
+    act(() => window.dispatchEvent(sample));
+    expect(frames.size).toBe(1);
+    for (let i = 0; i < 100; i++) act(flush);
+    expect(state.maps[0].setBearing).toHaveBeenCalled(); expect(frames.size).toBe(0);
+  });
+  it.each(['hidden', 'native'] as const)('stops sensor and compass work while %s, then waits for a fresh sample', async kind => {
+    const frames = new Map<number, FrameRequestCallback>(); let id = 0;
+    vi.stubGlobal('requestAnimationFrame', (fn: FrameRequestCallback) => { frames.set(++id, fn); return id; });
+    vi.stubGlobal('cancelAnimationFrame', (n: number) => frames.delete(n));
+    const flush = () => { const batch = [...frames.values()]; frames.clear(); batch.forEach(fn => fn(0)); };
+    const sample = () => window.dispatchEvent(Object.assign(new Event('deviceorientation'), { alpha: 270, absolute: true }));
+    const view = render(<VybeMapboxCanvas {...props} followHeading />);
+    await act(async () => { state.maps[0].emit('style.load'); await Promise.resolve(); });
+    act(() => { flush(); sample(); flush(); });
+    expect(frames.size).toBe(1);
+    act(() => {
+      if (kind === 'hidden') { Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' }); document.dispatchEvent(new Event('visibilitychange')); }
+      else window.dispatchEvent(new Event('app-paused'));
+    });
+    expect(frames.size).toBe(0); state.maps[0].setBearing.mockClear();
+    act(() => { sample(); flush(); }); expect(state.maps[0].setBearing).not.toHaveBeenCalled();
+    await act(async () => {
+      if (kind === 'hidden') { Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' }); document.dispatchEvent(new Event('visibilitychange')); }
+      else window.dispatchEvent(new Event('app-resumed'));
+      await Promise.resolve();
+    });
+    expect(frames.size).toBe(0);
+    act(() => { sample(); flush(); }); expect(state.maps[0].setBearing).toHaveBeenCalled();
+    view.unmount(); expect(frames.size).toBe(0);
+  });
   it('starts Standard globe with original pitch and terrain; ready clears its timeout', () => {
     render(<VybeMapboxCanvas {...props} />);
     expect(state.maps[0].options).toMatchObject({ style: 'mapbox://styles/mapbox/standard', projection: { name: 'globe' }, pitch: 52 });

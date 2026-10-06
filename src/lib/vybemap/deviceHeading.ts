@@ -31,17 +31,21 @@ export function applyScreenOrientationOffset(headingDeg: number): number {
 
 let orientationPermissionPromised: Promise<boolean> | null = null;
 
-/** iOS requires a user gesture. Safe to call repeatedly; caches the attempt. */
+/** Coalesce pending requests and remember grants, allowing failed requests to retry. */
 export function ensureDeviceOrientationPermission(): Promise<boolean> {
-  if (typeof window === 'undefined') return Promise.resolve(false);
+  if (typeof window === 'undefined' || typeof DeviceOrientationEvent === 'undefined') return Promise.resolve(false);
   const DOE = DeviceOrientationEvent as unknown as {
     requestPermission?: () => Promise<PermissionState | string>;
   };
   if (typeof DOE.requestPermission !== 'function') return Promise.resolve(true);
   if (!orientationPermissionPromised) {
-    orientationPermissionPromised = DOE.requestPermission()
-      .then((state) => state === 'granted')
-      .catch(() => false);
+    try {
+      const pending = DOE.requestPermission().then(state => state === 'granted').catch(() => false);
+      orientationPermissionPromised = pending;
+      void pending.then(granted => {
+        if (!granted && orientationPermissionPromised === pending) orientationPermissionPromised = null;
+      });
+    } catch { return Promise.resolve(false); }
   }
   return orientationPermissionPromised;
 }
@@ -137,7 +141,8 @@ function ensureDespiaGyroStarted() {
     onGyroscopeChange?: ((data: GyroPayload) => void) | null;
   };
   prevOnGyroscopeChange = w.onGyroscopeChange;
-  installedGyroHandler = (data: GyroPayload) => {
+  const handler = (data: GyroPayload) => {
+    if (installedGyroHandler !== handler || !despiaGyroStarted) return;
     onDespiaGyroscopeChange(data);
     if (typeof prevOnGyroscopeChange === 'function') {
       try {
@@ -147,6 +152,7 @@ function ensureDespiaGyroStarted() {
       }
     }
   };
+  installedGyroHandler = handler;
   w.onGyroscopeChange = installedGyroHandler;
   despiaGyroStarted = true;
   // threshold=0 → every sample so heading stays live while gyro is quiet.
@@ -171,6 +177,7 @@ function stopDespiaGyroIfIdle() {
 }
 
 function subscribeWebDeviceOrientation(listener: HeadingListener): () => void {
+  let active = true;
   let smoothed: number | null = null;
   let lastEmit = 0;
   // [Android-only] Snappier filter + higher sample rate so Follow feels instant.
@@ -179,6 +186,7 @@ function subscribeWebDeviceOrientation(listener: HeadingListener): () => void {
   const minIntervalMs = android ? 16 : 32;
 
   const onOrient = (e: DeviceOrientationEvent) => {
+    if (!active) return;
     const raw = headingFromOrientationEvent(e);
     if (raw == null) return;
     const corrected = applyScreenOrientationOffset(raw);
@@ -189,8 +197,9 @@ function subscribeWebDeviceOrientation(listener: HeadingListener): () => void {
     listener({ heading: smoothed, source: 'web' });
   };
 
-  const attach = () => window.addEventListener('deviceorientation', onOrient, true);
+  const attach = () => { if (active) window.addEventListener('deviceorientation', onOrient, true); };
   const onGesture = () => {
+    if (!active) return;
     void ensureDeviceOrientationPermission().then((ok) => {
       if (ok) attach();
     });
@@ -199,6 +208,7 @@ function subscribeWebDeviceOrientation(listener: HeadingListener): () => void {
   };
 
   void ensureDeviceOrientationPermission().then((ok) => {
+    if (!active) return;
     if (ok) attach();
     else {
       window.addEventListener('pointerdown', onGesture, true);
@@ -207,6 +217,7 @@ function subscribeWebDeviceOrientation(listener: HeadingListener): () => void {
   });
 
   return () => {
+    active = false;
     window.removeEventListener('deviceorientation', onOrient, true);
     window.removeEventListener('pointerdown', onGesture, true);
     window.removeEventListener('touchstart', onGesture, true);
@@ -232,4 +243,36 @@ export function subscribeDeviceHeading(listener: HeadingListener): () => void {
   }
 
   return subscribeWebDeviceOrientation(listener);
+}
+
+/** Native WebViews can remain document-visible after the app is backgrounded. */
+export function subscribeForegroundDeviceHeading(listener: HeadingListener, onPause: () => void): () => void {
+  let disposed = false, nativePaused = false, listening = false, generation = 0;
+  let unsubscribe = () => {};
+  const visible = () => !disposed && !nativePaused && document.visibilityState !== 'hidden';
+  const update = () => {
+    if (!visible()) {
+      if (!listening) return;
+      listening = false; generation++; unsubscribe(); onPause();
+      return;
+    }
+    if (listening) return;
+    listening = true;
+    const current = ++generation;
+    unsubscribe = subscribeDeviceHeading(sample => {
+      if (visible() && listening && generation === current) listener(sample);
+    });
+  };
+  const pause = () => { nativePaused = true; update(); };
+  const resume = () => { nativePaused = false; update(); };
+  document.addEventListener('visibilitychange', update);
+  window.addEventListener('app-paused', pause);
+  window.addEventListener('app-resumed', resume);
+  update();
+  return () => {
+    disposed = true; generation++; unsubscribe();
+    document.removeEventListener('visibilitychange', update);
+    window.removeEventListener('app-paused', pause);
+    window.removeEventListener('app-resumed', resume);
+  };
 }
