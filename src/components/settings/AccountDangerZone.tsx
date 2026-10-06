@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { AlertTriangle, Download, Trash2, Loader2, Clock, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import {
@@ -17,35 +16,27 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { useVerifiedSettingsScope } from '@/hooks/useVerifiedSettingsScope';
+import { useAccountDeletion } from '@/hooks/useAccountDeletion';
 
 export function AccountDangerZone() {
-  const { user, profile, signOut } = useAuth();
+  const { user } = useAuth();
+  const deletion = useAccountDeletion();
   const exportScope = useVerifiedSettingsScope();
   const exportFlight = useRef<symbol | null>(null);
+  const deletionView = useRef<symbol | null>(null);
   const downloadUrls = useRef(new Map<string, number>());
   useEffect(() => {
     const clearDownloads = () => { for (const [url, timer] of downloadUrls.current) { window.clearTimeout(timer); URL.revokeObjectURL(url); } downloadUrls.current.clear(); };
+    deletionView.current = Symbol('deletion-view'); setDeleteOpen(false); setConfirmText('');
     exportFlight.current = null; setExporting(false); clearDownloads();
-    return () => { exportFlight.current = null; clearDownloads(); };
+    return () => { deletionView.current = null; exportFlight.current = null; clearDownloads(); };
   }, [exportScope.account.epoch, exportScope.profileId, exportScope.creationTime]);
   const [exporting, setExporting] = useState(false);
-  const [requesting, setRequesting] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
+  const requesting = deletion.busy;
+  const cancelling = deletion.busy;
   const [confirmText, setConfirmText] = useState('');
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [scheduledPurgeAt, setScheduledPurgeAt] = useState<string | null>(null);
-
-  // Hydrate scheduled deletion from profile (if columns exist)
-  useEffect(() => {
-    const p = profile as unknown as { scheduled_purge_at?: string | null } | null;
-    setScheduledPurgeAt(p?.scheduled_purge_at ?? null);
-  }, [profile]);
-
-  const daysRemaining = (() => {
-    if (!scheduledPurgeAt) return null;
-    const ms = new Date(scheduledPurgeAt).getTime() - Date.now();
-    return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
-  })();
+  const pendingDeletion = deletion.state?.status === 'pending_review';
 
   const handleExport = async () => {
     if (!user || exportFlight.current) return;
@@ -83,44 +74,20 @@ export function AccountDangerZone() {
 
   const handleRequestDeletion = async () => {
     if (!user || confirmText !== 'DELETE' || requesting) return;
-    setRequesting(true);
     try {
-      // CF manageAccount expects request_delete (not request_deletion) and returns { ok }.
-      const { data, error } = await db.functions.invoke('manage-account', {
-        body: { action: 'request_delete' },
-      });
-      if (error) throw error;
-      if (!(data?.ok || data?.success)) throw new Error(data?.error || 'Request failed');
-
-      toast.success('Account scheduled for deletion in 30 days. Sign back in to cancel.');
+      const scope=exportScope.capture(), view=deletionView.current;
+      await deletion.request();
+      scope.guard(); if(!view || deletionView.current!==view)return;
       setDeleteOpen(false);
       setConfirmText('');
-      await signOut();
-    } catch (err) {
-      console.error('Deletion request error:', err);
-      toast.error('Failed to schedule deletion. Please try again.');
-    } finally {
-      setRequesting(false);
-    }
+    } catch { /* The checked hook renders its error; no stale toast or sign-out. */ }
   };
 
   const handleCancelDeletion = async () => {
     if (!user || cancelling) return;
-    setCancelling(true);
     try {
-      const { data, error } = await db.functions.invoke('manage-account', {
-        body: { action: 'cancel_delete' },
-      });
-      if (error) throw error;
-      if (!(data?.ok || data?.success)) throw new Error(data?.error || 'Cancel failed');
-      toast.success('Deletion cancelled. Welcome back!');
-      setScheduledPurgeAt(null);
-    } catch (err) {
-      console.error('Cancel deletion error:', err);
-      toast.error('Failed to cancel deletion.');
-    } finally {
-      setCancelling(false);
-    }
+      await deletion.cancel();
+    } catch { /* The checked hook renders its error. */ }
   };
 
   return (
@@ -131,16 +98,15 @@ export function AccountDangerZone() {
       </h3>
 
       {/* Pending deletion banner */}
-      {scheduledPurgeAt && daysRemaining !== null && (
+      {pendingDeletion && (
         <div className="p-4 rounded-xl border border-warning/40 bg-warning/10 space-y-3">
           <div className="flex items-start gap-3">
             <Clock className="w-5 h-5 text-warning mt-0.5 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-semibold text-foreground">Deletion scheduled</h4>
+              <h4 className="text-sm font-semibold text-foreground">Deletion request recorded</h4>
               <p className="text-xs text-muted-foreground mt-1">
-                Your account will be permanently removed in{' '}
-                <span className="font-semibold text-foreground">{daysRemaining} day{daysRemaining === 1 ? '' : 's'}</span>.
-                Cancel anytime before then to keep your account.
+                Your request is eligible for review after {new Date(deletion.state!.eligibleAfter!).toLocaleDateString()}.
+                Permanent cleanup is not automatic yet. You can cancel this request here.
               </p>
             </div>
           </div>
@@ -150,7 +116,7 @@ export function AccountDangerZone() {
             type="button"
             onClick={handleCancelDeletion}
             disabled={cancelling}
-            aria-label="Cancel scheduled account deletion"
+            aria-label="Cancel account deletion request"
             className="w-full"
           >
             {cancelling ? (
@@ -163,6 +129,10 @@ export function AccountDangerZone() {
         </div>
       )}
 
+      {deletion.loading && <p role="status" className="text-xs text-muted-foreground">Checking deletion status...</p>}
+      {deletion.error && <div role="alert" className="text-sm text-destructive space-y-2"><p>{deletion.error}</p><Button variant="outline" size="sm" onClick={deletion.refresh} disabled={deletion.busy}>Retry deletion status</Button></div>}
+      {deletion.state?.status === 'cancelled' && <p role="status" className="text-sm text-muted-foreground">Your deletion request is cancelled.</p>}
+      {deletion.state && ['review_required','processing','completed'].includes(deletion.state.status) && <p role="status" className="text-sm text-muted-foreground">Your deletion request needs support review. <a href="mailto:vybesocial.info@gmail.com" className="text-primary underline">Contact support</a>.</p>}
       {/* Data Export */}
       <div className="p-4 rounded-xl border border-border bg-card space-y-2">
         <h4 className="text-sm font-medium text-foreground">Export Your Data</h4>
@@ -189,12 +159,12 @@ export function AccountDangerZone() {
       </div>
 
       {/* Account Deletion (only if not already scheduled) */}
-      {!scheduledPurgeAt && (
+      {!pendingDeletion && (!deletion.state || ['none','cancelled'].includes(deletion.state.status)) && (
         <div className="p-4 rounded-xl border border-destructive/30 bg-destructive/5 space-y-2">
           <h4 className="text-sm font-medium text-destructive">Delete Account</h4>
           <p className="text-xs text-muted-foreground">
-            Schedule your account for deletion. You'll have <span className="font-semibold text-foreground">30 days</span> to
-            change your mind — just sign in and cancel.
+            Request deletion of your account. A 30-day grace period comes before review.
+            Permanent cleanup is not automatic yet; contact support to follow up.
           </p>
           <AlertDialog
             open={deleteOpen}
@@ -209,7 +179,8 @@ export function AccountDangerZone() {
                 variant="destructive"
                 size="sm"
                 type="button"
-                aria-label="Schedule your account for deletion with a 30-day grace period"
+                disabled={!deletion.ready}
+                aria-label="Request account deletion with a 30-day grace period"
                 aria-haspopup="dialog"
                 className="mt-2 focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2 focus-visible:ring-offset-background outline-none"
               >
@@ -219,23 +190,17 @@ export function AccountDangerZone() {
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle className="text-destructive">Schedule account deletion?</AlertDialogTitle>
+                <AlertDialogTitle className="text-destructive">Request account deletion?</AlertDialogTitle>
                 <AlertDialogDescription asChild>
                   <div className="space-y-2">
-                    <span className="block">Your account will be marked for deletion. After 30 days we'll permanently remove:</span>
-                    <ul className="list-disc pl-5 space-y-1 text-sm">
-                      <li>Your profile and all personal data</li>
-                      <li>All posts, comments, and likes</li>
-                      <li>All messages and conversations</li>
-                      <li>All uploaded media files</li>
-                      <li>Badges, challenges, and progress</li>
-                    </ul>
+                    <span className="block">This records a request for your current account. It does not delete your profile, posts, messages or media immediately. After a 30-day grace period the request is eligible for review; permanent cleanup is not automatic yet.</span>
                     <span className="block text-foreground mt-3">
-                      You can cancel anytime in the next 30 days by signing back in. We recommend exporting your data first.
+                      You can cancel the pending request here. We recommend exporting your data first. No confirmation email is sent by this action.
                     </span>
                   </div>
                 </AlertDialogDescription>
               </AlertDialogHeader>
+              {deletion.error && <div role="alert" className="text-sm text-destructive space-y-2"><p>{deletion.error}</p><Button variant="outline" size="sm" type="button" onClick={deletion.refresh} disabled={deletion.busy}>Refresh deletion status</Button></div>}
               <div className="py-2">
                 <label htmlFor="delete-confirm-input" className="text-sm text-muted-foreground mb-2 block">
                   Type <span className="font-mono font-bold text-foreground">DELETE</span> to confirm:
@@ -259,7 +224,7 @@ export function AccountDangerZone() {
                     e.preventDefault();
                     handleRequestDeletion();
                   }}
-                  disabled={confirmText !== 'DELETE' || requesting}
+                  disabled={confirmText !== 'DELETE' || requesting || !deletion.ready}
                   aria-busy={requesting}
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
@@ -268,7 +233,7 @@ export function AccountDangerZone() {
                   ) : (
                     <Clock className="w-4 h-4 mr-2" aria-hidden="true" />
                   )}
-                  {requesting ? 'Scheduling...' : 'Schedule deletion'}
+                  {requesting ? 'Submitting...' : 'Request deletion'}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

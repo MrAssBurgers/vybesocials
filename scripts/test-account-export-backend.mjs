@@ -24,7 +24,7 @@ try{
   const batch=db.batch();for(let i=0;i<57;i++)batch.set(db.doc(`posts/p${String(i).padStart(3,'0')}`),{author_id:profileId,caption:String(i),created_at:new Date().toISOString(),pin_hash:'never-export'});
   batch.set(db.doc('posts/peer'),{author_id:'other-profile',caption:'peer'});batch.set(db.doc('messages/own'),{sender_id:profileId,content:'own synthetic',conversation_id:'c'});batch.set(db.doc('messages/peer'),{sender_id:'other-profile',recipient_id:profileId,content:'peer private'});await batch.commit();
   await check('verified old endpoint returns only profile despite the advertised content export',async()=>{
-    const source=execFileSync('git',['show','HEAD:functions/src/auth.ts'],{encoding:'utf8'});const start=source.indexOf('export const manageAccount = onCall(');const end=source.indexOf('/** Staff-only Firebase Auth user count',start);
+    const source=execFileSync('git',['show','bf7421bf23ef2857d16ac3050e1fa13dc575ef19:functions/src/auth.ts'],{encoding:'utf8'});const start=source.indexOf('export const manageAccount = onCall(');const end=source.indexOf('/** Staff-only Firebase Auth user count',start);
     assert.ok(start>0&&end>start);const body=source.slice(start,end).replace('const raw = (request.data || {}) as { action?: string };','const raw = (request.data || {});');
     assert.ok(body.includes('Lightweight export stub'));
     await writeFile('work/account-export-baseline.mjs',`import {onCall,HttpsError} from '../functions/node_modules/firebase-functions/lib/v2/providers/https.js';import {db,requireAuth} from '../functions/lib/_shared/admin.js';\n${body}`);

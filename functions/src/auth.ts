@@ -15,6 +15,7 @@ import { loginDeviceVersion, registerLoginDevice, withCurrentLoginDevice } from 
 import { renderAuthEmail, AUTH_EMAIL_SUBJECTS } from './_shared/emailTemplates/index.js';
 import { premiumStatusForRequest } from './_shared/premiumAuthority.js';
 import { exportAccountPage } from './_shared/accountExportAuthority.js';
+import { accountDeletionRequest } from './_shared/accountDeletionAuthority.js';
 
 /** Must match Firebase Console Google web client (public). Used by native-callback exchange. */
 const GOOGLE_WEB_CLIENT_ID =
@@ -1941,7 +1942,7 @@ export const authQr = onCall(
 
 /** manage-account — schedule / cancel account deletion (and aliases from older clients). */
 export const manageAccount = onCall(async (request) => {
-  const uid = requireAuth(request);
+  requireAuth(request);
   const raw = (request.data || {}) as { action?: string };
   const action = String(raw.action || '').toLowerCase();
   const requestDelete =
@@ -1949,18 +1950,13 @@ export const manageAccount = onCall(async (request) => {
   const cancelDelete =
     action === 'cancel_delete' || action === 'cancel_deletion';
 
-  if (requestDelete) {
-    await db.collection('account_deletion_requests').doc(uid).set({
-      user_id: uid, status: 'pending', requested_at: new Date().toISOString(),
-    });
-  } else if (cancelDelete) {
-    await db.collection('account_deletion_requests').doc(uid).delete();
+  if (requestDelete || cancelDelete || action === 'deletion_status') {
+    return accountDeletionRequest(db, auth, request);
   } else if (action === 'export') {
     return exportAccountPage(db, auth, request);
-  } else if (action) {
+  } else {
     throw new HttpsError('invalid-argument', `Unknown action: ${action}`);
   }
-  return { ok: true, success: true };
 });
 
 /** Staff-only Firebase Auth user count (admin analytics). */

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const state=vi.hoisted(()=>({uid:'alice',profileId:'profile-alice',epoch:1,collect:vi.fn(),success:vi.fn(),error:vi.fn(),download:vi.fn(),createUrl:vi.fn(),revokeUrl:vi.fn()}));
 vi.mock('@/lib/auth',()=>({useAuth:()=>({user:{id:state.uid},profile:{id:state.profileId,user_id:state.uid},signOut:vi.fn()})}));
 vi.mock('@/lib/firebase',()=>({db:{functions:{invoke:vi.fn()}}}));
+vi.mock('@/hooks/useAccountDeletion',()=>({useAccountDeletion:()=>({state:{status:'none'},ready:true,loading:false,busy:false,error:null})}));
 vi.mock('@/lib/accountDataExport',()=>({collectAccountDataExport:(...args:any[])=>state.collect(...args)}));
 vi.mock('sonner',()=>({toast:{success:state.success,error:state.error}}));
 vi.mock('@/hooks/useVerifiedSettingsScope',()=>({useVerifiedSettingsScope:()=>({account:{uid:state.uid,epoch:state.epoch},profileId:state.profileId,creationTime:'2026-01-01',ready:true,capture:()=>{const uid=state.uid,id=state.profileId,epoch=state.epoch;return {fields:{expectedOwnerUid:uid,expectedProfileId:id,expectedAccountCreatedAt:1},guard:()=>{if(uid!==state.uid||id!==state.profileId||epoch!==state.epoch)throw new Error('Retired')}}}})}));

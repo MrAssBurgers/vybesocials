@@ -1,227 +1,25 @@
-import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { Trash2, ArrowLeft, Mail, ShieldAlert, CheckCircle2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { useEffect } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
-import { db } from '@/lib/firebase';
-import { toast } from 'sonner';
-
-const CONTACT_EMAIL = 'vybesocial.info@gmail.com';
+import { Button } from '@/components/ui/button';
+import { AccountDangerZone } from '@/components/settings/AccountDangerZone';
+import { useAuth } from '@/lib/auth';
 
 export default function DeleteAccountPage() {
   const navigate = useNavigate();
-
+  const { user } = useAuth();
   useEffect(() => {
-    const prevTitle = document.title;
-    document.title = 'Delete Your VYBE Account | Account Deletion Request';
-    return () => { document.title = prevTitle; };
+    const previous = document.title;
+    document.title = 'Account deletion request | VYBE';
+    return () => { document.title = previous; };
   }, []);
-  const [email, setEmail] = useState('');
-  const [username, setUsername] = useState('');
-  const [reason, setReason] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-
-  const canSubmit = email.trim() && confirm === 'DELETE' && !submitting;
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canSubmit) return;
-    setSubmitting(true);
-    try {
-      // Logged-in path: trigger immediate deletion
-      const { data: sessionData } = await db.auth.getSession();
-      if (sessionData?.session) {
-        const { data, error } = await db.functions.invoke('manage-account', {
-          body: { action: 'request_delete' },
-        });
-        if (error) throw error;
-        if (!(data?.ok || data?.success)) throw new Error(data?.error || 'Deletion failed');
-        await db.auth.signOut();
-        setSubmitted(true);
-        toast.success('Account scheduled for deletion in 30 days.');
-        return;
-      }
-
-      // Logged-out path: deletion requests can only be filed by the verified
-      // account owner, so direct the visitor to sign in or email support.
-      toast.error('Please sign in to request deletion, or email us at ' + CONTACT_EMAIL);
-      setSubmitting(false);
-      return;
-
-      setSubmitted(true);
-      toast.success('Request submitted. We will email you within 7 days.');
-    } catch (err) {
-      console.error('Deletion request failed:', err);
-      toast.error('Could not submit. Email us directly at ' + CONTACT_EMAIL);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-background relative z-10">
-
-      <div className="max-w-2xl mx-auto p-4 sm:p-6">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="mb-4">
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back
-        </Button>
-
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="relative">
-              <div className="absolute -inset-1 rounded-xl bg-gradient-to-br from-destructive/30 to-destructive/10 blur-sm" />
-              <div className="relative w-12 h-12 rounded-xl bg-card border border-border flex items-center justify-center">
-                <Trash2 className="w-6 h-6 text-destructive" />
-              </div>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold">Delete Your VYBE Account</h1>
-              <p className="text-xs text-muted-foreground">Permanent · Cannot be undone</p>
-            </div>
-          </div>
-          <div className="h-px bg-gradient-to-r from-destructive/30 via-destructive/10 to-transparent mb-8" />
-
-          {submitted ? (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="rounded-2xl border border-border bg-card p-6 text-center"
-            >
-              <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-3" />
-              <h2 className="text-lg font-semibold mb-2">Request received</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                We've received your account deletion request. Your account and personal data
-                will be permanently removed within 30 days. We'll send a confirmation email to{' '}
-                <strong className="text-foreground">{email}</strong> when it's complete.
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Need to follow up? Email{' '}
-                <a href={`mailto:${CONTACT_EMAIL}`} className="text-primary hover:underline">
-                  {CONTACT_EMAIL}
-                </a>
-              </p>
-            </motion.div>
-          ) : (
-            <>
-              {/* What gets deleted */}
-              <section className="rounded-2xl border border-border bg-card p-5 mb-6">
-                <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
-                  <ShieldAlert className="w-4 h-4 text-destructive" />
-                  What will be deleted
-                </h2>
-                <ul className="text-sm text-muted-foreground space-y-1.5 list-disc list-inside">
-                  <li>Your profile, username, bio, and avatar</li>
-                  <li>All posts, clips, stories, and comments</li>
-                  <li>Direct messages and conversations</li>
-                  <li>Friends, follows, and reactions</li>
-                  <li>Saved content, themes, and customizations</li>
-                  <li>XP, badges, streaks, and progression data</li>
-                  <li>Location history and Friend Map data</li>
-                  <li>Linked authentication providers (Google, Apple)</li>
-                </ul>
-                <h3 className="text-sm font-semibold mt-4 mb-2">Retained for legal reasons</h3>
-                <ul className="text-sm text-muted-foreground space-y-1.5 list-disc list-inside">
-                  <li>Transaction records (purchases / payouts) — retained 7 years for tax compliance</li>
-                  <li>Moderation records related to safety enforcement — anonymized after 90 days</li>
-                </ul>
-              </section>
-
-              {/* Form */}
-              <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-border bg-card p-5">
-                <div>
-                  <Label htmlFor="email">Account email *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    className="mt-1"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="username">Username (optional)</Label>
-                  <Input
-                    id="username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="@yourhandle"
-                    className="mt-1"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="reason">Reason (optional — helps us improve)</Label>
-                  <Textarea
-                    id="reason"
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    placeholder="Tell us why you're leaving..."
-                    rows={3}
-                    className="mt-1"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="confirm">
-                    Type <span className="font-mono text-destructive">DELETE</span> to confirm *
-                  </Label>
-                  <Input
-                    id="confirm"
-                    value={confirm}
-                    onChange={(e) => setConfirm(e.target.value)}
-                    placeholder="DELETE"
-                    className="mt-1 font-mono"
-                  />
-                </div>
-
-                <Button
-                  type="submit"
-                  variant="destructive"
-                  disabled={!canSubmit}
-                  className="w-full"
-                >
-                  {submitting ? 'Submitting...' : 'Request account deletion'}
-                </Button>
-
-                <p className="text-xs text-muted-foreground text-center pt-2">
-                  Already logged in? You can also delete instantly from{' '}
-                  <Link to="/settings" className="text-primary hover:underline">
-                    Settings → Account
-                  </Link>
-                  .
-                </p>
-              </form>
-
-              <div className="mt-6 text-center text-xs text-muted-foreground">
-                <p className="flex items-center justify-center gap-1.5">
-                  <Mail className="w-3 h-3" />
-                  Prefer email? Contact{' '}
-                  <a href={`mailto:${CONTACT_EMAIL}`} className="text-primary hover:underline ml-1">
-                    {CONTACT_EMAIL}
-                  </a>
-                </p>
-              </div>
-            </>
-          )}
-
-          <div className="mt-8 pt-6 border-t border-border text-sm text-muted-foreground text-center">
-            <p>
-              <Link to="/privacy" className="text-primary hover:underline">Privacy Policy</Link>
-              {' · '}
-              <Link to="/terms" className="text-primary hover:underline">Terms of Service</Link>
-            </p>
-          </div>
-        </motion.div>
-      </div>
+  return <main className="min-h-screen bg-background relative z-10">
+    <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-6">
+      <Button variant="ghost" size="sm" onClick={() => navigate(-1)}><ArrowLeft className="w-4 h-4 mr-2" />Back</Button>
+      <div className="space-y-2"><h1 className="text-2xl font-bold">Account deletion request</h1><p className="text-sm text-muted-foreground">Only your signed-in account can request or cancel deletion. Requests have a 30-day grace period before review. Permanent cleanup is not automatic yet.</p></div>
+      {user ? <AccountDangerZone /> : <div className="rounded-2xl border border-border bg-card p-5 space-y-3"><p>Sign in to manage your account’s deletion request.</p><Button asChild><Link to="/login">Sign in</Link></Button></div>}
+      <p className="text-xs text-muted-foreground">For ownership review or deletion follow-up, contact <a href="mailto:vybesocial.info@gmail.com" className="text-primary underline">vybesocial.info@gmail.com</a>. No confirmation email is sent by the request controls.</p>
+      <p className="text-xs text-muted-foreground"><Link to="/privacy" className="text-primary">Privacy Policy</Link> · <Link to="/terms" className="text-primary">Terms of Service</Link></p>
     </div>
-  );
+  </main>;
 }
