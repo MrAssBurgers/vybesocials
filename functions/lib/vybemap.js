@@ -44,7 +44,7 @@ export const emergencyGhostMode = onCall({ cors: true, invoker: 'public', timeou
     return runLocationSharing(db, uid, { ...request.data, action: 'setSharing', enabled: false });
 });
 /** AI area intelligence — safety, trespassing, access rules (Gemini + Google Search). */
-export const researchMapLocation = onCall({ secrets: [...INTEL_SECRETS], region: 'us-central1' }, async (request) => {
+export const researchMapLocation = onCall({ secrets: [...INTEL_SECRETS], region: 'us-central1', cors: true, invoker: 'public', timeoutSeconds: 60 }, async (request) => {
     const uid = requireAuth(request);
     enforceRateLimit(await rateLimit(`map_intel_read:${uid}`, 120, 60));
     const target = await resolveMapIntelTarget(db, uid, request.data);

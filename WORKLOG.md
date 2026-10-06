@@ -1,3 +1,14 @@
+## ACTIVE (2026-10-06) — Existing map check-in/meetup coordinated recovery
+
+- Started from clean mainea157eaf. Previous goal turn made verified production progress (exactf9d2ada8 client publication). Full user-readiness goal remains active; no new product features or generic Functions/Rules release.
+- Independently confirmed manageMapSocial404/MISSING, researchMapLocation July20 and onMapMeetupCreated July13 deployments. Reviewed current checked authority, matching published client and DEPLOY coordination requirements. All three exact named exports successfully deployed and independently ACTIVE; both callable probes401 UNAUTHENTICATED. Existing Gemini secret binding remains version14; no secret value read or changed and no real provider query.
+- Exact baseline1531ca… changed only seven map-social leaf blocks to raw-browser deny, preserving location/contact/Auth/post/DM/community slices. New active rulesetead5e373-2165-4cf9-8c5a-068435c58433 SHA7c0b2d30970073ad84336969e37413db2be0674dbc9df2e41f8f45f5ba78fc6b independently reread. No legacy map record deleted/attested, no RSVP copied, no GPS/real check-in/meetup/notification submitted.
+- Exact candidate passed20 backend groups/244 raw Rules checks;38 focused client tests pass; full466 files/4405 tests pass,6 skipped; Functions/app builds and budget1096.0KBraw/332.7KB gzip pass; lint5 existing warnings/no errors. Generated local client manifests reverted, published matching client unchanged.
+- Only two missing indexes added, two existing parent/time indexes retained; two cleanup TTLs added (cursor/private research only, no durable evidence TTL). Current jobs independently PROCESSING, check-in progress5/5 but indexes not READY yet. Actual old mounted Chrome original3D map still shows location/check-in/meetup errors. Wait for exact resource readiness, then retry signed-in read UI; do not hide errors. Scope/resources/limits releases/map-social-recovery-20261006.
+
+Next3tasks: finish verified resource wait and actual map read QA; repair mounted-version adoption; continue guarded Firebase media/DM/hub and physical phone/provider readiness. Goal active, no readiness claim.
+
+---
 ## ACTIVE (2026-10-06) — Network profile preservation and deferred update setup
 
 - Previous goal turn made production progress: location boundary/index/Rules and clip fixes actually released. Current checkpoint started from clean main79d5cab4. Full user-readiness goal remains active; map social, cache adoption, retained Firebase media/content and real device/provider checks remain open.

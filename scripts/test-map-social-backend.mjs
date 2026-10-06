@@ -19,7 +19,7 @@ const { initializeTestEnvironment, assertFails } = require('@firebase/rules-unit
 const { doc, getDoc, getDocs, collection, setDoc, updateDoc, deleteDoc, query, where, setLogLevel } = require('firebase/firestore');
 setLogLevel('silent');
 const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
-const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile('firestore.rules', 'utf8') } });
+const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile(process.env.FIRESTORE_RULES_FILE || 'firestore.rules', 'utf8') } });
 const now = Date.parse('2026-10-05T17:00:00.000Z');
 const alice = { uid: 'map-alice', profile: 'map-alice-profile' }, bob = { uid: 'map-bob', profile: 'map-bob-profile' }, carol = { uid: 'map-carol', profile: 'map-carol-profile' };
 const identity = person => ({ expectedOwnerUid: person.uid, expectedProfileId: person.profile });

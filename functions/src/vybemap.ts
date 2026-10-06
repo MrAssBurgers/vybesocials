@@ -50,7 +50,7 @@ export const emergencyGhostMode = onCall({ cors: true, invoker: 'public', timeou
 
 /** AI area intelligence — safety, trespassing, access rules (Gemini + Google Search). */
 export const researchMapLocation = onCall(
-  { secrets: [...INTEL_SECRETS], region: 'us-central1' },
+  { secrets: [...INTEL_SECRETS], region: 'us-central1', cors: true, invoker: 'public', timeoutSeconds: 60 },
   async (request) => {
     const uid = requireAuth(request);
     enforceRateLimit(await rateLimit(`map_intel_read:${uid}`, 120, 60));
