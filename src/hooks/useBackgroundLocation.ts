@@ -4,6 +4,7 @@ import { detectActivity } from '@/lib/vybemap/activity';
 import { useLocationMutation, useLocationSharing } from './useLocationSharing';
 import type { LocationSharingState } from '@/lib/locationSharingService';
 import { locationSharingRequest } from '@/lib/locationSharingClient';
+import { getForegroundReadPhase, foregroundReadPhaseCurrent, isAppForeground } from '@/lib/foregroundReadPhase';
 
 export interface LocationState {
   coords: [number, number] | null; accuracy: number | null; speed: number | null; heading: number | null;
@@ -31,7 +32,7 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
   const watchOnMap = options?.watchOnMap ?? false;
   const [ghost, setGhost] = useState<{ scope: string; until: number; revision: string } | null>(null);
   const read = useLocationSharing(undefined, watchOnMap || !!ghost);
-  const change = useLocationMutation();
+  const change = useLocationMutation(undefined, true);
   const actor = read.actor;
   const ready = actor.ready && userId === actor.profileId;
   const scope = JSON.stringify([actor.uid, actor.profileId, actor.epoch]);
@@ -43,13 +44,10 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
   const [problem, setProblem] = useState<{ scope: string; message: string } | null>(null);
   const [positionProblem, setPositionProblem] = useState<{ scope: string; message: string } | null>(null);
   const [published, setPublished] = useState<{ scope: string; revision: string; expiresAt: number } | null>(null);
-  // Native shells can pause while the document remains visible. Retain this
-  // phase across watcher/account restarts, before React commits query changes.
-  const nativePaused = useRef(false);
+  // The page-wide native phase survives map/provider remounts and account changes.
   useEffect(() => {
     context.active = true;
-    const change = (event: Event) => {
-      nativePaused.current = event.type === 'app-paused';
+    const change = () => {
       context.intent++; setPublished(null);
     };
     window.addEventListener('app-paused', change);
@@ -110,36 +108,54 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
 
   useEffect(() => {
     if (!ghost || ghost.scope !== scope) return;
-    let active = true;
+    let active = true, resuming = false;
     const resume = async () => {
-      if (!active || document.visibilityState === 'hidden' || Date.now() < ghost.until) return;
+      if (!active || resuming || !isAppForeground() || Date.now() < ghost.until) return;
+      const phase = getForegroundReadPhase();
+      const check = () => {
+        latest.current.guard();
+        if (!active || !foregroundReadPhaseCurrent(phase)) throw new Error('Location return retired.');
+      };
+      resuming = true;
       try {
-        latest.current.guard();
-        const result = await locationSharingRequest(actor, { action: 'read' }, latest.current.guard);
-        latest.current.guard();
-        if (!active || !('state' in result) || result.state?.revision !== ghost.revision || result.state.enabled) { if (active) setGhost(null); return; }
+        check();
+        const result = await locationSharingRequest(actor, { action: 'read' }, check);
+        check();
+        if (!('state' in result) || !result.state) { setGhost(null); return; }
+        // A return may have committed before its reply was retired by pause.
+        // Follow the newly checked enabled state without replaying a toggle.
+        if (result.state.enabled) { context.blocked = false; context.lastSent = 0; setGhost(null); return; }
+        if (result.state.revision !== ghost.revision) { setGhost(null); return; }
         await change.mutateAsync({ action: 'setSharing', expectedRevision: ghost.revision, enabled: true });
-        latest.current.guard(); if (!active) return;
+        check();
         context.blocked = false; context.lastSent = 0; setGhost(null);
         toast.success('Ghost timer ended. Location updates resume while the map is open.');
-      } catch { if (active) { setGhost(null); setProblem({ scope, message: 'Automatic return was not confirmed. Check location sharing and retry.' }); } }
+      } catch {
+        if (active && foregroundReadPhaseCurrent(phase)) { setGhost(null); setProblem({ scope, message: 'Automatic return was not confirmed. Check location sharing and retry.' }); }
+      } finally {
+        resuming = false;
+        // Resume may arrive while the previous phase's read is still pending.
+        // Retire that result, then check the current phase once it settles.
+        if (active && isAppForeground() && !foregroundReadPhaseCurrent(phase)) void resume();
+      }
     };
     const timer = setTimeout(() => { void resume(); }, Math.max(0, ghost.until - Date.now()));
     const visible = () => { void resume(); };
     document.addEventListener('visibilitychange', visible);
-    return () => { active = false; clearTimeout(timer); document.removeEventListener('visibilitychange', visible); };
+    window.addEventListener('app-resumed', visible);
+    return () => { active = false; clearTimeout(timer); document.removeEventListener('visibilitychange', visible); window.removeEventListener('app-resumed', visible); };
   }, [ghost, scope, context]);
 
   const publish = useCallback(async (pos: GeolocationPosition) => {
     const snapshot = latest.current;
     const state = snapshot.state;
-    if (!state?.enabled || !state.revision || nativePaused.current || context.blocked || context.sending || !snapshot.watchOnMap || document.visibilityState === 'hidden') return;
+    if (!state?.enabled || !state.revision || !isAppForeground() || context.blocked || context.sending || !snapshot.watchOnMap || document.visibilityState === 'hidden') return;
     const sampledAt = pos.timestamp;
     if (!Number.isFinite(sampledAt) || Date.now() - sampledAt > 60_000 || sampledAt > Date.now() + 5000 || Date.now() - context.lastSent < 5000) return;
     const intent = context.intent;
     const check = () => {
       snapshot.guard();
-      if (context.intent !== intent || nativePaused.current || context.blocked || !context.active || document.visibilityState === 'hidden' || !latest.current.watchOnMap || latest.current.scope !== snapshot.scope || latest.current.state?.revision !== state.revision || !latest.current.state?.enabled) throw new Error('Location update retired.');
+      if (context.intent !== intent || !isAppForeground() || context.blocked || !context.active || document.visibilityState === 'hidden' || !latest.current.watchOnMap || latest.current.scope !== snapshot.scope || latest.current.state?.revision !== state.revision || !latest.current.state?.enabled) throw new Error('Location update retired.');
     };
     context.sending = true; context.lastSent = Date.now();
     try {
@@ -167,7 +183,7 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
     let active = true, fellBack = false, permissionDenied = false;
     let watchRevision = 0;
     let watchId: number | undefined;
-    const current = (revision: number) => { try { latest.current.guard(); return active && !nativePaused.current && revision === watchRevision && document.visibilityState !== 'hidden' && latest.current.scope === scope; } catch { return false; } };
+    const current = (revision: number) => { try { latest.current.guard(); return active && isAppForeground() && revision === watchRevision && document.visibilityState !== 'hidden' && latest.current.scope === scope; } catch { return false; } };
     const success = (pos: GeolocationPosition, revision: number) => {
       if (!current(revision)) return;
       const { latitude, longitude, accuracy, speed, heading } = pos.coords;
@@ -199,7 +215,7 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
       }
     };
     const start = () => {
-      if (nativePaused.current || document.visibilityState === 'hidden' || permissionDenied) return;
+      if (!isAppForeground() || document.visibilityState === 'hidden' || permissionDenied) return;
       fellBack = false;
       const revision = ++watchRevision;
       navigator.geolocation.getCurrentPosition(pos => success(pos, revision), error => failure(error, revision), { enableHighAccuracy: false, timeout: 10_000, maximumAge: 30_000 });
@@ -232,7 +248,7 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
     let waiting = false, sequence = 0;
     let deadline: ReturnType<typeof setTimeout> | undefined;
     const requestFresh = () => {
-      if (!active || waiting || nativePaused.current || context.blocked || !latest.current.state?.enabled || document.visibilityState === 'hidden') return;
+      if (!active || waiting || !isAppForeground() || context.blocked || !latest.current.state?.enabled || document.visibilityState === 'hidden') return;
       try { latest.current.guard(); } catch { return; }
       const intent = context.intent, requestSequence = ++sequence;
       waiting = true;
@@ -242,7 +258,7 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
         waiting = false; clearTimeout(deadline);
         try {
           latest.current.guard();
-          if (pos && !nativePaused.current && context.intent === intent && latest.current.scope === scope && document.visibilityState !== 'hidden') void publish(pos);
+          if (pos && isAppForeground() && context.intent === intent && latest.current.scope === scope && document.visibilityState !== 'hidden') void publish(pos);
         } catch { /* Retired account or location request. */ }
       };
       try { navigator.geolocation?.getCurrentPosition(pos => finish(pos), () => finish(), { enableHighAccuracy: false, maximumAge: 0, timeout: 10_000 }); }

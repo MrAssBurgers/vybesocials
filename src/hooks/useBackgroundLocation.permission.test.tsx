@@ -31,6 +31,114 @@ beforeEach(() => {
 afterEach(() => { cleanup(); clients.forEach(client => client.clear()); clients.length = 0; });
 const create = () => renderHook(() => useBackgroundLocation(`profile-${state.uid}`, { watchOnMap: true }), { wrapper: wrapper() });
 describe('map GPS consent and checked publication', () => {
+  it('remembers a native pause before the map mounts and starts GPS only after resume', async () => {
+    act(() => window.dispatchEvent(new Event('app-paused')));
+    const hook = create();
+    act(() => hook.result.current.requestLocation());
+    expect(gps.getCurrentPosition).not.toHaveBeenCalled();
+    expect(gps.watchPosition).not.toHaveBeenCalled();
+    act(() => window.dispatchEvent(new Event('app-resumed')));
+    await waitFor(() => expect(gps.watchPosition).toHaveBeenCalledOnce());
+    expect(gps.getCurrentPosition).toHaveBeenCalledOnce();
+    expect(state.invoke.mock.calls.some(([, input]) => input.action === 'publishPosition' || input.action === 'setSharing')).toBe(false);
+  });
+  it('retires a location setting before transport if the app pauses during its continuation', async () => {
+    const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
+    await act(async () => {
+      const change = hook.result.current.setSharing(true);
+      window.dispatchEvent(new Event('app-paused'));
+      await expect(change).rejects.toThrow(/Open the app/);
+    });
+    expect(state.invoke.mock.calls.some(([, input]) => input.action === 'setSharing')).toBe(false);
+    expect(state.enabled).toBe(false);
+  });
+  it('defers an expired Ghost timer during native pause and resumes the checked return once foregrounded', async () => {
+    state.enabled = true;
+    const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
+    vi.useFakeTimers();
+    try {
+      await act(async () => { await hook.result.current.enableTemporaryGhost(60_000); });
+      expect(state.enabled).toBe(false);
+      act(() => window.dispatchEvent(new Event('app-paused')));
+      const before = state.invoke.mock.calls.length;
+      await act(async () => { await vi.advanceTimersByTimeAsync(60_001); });
+      expect(state.invoke.mock.calls).toHaveLength(before);
+      expect(state.enabled).toBe(false);
+      act(() => window.dispatchEvent(new Event('app-resumed')));
+      await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+      expect(state.enabled).toBe(true);
+      expect(state.invoke.mock.calls.filter(([, input]) => input.action === 'setSharing' && input.enabled === true)).toHaveLength(1);
+      expect(gps.getCurrentPosition).not.toHaveBeenCalled();
+      expect(gps.watchPosition).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
+  it('retires a pending Ghost read across pause/resume and coalesces duplicate return events', async () => {
+    state.enabled = true;
+    const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
+    vi.useFakeTimers();
+    try {
+      await act(async () => { await hook.result.current.enableTemporaryGhost(60_000); });
+      const finishes: (() => void)[] = [];
+      const until = hook.result.current.ghostUntil!;
+      let block = true;
+      state.invoke.mockImplementation(async (_, input) => {
+        if (input.action === 'read' && Date.now() >= until && block) {
+          const answer = response(input);
+          return new Promise(resolve => { finishes.push(() => resolve(answer)); });
+        }
+        return response(input);
+      });
+      await act(async () => { await vi.advanceTimersByTimeAsync(60_001); });
+      expect(finishes.length).toBeGreaterThan(0);
+      act(() => {
+        window.dispatchEvent(new Event('app-paused'));
+        window.dispatchEvent(new Event('app-resumed'));
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(state.enabled).toBe(false);
+      await act(async () => { block = false; finishes.forEach(finish => finish()); await vi.advanceTimersByTimeAsync(100); });
+      expect(state.enabled).toBe(true);
+      expect(state.invoke.mock.calls.filter(([, input]) => input.action === 'setSharing' && input.enabled === true)).toHaveLength(1);
+      expect(gps.getCurrentPosition).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
+  it('does not restore sharing when a later device changed the Ghost revision', async () => {
+    state.enabled = true;
+    const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
+    vi.useFakeTimers();
+    try {
+      await act(async () => { await hook.result.current.enableTemporaryGhost(60_000); });
+      state.revision = 'e'.repeat(48);
+      await act(async () => { await vi.advanceTimersByTimeAsync(60_001); });
+      expect(state.enabled).toBe(false);
+      expect(state.invoke.mock.calls.some(([, input]) => input.action === 'setSharing' && input.enabled === true)).toBe(false);
+      expect(hook.result.current.ghostUntil).toBeNull();
+    } finally { vi.useRealTimers(); }
+  });
+  it('rechecks a return committed before pause without replaying it or leaving uploads blocked', async () => {
+    state.enabled = true;
+    const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
+    act(() => hook.result.current.requestLocation());
+    vi.useFakeTimers();
+    try {
+      await act(async () => { await hook.result.current.enableTemporaryGhost(60_000); });
+      state.invoke.mockImplementation(async (_, input) => {
+        const answer = response(input);
+        if (input.action === 'setSharing' && input.enabled === true) window.dispatchEvent(new Event('app-paused'));
+        return answer;
+      });
+      await act(async () => { await vi.advanceTimersByTimeAsync(60_001); });
+      expect(state.enabled).toBe(true);
+      expect(hook.result.current.sharing).toBe(false);
+      act(() => window.dispatchEvent(new Event('app-resumed')));
+      await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+      expect(hook.result.current.ghostUntil).toBeNull();
+      expect(state.invoke.mock.calls.filter(([, input]) => input.action === 'setSharing' && input.enabled === true)).toHaveLength(1);
+      await act(async () => gps.watchPosition.mock.calls.at(-1)![0](sample()));
+      expect(state.invoke.mock.calls.filter(([, input]) => input.action === 'publishPosition')).toHaveLength(1);
+      expect(hook.result.current.sharing).toBe(true);
+    } finally { vi.useRealTimers(); }
+  });
   it('retires a battery-delayed upload and old fresh samples across a visible native pause and resume', async () => {
     state.enabled = true;
     let finishBattery!: (value: { level: number }) => void;

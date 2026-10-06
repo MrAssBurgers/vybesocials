@@ -12,6 +12,8 @@ Chat's existing **Location Sharing** action opens `/messages/<conversationId>?lo
 
 Map updates run only while the map is open and the app is visible. Opening it does not prompt an undecided geolocation permission; explicit location actions can request permission, and previously granted permission can resume a watcher. Ghost disables the server sharing state and deletes the latest sample. Temporary Ghost return is an in-memory, revision-bound timer: it cannot override a later setting, and reloading keeps sharing disabled until the user deliberately returns. Already delivered coordinates cannot be recalled from a recipient's device.
 
+The shared native foreground phase also applies when a map/provider mounts after a pause. A queued explicit GPS request waits for foreground resume. Map setting continuations retire across native/background phase changes before transport; other peer-sharing controls retain their existing mutation policy. A Ghost deadline reached while paused remains pending until resume, then rechecks the current server revision. Duplicate resume events coalesce. If a return committed before its reply was retired, a fresh enabled-state read releases the local upload block without replaying the toggle. A later disabled revision cancels the scheduled return; no historical consent or coordinates are adopted.
+
 ## Lifetimes, precision and limits
 
 | Record or projection | Bound |

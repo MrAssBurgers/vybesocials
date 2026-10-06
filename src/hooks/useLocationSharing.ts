@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useProfileAccount } from './useProfileAccount';
 import type { LocationMutation, LocationRead } from '@/lib/locationSharingService';
 import { locationSharingRequest } from '@/lib/locationSharingClient';
+import { getForegroundReadPhase } from '@/lib/foregroundReadPhase';
 
 export function useLocationActor() {
   const account = useProfileAccount();
@@ -83,14 +84,19 @@ export function useLocationSharing(targetId?: string, enabled = true) {
   return { ...query, data, actor, isLoading: actor.ready && enabled && !data && !query.isError, isReady: !!data };
 }
 
-export function useLocationMutation(targetId?: string) {
+export function useLocationMutation(targetId?: string, foregroundOnly = false) {
   const actor = useLocationActor(), client = useQueryClient();
   const [, update] = useReducer((n: number) => n + 1, 0);
   const context = useMemo(() => ({ active: true, pending: false }), [actor.uid, actor.profileId, actor.epoch, targetId]);
   useEffect(() => { context.active = true; return () => { context.active = false; }; }, [context]);
   const mutation = useMutation({
     mutationFn: async (input: LocationMutation) => {
-      const guard = () => { actor.guard(); if (!context.active) throw Object.assign(new Error('Open location sharing again to continue.'), { code: 'account-changed' }); };
+      const phase = foregroundOnly ? getForegroundReadPhase() : null;
+      const guard = () => {
+        actor.guard();
+        if (!context.active) throw Object.assign(new Error('Open location sharing again to continue.'), { code: 'account-changed' });
+        if (phase && !foregroundReadPhaseCurrent(phase)) throw Object.assign(new Error('Open the app to change location sharing.'), { code: 'location-paused' });
+      };
       guard();
       if (context.pending) throw new Error('A location change is still saving.');
       context.pending = true; update();
