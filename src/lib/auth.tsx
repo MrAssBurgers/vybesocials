@@ -314,7 +314,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Schedule token refresh before expiry
-  const scheduleTokenRefresh = (expiresAt: number) => {
+  const scheduleTokenRefresh = (expiresAt: number, retryAttempt = 0, retryDelayMs?: number) => {
     // Clear any existing timer
     if (refreshTimerRef.current) {
       clearTimeout(refreshTimerRef.current);
@@ -333,13 +333,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const expiresAtMs = expiresAt * 1000;
     const now = Date.now();
     const refreshAt = expiresAtMs - TOKEN_REFRESH_MARGIN_MS;
-    const delay = Math.max(refreshAt - now, 1000); // At least 1 second delay
+    const delay = retryDelayMs ?? Math.max(refreshAt - now, 1000); // At least 1 second delay
+    const retry = () => {
+      guard();
+      scheduleTokenRefresh(expiresAt, retryAttempt + 1, Math.min(2000 * 2 ** Math.min(retryAttempt, 4), 30000));
+    };
 
     // Only schedule if token expires in the future
     if (delay > 0 && delay < 24 * 60 * 60 * 1000) { // Max 24 hours
       refreshTimerRef.current = setTimeout(async () => {
         try {
           guard();
+          refreshTimerRef.current = null;
+          if (document.visibilityState !== 'visible' || navigator.onLine === false) {
+            scheduleTokenRefresh(expiresAt, retryAttempt, 30000);
+            return;
+          }
           const { data, error } = await refreshFirebaseSession();
           guard();
           if (error) {
@@ -357,7 +366,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setUser(null);
               setProfile(null);
               clearProfileCache();
-            }
+            } else retry();
           } else if (data.session?.expires_at) {
             // Schedule next refresh
             scheduleTokenRefresh(data.session.expires_at);
@@ -365,6 +374,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (err) {
           try { guard(); } catch { return; }
           console.error('Token refresh error:', err);
+          retry();
         }
       }, delay);
     }
@@ -783,7 +793,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let lastResumeRefreshAt = 0;
     const resumeRefresh = () => {
       if (document.visibilityState !== 'visible') return;
-      if (!hasStoredAuthSession()) return;
+      const sdkUser = getFirebaseAuth()?.currentUser;
+      if (!sdkUser && !hasStoredAuthSession()) return;
+      const lifetime = providerLifetimeRef.current;
+      const accountGuard = sdkUser ? captureAuthSnapshotGuard(tokenAccountSnapshot, sdkUser.uid) : null;
+      const guard = () => {
+        if (!mountedRef.current || providerLifetimeRef.current !== lifetime || getFirebaseAuth()?.currentUser !== sdkUser) throw new Error('Resume refresh retired.');
+        accountGuard?.();
+      };
 
       const now = Date.now();
       const debounceMs = 2000;
@@ -791,15 +808,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       lastResumeRefreshAt = now;
 
       void db.auth.getSession().then(({ data: { session } }) => {
+        guard();
+        if (sdkUser && session?.user && session.user.id !== sdkUser.uid) return;
         if (session?.user && session.expires_at) {
           const expiresMs = session.expires_at * 1000;
           if (expiresMs - Date.now() > 5 * 60 * 1000) return;
         }
-        if (!session?.user) void refreshFirebaseSession();
+        if (sdkUser) scheduleTokenRefresh(session?.expires_at ?? Date.now() / 1000);
+        else if (!session?.user) void refreshFirebaseSession().catch(() => {});
+      }).catch(() => {
+        try { guard(); } catch { return; }
+        if (sdkUser) scheduleTokenRefresh(Date.now() / 1000);
       });
     };
     document.addEventListener('visibilitychange', resumeRefresh);
     window.addEventListener('app-resumed', resumeRefresh);
+    window.addEventListener('online', resumeRefresh);
     const onPageShow = (event: PageTransitionEvent) => {
       if (event.persisted) resumeRefresh();
     };
@@ -1027,6 +1051,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authAttempts.retire();
       document.removeEventListener('visibilitychange', resumeRefresh);
       window.removeEventListener('app-resumed', resumeRefresh);
+      window.removeEventListener('online', resumeRefresh);
       window.removeEventListener('pageshow', onPageShow);
       window.clearTimeout(authSafetyTimeout);
       subscription.unsubscribe();

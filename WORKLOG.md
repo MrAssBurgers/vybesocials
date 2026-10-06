@@ -1,3 +1,14 @@
+## ACTIVE (2026-10-06) — Temporary Firebase token recovery
+
+- Previous turn made verified production progress: theme services and actual community/saved reads restored. Started clean main56b9a7af. User readiness, phone map/clips/auth and old mounted release adoption remain active; no new feature.
+- Three real AuthProvider regressions failed before: transient scheduled refresh never retried, near-expiry app resume without disk hint did nothing, and network return did nothing. Scheduled refresh now retries with2/4/8/16/30-second bounded backoff while preserving the confirmed session. Offline/hidden checks make no scheduled network request; near-expiry foreground/network return reschedules refresh for the real SDK account. Delayed reads/retries remain guarded by account epoch, exact SDK object and provider lifetime. Fatal refresh logout retains its guarded path; no cold-account hydration, Auth configuration or token-lifetime change.
+- Seven new actual-provider tests cover recovery, bounded retries, offline pause, account retirement and delayed foreground reads. Focused40 checks pass before the last two added cases; final full474 files/4503 tests pass6 skip, build/native manifest/budget1099.8KBraw333.9KBgzip pass, types/lint pass with5 existing warnings. Logs work/auth-network-{before,focused,full,build,types,lint}. No physical network/GPS/codec or native persistence claim. No backend/Rules/index/TTL/data/secret mutation in this slice.
+- Exact client publication and manual retained-session observation pending at this source checkpoint. Independent static publication must be distinguished from mounted browser adoption. Existing client was served at1c4fa847 while IAB/Chrome mounted older versions; cause unproven and no account cache/worker/permission purge performed.
+
+Next3tasks: publish exact tested token-recovery client and inspect actual signed-in flow; resolve browser adoption and verify phone map/clip/Firebase recovery; continue guarded retained posts/DM/hubs/media and provider readiness.
+
+---
+
 ## ACTIVE (2026-10-06) — Existing theme service restoration and browser release investigation
 
 - Started clean main38c38d6b. Published mobile fixes remain independently verified as source1c4fa847, but physical phone GPS/codec and mounted adoption are not proven. Fresh IAB and Chrome version URLs return older, different manifests while independent requests to identical URLs return1c4fa847. Evidence work/browser-release-paths.log. No cache/worker/account storage/permission changed; cause still unproven.

@@ -367,6 +367,57 @@ describe('AuthProvider checked profile setup', () => {
 });
 
 describe('AuthProvider restoration and refresh ownership', () => {
+  it('retries a temporary scheduled token failure without signing out the confirmed account', async () => {
+    vi.useFakeTimers(); state.ensure.mockImplementation(async uid => profile(uid, uid)); mount();
+    const expires = Math.floor(Date.now() / 1000) + 301;
+    state.refresh.mockResolvedValueOnce({ data: { session: null }, error: { name: 'auth/network-request-failed', message: 'Network request failed' } })
+      .mockResolvedValue({ data: { session: { ...session('alice'), expires_at: expires + 3600 } }, error: null });
+    await act(async () => { state.account = { uid: 'alice', epoch: 1 }; state.subscribers.forEach(notify => notify()); await state.listener?.('INITIAL_SESSION', { ...session('alice'), expires_at: expires }); await vi.advanceTimersByTimeAsync(1001); });
+    expect(state.refresh).toHaveBeenCalledOnce();
+    await act(async () => { await vi.advanceTimersByTimeAsync(2001); });
+    expect(state.refresh).toHaveBeenCalledTimes(2); expect(state.signOut).not.toHaveBeenCalled(); expect(current.user?.id).toBe('alice');
+  });
+  it.each(['app-resumed', 'online'])('refreshes a near-expiry SDK account on %s even without a disk hint', async event => {
+    vi.useFakeTimers(); state.ensure.mockImplementation(async uid => profile(uid, uid)); mount(); await switchAccount('alice');
+    const near = { ...session('alice'), expires_at: Math.floor(Date.now() / 1000) + 60 };
+    state.getSession.mockResolvedValue({ data: { session: near }, error: null });
+    state.refresh.mockResolvedValue({ data: { session: { ...near, expires_at: near.expires_at + 3600 } }, error: null });
+    await act(async () => { window.dispatchEvent(new Event(event)); await vi.advanceTimersByTimeAsync(1001); });
+    expect(state.refresh).toHaveBeenCalledOnce(); expect(state.signOut).not.toHaveBeenCalled();
+  });
+  it('retires a queued network retry when the account changes', async () => {
+    vi.useFakeTimers(); state.ensure.mockImplementation(async uid => profile(uid, uid)); mount();
+    state.refresh.mockResolvedValue({ data: { session: null }, error: { name: 'auth/network-request-failed', message: 'Network request failed' } });
+    await act(async () => { state.account = { uid: 'alice', epoch: 1 }; state.subscribers.forEach(notify => notify()); await state.listener?.('INITIAL_SESSION', { ...session('alice'), expires_at: Math.floor(Date.now() / 1000) + 301 }); await vi.advanceTimersByTimeAsync(1001); });
+    await switchAccount('bob'); await act(async () => { await vi.advanceTimersByTimeAsync(3001); });
+    expect(state.refresh).toHaveBeenCalledOnce(); expect(current.user?.id).toBe('bob'); expect(state.signOut).not.toHaveBeenCalled();
+  });
+  it('does not send scheduled refresh requests while offline and recovers on network return', async () => {
+    vi.useFakeTimers(); state.ensure.mockImplementation(async uid => profile(uid, uid)); mount();
+    const network = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    const near = { ...session('alice'), expires_at: Math.floor(Date.now() / 1000) + 301 };
+    state.getSession.mockResolvedValue({ data: { session: near }, error: null });
+    state.refresh.mockResolvedValue({ data: { session: { ...near, expires_at: near.expires_at + 3600 } }, error: null });
+    try {
+      await act(async () => { state.account = { uid: 'alice', epoch: 1 }; state.subscribers.forEach(notify => notify()); await state.listener?.('INITIAL_SESSION', near); await vi.advanceTimersByTimeAsync(31001); });
+      expect(state.refresh).not.toHaveBeenCalled();
+      network.mockReturnValue(true); await act(async () => { window.dispatchEvent(new Event('online')); await vi.advanceTimersByTimeAsync(1001); });
+      expect(state.refresh).toHaveBeenCalledOnce(); expect(state.signOut).not.toHaveBeenCalled();
+    } finally { network.mockRestore(); }
+  });
+  it('bounds repeated temporary refresh retries instead of retrying every frame or signing out', async () => {
+    vi.useFakeTimers(); state.ensure.mockImplementation(async uid => profile(uid, uid)); mount();
+    state.refresh.mockResolvedValue({ data: { session: null }, error: { name: 'auth/network-request-failed', message: 'Network request failed' } });
+    await act(async () => { state.account = { uid: 'alice', epoch: 1 }; state.subscribers.forEach(notify => notify()); await state.listener?.('INITIAL_SESSION', { ...session('alice'), expires_at: Math.floor(Date.now() / 1000) + 301 }); await vi.advanceTimersByTimeAsync(61001); });
+    expect(state.refresh.mock.calls.length).toBeLessThanOrEqual(6); expect(state.refresh.mock.calls.length).toBeGreaterThan(1); expect(state.signOut).not.toHaveBeenCalled();
+  });
+  it('does not schedule a replacement-account refresh from a delayed foreground session read', async () => {
+    vi.useFakeTimers(); state.ensure.mockImplementation(async uid => profile(uid, uid)); mount(); await switchAccount('alice');
+    const pending = deferred<any>(); state.getSession.mockReturnValue(pending.promise);
+    act(() => { window.dispatchEvent(new Event('app-resumed')); }); await switchAccount('bob');
+    await act(async () => { pending.resolve({ data: { session: { ...session('alice'), expires_at: Math.floor(Date.now() / 1000) + 60 } }, error: null }); await vi.advanceTimersByTimeAsync(1001); });
+    expect(state.refresh).not.toHaveBeenCalled(); expect(current.user?.id).toBe('bob');
+  });
   it('never declares signed out from the startup timeout while native restoration is pending', async () => {
     vi.useFakeTimers(); state.restoreState = 'pending'; mount();
     await act(async () => { await vi.advanceTimersByTimeAsync(8_001); });
