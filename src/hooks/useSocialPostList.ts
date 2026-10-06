@@ -3,17 +3,22 @@ import { readSocialPostList, type SocialPostSelection } from '@/lib/socialPostLi
 import { usePostReadView } from './usePostReadView';
 import type { Post } from './useInfinitePosts';
 import { usePostReadWindow } from './usePostReadWindow';
+import { usePostReadRecovery } from './usePostReadRecovery';
 
 export function useSocialPostList(selection: SocialPostSelection, enabled = true) {
   const view = usePostReadView(enabled), { account } = view;
   const window = usePostReadWindow(JSON.stringify([selection, ...view.key]));
+  const recovery = usePostReadRecovery(JSON.stringify([selection, ...view.key, window.cursor]), view.guard);
   const query = useInfiniteQuery({
     placeholderData: undefined,
     queryKey: ['social-post-list', selection, ...view.key, window.cursor], enabled: view.active,
-    initialPageParam: window.cursor, gcTime: 0, staleTime: 0, retry: false,
+    initialPageParam: window.cursor, gcTime: 0, staleTime: 0, retry: recovery.retry, retryDelay: recovery.retryDelay,
     refetchInterval: 20000, refetchOnMount: 'always', refetchOnWindowFocus: 'always',
-    queryFn: ({ pageParam, signal }) => readSocialPostList({ ...selection, expectedOwnerUid: account.user!.id, expectedProfileId: account.profile!.id,
-      ...(pageParam ? { cursor: pageParam } : {}) }, () => view.guard(signal)),
+    queryFn: ({ pageParam, signal }) => {
+      recovery.beforeRead(signal);
+      return readSocialPostList({ ...selection, expectedOwnerUid: account.user!.id, expectedProfileId: account.profile!.id,
+        ...(pageParam ? { cursor: pageParam } : {}) }, () => recovery.guard(signal));
+    },
     getNextPageParam: (last, pages, _param, params) => pages.length < 4 && last.nextCursor && !params.includes(last.nextCursor) ? last.nextCursor : undefined,
   });
   const expired = !!query.data?.pages.some(page => !Number.isFinite(page.leaseUntil) || page.leaseUntil <= view.now);
