@@ -100,11 +100,16 @@ describe('returning-session updates', () => {
     await advance(8000); expect(fetchMock.mock.calls[0][1].signal.aborted).toBe(true);
     await advance(5000 + 1500); expect(fetchMock).toHaveBeenCalledTimes(2); expect(replace).toHaveBeenCalledOnce();
   });
-  it('continues safely when session storage is blocked', async () => {
+  it('retains the usable page when session storage cannot provide a loop guard', async () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked'); });
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
     renderHook(useAutoUpdate); await advance(1200 + 1500);
-    expect(replace).toHaveBeenCalledOnce(); expect(mocks.clear).toHaveBeenCalledOnce();
+    expect(replace).not.toHaveBeenCalled(); expect(mocks.clear).not.toHaveBeenCalled();
+  });
+  it('does not navigate if writing the once-per-entry guard fails', async () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('quota'); });
+    renderHook(useAutoUpdate); await advance(1200 + 1500);
+    expect(replace).not.toHaveBeenCalled(); expect(mocks.signal).not.toHaveBeenCalled();
   });
   it('throttles focus checks and removes them when retired', async () => {
     fetchMock.mockResolvedValue(version('/assets/app-old.js'));

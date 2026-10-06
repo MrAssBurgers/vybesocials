@@ -18,8 +18,8 @@ function runningEntryPath(): string | null {
   return null;
 }
 
-function readReloadGuard(): string | null {
-  try { return sessionStorage.getItem(RELOAD_GUARD_KEY); } catch { return null; }
+function readReloadGuard(): string | null | undefined {
+  try { return sessionStorage.getItem(RELOAD_GUARD_KEY); } catch { return undefined; }
 }
 
 /** Retry returning-session checks without restarting native OTA or an edited form. */
@@ -63,13 +63,15 @@ export function useAutoUpdate() {
           try { sessionStorage.removeItem(RELOAD_GUARD_KEY); } catch { /* Storage may be blocked. */ }
           return;
         }
-        if (readReloadGuard() === payload.entry || hasDraft()) return;
+        const reloadGuard = readReloadGuard();
+        // Without a durable loop guard, retain the usable page rather than restart it repeatedly.
+        if (reloadGuard === undefined || reloadGuard === payload.entry || hasDraft()) return;
         await clearAppCache();
         if (disposed || hasDraft()) return;
         const remoteEntry = payload.entry;
         reloadTimer = window.setTimeout(() => {
           if (disposed || hasDraft()) { reloadTimer = undefined; return; }
-          try { sessionStorage.setItem(RELOAD_GUARD_KEY, remoteEntry); } catch { /* In-memory timer still prevents duplicates. */ }
+          try { sessionStorage.setItem(RELOAD_GUARD_KEY, remoteEntry); } catch { reloadTimer = undefined; return; }
           signalAppUpdate();
           window.location.replace(`/?_vybe=${Date.now()}`);
         }, APP_UPDATE_RELOAD_DELAY_MS);
