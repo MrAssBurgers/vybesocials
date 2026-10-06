@@ -1,6 +1,6 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
+import { StrictMode, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({ read: vi.fn(), uid: 'alice', epoch: 1, ready: true }));
 vi.mock('@/hooks/useProfileAccount', () => ({ useProfileAccount: () => {
@@ -18,11 +18,43 @@ const setup = () => {
 };
 beforeEach(() => {
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+  window.dispatchEvent(new Event('app-resumed'));
   state.uid = 'alice'; state.epoch = 1; state.ready = true; state.read.mockReset();
   state.read.mockImplementation(async (_input, guard) => { guard(); return { posts: [{ id: 'alice-post' }], nextCursor: null, leaseUntil: Date.now() + 30000 }; });
 });
-afterEach(() => { clients.splice(0).forEach(client => client.clear()); });
+afterEach(() => { cleanup(); clients.splice(0).forEach(client => client.clear()); });
 describe('visible current-account Global feed', () => {
+  it('can complete a checked feed after Strict Mode effect replay', async () => {
+    const { wrapper: Wrapper } = setup();
+    const hook = renderHook(() => useSocialFeed('post'), { wrapper: ({ children }) => <StrictMode><Wrapper>{children}</Wrapper></StrictMode> });
+    await waitFor(() => expect(hook.result.current.data?.pages[0].posts).toEqual([{ id: 'alice-post' }]));
+  });
+  it('retires an in-flight feed on native pause and retries only after resume', async () => {
+    let finish!: () => void;
+    state.read.mockImplementationOnce(async (_input, guard) => {
+      await new Promise<void>(resolve => { finish = resolve; }); guard();
+      return { posts: [{ id: 'pre-pause' }], nextCursor: null, leaseUntil: Date.now() + 30000 };
+    });
+    const hook = renderHook(() => useSocialFeed('post'), setup());
+    await waitFor(() => expect(finish).toBeDefined());
+    act(() => window.dispatchEvent(new Event('app-paused')));
+    await act(async () => { finish(); });
+    expect(hook.result.current.data).toBeUndefined();
+    await act(async () => { await hook.result.current.refetch(); });
+    expect(state.read).toHaveBeenCalledOnce();
+    act(() => window.dispatchEvent(new Event('app-resumed')));
+    await waitFor(() => expect(hook.result.current.data?.pages[0].posts).toEqual([{ id: 'alice-post' }]));
+    expect(state.read).toHaveBeenCalledTimes(2);
+  });
+  it('does not start feed transport when mounted after the native app has paused', async () => {
+    act(() => window.dispatchEvent(new Event('app-paused')));
+    const hook = renderHook(() => useSocialFeed('post'), setup());
+    await act(async () => { await hook.result.current.refetch(); });
+    expect(state.read).not.toHaveBeenCalled();
+    act(() => window.dispatchEvent(new Event('app-resumed')));
+    await waitFor(() => expect(hook.result.current.data).toBeDefined());
+    expect(state.read).toHaveBeenCalledOnce();
+  });
   it('requires an area for Local and discards pages when that area changes', async () => {
     const hook = renderHook(({ area }: { area?: { lat: number; lng: number } }) => useSocialFeed(undefined, true, 'local', area), { ...setup(), initialProps: { area: undefined } });
     expect(state.read).not.toHaveBeenCalled();

@@ -13,8 +13,11 @@ export function useSocialFeed(contentType?: 'post' | 'short' | 'video', enabled 
     placeholderData: undefined,
     queryKey: ['social-feed', ...view.key, contentType, feed, area?.lat, area?.lng, window.cursor],
     enabled: view.active, initialPageParam: window.cursor,
-    queryFn: ({ pageParam, signal }) => readSocialFeed({ expectedOwnerUid: account.user!.id, expectedProfileId: account.profile!.id,
-      feed, ...(feed === 'local' && area ? { area } : {}), ...(contentType ? { contentType } : {}), ...(pageParam ? { cursor: pageParam } : {}) }, () => view.guard(signal)),
+    queryFn: ({ pageParam, signal }) => {
+      view.guard(signal);
+      return readSocialFeed({ expectedOwnerUid: account.user!.id, expectedProfileId: account.profile!.id,
+        feed, ...(feed === 'local' && area ? { area } : {}), ...(contentType ? { contentType } : {}), ...(pageParam ? { cursor: pageParam } : {}) }, () => view.guard(signal));
+    },
     getNextPageParam: (last, pages, _lastParam, pageParams) => pages.length < 4 && last.nextCursor && !pageParams.includes(last.nextCursor) ? last.nextCursor : undefined,
     staleTime: 0, gcTime: 0, refetchOnMount: 'always', refetchOnWindowFocus: 'always', refetchOnReconnect: true, refetchInterval: 20000, retry: false,
   });

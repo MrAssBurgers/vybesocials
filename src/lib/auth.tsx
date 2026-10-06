@@ -459,11 +459,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   /** A single checked profile bootstrap; ordinary reads never create or relink identity. */
-  const bootstrapSessionData = (userId: string, authEvent: string, guard: () => void = profileAccountGuard(userId)) => {
+  const bootstrapSessionData = (userId: string, _authEvent: string, guard: () => void = profileAccountGuard(userId)) => {
     try { guard(); } catch { return; }
     if (pendingSignupRef.current) return;
     const key = `${userId}:${reportAccountSnapshot().epoch}`;
-    if (bootstrapUserRef.current === key && authEvent !== 'SIGNED_IN') return;
+    // SDK restore/sign-in notifications can describe the same account epoch.
+    // Restarting replaces the first valid reply and holds posts behind a second
+    // request. Explicit refresh/recovery still run their own checked attempts.
+    if (bootstrapUserRef.current === key) return;
     bootstrapUserRef.current = key;
     const lifetime = providerLifetimeRef.current;
     queueMicrotask(() => {

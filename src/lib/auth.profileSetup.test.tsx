@@ -119,6 +119,24 @@ beforeEach(() => {
 afterEach(() => { cleanup(); stopNativeEvents(); vi.useRealTimers(); delete (window as any).__REACT_QUERY_CLIENT__; document.body.style.backgroundImage = ''; });
 
 describe('AuthProvider checked profile setup', () => {
+  it('finishes the first checked bootstrap without restarting it for a duplicate sign-in event', async () => {
+    const first = deferred<ReturnType<typeof profile>>();
+    state.ensure.mockReturnValueOnce(first.promise).mockImplementation(() => new Promise(() => {}));
+    mount(); await switchAccount('alice', 'INITIAL_SESSION');
+    await waitFor(() => expect(state.ensure).toHaveBeenCalledOnce());
+    await act(async () => { await state.listener?.('SIGNED_IN', session('alice')); });
+    await act(async () => first.resolve(profile('alice', 'confirmed-alice')));
+    expect(current.profile?.username).toBe('confirmed-alice');
+    expect(state.ensure).toHaveBeenCalledOnce();
+  });
+  it('keeps the confirmed same-session profile on a duplicate sign-in event without another bootstrap', async () => {
+    state.ensure.mockResolvedValueOnce(profile('alice', 'confirmed-alice')).mockImplementation(() => new Promise(() => {}));
+    mount(); await switchAccount('alice', 'INITIAL_SESSION');
+    await waitFor(() => expect(current.profile?.username).toBe('confirmed-alice'));
+    await act(async () => { await state.listener?.('SIGNED_IN', session('alice')); });
+    expect(current.profileSetupLoading).toBe(false);
+    expect(state.ensure).toHaveBeenCalledOnce();
+  });
   it('checks an existing account binding before device registration without exposing the profile', async () => {
     const binding = deferred<ReturnType<typeof profile>>(); state.ensure.mockReturnValue(binding.promise); state.notify.mockResolvedValue({ requiresApproval: false });
     mount(); act(() => { state.account = { uid: 'alice', epoch: 1 }; state.subscribers.forEach(notify => notify()); });
