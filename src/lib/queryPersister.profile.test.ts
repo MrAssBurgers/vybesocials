@@ -31,12 +31,12 @@ function snapshot(): PersistedClient {
 }
 
 describe('private profile sections never enter or return from shared disk query storage', () => {
-  it('never saves or revives parental settings from a shared disk snapshot', () => {
+  it.each(['parental-controls', 'safety-settings'])('never saves or revives %s from a shared disk snapshot', (root) => {
     const client = new QueryClient();
-    client.setQueryData(['parental-controls', 'alice', 1], { user_id: 'alice', has_pin: true, is_active: true });
-    client.setQueryData(['parental-controls', 'alice'], { user_id: 'alice', has_pin: true });
+    client.setQueryData([root, 'alice', 1], { user_id: 'alice', has_pin: true, is_active: true });
+    client.setQueryData([root, 'alice'], { user_id: 'alice', has_pin: true });
     const value = { timestamp: Date.now(), buster: 'fixture', clientState: dehydrate(client) };
-    expect(shouldPersistQueryKey(['parental-controls', 'alice', 1], { has_pin: true })).toBe(false);
+    expect(shouldPersistQueryKey([root, 'alice', 1], { has_pin: true })).toBe(false);
     expect(JSON.parse(state.options!.serialize(value)).clientState.queries).toHaveLength(0);
     expect(state.options!.deserialize(JSON.stringify(value)).clientState.queries).toHaveLength(0);
     client.clear();

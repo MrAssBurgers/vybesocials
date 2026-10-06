@@ -37,7 +37,7 @@ export function ParentalControlsSection() {
   const { data: controls, isLoading, isError, refetch } = useParentalControls();
   const account = useSyncExternalStore(reportAccountSubscribe, reportAccountSnapshot, reportAccountSnapshot);
   const [unlockProof, setUnlockProof] = useState<ParentalUnlockProof | null>(null);
-  const { data: safety } = useSafetySettings();
+  const { data: safety, isError: safetyError, isLoading: safetyLoading, refetch: refetchSafety } = useSafetySettings();
   const setupMutation = useSetupParentalControls();
   const updateMutation = useUpdateParentalControls(unlockProof, () => setUnlockProof(null));
   const updateSafetyMutation = useUpdateSafetySettings();
@@ -65,20 +65,28 @@ export function ParentalControlsSection() {
   const quietHoursEnabled = safety?.quiet_hours_enabled ?? true;
   const takeBreakReminder = safety?.take_a_break_reminder ?? true;
 
+  const isCurrentAccount = () => {
+    const current = reportAccountSnapshot();
+    return !!account.uid && current.uid === account.uid && current.epoch === account.epoch;
+  };
+
   const applyChildSafeDefaults = () => {
+    if (!isCurrentAccount()) return;
     updateSafetyMutation.mutate(CHILD_SAFE_DEFAULTS, {
       onSuccess: () => {
+        if (!isCurrentAccount()) return;
         toast.success('Child-safe protections applied');
         haptics.success();
       },
       onError: () => {
+        if (!isCurrentAccount()) return;
         toast.error('Could not apply all safety protections');
         haptics.error();
       },
     });
   };
 
-  if (isLoading) {
+  if (isLoading || safetyLoading) {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="liquid-glass-card p-6">
         <p className="text-sm text-muted-foreground">Loading parental controls...</p>
@@ -86,10 +94,10 @@ export function ParentalControlsSection() {
     );
   }
 
-  if (isError) {
+  if (isError || safetyError) {
     return <div className="liquid-glass-card p-6">
       <p className="mb-3 text-sm text-muted-foreground">Your parental controls could not be loaded. Try again before making changes.</p>
-      <Button variant="outline" onClick={() => void refetch()}>Try again</Button>
+      <Button variant="outline" onClick={() => { void refetch(); void refetchSafety(); }}>Try again</Button>
     </div>;
   }
 
@@ -167,8 +175,9 @@ export function ParentalControlsSection() {
               <Switch
                 checked={isActive}
                 onCheckedChange={(val) => {
-                  updateMutation.mutate({ is_active: val });
-                  if (val) applyChildSafeDefaults();
+                  updateMutation.mutate({ is_active: val }, {
+                    onSuccess: () => { if (val && isCurrentAccount()) applyChildSafeDefaults(); },
+                  });
                   haptics.tap();
                 }}
               />
@@ -215,8 +224,11 @@ export function ParentalControlsSection() {
                   variant={filterLevel === level ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => {
-                    updateMutation.mutate({ content_filter_level: level });
-                    updateSafetyMutation.mutate({ content_filter_level: level as 'protected' | 'moderate' });
+                    updateMutation.mutate({ content_filter_level: level }, {
+                      onSuccess: () => {
+                        if (isCurrentAccount()) updateSafetyMutation.mutate({ content_filter_level: level as 'protected' | 'moderate' });
+                      },
+                    });
                     haptics.tap();
                   }}
                   className="capitalize"
