@@ -1,0 +1,70 @@
+{
+  "sourceCommit": "3f6aca2d",
+  "target": "readSocialFeed",
+  "project": "vybe-daaab",
+  "deploySucceeded": true,
+  "original": {
+    "target": "projects/vybe-daaab/locations/us-central1/functions/readSocialFeed",
+    "state": "ACTIVE",
+    "updated": "2026-10-06T00:10:04.267861034Z",
+    "runtime": "nodejs20",
+    "entryPoint": "readSocialFeed",
+    "build": "projects/728651793473/locations/us-central1/builds/95a79596-155e-4068-8d6f-eb0cd9492542",
+    "source": {
+      "bucket": "gcf-v2-sources-728651793473-us-central1",
+      "object": "readSocialFeed/function-source.zip",
+      "generation": "1791245377355582"
+    },
+    "sourceBytes": 1324318,
+    "sourceSha256": "cf5932d12d04be9a163e1d0f8afa3b361501afc77c51f81b4eca1ef1e41c5144",
+    "readOnly": true
+  },
+  "published": {
+    "target": "projects/vybe-daaab/locations/us-central1/functions/readSocialFeed",
+    "state": "ACTIVE",
+    "updated": "2026-10-06T18:14:45.273875981Z",
+    "runtime": "nodejs20",
+    "entryPoint": "readSocialFeed",
+    "build": "projects/728651793473/locations/us-central1/builds/f38f5119-d330-4417-adce-3a5204b113a2",
+    "source": {
+      "bucket": "gcf-v2-sources-728651793473-us-central1",
+      "object": "readSocialFeed/function-source.zip",
+      "generation": "1791310385279039"
+    },
+    "sourceBytes": 1324781,
+    "sourceSha256": "04ad6aa9f02222075a962e99932e42baedbdafdfff603cd950605fa44436c553",
+    "readOnly": true
+  },
+  "stage": {
+    "originalSourceSha256": "cf5932d12d04be9a163e1d0f8afa3b361501afc77c51f81b4eca1ef1e41c5144",
+    "originalFiles": 483,
+    "changedFiles": [
+      "lib/_shared/socialFeedAuthority.js",
+      "lib/_shared/socialFeedAuthority.js.map",
+      "src/_shared/socialFeedAuthority.ts"
+    ],
+    "changedSha256": {
+      "lib/_shared/socialFeedAuthority.js": "1858977e8f6cd8989084aa8aecda846151253f7b8af03c80e39e42973b7453c8",
+      "lib/_shared/socialFeedAuthority.js.map": "4a7c2ff9c97d6d7e1bf2c38b081bfb5bb0f58368c1e2e68c7328e0a9aa676a85",
+      "src/_shared/socialFeedAuthority.ts": "9a15d69f2602ee365eb5553042e80baddc3198f85efec63a28144498b69d30d0"
+    },
+    "target": "readSocialFeed",
+    "otherOriginalFilesIdentical": true,
+    "dependenciesUnchanged": true
+  },
+  "actualUploadedFilesMatchStage": true,
+  "onlyIntendedThreeFilesChanged": true,
+  "backendChecks": 27,
+  "clientTestsPassed": 4798,
+  "clientTestsSkipped": 6,
+  "liveSignedInHome": {
+    "postCards": 2,
+    "articleImagesLoaded": 4,
+    "refreshError": false,
+    "recentConsoleErrors": 0
+  },
+  "physicalPhoneVerified": false,
+  "instantLoadingClaim": false,
+  "dependenciesChanged": false,
+  "otherServicesDeployed": false
+}
