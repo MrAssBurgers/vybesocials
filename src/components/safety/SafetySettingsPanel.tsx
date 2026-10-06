@@ -1,4 +1,4 @@
-import { memo, useState, useEffect } from 'react';
+import { memo, useState, useEffect, useRef, useSyncExternalStore, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Shield, 
@@ -34,47 +34,83 @@ import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
 import { triggerHaptic } from '@/lib/haptics';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { reportAccountSnapshot, reportAccountSubscribe } from '@/lib/reportModerationService';
 
 export const SafetySettingsPanel = memo(function SafetySettingsPanel() {
-  const { profile } = useAuth();
-  const { data: settings, isLoading } = useSafetySettings();
+  const { user, profile } = useAuth();
+  const account = useSyncExternalStore(reportAccountSubscribe, reportAccountSnapshot, reportAccountSnapshot);
+  const ready = !!user?.id && !!profile?.id && profile.user_id === user.id && account.uid === user.id;
+  const baseScope = JSON.stringify([user?.id, profile?.id, account.epoch]);
+  const profileGeneration = useRef({ base: baseScope, value: 0 });
+  if (profileGeneration.current.base !== baseScope) profileGeneration.current = { base: baseScope, value: profileGeneration.current.value + 1 };
+  const scope = JSON.stringify([baseScope, profileGeneration.current.value]);
+  const scopeRef = useRef(scope); scopeRef.current = scope;
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const { data: settings, isLoading, isError, refetch } = useSafetySettings();
   const updateSettings = useUpdateSafetySettings();
-  const [newKeyword, setNewKeyword] = useState('');
-  const [canUseMinimal, setCanUseMinimal] = useState(false);
+  const [keywordDraft, setKeywordDraft] = useState({ scope, text: '' });
+  const newKeyword = keywordDraft.scope === scope ? keywordDraft.text : '';
+  const [ageAccess, setAgeAccess] = useState<{ scope: string; allowed: boolean } | null>(null);
+  const canUseMinimal = ageAccess?.scope === scope && ageAccess.allowed;
+  const saving = useRef<string | null>(null);
+  const [savingScope, setSavingScope] = useState<string | null>(null);
+  const isSaving = savingScope === scope;
+  const isCurrent = useCallback(() => {
+    const current = reportAccountSnapshot();
+    return mounted.current && ready && scopeRef.current === scope && current.uid === user?.id && current.epoch === account.epoch;
+  }, [ready, scope, user?.id, account.epoch]);
 
   useEffect(() => {
-    if (!profile?.id) return;
-    db.rpc('get_own_sensitive_profile').single().then(({ data }) => {
-      if (data?.date_of_birth) {
-        setCanUseMinimal(canAccessMinimalFiltering(data.date_of_birth));
-      }
+    let active = true;
+    if (!ready || !profile?.id) return;
+    db.rpc('get_own_sensitive_profile').single().then(({ data, error }) => {
+      if (!active || !isCurrent()) return;
+      setAgeAccess({ scope, allowed: !error && data?.user_id === profile.id && typeof data.date_of_birth === 'string'
+        && canAccessMinimalFiltering(data.date_of_birth) });
+    }).catch(() => {
+      if (active && isCurrent()) setAgeAccess({ scope, allowed: false });
     });
-  }, [profile?.id]);
+    return () => { active = false; };
+    // Scope captures both profile and Auth account generation, not just UID.
+  }, [scope, ready, profile?.id, isCurrent]);
 
   const handleUpdate = async (updates: Parameters<typeof updateSettings.mutateAsync>[0]) => {
+    if (!isCurrent() || isError || !settings || saving.current === scope) return false;
+    saving.current = scope; setSavingScope(scope);
     triggerHaptic('light');
     try {
       await updateSettings.mutateAsync(updates);
+      if (!isCurrent()) return false;
       toast.success('Settings updated');
-    } catch (error) {
-      toast.error('Failed to update settings');
+      return true;
+    } catch {
+      if (isCurrent()) toast.error('Failed to update settings. Try again.');
+      return false;
+    } finally {
+      if (saving.current === scope) saving.current = null;
+      if (mounted.current) setSavingScope(value => value === scope ? null : value);
     }
   };
 
-  const addKeyword = () => {
+  const addKeyword = async () => {
     if (!newKeyword.trim() || !settings) return;
-    
-    const keywords = [...(settings.muted_keywords || []), newKeyword.trim().toLowerCase()];
-    handleUpdate({ muted_keywords: keywords });
-    setNewKeyword('');
+    const word = newKeyword.trim().toLowerCase();
+    const keywords = [...new Set([...(settings.muted_keywords || []), word])];
+    const saved = await handleUpdate({ muted_keywords: keywords });
+    if (saved && isCurrent()) setKeywordDraft(draft => draft.scope === scope && draft.text === newKeyword ? { scope, text: '' } : draft);
   };
 
   const removeKeyword = (keyword: string) => {
     if (!settings) return;
-    const keywords = (settings.muted_keywords || []).filter(k => k !== keyword);
-    handleUpdate({ muted_keywords: keywords });
+    void handleUpdate({ muted_keywords: (settings.muted_keywords || []).filter(k => k !== keyword) });
   };
+
+  if (!ready) return <p className="text-sm text-muted-foreground">Sign in to manage your safety settings.</p>;
+  if (isError) return <Card><CardContent className="space-y-3 pt-6">
+    <p role="alert" className="text-sm text-muted-foreground">Your safety settings could not be loaded. Try again before making changes.</p>
+    <Button variant="outline" onClick={() => void refetch()}>Try again</Button>
+  </CardContent></Card>;
 
   if (isLoading) {
     return (
@@ -87,7 +123,7 @@ export const SafetySettingsPanel = memo(function SafetySettingsPanel() {
   }
 
   return (
-    <div className="space-y-6">
+    <fieldset disabled={isSaving} aria-busy={isSaving} className="min-w-0 space-y-6">
       {/* Content Filtering */}
       <Card>
         <CardHeader>
@@ -268,10 +304,10 @@ export const SafetySettingsPanel = memo(function SafetySettingsPanel() {
             <Input
               placeholder="Add a keyword..."
               value={newKeyword}
-              onChange={(e) => setNewKeyword(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && addKeyword()}
+              onChange={(e) => setKeywordDraft({ scope, text: e.target.value })}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void addKeyword(); } }}
             />
-            <Button variant="outline" size="icon" onClick={addKeyword}>
+            <Button variant="outline" size="icon" aria-label="Add keyword" onClick={() => void addKeyword()}>
               <Plus className="h-4 w-4" />
             </Button>
           </div>
@@ -286,7 +322,7 @@ export const SafetySettingsPanel = memo(function SafetySettingsPanel() {
                 >
                   {keyword}
                   <button
-                    onClick={() => removeKeyword(keyword)}
+                    aria-label={`Remove ${keyword}`} onClick={() => removeKeyword(keyword)}
                     className="ml-1 hover:bg-background/50 rounded p-0.5"
                   >
                     <X className="h-3 w-3" />
@@ -387,6 +423,6 @@ export const SafetySettingsPanel = memo(function SafetySettingsPanel() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </fieldset>
   );
 });
