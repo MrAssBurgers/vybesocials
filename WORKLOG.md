@@ -1,3 +1,12 @@
+## ACTIVE (2026-10-06) — Location action endpoint parity
+
+- Previous turn made authoritative progress publishing exact-source profile recovery; source53524142 clean at start. User readiness/mobile map/clips/loading/restoration scope unchanged. Metadata confirms four older location action exports last July13 while checked manage endpoint was restored Oct6; timestamp alone does not prove their previous implementation or explain failed map reads.
+- Built unchanged current Functions.20 existing backend groups/189 raw Rules assertions pass on isolated demo-vybe-contacts-qa8387 against active8c Rules. New isolated actual-handler fixture passes four wrappers: guest/legacy denial, checked request, directional acceptance, pause, stale revision and stop. Random synthetic QA actors only, no production location/GPS/share/data mutation. Latest app4510tests/build/types/lint remain green from prior source; runtime web unchanged.
+- Prepared exact four-callable compatibility update using existing source only. No shared Rules/Storage/Auth/index/TTL/secrets/other Functions/client publication. Schedule/heatmap parity and current mounted/physical-phone map/clip/session/research gates remain separate open tasks.
+
+Next3tasks: deploy/verify four exact action exports and unchanged Rules/Storage; complete map read/browser/phone diagnosis; continue retained Firebase content/media and security review.
+
+---
 ## ACTIVE (2026-10-06) — Profile recovery after transient bootstrap failure
 
 - Source9aadfffa6792f28421fc35f79aaed97c96eb82ce publication e0be45e0-17d5-4e3c-b18f-3149631eeefb completed: actual hosting UI website updated. Both vybehub.app and vybesocials.lovable.app match every v2 source field,2537 inputs, fingerprint e8e68ff346ef786d6bf602ad0b742638d905b10d0cfb39a398fb4ff1a3f53d9c, entryDohoRlVT/SHA b961c2c... . Source gate now genuinely passes. Corrected newline normalization remains content-sensitive. Initial second-origin probe used an incorrect domain and404; corrected to configured vybesocials.lovable.app and both pass. Evidence work/source-newlines-{expected,verified-origins}.json.
@@ -9650,5 +9659,6 @@ All eight migration phases complete. See `.lovable/plan.md` for per-phase detail
 - Live signed-in Clips read succeeds: one active Firebase Storage video readyState4/pausedfalse/errornull while two others paused. Desktop observation only, no physical phone/FPS/codec proof. Direct map navigation in older CGCcULTp client triggers real retained-account profile timeout; read retry started. No sign-out/account storage/cache/worker/GPS permission/share mutation. Browser adoption remains unresolved.
 
 Next3tasks: publish/verify corrected source schema against full input map; diagnose mounted old-client/profile timeout and physical phone location/clips; continue Firebase retained content/media and separate security review.
+
 
 
