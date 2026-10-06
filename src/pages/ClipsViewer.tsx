@@ -241,13 +241,15 @@ function ClipsViewerContent() {
               "relative h-full w-full",
               "sm:max-w-[480px] md:max-w-[420px] lg:max-w-[400px]"
             )}>
-              <CardComponent
+              {/* Keep snap destinations stable while retiring distant cards and
+                  their video, image and interaction resources on mobile. */}
+              {Math.abs(index - currentIndex) <= 2 && <CardComponent
                 post={clip}
                 isActive={index === currentIndex}
                 globalMuted={globalMuted}
                 onToggleMute={handleToggleMute}
                 {...(isMobileOrTablet ? { immersiveFlow: true as const } : {})}
-              />
+              />}
             </div>
           </div>
         ))}
