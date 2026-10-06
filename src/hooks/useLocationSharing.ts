@@ -47,14 +47,21 @@ export function useLocationSharing(targetId?: string, enabled = true) {
     const resume = () => { nativePaused.current = false; change(); };
     window.addEventListener('app-paused', pause);
     window.addEventListener('app-resumed', resume);
+    const tokenReady = () => {
+      if (!query.isError || !actor.ready || !enabled || nativePaused.current || document.visibilityState === 'hidden' || navigator.onLine === false) return;
+      try { actor.guard(); } catch { return; }
+      change();
+    };
+    window.addEventListener('vybe-auth-token-ready', tokenReady);
     return () => {
       document.removeEventListener('visibilitychange', change);
       window.removeEventListener('online', change);
       window.removeEventListener('app-paused', pause);
       window.removeEventListener('app-resumed', resume);
+      window.removeEventListener('vybe-auth-token-ready', tokenReady);
     };
   // This listener may only change the captured actor/target query.
-  }, [client, scope]);
+  }, [client, scope, query.isError, actor.ready, enabled]);
   const serverNow = query.data ? query.data.serverTime + Date.now() - query.data.receivedAt : Date.now();
   const deadlines = query.data ? [query.data.validUntil, ...query.data.locations.map(row => query.data!.receivedAt + Date.parse(row.expiresAt) - query.data!.serverTime), ...query.data.shares.filter(row => row.active).map(row => query.data!.receivedAt + Date.parse(row.expiresAt) - query.data!.serverTime), ...query.data.requests.filter(row => row.status === 'pending').map(row => query.data!.receivedAt + Date.parse(row.expiresAt) - query.data!.serverTime)] : [];
   const expiry = Math.min(...deadlines.filter(at => at > Date.now()));

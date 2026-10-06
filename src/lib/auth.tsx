@@ -23,7 +23,6 @@ import {
   normalizeUsername,
   stashSignupUsername,
 } from '@/lib/username';
-import { checkUsernameAvailable } from '@/lib/usernameAvailability';
 import { startHeartbeat, stopHeartbeat } from '@/lib/analytics';
 import { removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
 import { pickActiveBan } from '@/lib/banUtils';
@@ -1114,6 +1113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const normalizedEmail = normalizeLoginEmail(email);
       const cleanUsername = normalizeUsername(username);
       if (!cleanUsername || cleanUsername.length < 3) throw new Error('Username must be at least 3 characters.');
+      const { checkUsernameAvailable } = await import('@/lib/usernameAvailability');
       const availability = await checkUsernameAvailable(cleanUsername);
       attempt.guard();
       if (availability.error) throw new Error(availability.error);

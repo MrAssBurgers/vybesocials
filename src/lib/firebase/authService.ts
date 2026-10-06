@@ -454,6 +454,10 @@ export const firebaseAuth = {
         try { guard(); } catch { return; }
         if (!enriched.access_token) return;
         emit('TOKEN_REFRESHED', enriched);
+        // Retry failed foreground reads after token transport recovers, even
+        // when the device never went offline. No token leaves this service.
+        try { guard(); } catch { return; }
+        window.dispatchEvent(new Event('vybe-auth-token-ready'));
       });
       });
     };

@@ -115,12 +115,14 @@ export function useResolvedMediaUrl(publicUrl: string | null | undefined, enable
 
   useEffect(() => {
     if (!enabled || !normalizedUrl || url) return;
-    const resume = () => { if (document.visibilityState !== 'hidden' && navigator.onLine !== false) retry(); };
-    window.addEventListener('online', resume);
-    window.addEventListener('app-resumed', resume);
+    const resume = (event: Event) => {
+      if ((event.type !== 'vybe-auth-token-ready' || current?.error) && document.visibilityState !== 'hidden' && navigator.onLine !== false) retry();
+    };
+    const events = ['online', 'app-resumed', 'vybe-auth-token-ready'];
+    events.forEach(event => window.addEventListener(event, resume));
     document.addEventListener('visibilitychange', resume);
-    return () => { window.removeEventListener('online', resume); window.removeEventListener('app-resumed', resume); document.removeEventListener('visibilitychange', resume); };
-  }, [enabled, normalizedUrl, url, retry]);
+    return () => { events.forEach(event => window.removeEventListener(event, resume)); document.removeEventListener('visibilitychange', resume); };
+  }, [enabled, normalizedUrl, url, retry, current?.error]);
   
   return { url, error: enabled && !url && (!!publicUrl && !normalizedUrl || !!current?.error), retry };
 }

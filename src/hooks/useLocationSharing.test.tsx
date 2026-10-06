@@ -24,6 +24,38 @@ beforeEach(() => {
 afterEach(() => { cleanup(); stopNativeEvents(); client.clear(); vi.useRealTimers(); });
 async function advance(ms: number) { await act(async () => { await vi.advanceTimersByTimeAsync(ms); }); }
 describe('location sharing refresh continuity', () => {
+  it('retries a failed read immediately after token recovery without waiting for polling', async () => {
+    state.request.mockRejectedValueOnce(new Error('Fetching auth token failed'));
+    const hook = renderHook(() => useLocationSharing(), { wrapper }); await advance(1);
+    expect(hook.result.current.isError).toBe(true);
+    act(() => window.dispatchEvent(new Event('vybe-auth-token-ready'))); await advance(1);
+    expect(state.request).toHaveBeenCalledTimes(2);
+    expect(hook.result.current.data).toBeUndefined();
+    await advance(2_010); expect(hook.result.current.data?.locations[0].id).toBe('bob');
+  });
+  it('does not interrupt a healthy map lease or pending read on token recovery', async () => {
+    const hook = renderHook(() => useLocationSharing(), { wrapper }); await advance(1);
+    act(() => window.dispatchEvent(new Event('vybe-auth-token-ready'))); await advance(1);
+    expect(state.request).toHaveBeenCalledOnce();
+    await advance(2_010); expect(hook.result.current.data).toBeDefined();
+    act(() => window.dispatchEvent(new Event('vybe-auth-token-ready'))); await advance(1);
+    expect(state.request).toHaveBeenCalledOnce(); expect(hook.result.current.data).toBeDefined();
+  });
+  it.each(['hidden', 'offline', 'paused', 'changed-account', 'unmounted'])('does not retry a failed map read on token recovery while %s', async kind => {
+    state.request.mockRejectedValue(new Error('Fetching auth token failed'));
+    const hook = renderHook(() => useLocationSharing(), { wrapper }); await advance(1);
+    expect(hook.result.current.isError).toBe(true);
+    if (kind === 'hidden') Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    const online = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(kind !== 'offline');
+    if (kind === 'paused') { act(() => window.dispatchEvent(new Event('app-paused'))); await advance(1); }
+    if (kind === 'changed-account') { state.uid = 'bob'; state.epoch++; }
+    if (kind === 'unmounted') hook.unmount();
+    const before = state.request.mock.calls.length;
+    try {
+      act(() => window.dispatchEvent(new Event('vybe-auth-token-ready'))); await advance(1);
+      expect(state.request).toHaveBeenCalledTimes(before);
+    } finally { online.mockRestore(); }
+  });
   it.each(['online', 'app-resumed'])('rechecks a failed read immediately on %s instead of waiting for polling', async event => {
     state.request.mockRejectedValueOnce(new Error('Network unavailable'));
     const hook = renderHook(() => useLocationSharing(), { wrapper }); await advance(1);

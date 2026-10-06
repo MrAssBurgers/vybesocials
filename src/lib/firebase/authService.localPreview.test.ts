@@ -35,16 +35,21 @@ beforeEach(() => {
 describe('isolated preview authentication persistence', () => {
   it('emits a recovered same-account token without repeating sign-in after a network failure', async () => {
     const { firebaseAuth } = await import('./authService');
+    const ready = vi.fn(); window.addEventListener('vybe-auth-token-ready', ready);
     const callback = vi.fn(); const subscription = firebaseAuth.onAuthStateChange(callback);
     await Promise.resolve(); await Promise.resolve();
     const alice = user(); alice.getIdToken.mockRejectedValueOnce(Object.assign(new Error('Network unavailable'), { code: 'auth/network-request-failed' }));
     mock.auth.currentUser = alice; mock.authObserver?.(alice); mock.tokens.forEach(notify => notify(alice));
     await vi.waitFor(() => expect(callback).toHaveBeenCalledWith('INITIAL_SESSION', expect.objectContaining({ user: expect.objectContaining({ id: alice.uid }) })));
     await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(ready).not.toHaveBeenCalled();
     callback.mockClear(); alice.getIdToken.mockResolvedValue('recovered-token');
     mock.tokens.forEach(notify => notify(alice));
     await vi.waitFor(() => expect(callback).toHaveBeenCalledWith('TOKEN_REFRESHED', expect.objectContaining({ access_token: 'recovered-token' })));
     expect(callback).not.toHaveBeenCalledWith('SIGNED_IN', expect.anything());
+    expect(ready).toHaveBeenCalledOnce();
+    expect(ready.mock.calls[0][0]).not.toHaveProperty('detail');
+    window.removeEventListener('vybe-auth-token-ready', ready);
     subscription.data.subscription.unsubscribe();
   });
   it('does not emit an old token after A to B to A, even with the same SDK user object', async () => {
@@ -60,12 +65,14 @@ describe('isolated preview authentication persistence', () => {
   });
   it('unsubscription retires deferred token enrichment', async () => {
     const { firebaseAuth } = await import('./authService');
+    const ready = vi.fn(); window.addEventListener('vybe-auth-token-ready', ready);
     const callback = vi.fn(); const subscription = firebaseAuth.onAuthStateChange(callback);
     await Promise.resolve(); await Promise.resolve();
     let release!: (value: string) => void; const delayed = new Promise<string>(resolve => { release = resolve; });
     const alice = user(); alice.getIdToken.mockReturnValue(delayed); mock.listener(alice);
     subscription.data.subscription.unsubscribe(); release('late-token'); await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
     expect(callback.mock.calls.filter(([event]) => event === 'TOKEN_REFRESHED')).toEqual([]);
+    expect(ready).not.toHaveBeenCalled(); window.removeEventListener('vybe-auth-token-ready', ready);
   });
   it('a localStorage write failure does not prevent the independent native credential backup', async () => {
     mock.local = false;
