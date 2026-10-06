@@ -44,6 +44,10 @@ import { logStartupPhase } from "./lib/startupTiming";
 import { stampRuntimeOsOnDocument, getRuntimeOs } from "./lib/despiaBridge";
 import { installExternalLinkGuard } from "./lib/externalLinkGuard";
 import { onPageLoaded } from "./lib/onPageLoaded";
+import { installNativeLifecycleEvents } from "./lib/nativeLifecycleEvents";
+
+// Install before native callbacks and account/playback listeners start.
+installNativeLifecycleEvents();
 
 // Mark eval BEFORE any native patches — Despia Android previously threw on
 // location.assign and never reached this flag (splash stuck forever).

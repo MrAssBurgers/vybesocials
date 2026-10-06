@@ -77,6 +77,8 @@ vi.mock('@/components/auth/MemeBanScreen', async () => { await state.banLoad; re
 import { AuthProvider, useAuth } from './auth';
 import { reportAccountSnapshot } from '@/lib/reportModerationService';
 import { tokenAccountSnapshot } from '@/lib/tokenMarketplaceService';
+import { installNativeLifecycleEvents } from './nativeLifecycleEvents';
+let stopNativeEvents: () => void;
 
 let current: ReturnType<typeof useAuth>;
 function BanProbe({ reason }: { reason?: string }) { const auth = useAuth(); return <p role="alert">{auth.user?.id}: {reason}</p>; }
@@ -106,6 +108,7 @@ async function switchAccount(uid: string, event = 'SIGNED_IN') {
 }
 
 beforeEach(() => {
+  stopNativeEvents = installNativeLifecycleEvents();
   vi.clearAllMocks(); state.ensure.mockReset(); state.recover.mockReset(); state.signup.mockReset();
   state.account = { uid: undefined, epoch: 0 }; state.listener = null; state.subscribers.clear(); state.restoreSubscribers.clear(); state.restoreState = 'ready'; state.firebaseUser = null; state.refresh.mockReset(); state.signOut.mockReset();
   state.getSession.mockImplementation(() => new Promise(() => {}));
@@ -113,7 +116,7 @@ beforeEach(() => {
   state.gate = false; state.confirmation.mockReset(); state.notify.mockReset(); state.password.mockReset(); state.confirmation.mockResolvedValue(null);
   localStorage.clear(); sessionStorage.clear();
 });
-afterEach(() => { cleanup(); vi.useRealTimers(); delete (window as any).__REACT_QUERY_CLIENT__; document.body.style.backgroundImage = ''; });
+afterEach(() => { cleanup(); stopNativeEvents(); vi.useRealTimers(); delete (window as any).__REACT_QUERY_CLIENT__; document.body.style.backgroundImage = ''; });
 
 describe('AuthProvider checked profile setup', () => {
   it('checks an existing account binding before device registration without exposing the profile', async () => {
@@ -367,12 +370,12 @@ describe('AuthProvider checked profile setup', () => {
 });
 
 describe('AuthProvider restoration and refresh ownership', () => {
-  it.each(['online', 'app-resumed'])('retries a transient profile failure on %s with an unexpired token', async event => {
+  it.each(['online', 'app-resumed', 'document-resumed'])('retries a transient profile failure on %s with an unexpired token', async event => {
     state.ensure.mockRejectedValueOnce({ code: 'functions/unavailable' }).mockResolvedValueOnce(profile('alice', 'recovered'));
     mount(); await switchAccount('alice', 'INITIAL_SESSION');
     await waitFor(() => expect(current.profileSetupError).not.toBeNull());
     state.getSession.mockResolvedValue({ data: { session: { ...session('alice'), expires_at: Math.floor(Date.now() / 1000) + 3600 } }, error: null });
-    await act(async () => { window.dispatchEvent(new Event(event)); });
+    await act(async () => { if (event === 'document-resumed') document.dispatchEvent(new CustomEvent('app-resumed')); else window.dispatchEvent(new Event(event)); });
     await waitFor(() => expect(current.profile?.username).toBe('recovered'));
     expect(state.ensure).toHaveBeenCalledTimes(2); expect(state.refresh).not.toHaveBeenCalled(); expect(state.signOut).not.toHaveBeenCalled();
   });

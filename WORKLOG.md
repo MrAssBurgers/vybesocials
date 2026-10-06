@@ -9772,6 +9772,14 @@ Published14c84c72679e9e5aa542a2b6c0d5a6e317478d63, deploymentef976fe9-395c-48ac-
 
 Next three tasks: physical phone source/native event/network/location/Clips verification; safe existing Firebase discovery/content restoration; whole-app readiness/performance. No new features.
 
+## 2026-10-06 — Document-native event delivery
+
+Previous turn made progress: tested mobile recovery client published/verified. Existing native listeners mix document and window. Demonstrated non-bubbling document pause leaves Clips active; added startup bridge forwarding only non-bubbling document pause/resume to window with preserved detail, once. Already-bubbling/window events untouched, original document consumers retained. No invented Despia callback or assumption of actual phone delivery. Current-account retry and map pause/resume integration tests use bridge; native delivery/detail/installation/cleanup tests added.
+
+Full4558pass6skip, build/native/types/lint pass (five existing warnings), bundle1102.3KB raw334.6KB gzip. Actual saved synthetic Firebase preview reload reaches 3Dmap. Logs work/document-lifecycle-{before,full,build,types,lint}; release releases/document-lifecycle-recovery-20261006/README.md. Frontend publication pending. No backend/Rules/Auth config/session purge/GPS consent changes. Physical Despia producer/adoption/network/GPS/codecs/FPS unverified. Goal active.
+
+Next three tasks: publish/verify exact source; verify physical phone runtime/location/Clips; continue safe Firebase retained-content/discovery restoration and whole-app readiness. No new features.
+
 
 
 

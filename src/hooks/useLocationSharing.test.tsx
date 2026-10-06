@@ -9,16 +9,19 @@ vi.mock('@/hooks/useProfileAccount', () => ({ useProfileAccount: () => {
 } }));
 vi.mock('@/lib/locationSharingService', () => ({ locationSharingRequest: (...args: unknown[]) => state.request(...args) }));
 import { useLocationSharing } from './useLocationSharing';
+import { installNativeLifecycleEvents } from '@/lib/nativeLifecycleEvents';
+let stopNativeEvents: () => void;
 let client: QueryClient;
 const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 const read = () => ({ serverTime: Date.now(), leaseUntil: Date.now() + 15_000, locations: [{ id: 'bob', latitude: 40, longitude: -87, expiresAt: new Date(Date.now() + 120_000).toISOString() }], shares: [], requests: [] });
 beforeEach(() => {
+  stopNativeEvents = installNativeLifecycleEvents();
   vi.clearAllMocks(); vi.useFakeTimers(); state.uid = 'alice'; state.epoch++;
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
   client = new QueryClient({ defaultOptions: { queries: { placeholderData: old => old, gcTime: 14 * 86400_000, refetchOnMount: false } } });
   state.request.mockImplementation(() => { const result = read(); return new Promise(resolve => setTimeout(() => resolve(result), 2_000)); });
 });
-afterEach(() => { cleanup(); client.clear(); vi.useRealTimers(); });
+afterEach(() => { cleanup(); stopNativeEvents(); client.clear(); vi.useRealTimers(); });
 async function advance(ms: number) { await act(async () => { await vi.advanceTimersByTimeAsync(ms); }); }
 describe('location sharing refresh continuity', () => {
   it.each(['online', 'app-resumed'])('rechecks a failed read immediately on %s instead of waiting for polling', async event => {
@@ -33,11 +36,11 @@ describe('location sharing refresh continuity', () => {
   it('retires native background grants and ignores reconnect until the app resumes', async () => {
     const hook = renderHook(() => useLocationSharing(), { wrapper }); await advance(2_010);
     expect(hook.result.current.data).toBeDefined();
-    act(() => document.dispatchEvent(new CustomEvent('app-paused', { bubbles: true }))); await advance(1);
+    act(() => document.dispatchEvent(new CustomEvent('app-paused'))); await advance(1);
     expect(hook.result.current.data).toBeUndefined();
     act(() => window.dispatchEvent(new Event('online'))); await advance(1);
     expect(state.request).toHaveBeenCalledOnce();
-    act(() => document.dispatchEvent(new CustomEvent('app-resumed', { bubbles: true }))); await advance(1);
+    act(() => document.dispatchEvent(new CustomEvent('app-resumed'))); await advance(1);
     expect(state.request).toHaveBeenCalledTimes(2); expect(hook.result.current.data).toBeUndefined();
     await advance(2_010); expect(hook.result.current.data).toBeDefined();
   });
