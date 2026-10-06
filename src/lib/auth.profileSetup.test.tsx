@@ -367,6 +367,44 @@ describe('AuthProvider checked profile setup', () => {
 });
 
 describe('AuthProvider restoration and refresh ownership', () => {
+  it.each(['functions/unavailable', 'auth/network-request-failed', 'functions/deadline-exceeded'])('retries failed initial profile setup after a current token event (%s)', async code => {
+    state.ensure.mockRejectedValueOnce({ code, message: 'Temporary connection failure' }).mockResolvedValueOnce(profile('alice', 'recovered'));
+    mount(); await switchAccount('alice', 'INITIAL_SESSION');
+    await waitFor(() => expect(current.profileSetupError).not.toBeNull());
+    await act(async () => { await state.listener?.('TOKEN_REFRESHED', session('alice')); });
+    await waitFor(() => expect(current.profile?.username).toBe('recovered'));
+    expect(state.ensure).toHaveBeenCalledTimes(2); expect(current.user?.id).toBe('alice');
+    expect(state.signOut).not.toHaveBeenCalled();
+  });
+
+  it.each(['functions/permission-denied', 'auth/profile-recovery-required'])('does not automatically retry authoritative setup rejection (%s)', async code => {
+    state.ensure.mockRejectedValue({ code, message: 'Account review required' });
+    mount(); await switchAccount('alice', 'INITIAL_SESSION');
+    await waitFor(() => expect(current.profileSetupError).not.toBeNull());
+    await act(async () => { await state.listener?.('TOKEN_REFRESHED', session('alice')); });
+    expect(state.ensure).toHaveBeenCalledOnce(); expect(current.profile).toBeNull();
+  });
+
+  it('does not let a retired profile failure retry the replacement account', async () => {
+    const late = deferred<ReturnType<typeof profile>>();
+    state.ensure.mockReturnValueOnce(late.promise).mockResolvedValueOnce(profile('bob', 'bob'));
+    mount(); await switchAccount('alice', 'INITIAL_SESSION');
+    await waitFor(() => expect(state.ensure).toHaveBeenCalledOnce());
+    await switchAccount('bob'); await waitFor(() => expect(current.profile?.username).toBe('bob'));
+    await act(async () => { late.reject({ code: 'functions/unavailable' }); });
+    await act(async () => { await state.listener?.('TOKEN_REFRESHED', session('bob')); });
+    expect(state.ensure).toHaveBeenCalledTimes(2); expect(current.profile?.username).toBe('bob');
+  });
+
+  it('keeps a confirmed profile after transient refresh failure and a token event', async () => {
+    state.ensure.mockResolvedValueOnce(profile('alice', 'confirmed')).mockRejectedValueOnce({ code: 'functions/unavailable' });
+    mount(); await switchAccount('alice', 'INITIAL_SESSION');
+    await waitFor(() => expect(current.profile?.username).toBe('confirmed'));
+    await act(async () => { await current.refreshProfile(); });
+    await act(async () => { await state.listener?.('TOKEN_REFRESHED', session('alice')); });
+    expect(state.ensure).toHaveBeenCalledTimes(2); expect(current.profile?.username).toBe('confirmed');
+  });
+
   it('retries a temporary scheduled token failure without signing out the confirmed account', async () => {
     vi.useFakeTimers(); state.ensure.mockImplementation(async uid => profile(uid, uid)); mount();
     const expires = Math.floor(Date.now() / 1000) + 301;

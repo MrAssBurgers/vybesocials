@@ -220,6 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const authInitializedRef = useRef(false);
   const explicitSignOutRef = useRef(false);
   const bootstrapUserRef = useRef<string | null>(null);
+  const bootstrapRetryRef = useRef<string | null>(null);
   const authAttempts = useRef(createAuthAttemptController(tokenAccountSnapshot, {
     begin: beginLoginApprovalCheck, end: endLoginApprovalCheck,
   })).current;
@@ -410,6 +411,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     try {
       guard();
+      bootstrapRetryRef.current = null;
       setSetupState({ uid: userId, epoch: captured.epoch, loading: true, error: null });
       const profileData = await withProfileSetupDeadline(async current => {
         const { provisionAccountProfile } = await import('@/lib/accountProfileService');
@@ -425,6 +427,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const failure = error as { code?: string; name?: string; message?: string };
       const failureCode = String(failure?.code || failure?.name || '').replace(/^(?:functions|auth)\//, '');
       const transient = ['unavailable', 'deadline-exceeded', 'network-request-failed'].includes(failureCode) || (error instanceof TypeError && /fetch|network/i.test(error.message));
+      // A failed network bootstrap must not suppress the next successful
+      // same-account token event. The attempt/lifetime guards above prevent
+      // retired work from releasing another account's bootstrap latch.
+      if (transient && !preserveConfirmedOnFailure && bootstrapUserRef.current === `${userId}:${captured.epoch}`) {
+        bootstrapUserRef.current = null;
+        bootstrapRetryRef.current = `${userId}:${captured.epoch}`;
+      }
       const preserve = transient && preserveConfirmedOnFailure && profileScopeRef.current?.uid === userId && profileScopeRef.current.epoch === captured.epoch;
       if (!preserve) { profileScopeRef.current = null; setProfile(null); }
       setSetupState({ uid: userId, epoch: captured.epoch, loading: false, error: preserve ? null : profileSetupFailure(error) });
@@ -662,6 +671,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           if (session.expires_at) {
             scheduleTokenRefresh(session.expires_at);
+          }
+          if (bootstrapRetryRef.current === `${session.user.id}:${reportAccountSnapshot().epoch}`) {
+            bootstrapSessionData(session.user.id, event, eventGuard);
           }
           return;
         }

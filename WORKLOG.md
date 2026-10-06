@@ -1,3 +1,15 @@
+## ACTIVE (2026-10-06) — Profile recovery after transient bootstrap failure
+
+- Source9aadfffa6792f28421fc35f79aaed97c96eb82ce publication e0be45e0-17d5-4e3c-b18f-3149631eeefb completed: actual hosting UI website updated. Both vybehub.app and vybesocials.lovable.app match every v2 source field,2537 inputs, fingerprint e8e68ff346ef786d6bf602ad0b742638d905b10d0cfb39a398fb4ff1a3f53d9c, entryDohoRlVT/SHA b961c2c... . Source gate now genuinely passes. Corrected newline normalization remains content-sensitive. Initial second-origin probe used an incorrect domain and404; corrected to configured vybesocials.lovable.app and both pass. Evidence work/source-newlines-{expected,verified-origins}.json.
+- Actual retained-account map navigation first times out loading profile, then manual read retry recovers profile and Mapbox. Friend-location read still fails after retry. Desktop live Clips one active Firebase video plays ready4/errornull, other two paused. Old mounted CGCcULTp remains; no physical phone proof/no credential/cache/worker/permission/GPS/share mutation. Map social service metadata independently ACTIVE, not proof location service success.
+- Three new provider regressions fail before: initial unavailable/network/deadline profile failure never reboots on successful TOKEN_REFRESHED. Fixed by releasing only current same-account failed bootstrap and checking a scoped retry marker in the token event handler, which previously returned before bootstrap. Queued current-account guards/lifetime/attempt retirement retained. Ordinary successful profiles do not rebootstrap, confirmed transient refresh keeps profile, authoritative permission/recovery failures do not automatically retry. No fabricated profile or Auth/provider/backend/Rules configuration change.
+- Seven added provider cases pass, including retired-account rejection and confirmed-profile retention. Full474files4510pass6skip, app/native build and unchanged budget1100.0KBraw334.0KBgzip pass, types and lint5existingwarnings pass. Logs work/profile-resume-{before,focused,full,build,types,lint}. First focused after releasing latch stayed red until token-handler early return was corrected; no partial fix claimed. Exact new runtime publication pending.
+- Previous SQL security findings and40 dependency issues remain separate open review; overall launch readiness remains active.
+
+Next3tasks: publish and verify this exact profile-recovery client; diagnose older mounted browser and real mobile location/clip/network recovery; continue retained Firebase content/media and security review.
+
+---
+
 ## ACTIVE (2026-10-06) — Locate hosted input drift
 
 - Previous turn published source identification and exposed a verified hosted/archive mismatch, not a completed source proof. Started clean main51dec0c7. Added four component hashes/counts and individual admitted root-config hashes to the existing version diagnostics, without changing overall schema/coverage/hash framing or excluding any previously covered input. No runtime feature/backend/Auth/Rules/data change.
@@ -9637,3 +9649,4 @@ All eight migration phases complete. See `.lovable/plan.md` for per-phase detail
 - Live signed-in Clips read succeeds: one active Firebase Storage video readyState4/pausedfalse/errornull while two others paused. Desktop observation only, no physical phone/FPS/codec proof. Direct map navigation in older CGCcULTp client triggers real retained-account profile timeout; read retry started. No sign-out/account storage/cache/worker/GPS permission/share mutation. Browser adoption remains unresolved.
 
 Next3tasks: publish/verify corrected source schema against full input map; diagnose mounted old-client/profile timeout and physical phone location/clips; continue Firebase retained content/media and separate security review.
+
