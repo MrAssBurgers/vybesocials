@@ -1,18 +1,8 @@
-/**
- * useAheadMediaPreload
- *
- * Aggressively preloads media (images + video first-frame) for the next N
- * posts ahead of the currently-viewed post. Unlike the scroll-pausing
- * preloader, this fires IMMEDIATELY on index change because the user is
- * scrolling toward those posts — we need them ready, not deferred.
- *
- * - Pre-signs URLs via signedUrlCache (instant if cached)
- * - Decodes images via new Image() so the browser caches the decoded bitmap
- * - For videos: forces first-frame decode so the poster appears instantly
- * - Hard cap on concurrent loads to avoid hammering the network
- * - Ref-based dedupe — never re-fetches the same URL in this session
+/** Warm upcoming media within a bounded, cancelable window. The visible
+ * video owns its own fetch; failed/canceled warming may be retried later.
  */
 import { useEffect, useRef } from 'react';
+import { preloadDetachedVideo } from '@/lib/detachedVideoPreload';
 import { batchSignUrls, getCachedSignedUrl, needsSigning } from '@/lib/signedUrlCache';
 import { normalizeMediaUrl, shouldPreloadMediaUrl } from '@/lib/mediaUrl';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
@@ -27,7 +17,7 @@ interface PostLike {
 }
 
 const MAX_CONCURRENT = isNativePerfMode() ? 3 : 6;
-const preloaded = new Set<string>();
+const preloaded = new Map<string, { completed: boolean }>();
 let inFlight = 0;
 const queue: Array<() => void> = [];
 
@@ -47,8 +37,11 @@ function pump() {
   }
 }
 
-function schedule(task: (done: () => void) => void) {
+function schedule(task: (done: () => void) => void, signal?: AbortSignal) {
+  const cancelQueued = () => { const index = queue.indexOf(run); if (index >= 0) queue.splice(index, 1); };
   const run = () => {
+    signal?.removeEventListener('abort', cancelQueued);
+    if (signal?.aborted) return;
     inFlight++;
     let finished = false;
     const done = () => {
@@ -57,70 +50,66 @@ function schedule(task: (done: () => void) => void) {
       inFlight--;
       pump();
     };
-    try {
-      task(done);
-    } catch {
-      done();
+    try { task(done); } catch { done(); }
+  };
+  if (signal?.aborted) return;
+  if (inFlight < MAX_CONCURRENT) run();
+  else { queue.push(run); signal?.addEventListener('abort', cancelQueued, { once: true }); }
+}
+
+function reserve(url: string, signal?: AbortSignal) {
+  if (signal?.aborted || !shouldPreloadMediaUrl(url) || preloaded.has(url)) return null;
+  const reservation = { completed: false };
+  preloaded.set(url, reservation);
+  const retire = () => { if (preloaded.get(url) === reservation) preloaded.delete(url); };
+  signal?.addEventListener('abort', retire, { once: true });
+  return (success: boolean) => {
+    signal?.removeEventListener('abort', retire);
+    if (!success || signal?.aborted) retire();
+    else {
+      reservation.completed = true;
+      if (preloaded.size > 256) for (const [key, value] of preloaded) {
+        if (value.completed) { preloaded.delete(key); if (preloaded.size <= 256) break; }
+      }
     }
   };
-  if (inFlight < MAX_CONCURRENT) run();
-  else queue.push(run);
 }
 
-function preloadImage(url: string) {
-  if (!shouldPreloadMediaUrl(url) || preloaded.has(url)) return;
-  preloaded.add(url);
-  schedule((done) => {
+function preloadImage(url: string, signal?: AbortSignal) {
+  const complete = reserve(url, signal);
+  if (!complete) return;
+  schedule(done => {
     const img = new Image();
+    let finished = false;
+    const finish = (success: boolean) => {
+      if (finished) return;
+      finished = true; clearTimeout(timer);
+      signal?.removeEventListener('abort', cancel);
+      img.onload = img.onerror = null;
+      if (!success) img.removeAttribute('src');
+      complete(success); done();
+    };
+    const cancel = () => finish(false);
+    signal?.addEventListener('abort', cancel, { once: true });
     img.decoding = 'async';
+    img.onload = () => finish(true);
+    img.onerror = () => finish(false);
+    const timer = setTimeout(() => finish(false), 8000);
     img.src = url;
-    const finish = () => done();
-    if (img.decode) {
-      img.decode().then(finish, finish);
-    } else {
-      img.onload = finish;
-      img.onerror = finish;
-    }
-    // Safety timeout
-    setTimeout(finish, 8000);
-  });
+    if (img.decode) img.decode().then(() => finish(true), () => finish(false));
+  }, signal);
 }
 
-function preloadVideoFirstFrame(url: string) {
-  if (!shouldPreloadMediaUrl(url) || preloaded.has(url)) return;
-  preloaded.add(url);
-  // iOS chokes on hidden <video> decoding — only preload metadata there
-  schedule((done) => {
-    const video = document.createElement('video');
-    video.preload = isIOS ? 'metadata' : 'auto';
-    video.muted = true;
-    video.playsInline = true;
-    video.setAttribute('webkit-playsinline', 'true');
-    video.crossOrigin = 'anonymous';
-    video.src = url;
-
-    const cleanup = () => {
-      try {
-        video.src = '';
-        video.load();
-      } catch {}
-      done();
-    };
-
-    if (isIOS) {
-      video.onloadedmetadata = cleanup;
-    } else {
-      video.onloadeddata = cleanup;
-      // Seek to 0.1s to force first-frame decode
-      video.onloadedmetadata = () => {
-        try {
-          video.currentTime = 0.1;
-        } catch {}
-      };
-    }
-    video.onerror = cleanup;
-    setTimeout(cleanup, 6000);
-  });
+function preloadVideoFirstFrame(url: string, signal?: AbortSignal) {
+  const complete = reserve(url, signal);
+  if (!complete) return;
+  schedule(done => {
+    void preloadDetachedVideo(url, {
+      preload: isIOS ? 'metadata' : 'auto',
+      event: isIOS ? 'loadedmetadata' : 'loadeddata',
+      timeout: 6000, signal, seekFirstFrame: !isIOS, crossOrigin: true,
+    }).then(() => complete(true), () => complete(false)).finally(done);
+  }, signal);
 }
 
 /**
@@ -147,6 +136,7 @@ export function useAheadMediaPreload(
     const end = Math.min(posts.length, currentIndex + effectiveAhead + 1);
     const window = posts.slice(start, end);
     if (window.length === 0) return;
+    const controller = new AbortController();
 
     // 1) Collect every URL we want signed
     const urlsToSign: string[] = [];
@@ -158,23 +148,24 @@ export function useAheadMediaPreload(
 
     // 2) Sign in one batch, then warm media
     const warm = () => {
-      for (const p of window) {
+      if (controller.signal.aborted) return;
+      for (const [offset, p] of window.entries()) {
         const isVideo = p.type === 'short' || p.type === 'video';
         const thumb = p.thumbnail_url ? getCachedSignedUrl(p.thumbnail_url) : null;
         const media = p.media_url ? getCachedSignedUrl(p.media_url) : null;
         const avatar = p.author?.avatar_url ? getCachedSignedUrl(p.author.avatar_url) : null;
 
         // Always warm the thumbnail (it's what users see first)
-        if (thumb && !needsSigning(thumb)) preloadImage(thumb);
+        if (thumb && !needsSigning(thumb)) preloadImage(thumb, controller.signal);
 
         if (isVideo) {
           // Warm the video's first frame so the poster appears instantly
-          if (media && !needsSigning(media)) preloadVideoFirstFrame(media);
+          if (offset > 0 && !isSlowConnection && !saveData && media && !needsSigning(media)) preloadVideoFirstFrame(media, controller.signal);
         } else if (media && !needsSigning(media) && media !== thumb) {
-          preloadImage(media);
+          preloadImage(media, controller.signal);
         }
 
-        if (avatar && !needsSigning(avatar)) preloadImage(avatar);
+        if (avatar && !needsSigning(avatar)) preloadImage(avatar, controller.signal);
       }
     };
 
@@ -183,6 +174,7 @@ export function useAheadMediaPreload(
     } else {
       warm();
     }
+    return () => { controller.abort(); lastWindowRef.current = ''; };
   }, [posts, currentIndex, ahead, enabled, isOnline, isSlowConnection, saveData]);
 }
 

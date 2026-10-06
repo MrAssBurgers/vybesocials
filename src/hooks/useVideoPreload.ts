@@ -1,10 +1,11 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
+import { preloadDetachedVideo, cancelDetachedVideoPreloads } from '@/lib/detachedVideoPreload';
 import { shouldPreloadMediaUrl, normalizeMediaUrl } from '@/lib/mediaUrl';
 
 // Global cache for preloaded media
 const preloadCache = new Set<string>();
-const preloadingInProgress = new Set<string>();
-const createdElements: HTMLVideoElement[] = [];
+const preloadingInProgress = new Map<string, symbol>();
+let cacheGeneration = 0;
 
 // Limit concurrent preloads to prevent iOS freezing
 const MAX_CONCURRENT_PRELOADS = 3;
@@ -59,35 +60,40 @@ export function useVideoPreload(
     // Limit concurrent preloads
     if (preloadingInProgress.size >= MAX_CONCURRENT_PRELOADS) return;
 
-    // Only preload items around current index
-    const start = currentIndex;
+    const controller = new AbortController();
+    const owner = Symbol('preload-window');
+    const generation = cacheGeneration;
+    const scheduled: Array<() => void> = [];
+    const release = (url: string) => { if (preloadingInProgress.get(url) === owner) preloadingInProgress.delete(url); };
+    const start = Math.max(0, currentIndex);
     const end = Math.min(currentIndex + preloadDepth, videoUrls.length);
-
     for (let i = start; i < end; i++) {
       const url = normalizeMediaUrl(videoUrls[i]);
       if (!url || !shouldPreloadMediaUrl(url) || preloadCache.has(url) || preloadingInProgress.has(url)) continue;
       if (preloadingInProgress.size >= MAX_CONCURRENT_PRELOADS) break;
-
-      preloadingInProgress.add(url);
-
-      // Use requestIdleCallback for non-blocking preload
+      preloadingInProgress.set(url, owner);
       const preloadFn = () => {
-        preloadVideoMetadata(url)
-          .then(() => {
+        if (controller.signal.aborted || generation !== cacheGeneration) { release(url); return; }
+        void preloadVideoMetadata(url, controller.signal).then(() => {
+          if (!controller.signal.aborted && generation === cacheGeneration) {
             preloadCache.add(url);
-            preloadingInProgress.delete(url);
-          })
-          .catch(() => {
-            preloadingInProgress.delete(url);
-          });
+            if (preloadCache.size > 256) preloadCache.delete(preloadCache.values().next().value!);
+          }
+        }).catch(() => {}).finally(() => release(url));
       };
-
       if (typeof window.requestIdleCallback === 'function') {
-        window.requestIdleCallback(preloadFn, { timeout: 3000 });
+        const id = window.requestIdleCallback(preloadFn, { timeout: 3000 });
+        scheduled.push(() => window.cancelIdleCallback?.(id));
       } else {
-        window.setTimeout(preloadFn, 50 * (i - currentIndex));
+        const id = window.setTimeout(preloadFn, 50 * (i - currentIndex));
+        scheduled.push(() => window.clearTimeout(id));
       }
     }
+    return () => {
+      controller.abort();
+      scheduled.forEach(cancel => cancel());
+      for (const [url, reservation] of preloadingInProgress) if (reservation === owner) preloadingInProgress.delete(url);
+    };
   }, [videoUrls, currentIndex, preloadDepth, enabled]);
 
   return { preloadedCount: preloadCache.size };
@@ -96,85 +102,15 @@ export function useVideoPreload(
 /**
  * Preload video metadata only (fast, low bandwidth)
  */
-export function preloadVideoMetadata(url: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    // Skip on iOS to prevent memory issues
-    if (isIOSDevice()) {
-      resolve();
-      return;
-    }
-    
-    const video = document.createElement('video');
-    video.preload = 'metadata';
-    video.muted = true;
-    video.playsInline = true;
-    video.src = url;
-    
-    // Track element for cleanup
-    createdElements.push(video);
-    
-    const cleanup = () => {
-      video.src = '';
-      video.load(); // Force release of resources
-      const idx = createdElements.indexOf(video);
-      if (idx > -1) createdElements.splice(idx, 1);
-    };
-    
-    video.onloadedmetadata = () => {
-      cleanup();
-      resolve();
-    };
-    video.onerror = () => {
-      cleanup();
-      reject();
-    };
-    // Timeout fallback
-    setTimeout(() => {
-      cleanup();
-      resolve();
-    }, 3000);
-  });
+export function preloadVideoMetadata(url: string, signal?: AbortSignal): Promise<void> {
+  if (isIOSDevice()) return Promise.resolve();
+  return preloadDetachedVideo(url, { preload: 'metadata', event: 'loadedmetadata', timeout: 3000, signal });
 }
 
-/**
- * Preload full video - DISABLED on iOS to prevent freezing
- */
-export function preloadVideo(url: string): Promise<void> {
-  // Skip entirely on iOS - causes freezing
-  if (isIOSDevice()) {
-    return Promise.resolve();
-  }
-  
-  return new Promise((resolve, reject) => {
-    const video = document.createElement('video');
-    video.preload = 'auto';
-    video.muted = true;
-    video.playsInline = true;
-    video.src = url;
-    
-    createdElements.push(video);
-    
-    const cleanup = () => {
-      video.src = '';
-      video.load();
-      const idx = createdElements.indexOf(video);
-      if (idx > -1) createdElements.splice(idx, 1);
-    };
-    
-    video.oncanplaythrough = () => {
-      cleanup();
-      resolve();
-    };
-    video.onerror = () => {
-      cleanup();
-      reject();
-    };
-    // Shorter timeout
-    setTimeout(() => {
-      cleanup();
-      resolve();
-    }, 5000);
-  });
+/** Full-video warming remains disabled on iOS to preserve its existing limit. */
+export function preloadVideo(url: string, signal?: AbortSignal): Promise<void> {
+  if (isIOSDevice()) return Promise.resolve();
+  return preloadDetachedVideo(url, { preload: 'auto', event: 'canplaythrough', timeout: 5000, signal });
 }
 
 /**
@@ -196,10 +132,6 @@ export function clearPreloadCache() {
   preloadCache.clear();
   preloadingInProgress.clear();
   
-  // Clean up any lingering video elements
-  createdElements.forEach(video => {
-    video.src = '';
-    video.load();
-  });
-  createdElements.length = 0;
+  cacheGeneration++;
+  cancelDetachedVideoPreloads();
 }

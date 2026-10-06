@@ -9,9 +9,7 @@ import { ClipSkeleton } from '@/components/clips/ClipSkeleton';
 import { ClipsFeedHeader } from '@/components/clips/ClipsFeedHeader';
 import { useInView } from 'react-intersection-observer';
 import { useNavigate } from 'react-router-dom';
-import { useVideoPreload } from '@/hooks/useVideoPreload';
 import { useAheadMediaPreload } from '@/hooks/useAheadMediaPreload';
-import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { useVideoAds } from '@/hooks/useVideoAds';
@@ -62,7 +60,6 @@ export default function ClipsPage() {
 
   const { isMobileOrTablet } = useIsMobileOrTablet();
   const nativePerf = isNativePerfMode();
-  const { isSlowConnection } = useNetworkStatus();
   const [showSwipeHint, setShowSwipeHint] = useState(() => {
     try {
       return !localStorage.getItem(CLIPS_HINT_KEY);
@@ -111,13 +108,7 @@ export default function ClipsPage() {
     containerRef.current?.scrollTo({ top: 0, behavior: 'auto' });
   }, [feedTab]);
 
-  const videoUrls = useMemo(() => (isShortsMode ? shorts.map((s) => s.media_url) : []), [shorts, isShortsMode]);
-  useVideoPreload(videoUrls, {
-    currentIndex,
-    preloadDepth: isSlowConnection ? 2 : 5,
-    enabled: isShortsMode && !isSlowConnection,
-  });
-
+  // A single ahead loader owns hidden decoding; the visible card owns playback.
   useAheadMediaPreload(shorts as any, currentIndex, 3, isShortsMode);
 
   const { ref: loadMoreRef, inView } = useInView({
