@@ -1,0 +1,63 @@
+{
+  "testedMain": "4b53f4550efa4c8d104b8036ed8719d3f450ae2b",
+  "deploymentId": "062b9dbe-c79f-42e9-9df0-567423e4d2ee",
+  "source": [
+    {
+      "host": "https://vybehub.app",
+      "resolvedOrigin": "https://vybehub.app",
+      "redirected": false,
+      "routes": [
+        "/",
+        "/home",
+        "/map",
+        "/clips",
+        "/onboarding",
+        "/spaces",
+        "/space/qa-route-check"
+      ],
+      "sourceSha": "26266c240446f64ff68e92927a480afe861bb4af5aac1a3a9a1e8f337ae35df4",
+      "schema": "vybe-client-source-v2",
+      "files": 2579,
+      "built": "2026-10-06T14:38:25.712Z",
+      "entry": "/assets/app-BobHpUje.js",
+      "entrySha": "0f8ced919c984367d0d4f4f3f0cbef78d36ded0d9ec9da46355eb189cd67cda0"
+    },
+    {
+      "host": "https://vybesocials.lovable.app",
+      "resolvedOrigin": "https://vybehub.app",
+      "redirected": true,
+      "routes": [
+        "/",
+        "/home",
+        "/map",
+        "/clips",
+        "/onboarding",
+        "/spaces",
+        "/space/qa-route-check"
+      ],
+      "sourceSha": "26266c240446f64ff68e92927a480afe861bb4af5aac1a3a9a1e8f337ae35df4",
+      "schema": "vybe-client-source-v2",
+      "files": 2579,
+      "built": "2026-10-06T14:38:25.712Z",
+      "entry": "/assets/app-BobHpUje.js",
+      "entrySha": "0f8ced919c984367d0d4f4f3f0cbef78d36ded0d9ec9da46355eb189cd67cda0"
+    }
+  ],
+  "tests": {
+    "focusedPassed": 20,
+    "fullRunBeforeFinalTwoTestOnlyCases": true,
+    "fullPassed": 4756,
+    "skipped": 6
+  },
+  "initialBundle": {
+    "gzipKb": 333.2,
+    "rawKb": 1098.2
+  },
+  "publisherObserved": "Your website was updated",
+  "proof": "outputs/vybe-clips-comments-published.png",
+  "limits": [
+    "Rendered lifecycle uses simulated media, not physical phone decoding or FPS proof",
+    "Retained/native current version adoption and mobile sharing remain unverified",
+    "Firebase auth network report and legitimate historical content restoration remain open"
+  ]
+}
