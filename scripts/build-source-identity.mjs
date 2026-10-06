@@ -35,6 +35,7 @@ export function clientSourceIdentity(root) {
   const hash = createHash('sha256').update(`${SOURCE_SCHEMA}\n`);
   const parts = new Map();
   const config = {};
+  const publicFiles = {};
   for (const name of files.sort()) {
     let bytes = readFileSync(join(root, name));
     // Git checkouts and source archives can use different newline conventions.
@@ -46,8 +47,9 @@ export function clientSourceIdentity(root) {
     if (!parts.has(group)) parts.set(group, { hash: createHash('sha256').update(`${SOURCE_SCHEMA}\n`), files: 0 });
     const part = parts.get(group); part.hash.update(prefix).update(bytes); part.files++;
     if (group === 'config') config[name] = createHash('sha256').update(bytes).digest('hex');
+    if (group === 'public') publicFiles[name.slice('public/'.length)] = createHash('sha256').update(bytes).digest('hex');
   }
   return { source_schema: SOURCE_SCHEMA, source_sha256: hash.digest('hex'), source_files: files.length,
     source_parts: Object.fromEntries([...parts].map(([name, part]) => [name, { sha256: part.hash.digest('hex'), files: part.files }])),
-    source_config: config };
+    source_config: config, source_public: publicFiles };
 }

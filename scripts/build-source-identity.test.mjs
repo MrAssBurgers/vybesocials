@@ -74,4 +74,9 @@ test('diagnostics identify the changed input without weakening the overall finge
   assert.notEqual(after.source_config['vite.config.ts'], before.source_config['vite.config.ts']);
   assert.equal(after.source_config['package.json'], before.source_config['package.json']);
   assert.equal(Object.values(after.source_parts).reduce((total, part) => total + part.files, 0), after.source_files);
+  writeFileSync(join(root, 'public/worker.js'), 'self.addEventListener("fetch",()=>{});');
+  const worker = clientSourceIdentity(root);
+  assert.match(worker.source_public['worker.js'], /^[a-f0-9]{64}$/);
+  assert.equal(worker.source_public['.env'], undefined);
+  assert.equal(worker.source_public['version.json'], undefined);
 });
