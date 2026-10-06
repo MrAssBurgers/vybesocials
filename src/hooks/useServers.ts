@@ -1,3 +1,4 @@
+import { communityReadPhaseCurrent, useCommunityReadPhase } from './useCommunityReadPhase';
 import { useCommunityQuery } from './useCommunityQuery';
 import { useCommunityRequest } from '@/hooks/useCommunityRequest';
 import { useCommunityMutation } from '@/hooks/useCommunityMutation';
@@ -150,7 +151,8 @@ export function useChannels(serverId: string | undefined) {
 export function useChannelMessages(channelId: string | undefined) {
   const { uid: accountId, session, ready } = useCommunitySession();
   const queryClient = useQueryClient();
-  const scope = `${session.epoch}:${accountId}:${channelId}`;
+  const phase = useCommunityReadPhase();
+  const scope = `${session.epoch}:${accountId}:${channelId}:${phase.generation}`;
   const [listenerError, setListenerError] = useState<{ scope: string; error: Error; at: number } | null>(null);
 
   const query = useCommunityQuery({
@@ -164,17 +166,17 @@ export function useChannelMessages(channelId: string | undefined) {
   });
 
   useEffect(() => {
-    if (!channelId || !ready) return;
+    if (!channelId || !ready || !phase.foreground) return;
     let active = true;
-    const current = () => active && isCommunitySessionCurrent(session);
-    const invalidate = () => { if (current()) void queryClient.invalidateQueries({ queryKey: ['channel-messages', channelId, accountId, session.uid, session.epoch], exact: true }); };
+    const current = () => active && communityReadPhaseCurrent(phase) && isCommunitySessionCurrent(session);
+    const invalidate = () => { if (current()) void queryClient.invalidateQueries({ queryKey: ['channel-messages', channelId, accountId, session.uid, session.epoch, phase.generation], exact: true }); };
     const stop = watchCommunityChannel(channelId, invalidate, error => {
       if (!current()) return;
       setListenerError({ scope, error, at: Date.now() });
       invalidate();
     });
     return () => { active = false; stop(); };
-  }, [channelId, queryClient, session, accountId, ready, scope]);
+  }, [channelId, queryClient, session, accountId, ready, scope, phase]);
 
   const denied = listenerError?.scope === scope && query.dataUpdatedAt <= listenerError.at;
   return { ...query, data: denied ? undefined : query.data, error: denied ? listenerError.error : query.error, isError: denied || query.isError };

@@ -35,7 +35,9 @@ beforeEach(() => {
     guard(); const result = await state.result; guard(); if (result.error) throw result.error; return result.data;
   });
 });
-afterEach(cleanup);
+function pauseRead(kind: 'native' | 'hidden') { if (kind === 'native') window.dispatchEvent(new Event('app-paused')); else { Object.defineProperty(document,'visibilityState',{configurable:true,value:'hidden'}); document.dispatchEvent(new Event('visibilitychange')); } }
+function resumeRead() { Object.defineProperty(document,'visibilityState',{configurable:true,value:'visible'}); document.dispatchEvent(new Event('visibilitychange')); window.dispatchEvent(new Event('app-resumed')); }
+afterEach(() => { act(resumeRead); cleanup(); });
 describe('private community history lifecycle', () => {
   it('removes already-loaded message and media data after a denied refetch', async () => {
     const { wrapper } = fixture(); const { result } = renderHook(() => ({ ...useChannelMessages('private') }), { wrapper });
@@ -82,5 +84,28 @@ describe('private community history lifecycle', () => {
     await act(async () => { await result.current.leave.mutateAsync('server'); });
     expect(communityAccountSnapshot().epoch).not.toBe(old.epoch);
     expect(state.stop).toHaveBeenCalled(); expect(result.current.messages.data).toBeUndefined();
+  });
+
+  it.each(['native','hidden'] as const)('stops hub listeners and manual reads during %s pause', async kind => {
+    const { wrapper } = fixture(); const { result } = renderHook(() => useChannelMessages('private'), { wrapper });
+    await waitFor(() => expect(result.current.data?.[0].content).toBe('Private message'));
+    const reads = state.load.mock.calls.length;
+    act(() => pauseRead(kind));
+    expect(result.current.data).toBeUndefined(); expect(state.stop).toHaveBeenCalledOnce();
+    await act(async () => { await result.current.refetch(); });
+    expect(state.load).toHaveBeenCalledTimes(reads);
+    state.result = Promise.resolve({data:[{...secret,content:'Freshly checked message'}],error:null});
+    act(() => resumeRead());
+    await waitFor(() => expect(result.current.data?.[0].content).toBe('Freshly checked message'));
+  });
+  it.each(['native','hidden'] as const)('rejects a late pre-%s read and requires a fresh foreground result', async kind => {
+    let resolve!: (value: typeof state.result extends Promise<infer T> ? T : never) => void;
+    state.result = new Promise(done => { resolve = done; });
+    const { wrapper } = fixture(); const { result } = renderHook(() => useChannelMessages('private'), { wrapper });
+    await waitFor(() => expect(state.load).toHaveBeenCalled());
+    await act(async () => { pauseRead(kind); resolve({data:[secret],error:null}); });
+    expect(result.current.data).toBeUndefined();
+    denied(); act(() => resumeRead());
+    await waitFor(() => expect(result.current.isError).toBe(true)); expect(result.current.data).toBeUndefined();
   });
 });
