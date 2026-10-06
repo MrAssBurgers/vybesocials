@@ -5,7 +5,10 @@
 - Five meaningful Node groups pass including actual archive version writer. Full474 files/4503 tests pass6 skip; app/native build/budget1099.8KBraw333.9KBgzip and lint5existingwarnings pass. Final writer regeneration verifies extensionless-text normalization correction; runtime source untouched. Logs work/source-identity-{tests,full,build-final,lint}.log. Tested fingerprint6f43216ffc2fe8d56da85ffceaa9c8f924324a062b7e600fd2ff9834db735116/2537files. Actual committed archive and exact publication checks pending.
 - Scope and limits in releases/source-identity-recovery-20261006/README.md. No new user feature, Firebase/Auth/Rules/index/TTL/secret/data change or account/cache/worker/GPS/permission purge. Entire readiness goal remains active.
 
-Next3tasks: verify committed non-Git archive and publish matching fingerprint; diagnose browser adoption and verify actual phone Firebase map/clip/session recovery; restore remaining guarded content/media/DM/hubs/provider paths.
+- Source1522c35d pushed; targeted admitted-input Git archive extracts and actual non-Git writer exactly matches6f43216f.../2537, unknown commit preserved. Whole-repository trial failed on unrelated Windows-unsupported lovable-cloud-export; do not claim full extraction success. Successful work/source-identity-client-archive-1522c35d demonstrates all admitted input coverage and normalization.
+- Exact source confirmed ready before publish27e26112-813b-4f5d-85b8-e2b082522d7e. Actual hosting dialog reports website updated. Both domains now publish schema/count2537 but sourceSHA8d27cc3f2d94d4cd0859c05f09f08299947741d6945b5e51080e107ff49b9b3d mismatches expected6f43216f... . Strict verifier remains FAILED; no successful proof file. EntryDohoRlVT/SHA b961c2c... still matches manifest and hasauth/GPS markers; newmetadata built05:31:39Z. Exact Git-snapshot read_file checks helper/bun.lock/package-lock match checkout, not post-install/build tree. Cause not inferred; do not exclude inputs to force green. Evidence work/source-identity-public-observation.json. No new runtime/Firebase/account/cache/worker/GPS/permission mutation.
+
+Next3tasks: locate hosted build input drift and obtain matching source proof; diagnose browser adoption and verify phone Firebase map/clip/session recovery; restore remaining guarded content/media/DM/hubs/provider paths.
 
 ---
 
