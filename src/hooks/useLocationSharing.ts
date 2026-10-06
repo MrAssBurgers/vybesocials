@@ -39,7 +39,13 @@ export function useLocationSharing(targetId?: string, enabled = true) {
       setVisibility(value => ({ visible, revision: value.revision + 1 }));
     };
     document.addEventListener('visibilitychange', change);
-    return () => document.removeEventListener('visibilitychange', change);
+    // Reconnect checks current permissions instead of retaining a failed read
+    // until the polling interval or painting a cached grant while retrying.
+    window.addEventListener('online', change);
+    return () => {
+      document.removeEventListener('visibilitychange', change);
+      window.removeEventListener('online', change);
+    };
   // This listener may only change the captured actor/target query.
   }, [client, scope]);
   const serverNow = query.data ? query.data.serverTime + Date.now() - query.data.receivedAt : Date.now();

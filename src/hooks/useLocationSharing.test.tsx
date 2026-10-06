@@ -21,6 +21,22 @@ beforeEach(() => {
 afterEach(() => { cleanup(); client.clear(); vi.useRealTimers(); });
 async function advance(ms: number) { await act(async () => { await vi.advanceTimersByTimeAsync(ms); }); }
 describe('location sharing refresh continuity', () => {
+  it('rechecks a failed read immediately on reconnect instead of waiting for polling', async () => {
+    state.request.mockRejectedValueOnce(new Error('Network unavailable'));
+    const hook = renderHook(() => useLocationSharing(), { wrapper }); await advance(1);
+    expect(hook.result.current.isError).toBe(true);
+    act(() => window.dispatchEvent(new Event('online'))); await advance(1);
+    expect(state.request).toHaveBeenCalledTimes(2);
+    expect(hook.result.current.data).toBeUndefined();
+    await advance(2_010); expect(hook.result.current.data?.locations[0].id).toBe('bob');
+  });
+  it('discards the old grant while a reconnect checks for revoked access', async () => {
+    const hook = renderHook(() => useLocationSharing(), { wrapper }); await advance(2_010);
+    expect(hook.result.current.data).toBeDefined();
+    state.request.mockRejectedValue(new Error('Access revoked'));
+    act(() => window.dispatchEvent(new Event('online'))); await advance(1);
+    expect(hook.result.current.data).toBeUndefined(); expect(hook.result.current.isError).toBe(true);
+  });
   it('keeps admitted friends through normal delayed refreshes without extending an expired lease', async () => {
     let admitted = false; const gaps: number[] = [];
     const hook = renderHook(() => { const query = useLocationSharing(); if (query.data) admitted = true; else if (admitted) gaps.push(Date.now()); return query; }, { wrapper });

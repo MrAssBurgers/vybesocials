@@ -1,0 +1,11 @@
+# Mobile buffering and reconnect recovery — October 6, 2026
+
+Existing foreground Clips now recover a transport that stalls without a MediaError: after twelve seconds of inadequate buffered data, retry once; another twelve-second stall presents the existing Retry clip action. Online/foreground network-error recovery remains immediate. Codec failures do not trigger automatic reload loops. Paused, hidden, departed, offline and retired-account cards do not reload. Only the active card installs event listeners and a bounded timer; no feed-wide playback polling is added.
+
+Map location reads discard their old query and immediately check current server permissions on an online event. They never paint an earlier grant while the new read is pending. Existing explicit GPS permission, Ghost Mode and approved recipient controls remain authoritative.
+
+Validation: 4530 tests passed, six skipped; typecheck and lint passed (five existing lint warnings); build/native entry validation and bundle budget passed, 1100.4 KB raw / 334.1 KB gzip. The first full run found a foreground network-error recovery regression; it was repaired and the full suite rerun. Local real Firebase SDK callable transport passed in demo-vybe-preview, 126 ms, zero shares/requests/locations. A synthetic clip played at 390 × 844 browser dimensions with readyState 4, paused false and no media error. This is not physical-phone codec/GPS/connection certification.
+
+Production Rules baselines independently retained: Firestore 8c9ac23dca7994c7093d1168998366588b0ca2e39ab753f9facd3e9581ef069b; Storage a6aa1032b05815594041d457e4064f72cc6596f9850d527efb84fbec43e3e3d8. No backend, rules, Auth configuration, location consent or production data mutation is part of this client release.
+
+Open incident: retained production browser still mounts app-CGCcULTp.js; location retry entered a loading state but later returned to failure, so sustained recovery is not established. The reported auth/network-request-failed identifies a token network failure, not evidence of a deleted account. Current server/SDK session recovery already retains the signed-in user through transient transport failures. Physical-device source adoption and networking remain to verify after publication.

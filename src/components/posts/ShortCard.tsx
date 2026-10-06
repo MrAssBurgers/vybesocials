@@ -140,6 +140,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const pageVisible = useClipPageVisible();
   const resetPlaybackError = useCallback(() => { setHasError(false); setIsLoading(true); }, []);
   const recovery = useClipNetworkRecovery(videoRef, isActive && pageVisible && !effectiveIsHolding, signedMediaUrl, postActions.contextKey, userPausedRef, resetPlaybackError);
+  const playbackFailed = hasError || recovery.stalled;
   const playbackContext = useMemo(() => ({ active: isActive && pageVisible && !effectiveIsHolding }), [isActive, pageVisible, signedMediaUrl, effectiveIsHolding, globalMuted, postActions.contextKey]);
   useEffect(() => {
     playbackContext.active = isActive && pageVisible && !effectiveIsHolding;
@@ -424,15 +425,15 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         onMouseLeave={handleTouchEnd}
       >
         {/* Loading skeleton */}
-        {hasRenderableMedia && isLoading && !hasError && (
+        {hasRenderableMedia && isLoading && !playbackFailed && (
           <MediaSkeleton className="absolute inset-0" />
         )}
 
         {/* Error / blocked media fallback */}
-        {(hasError || !hasRenderableMedia) && (
+        {(playbackFailed || !hasRenderableMedia) && (
           <MediaFallback type={isVideo ? 'video' : 'image'} caption={post.caption} className="absolute inset-0" />
         )}
-        {hasError && isVideo && isActive && <button className="absolute bottom-20 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/60 px-5 py-3 text-sm font-semibold text-white" onClick={e => { e.stopPropagation(); recovery.retry(); }}>Retry clip</button>}
+        {playbackFailed && isVideo && isActive && <button className="absolute bottom-20 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/60 px-5 py-3 text-sm font-semibold text-white" onClick={e => { e.stopPropagation(); recovery.retry(); }}>Retry clip</button>}
 
         {hasRenderableMedia && isVideo ? (
           <video
@@ -466,7 +467,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         ) : null}
 
         <AnimatePresence>
-          {isVideo && pausedByTap && !isPlaying && !isLoading && !hasError && !effectiveIsHolding && (
+          {isVideo && pausedByTap && !isPlaying && !isLoading && !playbackFailed && !effectiveIsHolding && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

@@ -9698,6 +9698,16 @@ All eight migration phases complete. See `.lovable/plan.md` for per-phase detail
 
 Next3tasks: publish/verify corrected source schema against full input map; diagnose mounted old-client/profile timeout and physical phone location/clips; continue Firebase retained content/media and separate security review.
 
+## 2026-10-06 — Mobile silent buffering and map reconnect
+
+Latest user priority: mobile location sharing fails, Clips fail or feel slow, Firestore reports auth/network-request-failed on onboarding. No new features. Added bounded recovery for silent clip buffering (one retry at twelve seconds, then an actionable Retry clip after another twelve seconds); preserved immediate foreground network-error recovery and manual codec retry. Paused/hidden/offline/departed/retired-account clips remain untouched. Map reconnect retires the old read and immediately checks current permissions without displaying an old grant.
+
+Verification: focused real card/hook lifecycle tests pass; final full suite4530pass6skip. Initial full run caught a foreground-return regression in this change, fixed before final rerun. Build/native validation/bundle budget1100.4KB raw334.1KB gzip passed; typecheck and lint passed (five existing warnings). Actual local Firebase Auth+callable SDK location read126ms, zero shares/locations/requests. Synthetic Clips play at390x844 with readyState4, pausedfalse, errornull. Screenshot outputs/vybe-mobile-clips-buffering-qa.png in task root inspected. Preview returned to/map; no phone GPS or real sharing consent changed.
+
+Production baseline validator confirms Firestore8c9ac23d and Storagea6aa1032 unchanged. Retained signed-in production browser still mounts oldCGCc entry. Its retry briefly entered loading then failed again; sustained map recovery not claimed. Phone OS question optional/pending. Physical phone networking/GPS/codecs/source adoption remain open. Release details: releases/mobile-buffering-recovery-20261006/README.md. Client publication pending exact GitSync source verification; no backend deployment.
+
+Next three tasks: publish and verify this matched client; verify physical phone current source/network/location and Clips; continue existing Firebase content/discovery restoration with privacy-safe checked services.
+
 
 
 

@@ -126,6 +126,7 @@ export const MobileShortCard = memo(function MobileShortCard({
   const isVideo = isVideoPostMedia(post);
   const resetPlaybackError = useCallback(() => { setHasError(false); setIsLoading(true); }, []);
   const recovery = useClipNetworkRecovery(videoRef, isActive && pageVisible && !isHolding && isVideo, signedMediaUrl, postActions.contextKey, userPausedRef, resetPlaybackError);
+  const playbackFailed = hasError || recovery.stalled;
   const playbackContext = useMemo(() => ({ active: isActive && pageVisible && !isHolding }), [isActive, pageVisible, signedMediaUrl, isHolding, globalMuted, postActions.contextKey]);
   useEffect(() => {
     playbackContext.active = isActive && pageVisible && !isHolding;
@@ -375,14 +376,14 @@ export const MobileShortCard = memo(function MobileShortCard({
         onMouseLeave={handleTouchEnd}
       >
         {/* Loading indicator */}
-        {isLoading && !hasError && (
+        {isLoading && !playbackFailed && (
           <div className="absolute inset-0 flex items-center justify-center bg-muted/20">
             <div className="w-10 h-10 border-3 border-white/30 border-t-white rounded-full animate-spin" />
           </div>
         )}
 
         {/* Error fallback */}
-        {hasError && (
+        {playbackFailed && (
           <div className="absolute inset-0 flex items-center justify-center bg-muted/50">
             {isVideo ? <button className="rounded-full bg-black/60 px-5 py-3 text-sm font-semibold text-white" onClick={e => { e.stopPropagation(); recovery.retry(); }}>Retry clip</button> : <span className="text-4xl">🖼️</span>}
           </div>
@@ -419,7 +420,7 @@ export const MobileShortCard = memo(function MobileShortCard({
           />
         ) : null}
 
-        {isVideo && pausedByTap && !isPlaying && !isLoading && !hasError && !isHolding && (
+        {isVideo && pausedByTap && !isPlaying && !isLoading && !playbackFailed && !isHolding && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-black/45">
               <Play className="h-8 w-8 text-white ml-0.5" fill="white" />
