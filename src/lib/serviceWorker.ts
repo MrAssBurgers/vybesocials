@@ -1,5 +1,6 @@
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { signalAppUpdate, APP_UPDATE_RELOAD_DELAY_MS, hasActiveAppDraft } from '@/lib/appUpdateBridge';
+import { isAppForeground, subscribeForegroundReadPhase } from '@/lib/foregroundReadPhase';
 
 export function isPreviewServiceWorkerDisabled() {
   if (typeof window === 'undefined') return false;
@@ -116,15 +117,20 @@ async function refreshCachedAppShellOnce(): Promise<void> {
  * AppUpdateOverlay listens for `vybe-app-update` / controllerchange and covers
  * the transition visually.
  */
-function wireUpdateFlow(registration: ServiceWorkerRegistration) {
+export function wireUpdateFlow(registration: ServiceWorkerRegistration) {
   if (updateFlowWired) return;
   updateFlowWired = true;
 
   const RELOAD_ONCE_KEY = 'vybe-sw-reload-once';
+  let pendingControllerChange = false;
+  let promotedWorker: ServiceWorker | null = null;
 
   const promoteWaitingWorker = (worker: ServiceWorker | null) => {
-    if (!worker || hasActiveAppDraft()) return;
-    worker.postMessage({ type: 'SKIP_WAITING' });
+    if (!worker || worker === promotedWorker || !isAppForeground() || hasActiveAppDraft()) return;
+    try {
+      worker.postMessage({ type: 'SKIP_WAITING' });
+      promotedWorker = worker;
+    } catch { /* A retired worker cannot prevent a later update. */ }
   };
 
   // A worker may already be waiting from a previous visit.
@@ -143,8 +149,8 @@ function wireUpdateFlow(registration: ServiceWorkerRegistration) {
 
   // Distinguish "update replaced the controller" from the very first claim.
   const hadController = Boolean(navigator.serviceWorker.controller);
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (reloadingForUpdate || !hadController || hasActiveAppDraft()) return;
+  const applyPendingController = () => {
+    if (!pendingControllerChange || reloadingForUpdate || !hadController || !isAppForeground() || hasActiveAppDraft()) return;
     // Prevent A→B→A restart loops when another SW (e.g. messaging) also claims.
     try {
       if (sessionStorage.getItem(RELOAD_ONCE_KEY) === '1') return;
@@ -152,12 +158,26 @@ function wireUpdateFlow(registration: ServiceWorkerRegistration) {
     reloadingForUpdate = true;
     // Recheck edits after the delay; only signal the overlay when navigation proceeds.
     setTimeout(() => {
-      if (hasActiveAppDraft()) { reloadingForUpdate = false; return; }
+      if (!isAppForeground() || hasActiveAppDraft()) { reloadingForUpdate = false; return; }
       try { sessionStorage.setItem(RELOAD_ONCE_KEY, '1'); } catch { reloadingForUpdate = false; return; }
       signalAppUpdate();
       window.location.replace(`/?_vybe=${Date.now()}`);
     }, APP_UPDATE_RELOAD_DELAY_MS);
+  };
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    pendingControllerChange = true;
+    applyPendingController();
   });
+
+  // Closing an editor does not emit another controllerchange. Keep the deferred
+  // update eligible, and recheck it after a phone/tab returns to the foreground.
+  const continueDeferredUpdate = () => {
+    if (!isAppForeground()) return;
+    promoteWaitingWorker(registration.waiting);
+    applyPendingController();
+  };
+  subscribeForegroundReadPhase(continueDeferredUpdate);
+  setInterval(continueDeferredUpdate, 15_000);
 
   // After a successful controlled reload, clear the once-guard so future deploys can update.
   try {
