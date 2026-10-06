@@ -9720,6 +9720,10 @@ Checks:37focusedpass; full4532pass6skip; build/native/budget1100.5KB raw334.1KB 
 
 Next three tasks: publish and verify this tested client; continue genuine mobile source/network/location/Clips verification; restore existing Firebase discovery/content with checked privacy and truthful UI errors.
 
+Publication completed for b9d63e49, deploymentb67fed36-bdca-4c6e-bf96-242bce211190; actual publisher website-updated dialog. Public schema v2 source7df702ada4f7d03eee1dddd4d1feed1fe2b36ebbd55d822676748e13e8310a06/2542inputs, built07:40:20.952Z, entryapp-D2ZI0QJG.js SHA682cf70c2347c00ab42856616dbad7f8a1743e67de0543e9d70cefb3d6d3de64; metadata/bytes/five-route HTML verification passed. Secondary address redirects canonical. Screenshot outputs/vybe-completed-login-update-published.png; work/completed-login-public-check.log. Fresh Chrome guest visit and reload still mountedold5pentry, proving completed-login draft defect is not the sole explanation of the browser incident. Direct Node default/browser-like UA root reads both returncurrentD2ZI and no-cache,must-revalidate,max-age=0/noVary (work/current-public-entry-headers.log). Underlying browser/worker/edge/proxy cause unproven. No account/session purge, worker manipulation, real credentials, GPS consent or broad release. Preview/live user-facing tabs retained; isolated synthetic login tab closed. Goal remains active.
+
+Next three tasks: investigate browser/phone adoption with concrete network evidence; restore missing safe Firebase discovery and retained content; complete real phone location/Clips/performance verification. No new feature work.
+
 
 
 
