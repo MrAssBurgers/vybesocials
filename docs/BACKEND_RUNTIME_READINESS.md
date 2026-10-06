@@ -1,6 +1,6 @@
 # Backend runtime readiness
 
-The complete read-only production inventory on 2026-10-06 at 19:36:17 UTC contained 233 functions, all ACTIVE on `nodejs20`. All pages were read. This proves the runtime inventory at that checkpoint; it does not prove every function works or that its dependencies are patched.
+The latest complete read-only production inventory on 2026-10-06 at 20:09:30 UTC contained 233 ACTIVE functions: `ensureAccountProfile`, `readSocialFeed` and `manageLocationSharing` on `nodejs22`, and the remaining 230 on `nodejs20`. All pages were read. The earlier 19:36:17 inventory had all 233 on Node 20. See [the core migration receipt](../releases/node22-core-20261006/verification.json). The repository's default Functions engine remains Node 20 pending the remaining migration; do not use the unreleased root tree for a broad deployment. Inventory does not prove every function works or that its dependencies are patched.
 
 Google's [runtime support schedule](https://docs.cloud.google.com/functions/docs/runtime-support) lists Node 20 decommission on 2026-10-30. Node 22 is supported, with decommission scheduled for 2027-10-31. Migrating deployed functions to a supported runtime is an outstanding user-readiness requirement. No runtime migration is claimed by the location dependency release.
 

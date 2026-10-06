@@ -1,0 +1,181 @@
+{
+  "release": "Core backend Node22 migration",
+  "candidates": [
+    {
+      "name": "ensureAccountProfile",
+      "beforeSourceSha256": "6a59b87aab3e9877ce729f18c11a921d9094a2895ea33e2e18b04492b6fba71b",
+      "candidateSourceSha256": "e516f177327811abe09f304aba5c23e2cef24022ed86b99c23932e7904f0bc71",
+      "files": 483,
+      "changedFiles": [
+        "package-lock.json",
+        "package.json"
+      ],
+      "onlySemanticChange": "top-level Node engine 20 to 22; all dependency versions and handlers retained",
+      "unchangedFiles": 481
+    },
+    {
+      "name": "readSocialFeed",
+      "beforeSourceSha256": "04ad6aa9f02222075a962e99932e42baedbdafdfff603cd950605fa44436c553",
+      "candidateSourceSha256": "3299694e53dd5e4cca3faf1a66856f725beaf7ba3cc44bd5f51c4d7ee641d012",
+      "files": 483,
+      "changedFiles": [
+        "package-lock.json",
+        "package.json"
+      ],
+      "onlySemanticChange": "top-level Node engine 20 to 22; all dependency versions and handlers retained",
+      "unchangedFiles": 481
+    },
+    {
+      "name": "manageLocationSharing",
+      "beforeSourceSha256": "613868922fccbf8e37a8b1f5cae5aa585748979d029fa7c291f6b3cc7aba4a29",
+      "candidateSourceSha256": "4aef40a720a6e5a6c9ae9c3306700b69f6feb04aeb3b28c0741dfd7f749d466b",
+      "files": 483,
+      "changedFiles": [
+        "package-lock.json",
+        "package.json"
+      ],
+      "onlySemanticChange": "top-level Node engine 20 to 22; all dependency versions and handlers retained",
+      "unchangedFiles": 481
+    }
+  ],
+  "live": [
+    {
+      "target": "ensureAccountProfile",
+      "state": "ACTIVE",
+      "runtime": "nodejs22",
+      "entryPoint": "ensureAccountProfile",
+      "updated": "2026-10-06T20:06:15.293462438Z",
+      "revision": "ensureaccountprofile-00003-peb",
+      "sourceSha": "e516f177327811abe09f304aba5c23e2cef24022ed86b99c23932e7904f0bc71",
+      "sourceBytes": 1148538,
+      "oldServiceHash": "86bbb872093f5d8aaefca1c6a8868d24bb1fa2212a367dd39efcc3633dfbbfae",
+      "newServiceHash": "86bbb872093f5d8aaefca1c6a8868d24bb1fa2212a367dd39efcc3633dfbbfae",
+      "serviceSettingsUnchangedExceptRevision": true,
+      "eventTriggerUnchanged": true,
+      "buildEnvironmentUnchanged": true,
+      "publicBoundary": {
+        "httpStatus": 401,
+        "callableStatus": "UNAUTHENTICATED",
+        "authenticated": false,
+        "emptyPayload": true
+      }
+    },
+    {
+      "target": "readSocialFeed",
+      "state": "ACTIVE",
+      "runtime": "nodejs22",
+      "entryPoint": "readSocialFeed",
+      "updated": "2026-10-06T20:06:14.762124294Z",
+      "revision": "readsocialfeed-00003-dav",
+      "sourceSha": "3299694e53dd5e4cca3faf1a66856f725beaf7ba3cc44bd5f51c4d7ee641d012",
+      "sourceBytes": 1148819,
+      "oldServiceHash": "163c80bb494374c60d5c316b5593f6b55e9990156cea124dcc625aa82c595189",
+      "newServiceHash": "163c80bb494374c60d5c316b5593f6b55e9990156cea124dcc625aa82c595189",
+      "serviceSettingsUnchangedExceptRevision": true,
+      "eventTriggerUnchanged": true,
+      "buildEnvironmentUnchanged": true,
+      "publicBoundary": {
+        "httpStatus": 401,
+        "callableStatus": "UNAUTHENTICATED",
+        "authenticated": false,
+        "emptyPayload": true
+      }
+    },
+    {
+      "target": "manageLocationSharing",
+      "state": "ACTIVE",
+      "runtime": "nodejs22",
+      "entryPoint": "manageLocationSharing",
+      "updated": "2026-10-06T20:06:21.895361874Z",
+      "revision": "managelocationsharing-00006-weg",
+      "sourceSha": "4aef40a720a6e5a6c9ae9c3306700b69f6feb04aeb3b28c0741dfd7f749d466b",
+      "sourceBytes": 1149630,
+      "oldServiceHash": "4253d14993760b1c79ff3544dbeab396da00e7db2131c647d585a856fb644498",
+      "newServiceHash": "4253d14993760b1c79ff3544dbeab396da00e7db2131c647d585a856fb644498",
+      "serviceSettingsUnchangedExceptRevision": true,
+      "eventTriggerUnchanged": true,
+      "buildEnvironmentUnchanged": true,
+      "publicBoundary": {
+        "httpStatus": 401,
+        "callableStatus": "UNAUTHENTICATED",
+        "authenticated": false,
+        "emptyPayload": true
+      }
+    }
+  ],
+  "operations": [
+    {
+      "target": "ensureAccountProfile",
+      "name": "projects/vybe-daaab/locations/us-central1/operations/operation-1791317083038-65d31826a23f9-d7353ba1-2fb4ccc4",
+      "done": true,
+      "state": "ACTIVE"
+    },
+    {
+      "target": "readSocialFeed",
+      "name": "projects/vybe-daaab/locations/us-central1/operations/operation-1791317087781-65d3182b28404-6fb893f2-0bde8493",
+      "done": true,
+      "state": "ACTIVE"
+    },
+    {
+      "target": "manageLocationSharing",
+      "name": "projects/vybe-daaab/locations/us-central1/operations/operation-1791317091521-65d3182eb92d4-61d4d3be-5ce9477f",
+      "done": true,
+      "state": "ACTIVE"
+    }
+  ],
+  "checks": {
+    "groupedChecks": 67,
+    "fullProjectTestsPassed": 4844,
+    "allFiveAuthorityScriptsPassed": true,
+    "entrypointChecks": 3,
+    "projectBuildPassed": true,
+    "typesPassed": true,
+    "rulesChecks": 223,
+    "node": "v22.23.3",
+    "fullProjectTestsSkipped": 6
+  },
+  "build": {
+    "passed": true,
+    "rawKB": 1095,
+    "gzipKB": 332.1,
+    "nativeWebPackageVerified": true,
+    "generatedClientPublicFilesRestored": true
+  },
+  "fixtureRepair": "Initial feed harness resolved Rules relative to moved fixture directory; explicit root Rules path fixed only test configuration. Profile checks already passed; remaining three scripts then passed. No archived handler or assertion weakened.",
+  "isolatedQa": {
+    "project": "demo-vybe-node22-qa",
+    "firestorePort": 8484,
+    "authPort": 9397,
+    "hubPort": 4462,
+    "loggingPort": 4562,
+    "websocketPort": 9157,
+    "allOwnEmulatorsStopped": true,
+    "existingServicesUntouched": true
+  },
+  "inventory": {
+    "checkedAt": "2026-10-06T20:09:30.974Z",
+    "functions": 233,
+    "runtimes": {
+      "nodejs20": 230,
+      "nodejs22": 3
+    },
+    "states": {
+      "ACTIVE": 233
+    },
+    "allPagesRead": true,
+    "otherFunctionsUnchanged": 230
+  },
+  "deployment": {
+    "updateMask": "buildConfig.runtime,buildConfig.source",
+    "serviceConfigNotSubmitted": true,
+    "exactSourceArchives": true,
+    "extraFunctionsCreated": false
+  },
+  "limits": [
+    "Remaining230Node20 services and root default runtime migration remain open",
+    "Profile and feed dependency locks retain their prior proxy-addr version; other security advisories remain open",
+    "Local Rules checks are emulator evidence, no production Rules deployment",
+    "No production user/account/content/location/permission/provider/client/native-binary changes",
+    "No physical phone loading/GPS/codec/FPS/current-package adoption or instant-loading certification"
+  ]
+}
