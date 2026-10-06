@@ -8,6 +8,10 @@
       { "fieldPath": "space_id", "order": "ASCENDING" },
       { "fieldPath": "left_at", "order": "ASCENDING" },
       { "fieldPath": "joined_at", "order": "ASCENDING" }
+    ] },
+    { "collectionGroup": "_space_members", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "space_id", "order": "ASCENDING" },
+      { "fieldPath": "audio_pending", "order": "ASCENDING" }
     ] }
   ],
   "fieldOverrides": []

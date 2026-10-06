@@ -11,6 +11,9 @@ const { db } = await import('../functions/lib/_shared/admin.js');
 const { getAuth } = require('firebase-admin/auth');
 const auth = getAuth();
 const { manageSpaceAuthority: run, spaceMemberId } = await import('../functions/lib/_shared/spaceAuthority.js');
+const { synchronizeSpaceAudioEffect: sync } = await import('../functions/lib/_shared/spaceAudioSync.js');
+const audioCalls = [];
+const audioProvider = { revoke: async plan => { audioCalls.push(['revoke', plan]); }, close: async plan => { audioCalls.push(['close', plan]); } };
 const prefix = randomUUID();
 async function actor(label) {
   const uid = `${prefix}-${label}`, profileId = `${uid}-profile`;
@@ -23,7 +26,11 @@ async function actor(label) {
 const host = await actor('host'), listener = await actor('listener'), other = await actor('other');
 const input = (who, action, details = {}) => ({ action, expectedOwnerUid: who.uid, expectedProfileId: who.profileId, ...details });
 const call = (who, action, details = {}) => run(db, auth, who.uid, input(who, action, details));
-const change = (who, action, details = {}) => call(who, action, { requestId: randomUUID(), ...details });
+const change = async (who, action, details = {}) => {
+  const response = await call(who, action, { requestId: randomUUID(), ...details });
+  if (response.audioEffectId) await sync(db, response.audioEffectId, audioProvider);
+  return response;
+};
 let checks = 0;
 async function check(name, fn) { await fn(); checks++; console.log(`PASS ${name}`); }
 await check('rejects account substitution and privileged client fields', async () => {
@@ -98,6 +105,31 @@ await check('speaker capacity is checked atomically before promotion', async () 
   await assert.rejects(change(host, 'role', { spaceId, participantId: fresh.participant.id, revision: fresh.participant.revision, role: 'speaker' }), { code: 'resource-exhausted' });
   await change(other, 'leave', { spaceId, revision: fresh.participant.revision });
   await ref.update({ max_speakers: original.max_speakers });
+});
+await check('failed provider confirmation retains its job and blocks new audio grants until exact retry', async () => {
+  const requestId = randomUUID();
+  const result = await call(host, 'role', { requestId, spaceId, participantId: joined.id, revision: joined.revision, role: 'listener' }); joined = result.participant;
+  const jobRef = db.doc(`_space_audio_effects/${result.audioEffectId}`);
+  await assert.rejects(sync(db, result.audioEffectId, { ...audioProvider, revoke: async () => { throw Error('Synthetic provider outage'); } }));
+  assert.equal((await jobRef.get()).data().status, 'pending');
+  await assert.rejects(call(listener, 'audio', { spaceId }), { code: 'unavailable' });
+  const retry = await call(host, 'role', { requestId, spaceId, participantId: joined.id, revision: joined.revision - 1, role: 'listener' });
+  assert.equal(retry.audioEffectId, result.audioEffectId);
+  const before = audioCalls.length; await sync(db, retry.audioEffectId, audioProvider); await sync(db, retry.audioEffectId, audioProvider);
+  assert.equal(audioCalls.length, before + 1); assert.equal((await jobRef.get()).data().status, 'complete');
+  const grant = await call(listener, 'audio', { spaceId }); assert.equal(grant.canPublish, false);
+  assert.equal(grant.notBeforeSeconds, (await jobRef.get()).data().cutoffSeconds + 1);
+});
+await check('late old acknowledgement never clears a newer leave or admits a premature rejoin', async () => {
+  const promoted = await call(host, 'role', { requestId: randomUUID(), spaceId, participantId: joined.id, revision: joined.revision, role: 'speaker' });
+  const left = await call(listener, 'leave', { requestId: randomUUID(), spaceId, revision: promoted.participant.revision });
+  await sync(db, promoted.audioEffectId, audioProvider);
+  assert.equal((await db.doc(`_space_members/${joined.id}`).get()).data().audio_pending, true);
+  assert.equal((await db.doc(`_space_authority/${spaceId}`).get()).data().audio_pending_count, 1);
+  await assert.rejects(change(listener, 'join', { spaceId, revision: left.participant.revision }), { code: 'unavailable' });
+  await sync(db, left.audioEffectId, audioProvider);
+  assert.equal((await db.doc(`_space_authority/${spaceId}`).get()).data().audio_pending_count, 0);
+  joined = (await change(listener, 'join', { spaceId, revision: left.participant.revision })).participant;
 });
 await check('stale leave cannot remove a newer participation', async () => {
   const left = await change(listener, 'leave', { spaceId, revision: joined.revision });

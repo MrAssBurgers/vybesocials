@@ -5,6 +5,7 @@ const actions = ['list', 'read', 'create', 'join', 'leave', 'mute', 'hand', 'rol
 const object = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const digest = (parts) => createHash('sha256').update(JSON.stringify(parts)).digest('hex');
 export const spaceMemberId = (spaceId, uid) => digest(['space-member-v1', spaceId, uid]);
+export const spaceAudioRoomName = (row) => `space_v1_${digest([row.id, row.binding, row.created_at])}`;
 const speaker = (role) => ['host', 'co_host', 'speaker'].includes(String(role));
 const fail = () => new HttpsError('failed-precondition', 'This room changed. Refresh it and try again.');
 const denied = () => new HttpsError('permission-denied', 'You cannot make this room change.');
@@ -13,14 +14,16 @@ const ownershipProof = (row) => validAudienceId(row.owner_uid) && validAudienceI
     && typeof row.binding === 'string' && /^[a-f0-9]{48}$/.test(row.binding) && integer(row.auth_created_at_ms) && Number(row.auth_created_at_ms) > 0;
 const validRoomProof = (row, id) => row.version === 1 && row.id === id && ownershipProof(row)
     && ['live', 'scheduled', 'ended'].includes(String(row.status)) && integer(row.revision) && Number(row.revision) > 0
-    && ['listener_count', 'participant_count', 'speaker_count', 'peak_listeners', 'max_speakers'].every(key => integer(row[key]))
+    && ['listener_count', 'participant_count', 'speaker_count', 'peak_listeners', 'max_speakers', 'audio_pending_count'].every(key => integer(row[key]))
+    && Number(row.audio_pending_count) <= 200
     && Number(row.participant_count) <= 200 && Number(row.listener_count) <= Number(row.participant_count)
     && Number(row.speaker_count) <= Number(row.participant_count) && Number(row.speaker_count) <= Number(row.max_speakers)
     && Number(row.peak_listeners) >= Number(row.listener_count) && Number(row.max_speakers) > 0 && Number(row.max_speakers) <= 200;
 const validMemberProof = (row, id) => row.version === 1 && row.space_id === id && ownershipProof(row)
     && row.id === spaceMemberId(id, row.owner_uid) && integer(row.revision) && Number(row.revision) > 0
     && ['host', 'co_host', 'speaker', 'listener', 'requested'].includes(String(row.role))
-    && typeof row.is_muted === 'boolean' && typeof row.raised_hand === 'boolean';
+    && typeof row.is_muted === 'boolean' && typeof row.raised_hand === 'boolean' && typeof row.audio_pending === 'boolean'
+    && integer(row.audio_generation) && Number(row.audio_generation) > 0 && integer(row.audio_ready_at);
 export function normalizeSpaceInput(raw, uid) {
     if (!object(raw))
         throw new HttpsError('invalid-argument', 'Room details are required.');
@@ -89,7 +92,8 @@ const owns = (row, actor) => row?.owner_uid === actor.uid && row.profile_id === 
 const profileView = (actor) => ({ id: actor.profileId, username: typeof actor.row.username === 'string' ? actor.row.username : '', display_name: typeof actor.row.display_name === 'string' ? actor.row.display_name : null, avatar_url: typeof actor.row.avatar_url === 'string' ? actor.row.avatar_url : null });
 function memberView(row) {
     return { id: row.id, space_id: row.space_id, user_id: row.owner_uid, role: row.role, is_muted: row.is_muted,
-        raised_hand: row.raised_hand, joined_at: row.joined_at, left_at: row.left_at, revision: row.revision, profile: row.profile };
+        raised_hand: row.raised_hand, joined_at: row.joined_at, left_at: row.left_at, revision: row.revision,
+        audio_generation: row.audio_generation, audio_pending: row.audio_pending === true, profile: row.profile };
 }
 function roomView(row) {
     return { id: row.id, host_id: row.owner_uid, title: row.title, description: row.description, cover_image_url: null,
@@ -153,9 +157,9 @@ export async function manageSpaceAuthority(db, auth, uid, raw, now = Date.now())
             const room = { version: 1, id, ...ownership, title: input.title.trim(), description: input.description ?? null,
                 tags: input.tags ?? [], status: input.scheduledAt ? 'scheduled' : 'live', scheduled_at: input.scheduledAt ?? null,
                 started_at: input.scheduledAt ? null : stamp, ended_at: null, created_at: stamp, max_speakers: 10, allow_requests: true,
-                listener_count: 0, peak_listeners: 0, participant_count: 1, speaker_count: 1, revision: 1 };
+                listener_count: 0, peak_listeners: 0, participant_count: 1, speaker_count: 1, audio_pending_count: 0, revision: 1 };
             const host = { version: 1, id: memberRef.id, space_id: id, ...ownership, role: 'host', is_muted: true,
-                raised_hand: false, joined_at: stamp, left_at: null, revision: 1 };
+                raised_hand: false, joined_at: stamp, left_at: null, revision: 1, audio_generation: 1, audio_pending: false, audio_ready_at: 0 };
             tx.create(roomRef, room);
             tx.create(memberRef, host);
             tx.create(db.doc(`spaces/${id}`), roomView(room));
@@ -194,7 +198,9 @@ export async function manageSpaceAuthority(db, auth, uid, raw, now = Date.now())
         if (input.action === 'audio') {
             if (!member || member.version !== 1 || !owns(member, actor) || member.left_at !== null)
                 throw denied();
-            return { ...base, roomName: `space_v1_${digest([id, stored.binding, stored.created_at])}`, identity: actor.profileId,
+            if (member.audio_pending === true)
+                throw new HttpsError('unavailable', 'The audio change is still being confirmed. Please retry.');
+            return { ...base, roomName: spaceAudioRoomName(stored), identity: actor.profileId, generation: member.audio_generation, notBeforeSeconds: member.audio_ready_at,
                 displayName: actor.row.display_name || actor.row.username || 'User', role: member.role, canPublish: speaker(member.role) };
         }
         const nextRoom = { ...stored };
@@ -217,6 +223,18 @@ export async function manageSpaceAuthority(db, auth, uid, raw, now = Date.now())
                 throw denied();
             if (input.revision !== stored.revision)
                 throw fail();
+            const [active, pending] = await Promise.all([
+                tx.get(db.collection('_space_members').where('space_id', '==', id).where('left_at', '==', null).limit(201)),
+                tx.get(db.collection('_space_members').where('space_id', '==', id).where('audio_pending', '==', true).limit(201)),
+            ]);
+            if (active.size > 200 || pending.size > 200)
+                throw fail();
+            const identities = [...new Set([...active.docs, ...pending.docs].map(doc => doc.data().profile_id))];
+            if (identities.some(identity => !validAudienceId(identity)))
+                throw fail();
+            const effectId = receiptRef.id;
+            tx.create(db.doc(`_space_audio_effects/${effectId}`), { version: 1, status: 'pending', kind: 'close', space_id: id,
+                roomName: spaceAudioRoomName(stored), identities, cutoffSeconds: Math.floor(now / 1000) + 1, created_at: stamp });
             nextRoom.status = 'ended';
             nextRoom.ended_at = stamp;
             nextRoom.revision = Number(stored.revision) + 1;
@@ -225,7 +243,7 @@ export async function manageSpaceAuthority(db, auth, uid, raw, now = Date.now())
             nextRoom.speaker_count = 0;
             tx.set(roomRef, nextRoom);
             tx.set(db.doc(`spaces/${id}`), roomView(nextRoom));
-            return saveReceipt({ ...base, space: roomView(nextRoom) });
+            return saveReceipt({ ...base, space: roomView(nextRoom), audioEffectId: effectId });
         }
         if (target && ((input.action !== 'role' && !owns(target, actor))
             || target.version !== 1 || target.space_id !== id))
@@ -234,6 +252,8 @@ export async function manageSpaceAuthority(db, auth, uid, raw, now = Date.now())
             throw fail();
         let next;
         if (input.action === 'join') {
+            if (target?.audio_pending === true || Number(stored.audio_pending_count ?? 0) >= 200)
+                throw new HttpsError('unavailable', 'An audio change is still pending. Please retry.');
             if (target?.left_at === null)
                 return saveReceipt({ ...base, space: roomView(stored), participant: memberView(target) });
             if (Number(stored.participant_count) >= 200)
@@ -245,7 +265,8 @@ export async function manageSpaceAuthority(db, auth, uid, raw, now = Date.now())
                 throw new HttpsError('resource-exhausted', 'All speaker places are taken.');
             next = { version: 1, id: memberRef.id, space_id: id, owner_uid: uid, profile_id: actor.profileId, binding: actor.binding,
                 auth_created_at_ms: actor.created, profile: profileView(actor), role, is_muted: true, raised_hand: role === 'requested', joined_at: stamp, left_at: null,
-                revision: Number(target?.revision ?? 0) + 1 };
+                revision: Number(target?.revision ?? 0) + 1, audio_generation: Number(target?.audio_generation ?? 0) + 1,
+                audio_pending: false, audio_ready_at: target?.audio_ready_at ?? 0 };
             nextRoom.participant_count = Number(stored.participant_count) + 1;
             if (role !== 'host')
                 nextRoom.listener_count = Number(stored.listener_count) + 1;
@@ -279,6 +300,8 @@ export async function manageSpaceAuthority(db, auth, uid, raw, now = Date.now())
                 next.raised_hand = input.raised;
             }
             else if (input.action === 'role') {
+                if (target.audio_pending === true)
+                    throw new HttpsError('unavailable', 'The previous audio change is still pending. Please retry.');
                 const change = Number(speaker(input.role)) - Number(speaker(target.role));
                 if (Number(stored.speaker_count) + change > Number(stored.max_speakers))
                     throw new HttpsError('resource-exhausted', 'All speaker places are taken.');
@@ -288,11 +311,27 @@ export async function manageSpaceAuthority(db, auth, uid, raw, now = Date.now())
                 nextRoom.speaker_count = Number(stored.speaker_count) + change;
             }
         }
+        let audioEffectId = null;
+        if (input.action === 'leave' || input.action === 'role') {
+            audioEffectId = receiptRef.id;
+            const cutoffSeconds = Math.floor(now / 1000) + 1;
+            next.audio_generation = Number(target?.audio_generation ?? 0) + 1;
+            next.audio_pending = true;
+            next.audio_job_id = audioEffectId;
+            next.audio_ready_at = cutoffSeconds + 1;
+            if (target?.audio_pending !== true) {
+                if (Number(stored.audio_pending_count ?? 0) >= 200)
+                    throw new HttpsError('unavailable', 'Audio changes are awaiting confirmation. Please retry.');
+                nextRoom.audio_pending_count = Number(stored.audio_pending_count ?? 0) + 1;
+            }
+            tx.create(db.doc(`_space_audio_effects/${audioEffectId}`), { version: 1, status: 'pending', kind: 'revoke', space_id: id,
+                member_id: targetRef.id, roomName: spaceAudioRoomName(stored), identities: [next.profile_id], cutoffSeconds, created_at: stamp });
+        }
         tx.set(targetRef, next);
         tx.set(db.doc(`space_participants/${next.id}`), memberView(next));
         tx.set(roomRef, nextRoom);
         tx.set(db.doc(`spaces/${id}`), roomView(nextRoom));
-        return saveReceipt({ ...base, space: roomView(nextRoom), participant: memberView(next) });
+        return saveReceipt({ ...base, space: roomView(nextRoom), participant: memberView(next), audioEffectId });
     });
 }
 //# sourceMappingURL=spaceAuthority.js.map
