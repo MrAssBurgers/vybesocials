@@ -1,0 +1,99 @@
+{
+  "verified_at_utc": "2026-10-06T16:03:31.4074259Z",
+  "project": "vybe-daaab",
+  "scope": "one additive channel_messages composite index",
+  "index": {
+    "collection": "channel_messages",
+    "fields": [
+      {
+        "fieldPath": "channel_id",
+        "order": "ASCENDING"
+      },
+      {
+        "fieldPath": "is_deleted",
+        "order": "ASCENDING"
+      },
+      {
+        "fieldPath": "created_at",
+        "order": "ASCENDING"
+      }
+    ],
+    "state": "READY",
+    "name": "projects/vybe-daaab/databases/(default)/collectionGroups/channel_messages/indexes/CICAgIScuIwK"
+  },
+  "operations": {
+    "collection": "channel_messages",
+    "operation": "projects/vybe-daaab/databases/(default)/operations/S3dJdWNTSWdBQ0lDDCoDIGI5YTM2YmYxOWNkNy1jZWE5LTc3MTQtMGVkYS1jOGMxMWJhNyQac2VuaWxlcGlwCQpBEg",
+    "created": true
+  },
+  "before": {
+    "currentAuthIncarnationVerified": true,
+    "ownedCommunityPolicyReads": [
+      {
+        "owner": true,
+        "role": "owner",
+        "activeOwnerAdmission": false,
+        "existingChannels": 4,
+        "readableChannels": 4,
+        "deniedChannels": 0,
+        "existingMessages": 1,
+        "queryableMessages": 0,
+        "messageQueryFailures": 4,
+        "missingDeletionFlag": 0,
+        "queryFailures": [
+          {
+            "code": 9,
+            "indexRequired": true
+          },
+          {
+            "code": 9,
+            "indexRequired": true
+          },
+          {
+            "code": 9,
+            "indexRequired": true
+          },
+          {
+            "code": 9,
+            "indexRequired": true
+          }
+        ]
+      }
+    ],
+    "readOnly": true,
+    "clientRequestNotImpersonated": true
+  },
+  "after": {
+    "currentAuthIncarnationVerified": true,
+    "ownedCommunityPolicyReads": [
+      {
+        "owner": true,
+        "role": "owner",
+        "activeOwnerAdmission": false,
+        "existingChannels": 4,
+        "readableChannels": 4,
+        "deniedChannels": 0,
+        "existingMessages": 1,
+        "queryableMessages": 1,
+        "messageQueryFailures": 0,
+        "missingDeletionFlag": 0,
+        "queryFailures": []
+      }
+    ],
+    "readOnly": true,
+    "clientRequestNotImpersonated": true
+  },
+  "verification": {
+    "tests_passed": 4769,
+    "bundle_gzip_kb": 333.3,
+    "app_build": "passed",
+    "tests_skipped": 6,
+    "native_bundle": "passed",
+    "bundle_raw_kb": 1098.4
+  },
+  "limits": [
+    "Administrative read-only policy/query proof; no signed-in client request impersonated.",
+    "No Rules, Functions, Auth, records or web runtime changed.",
+    "Current-client adoption, owner recovery and physical-phone behavior remain unverified."
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "currentAuthIncarnationVerified": true,
+  "ownedCommunityPolicyReads": [
+    {
+      "owner": true,
+      "role": "owner",
+      "activeOwnerAdmission": false,
+      "existingChannels": 4,
+      "readableChannels": 4,
+      "deniedChannels": 0,
+      "existingMessages": 1,
+      "queryableMessages": 0,
+      "messageQueryFailures": 4,
+      "missingDeletionFlag": 0,
+      "queryFailures": [
+        {
+          "code": 9,
+          "indexRequired": true
+        },
+        {
+          "code": 9,
+          "indexRequired": true
+        },
+        {
+          "code": 9,
+          "indexRequired": true
+        },
+        {
+          "code": 9,
+          "indexRequired": true
+        }
+      ]
+    }
+  ],
+  "readOnly": true,
+  "clientRequestNotImpersonated": true
+}

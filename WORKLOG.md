@@ -1,3 +1,13 @@
+## ACTIVE (2026-10-06) — Existing community message index repair
+
+- Previous turn published tested query runtime source7a6bf35e, recorded by docs21bce712. Current source/runtime remain unchanged. Full user-ready scope active; phone onboarding network/Auth, map sharing, clips, retained old browser adoption and historical restoration are not certified.
+- Read-only production audit verifies the designated current enabled Auth creation time against the protected active owner/profile binding, then exercises actual compiled community/channel policy and exact existing message queries. Owner admitted all4 channels; one existing message preserved; all4 queries failed code9/indexRequired. This is administrative domain/query evidence, not an impersonated signed-in client request.
+- Provisioned exactly one additive channel_messages collection index(channel_id ASC,is_deleted ASC,created_at ASC). Actual resource CICAgIScuIwK independently READY. Rerun all4 queries succeeds, queryableMessages1, failures0. No Rules, Functions, Auth, content, consent, location, legacy role/member grant or web runtime changes. Scoped resource/operation/before/after proof retained in releases/community-message-index-20261006/verification.json; root manifest matches only this addition. No whole-index deploy or deletion.
+- Required full tests4769pass6skip and app/native build pass; bundle1098.4KBraw333.3KBgzip within existing budget. Logs work/community-message-index-{tests,build}.log. Generated public outputs restored. No client republish required for this index-only repair.
+- Retained IAB Settings still1.1.5/e14563a. Developer settings inspected without changing flags. User full-browser-reload version observation pending. No account/worker/cache purge or speculative origin diagnosis. Existing owner recovery active grant remains absent; client adoption and actual message rendering remain separate open checks.
+Next3tasks: resolve current published client adoption and owner recovery; verify actual phone map/clip/Auth network behavior; continue remaining preserved Firebase content/media restoration and security review.
+
+---
 ## ACTIVE (2026-10-06) — 3D map loading and retry recovery
 
 - Previous turn was progress: verified publication of active clip/location transport recovery, source bdde9a06/docs367e191c. Full user-ready scope unchanged; latest physical-phone auth/network/map/clips report and retained old mounted clients remain open.
