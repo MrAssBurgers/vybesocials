@@ -31,6 +31,7 @@ export function useAutoUpdate() {
     let lastStarted = -Infinity;
     let retryTimer: number | undefined, reloadTimer: number | undefined;
     let requestController: AbortController | null = null;
+    let pendingDraft = false, draftObserver: MutationObserver | undefined;
 
     const hasLiveEdits = () => {
       // A submitted login or closed editor is not an open draft. Keep cleared
@@ -46,6 +47,19 @@ export function useAutoUpdate() {
       const field = event.target.closest('input,textarea,select,[contenteditable="true"]');
       if (field) editedFields.add(field);
     };
+    const resumeDeferred = () => {
+      if (disposed || !pendingDraft || busy || hasDraft() || navigator.onLine === false || document.visibilityState === 'hidden') return;
+      pendingDraft = false;
+      draftObserver?.disconnect();
+      // Re-fetch metadata: the deployment can change while a draft is open.
+      void check(true);
+    };
+    const deferForDraft = () => {
+      pendingDraft = true;
+      draftObserver ??= new MutationObserver(resumeDeferred);
+      draftObserver.observe(document.documentElement, { childList: true, subtree: true });
+    };
+    const leaveField = () => { if (pendingDraft) queueMicrotask(resumeDeferred); };
 
     const check = async (force = false) => {
       if (disposed || busy || reloadTimer !== undefined || navigator.onLine === false || document.visibilityState === 'hidden') return;
@@ -74,12 +88,15 @@ export function useAutoUpdate() {
         }
         const reloadGuard = readReloadGuard();
         // Without a durable loop guard, retain the usable page rather than restart it repeatedly.
-        if (reloadGuard === undefined || reloadGuard === payload.entry || hasDraft()) return;
+        if (reloadGuard === undefined || reloadGuard === payload.entry) return;
+        if (hasDraft()) { deferForDraft(); return; }
         await clearAppCache();
-        if (disposed || hasDraft()) return;
+        if (disposed) return;
+        if (hasDraft()) { deferForDraft(); return; }
         const remoteEntry = payload.entry;
         reloadTimer = window.setTimeout(() => {
-          if (disposed || hasDraft()) { reloadTimer = undefined; return; }
+          if (disposed) return;
+          if (hasDraft()) { reloadTimer = undefined; deferForDraft(); return; }
           try { sessionStorage.setItem(RELOAD_GUARD_KEY, remoteEntry); } catch { reloadTimer = undefined; return; }
           signalAppUpdate();
           window.location.replace(`/?_vybe=${Date.now()}`);
@@ -96,16 +113,19 @@ export function useAutoUpdate() {
       }
     };
 
-    const reconnect = () => { void check(true); };
-    const resume = () => { void check(); };
+    const reconnect = () => { if (pendingDraft) resumeDeferred(); else void check(true); };
+    const resume = () => { if (pendingDraft) resumeDeferred(); else void check(); };
     retryTimer = window.setTimeout(() => { void check(true); }, 1_200);
     window.addEventListener('online', reconnect);
     window.addEventListener('focus', resume);
     document.addEventListener('visibilitychange', resume);
     document.addEventListener('input', markEdited, true);
     document.addEventListener('change', markEdited, true);
+    document.addEventListener('focusout', leaveField, true);
     return () => {
       disposed = true;
+      pendingDraft = false;
+      draftObserver?.disconnect();
       requestController?.abort();
       window.clearTimeout(retryTimer);
       window.clearTimeout(reloadTimer);
@@ -114,6 +134,7 @@ export function useAutoUpdate() {
       document.removeEventListener('visibilitychange', resume);
       document.removeEventListener('input', markEdited, true);
       document.removeEventListener('change', markEdited, true);
+      document.removeEventListener('focusout', leaveField, true);
     };
   }, []);
 }

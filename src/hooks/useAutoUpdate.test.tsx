@@ -33,6 +33,43 @@ afterEach(() => {
 });
 
 describe('returning-session updates', () => {
+  it('rechecks a deferred update when the completed login form disappears without another network event', async () => {
+    const login = document.createElement('input'); login.type = 'password'; login.value = 'synthetic-password'; login.dataset.updateTest = 'true'; document.body.append(login);
+    renderHook(useAutoUpdate); await advance(1200);
+    expect(fetchMock).toHaveBeenCalledOnce(); expect(replace).not.toHaveBeenCalled();
+    login.remove(); await advance(1500);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(replace).toHaveBeenCalledOnce(); expect(mocks.signal).toHaveBeenCalledOnce();
+  });
+  it('rechecks after an empty focused field is blurred without discarding a mounted cleared draft', async () => {
+    const field = document.createElement('input'); field.dataset.updateTest = 'true'; document.body.append(field); field.focus();
+    renderHook(useAutoUpdate); await advance(1200); expect(replace).not.toHaveBeenCalled();
+    field.blur(); await advance(1500);
+    expect(fetchMock).toHaveBeenCalledTimes(2); expect(replace).toHaveBeenCalledOnce();
+  });
+  it('uses fresh deployment metadata after a draft closes and ignores unrelated changes while it is open', async () => {
+    const field = document.createElement('textarea'); field.value = 'Keep my post'; field.dataset.updateTest = 'true'; document.body.append(field);
+    renderHook(useAutoUpdate); await advance(1200);
+    const unrelated = document.createElement('div'); unrelated.dataset.updateTest = 'true'; document.body.append(unrelated); await advance(5000);
+    expect(fetchMock).toHaveBeenCalledOnce(); expect(replace).not.toHaveBeenCalled();
+    fetchMock.mockResolvedValue(version('/assets/app-later.js'));
+    field.remove(); await advance(1500);
+    expect(sessionStorage.getItem('vybe-entry-reload')).toBe('/assets/app-later.js'); expect(replace).toHaveBeenCalledOnce();
+  });
+  it('disconnects deferred draft monitoring when the updater unmounts', async () => {
+    const field = document.createElement('textarea'); field.value = 'Keep my post'; field.dataset.updateTest = 'true'; document.body.append(field);
+    const hook = renderHook(useAutoUpdate); await advance(1200); hook.unmount();
+    field.remove(); await advance(10000);
+    expect(fetchMock).toHaveBeenCalledOnce(); expect(mocks.clear).not.toHaveBeenCalled(); expect(replace).not.toHaveBeenCalled();
+  });
+  it('keeps a deferred form-close check pending while hidden and resumes it in the foreground', async () => {
+    const field = document.createElement('textarea'); field.value = 'Keep my post'; field.dataset.updateTest = 'true'; document.body.append(field);
+    renderHook(useAutoUpdate); await advance(1200);
+    const visible = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    field.remove(); await advance(1000); expect(fetchMock).toHaveBeenCalledOnce(); expect(mocks.clear).not.toHaveBeenCalled();
+    visible.mockReturnValue('visible'); act(() => document.dispatchEvent(new Event('visibilitychange'))); await advance(1500);
+    expect(fetchMock).toHaveBeenCalledTimes(2); expect(replace).toHaveBeenCalledOnce();
+  });
   it('allows updates after a completed login form is removed, while retaining a live cleared editor', async () => {
     const login = document.createElement('input'); login.type = 'password'; login.dataset.updateTest = 'true'; document.body.append(login);
     renderHook(useAutoUpdate);
