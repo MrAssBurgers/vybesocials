@@ -1,3 +1,13 @@
+## ACTIVE (2026-10-06) — Locate hosted input drift
+
+- Previous turn published source identification and exposed a verified hosted/archive mismatch, not a completed source proof. Started clean main51dec0c7. Added four component hashes/counts and individual admitted root-config hashes to the existing version diagnostics, without changing overall schema/coverage/hash framing or excluding any previously covered input. No runtime feature/backend/Auth/Rules/data change.
+- Six Node groups pass, including diagnostic localization with overall rejection retained. Full474 files/4503 tests pass6 skip; app/native build and unchanged1099.8KBraw333.9KBgzip budget pass; lint5existingwarnings pass. Logs work/source-parts-{tests,full,build,lint}.log. Current-source expected components are in work/source-parts-expected.json. Current project package reader confirms original build/postbuild commands, but is not a post-build-filesystem attestation.
+- Candidate publication and actual mismatch localization pending. Existing strict source gate stays failed; no success/ready claim. No account/cache/worker/GPS/permission purge. Phone/map/clips/current-browser adoption and remaining historical content/media/DM/hub/provider gates remain active.
+
+Next3tasks: publish tested component diagnostics and locate actual hosted input difference; fix its cause and verify source identity/browser/phone recovery; continue guarded Firebase content/media/restoration.
+
+---
+
 ## ACTIVE (2026-10-06) — Hosted source identity and release adoption
 
 - Previous turn made real progress repairing scheduled/foreground/reconnect token recovery and completing a hosting update. Started clean maina146eed4. Unknown manifest commit prevented exact source verification; signed-in browser still mountsCGCcULTp with correctmoduletype, while independent requests serveDohoRlVT. No speculation about cache/DNS/SW origin.

@@ -64,3 +64,14 @@ test('a missing required root input fails instead of certifying an incomplete ar
   rmSync(join(root, 'index.html'));
   assert.throws(() => clientSourceIdentity(root), /Missing client source input/);
 });
+test('diagnostics identify the changed input without weakening the overall fingerprint', t => {
+  const root = fixture(t), before = clientSourceIdentity(root);
+  writeFileSync(join(root, 'vite.config.ts'), 'export default {base:"/new/"};');
+  const after = clientSourceIdentity(root);
+  assert.notEqual(after.source_sha256, before.source_sha256);
+  assert.deepEqual(after.source_parts.src, before.source_parts.src);
+  assert.notEqual(after.source_parts.config.sha256, before.source_parts.config.sha256);
+  assert.notEqual(after.source_config['vite.config.ts'], before.source_config['vite.config.ts']);
+  assert.equal(after.source_config['package.json'], before.source_config['package.json']);
+  assert.equal(Object.values(after.source_parts).reduce((total, part) => total + part.files, 0), after.source_files);
+});

@@ -33,12 +33,21 @@ export function clientSourceIdentity(root) {
     }
   }
   const hash = createHash('sha256').update(`${SOURCE_SCHEMA}\n`);
+  const parts = new Map();
+  const config = {};
   for (const name of files.sort()) {
     let bytes = readFileSync(join(root, name));
     // Git checkouts and source archives can use different newline conventions.
     // Binary assets retain their exact bytes; no environment file is admitted.
     if (textExtensions.has(extname(name)) || extensionlessText.has(name)) bytes = Buffer.from(bytes.toString('utf8').replace(/\r\n/g, '\n'));
-    hash.update(`${Buffer.byteLength(name)}:${name}:${bytes.length}:`).update(bytes);
+    const prefix = `${Buffer.byteLength(name)}:${name}:${bytes.length}:`;
+    hash.update(prefix).update(bytes);
+    const group = name.includes('/') ? name.split('/')[0] : 'config';
+    if (!parts.has(group)) parts.set(group, { hash: createHash('sha256').update(`${SOURCE_SCHEMA}\n`), files: 0 });
+    const part = parts.get(group); part.hash.update(prefix).update(bytes); part.files++;
+    if (group === 'config') config[name] = createHash('sha256').update(bytes).digest('hex');
   }
-  return { source_schema: SOURCE_SCHEMA, source_sha256: hash.digest('hex'), source_files: files.length };
+  return { source_schema: SOURCE_SCHEMA, source_sha256: hash.digest('hex'), source_files: files.length,
+    source_parts: Object.fromEntries([...parts].map(([name, part]) => [name, { sha256: part.hash.digest('hex'), files: part.files }])),
+    source_config: config };
 }
