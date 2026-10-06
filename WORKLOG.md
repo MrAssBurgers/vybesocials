@@ -9,6 +9,8 @@
 
 Next3tasks: publish and independently verify this exact mobile client; verify real mounted/phone Firebase map/clip/account flow; resume shared themes and guarded historical content/media restoration.
 
+- Source1c4fa847 pushed and confirmed ready before Lovable633ae55f publication. Both domains independently verify exact manifest commit1c4fa847, entryBqdEEKxw/built04:57:55Z/SHA9c1c729c and matching reachable updated clip chunks. Release record releases/mobile-lifecycle-recovery-20261006. Actual IAB reload/fresh-entry retain @bakrix and Home/posts but still mountCGCcULTp; Chrome reload still mounts5p_yKDY. Mounted adoption/auth-network/phone flow remain unresolved, not attributed to cache without proof. No account storage/worker/cache/permission changed. QA8395/session30707 stopped intentionally. Final types/lint pass with5existingwarnings. Read-only theme metadata confirms all three generateThemeCode/useThemeCode/manageSharedTheme MISSING; exact coordinated restoration remains next. Goal active.
+
 ---
 
 ## ACTIVE (2026-10-06) — Private hub attachment runtime and service recovery
