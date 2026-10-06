@@ -9784,6 +9784,16 @@ Published e6d5509f6bd785665d44c797cb56031d8ac69359, deployment00b1b2b0-fea5-449b
 
 Next three tasks: verify actual phone current release and sharing/Clips; restore existing safe Firebase discovery/retained content; complete app-wide performance/readiness verification. No new features.
 
+## 2026-10-06 — Checked Firebase discovery foundation (not deployed)
+
+Previous turn progress: document-native bridge published/verified. Inspected existing QuickAdd/general/mutual hooks: callable failure falls back to rawprofiles, failure becomes empty, no current-account lease. Original discovery handler lacks binding/incarnation/privacy/blocks and admits unknown DOBs. Implemented standalone checked peopleDiscovery authority, not yet connected to handler/client: canonical active binding, explicitcallerUID equality, currentAuthcreation/disabled checks, privateDOBownership, strictUTC dates/existingagewindow, private/deletion/ban/bidirectionalaliasblock exclusions, safeprojection30cap, 120inputcap/explicitempty, fresh15sreceipt, finalactorAuthcheck includingageReview. No newfeature/data grant.
+
+Actual Firebase emulator8387/9297 test10groups pass (scripts/test-people-discovery-backend.mjs). CallerUID-as-otherprofilealias regression fails before UIDfix/passafter. Final120selected/30admitted1109ms, entire Firestore documents unchanged. Only confirmed disposable demo-vybe-contacts-qa reset; preview8280/production untouched. Functions buildpass. Rootfull4558pass6skip/clientbuild/native/budget1102.3raw334.6gzip/lintpassfiveexistingwarnings. Logs work/people-discovery-{build,backend,alias-before,full,client-build,lint}. Later actorban/deletion checks tested by final compiled actualemulator run; rootclient unchanged. Pendingcontract docs/PEOPLE_DISCOVERY_RECOVERY.md.
+
+No backend deployment or client publish: new shared module is unused until matchedcallable/client/ageReview/retryUI and exact productionindex preflight complete. Existing service availability notclaimedrepaired. Old unsafehandler mustnotdeploy. Physicalphone/adoption/GPS/codecs and broadercontentrestoration remainopen; goalactive.
+
+Next three tasks: implement matched existing discovery callable/client/lease and truthful UI; verify prerequisites and deploy only exactservice plusmatchedclient; continue existing Firebase content/mobile/readiness verification. No new features.
+
 
 
 

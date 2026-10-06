@@ -1,0 +1,20 @@
+# Existing friend suggestion recovery — pending cutover
+
+The existing `getDiscoveryProfiles` handler and two client hooks are not the checked boundary below. Do not deploy the original handler to restore availability: it omits canonical binding/account incarnation, privacy and bidirectional blocks, permits unknown birthdays, and treats empty candidate selection as general discovery. The hooks also fall back to raw profile queries on service errors. This boundary is incomplete until matched client/server/UI work is released.
+
+Implemented checked reader: `functions/src/_shared/peopleDiscoveryAuthority.ts` (not yet connected to the callable). Inputs bind expected Firebase UID, canonical profile ID, and Auth account creation time; limit and optional selected IDs cap at 120. Explicit empty selection returns none. Each identity must resolve uniquely and have its protected active binding. Current Firebase Auth account creation and enabled status are checked; the caller UID must equal the resolved owner UID. Actor Auth is rechecked before both normal and birthday-review responses.
+
+Private birthdays are checked against canonical ownership. Migrated null ownership is usable only under a valid canonical binding; contradictory ownership invalidates age. Self-reported dates use strict UTC validation; this is not verified real-world age. Missing/under-thirteen viewer dates return `ageReviewRequired`; unclassifiable targets are excluded. Minor/adult groups stay separated under the existing age window. Private, banned, deleted, pending deletion/purge and blocked targets are excluded, checking both legacy identity aliases in both block directions. Phone contact opt-in is not inferred as general discovery consent.
+
+Output caps at 30 profiles containing only ID, username, display name, HTTPS avatar URL and bounded interests. No target Auth UID, email, DOB or binding is returned. The actor-bound receipt has server time and a fresh 15-second lease. The reader does not create identities, grants or publication records.
+
+Verification: `scripts/test-people-discovery-backend.mjs` refuses every project/endpoint except disposable `demo-vybe-contacts-qa`, Firestore `127.0.0.1:8387`, Auth `127.0.0.1:9297`. It clears only that disposable Firestore emulator. Ten groups exercise real Firestore transactions and real Auth: strict input/canonical ownership, safe projection/lease, age filtering, private DOB ownership, privacy/deletion, bidirectional blocks, disabled/incarnation/collisions, actor retirement/unavailability, caller-alias ownership regression, 120 selected candidates/output cap/full database read-only comparison. A demonstrated caller-alias regression failed before its UID equality fix. Final measured emulator read: 1109 ms for 120 selected, 30 admitted. This is not production latency or index readiness evidence.
+
+Remaining required cutover:
+
+1. Connect only `getDiscoveryProfiles` to this authority with the existing checked Auth and bounded quota; preserve DOB migration/admin exports. Verify authentication/quota and unavailable failures with real callable SDK. No broad Functions deploy.
+2. Add the strict matched client service, exact session/UID/profile/incarnation guards, bounded transport, validated projection/selection/receipt, round-trip-adjusted lease, no raw fallback and no durable/placeholder/retired cache. Update general and mutual hooks; do not silently mask friend graph query failures or broaden graph read permissions.
+3. Provide truthful retry and existing private birthday-review UI in all current Quick Add consumers. Completed accounts cannot use `/onboarding` as a birthday repair route because it redirects Home. No invented DOB or profile overwrite.
+4. Inspect actual production named service, required indexes and active Rules baseline. Deploy only the reviewed named service after prerequisites are ready; publish the matched tested client through Lovable and verify real existing-account suggestions. Preserve current Firestore/Storage rules and all unrelated services.
+
+No production deployment, client cutover or data migration is included in this checkpoint.
