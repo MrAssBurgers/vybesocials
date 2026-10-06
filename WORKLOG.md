@@ -9804,8 +9804,25 @@ No service deployment or client publish; old hooks lack newrequiredidentityfield
 
 Next three tasks: connect general/mutualsuggestionhooks with lease/session/cache guards and birthday/retryUI; verify exact productionprerequisites and release matchedgetDiscoveryProfiles/client; continue retainedFirebasecontent/mobile/performanceverification. No new features.
 
+## 2026-10-06 — Mobile startup recovery and clip buffer release
+
+Latest user report prioritizes Firebase token network failures on onboarding, mobile location sharing, broken Clips and lag. Paused unfinished discovery mutual integration; preserved its exact three-file diff in ignored work/discovery-mutuals-pending-mobile-repair.patch and restored those paths to tested main before this client release. Existing discovery callable/UI cutover remains pending, not deployed.
+
+Reproduced startup profile remaining failed after transient token fetching without another online/token event (two regression cases fail prior source). Added two automatic startup retries, 1s/3s, guarded by exact account/epoch/profile attempt/provider lifetime, visibility/connectivity and confirmation gate. Authoritative ownership failures are not retried; no forced sign-out. New manual/token attempt retires the old timer; unmount cleans it. Existing confirmation and cache admission stay unchanged.
+
+Mobile Clips now attach video sources only to active foreground cards and release departed decoder/buffer resources via source removal plus load; merely paused cards previously retained buffers even with preload none. Foreground restoration reattaches the checked URL. Added resource-lifecycle regression and updated actual-card integration assertions to distinguish decoder release without src from a network reload. Fixed a flaky location-intelligence test fixture to derive serverTime/validUntil from one clock reading; no authority relaxation.
+
+Focused startup54 and media/auth73 pass; actual-card/location-intelligence29 pass. Initial full run exposed stale source/load assertions and a fixture millisecond race, repaired before final full run. Build/native/budget1102.7KB raw334.7KB gzip/types/lint pass (five existing lint warnings); final suite/build pending. Mobile-sized synthetic preview clip readyState4/pausedfalse/errornull, screenshot outputs/vybe-mobile-clip-recovery.png. This is desktop responsive QA, not physical-phone codec/FPS proof.
+
+Read-only production service check: manageLocationSharing plus four existing wrappers and snapshot job ACTIVE; no recent checked service errors; request logs show HTTP200. Designated checked server read772ms, sharing disabled, legacyReviewtrue, zero grants/requests/locations. Exact preview Firebase SDK read accepted2754ms. No real GPS consent, account/session purge, Auth configuration, Rules or backend change. Retained live browser still serves old app-CGCcULTp.js even after reload and a release query navigation while public HTTP metadata/bytes match e6d5509f; browser/phone adoption cause remains unproven. Asked installed-app/browser/phone OS and clip symptom once; reply pending.
+
+Next three tasks: finish checks and publish exact client; verify physical-phone adoption/GPS/Clips and diagnose remaining connection failure; resume existing safe discovery/content restoration. Goal active; no new features.
 
 
 
 
+
+
+
+Final verification: full4578pass6skip; final client build/native manifest/budget/types/lint passed. Source92ae5919be51b815c55ff53efd38bf59123f781a548825f6b869b27b6ad8dfff/2553inputs, entryapp-CXQeI3LC.js. Exact publication pending.
 

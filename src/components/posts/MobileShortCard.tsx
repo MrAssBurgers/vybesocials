@@ -39,6 +39,7 @@ import { isVideoPostMedia } from '@/lib/isVideoPostMedia';
 import { PausedMuteButton } from '@/components/video/PausedMuteButton';
 import { useClipPageVisible } from '@/hooks/useClipPageVisible';
 import { useClipNetworkRecovery } from '@/hooks/useClipNetworkRecovery';
+import { useClipMediaSource } from '@/hooks/useClipMediaSource';
 
 interface MobileShortCardProps {
   post: {
@@ -126,6 +127,8 @@ export const MobileShortCard = memo(function MobileShortCard({
   const signedAvatarUrl = useSignedUrl(post.author.avatar_url);
 
   const isVideo = isVideoPostMedia(post);
+  const videoSource = useClipMediaSource(videoRef, signedMediaUrl, isVideo && isActive && pageVisible);
+  useEffect(() => { if (videoSource) { setIsLoading(true); setHasError(false); } }, [videoSource]);
   const resetPlaybackError = useCallback(() => { setHasError(false); setIsLoading(true); }, []);
   const recovery = useClipNetworkRecovery(videoRef, isActive && pageVisible && !isHolding && isVideo, signedMediaUrl, postActions.contextKey, userPausedRef, resetPlaybackError);
   const playbackFailed = hasError || recovery.stalled || media.error;
@@ -394,7 +397,7 @@ export const MobileShortCard = memo(function MobileShortCard({
         {isVideo ? (
           <video
             ref={videoRef}
-            src={signedMediaUrl || undefined}
+            src={videoSource}
             className={cn("h-full w-full object-cover", isLoading && "opacity-0")}
             loop
             playsInline
@@ -404,6 +407,7 @@ export const MobileShortCard = memo(function MobileShortCard({
             onLoadedData={() => { setIsLoading(false); setHasError(false); }}
             onEnded={handleVideoEnded}
             onError={() => {
+              if (!videoSource) return;
               setIsLoading(false);
               setHasError(true);
             }}

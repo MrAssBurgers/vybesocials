@@ -35,7 +35,7 @@ import { MobileShortCard } from './MobileShortCard';
 import Watch from '@/pages/Watch';
 
 it('renders an extensionless admitted clip as video on mobile', () => {
-  const view = render(<MobileShortCard post={{ ...clip, type: 'short', media_url: 'https://example.test/storage/opaque-id?alt=media' }} isActive={false} />, { wrapper });
+  const view = render(<MobileShortCard post={{ ...clip, type: 'short', media_url: 'https://example.test/storage/opaque-id?alt=media' }} isActive />, { wrapper });
   expect(view.container.querySelector('video')?.getAttribute('src')).toBe('https://example.test/storage/opaque-id?alt=media');
 });
 
@@ -51,6 +51,7 @@ beforeEach(() => {
   const query = { select: () => query, eq: () => query, maybeSingle: async () => ({ data: null, error: null }) };
   state.from.mockReturnValue(query); state.rpc.mockResolvedValue({ data: null, error: null }); state.reaction.mockResolvedValue({ is_liked: false, reaction_type: null });
   vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(); vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+  vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
 });
 afterEach(() => { cleanup(); client.clear(); vi.restoreAllMocks(); });
 
@@ -79,9 +80,11 @@ describe('actual mobile clip playback lifecycle', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry clip' }));
     expect(load).toHaveBeenCalledOnce();
     view.rerender(<MobileShortCard post={clip} isActive={false} />);
+    expect(video.hasAttribute('src')).toBe(false);
+    expect(load).toHaveBeenCalledTimes(2); // Release the departed decoder, without a source.
     Object.defineProperty(video, 'error', { configurable: true, value: { code: 2 } });
     fireEvent(window, new Event('online'));
-    expect(load).toHaveBeenCalledOnce();
+    expect(load).toHaveBeenCalledTimes(2);
   });
   it('recovers a network failure on foreground return without reloading in the background', async () => {
     const load = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
@@ -89,15 +92,16 @@ describe('actual mobile clip playback lifecycle', () => {
     await new Promise(resolve => setTimeout(resolve, 180));
     const video = view.container.querySelector('video')!;
     actVisibility('hidden');
+    expect(video.hasAttribute('src')).toBe(false);
+    expect(load).toHaveBeenCalledOnce(); // Release only; no background download.
     Object.defineProperty(video, 'error', { configurable: true, value: { code: 2 } });
-    fireEvent(window, new Event('online')); expect(load).not.toHaveBeenCalled();
+    fireEvent(window, new Event('online')); expect(load).toHaveBeenCalledOnce();
     actVisibility('visible');
-    await waitFor(() => expect(load).toHaveBeenCalledOnce());
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
   });
   it('starts one play request, including rerenders with the same account', async () => {
     const view = render(<MobileShortCard post={clip} isActive />, { wrapper });
-    await new Promise(resolve => setTimeout(resolve, 180));
-    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledOnce();
+    await waitFor(() => expect(HTMLMediaElement.prototype.play).toHaveBeenCalledOnce());
     view.rerender(<MobileShortCard post={{ ...clip, caption: 'Updated caption' }} isActive />);
     await new Promise(resolve => setTimeout(resolve, 180));
     expect(HTMLMediaElement.prototype.play).toHaveBeenCalledOnce();

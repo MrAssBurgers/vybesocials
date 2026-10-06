@@ -7,7 +7,10 @@ const actor = { uid: 'alice', profileId: 'profile-alice' }, input = { latitude: 
 const intel = () => ({ cache_key: 'a'.repeat(64), latitude: 40, longitude: -80, place_name: 'Park', safety_score: 50, verdict: 'caution',
   labels: [{ type: 'water_hazard', title: 'Water', detail: 'Check the shore', severity: 'warning' }], summary: 'Area details', tips: ['Check locally'],
   researched_at: new Date(Date.now() - 1000).toISOString(), expires_at: new Date(Date.now() + 86400000).toISOString() });
-const receipt = (extra = {}) => ({ ok: true, ownerUid: 'alice', profileId: 'profile-alice', serverTime: Date.now(), validUntil: Date.now() + 15000, placeId: null, intel: intel(), ...extra });
+const receipt = (extra = {}) => {
+  const now = Date.now();
+  return { ok: true, ownerUid: 'alice', profileId: 'profile-alice', serverTime: now, validUntil: now + 15000, placeId: null, intel: intel(), ...extra };
+};
 beforeEach(() => { state.uid = 'alice'; state.epoch++; state.invoke.mockReset().mockResolvedValue({ data: receipt(), error: null }); });
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 describe('checked location intelligence', () => {

@@ -221,6 +221,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const explicitSignOutRef = useRef(false);
   const bootstrapUserRef = useRef<string | null>(null);
   const bootstrapRetryRef = useRef<string | null>(null);
+  const bootstrapRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const authAttempts = useRef(createAuthAttemptController(tokenAccountSnapshot, {
     begin: beginLoginApprovalCheck, end: endLoginApprovalCheck,
   })).current;
@@ -409,6 +410,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       outerGuard(); accountGuard();
       if (!mountedRef.current || lifetime !== providerLifetimeRef.current || attempt !== profileAttemptRef.current) throw Object.assign(new Error('Profile setup was replaced.'), { code: 'account-changed' });
     };
+    if (bootstrapRetryTimerRef.current !== null) {
+      clearTimeout(bootstrapRetryTimerRef.current);
+      bootstrapRetryTimerRef.current = null;
+    }
     try {
       guard();
       bootstrapRetryRef.current = null;
@@ -433,6 +438,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (transient && !preserveConfirmedOnFailure && bootstrapUserRef.current === `${userId}:${captured.epoch}`) {
         bootstrapUserRef.current = null;
         bootstrapRetryRef.current = `${userId}:${captured.epoch}`;
+        // A brief token-fetch failure may recover without an online/token event.
+        // Retry only this checked startup, twice; never retry ownership rejection
+        // or restart a replacement account, manual attempt or provider lifetime.
+        if (action === 'ensure' && _retryCount < 2 && navigator.onLine !== false && document.visibilityState !== 'hidden') {
+          const key = bootstrapRetryRef.current;
+          bootstrapRetryTimerRef.current = setTimeout(() => {
+            bootstrapRetryTimerRef.current = null;
+            try { guard(); } catch { return; }
+            if (bootstrapRetryRef.current !== key || shouldBlockPostLoginNavigation() || navigator.onLine === false || document.visibilityState === 'hidden') return;
+            bootstrapUserRef.current = key;
+            void fetchProfile(userId, _retryCount + 1, outerGuard, action, defaults);
+          }, _retryCount === 0 ? 1000 : 3000);
+        }
       }
       const preserve = transient && preserveConfirmedOnFailure && profileScopeRef.current?.uid === userId && profileScopeRef.current.epoch === captured.epoch;
       if (!preserve) { profileScopeRef.current = null; setProfile(null); }
@@ -1068,6 +1086,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       providerLifetimeRef.current += 1;
       bootstrapUserRef.current = null;
       profileAttemptRef.current += 1;
+      if (bootstrapRetryTimerRef.current !== null) clearTimeout(bootstrapRetryTimerRef.current);
+      bootstrapRetryTimerRef.current = null;
       authAttempts.retire();
       document.removeEventListener('visibilitychange', resumeRefresh);
       window.removeEventListener('app-resumed', resumeRefresh);

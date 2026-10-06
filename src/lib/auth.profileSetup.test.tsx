@@ -370,6 +370,31 @@ describe('AuthProvider checked profile setup', () => {
 });
 
 describe('AuthProvider restoration and refresh ownership', () => {
+  it('recovers a temporary startup token failure without waiting for a new browser event', async () => {
+    vi.useFakeTimers();
+    state.ensure.mockRejectedValueOnce({ code: 'auth/network-request-failed' }).mockResolvedValueOnce(profile('alice', 'recovered'));
+    mount(); await switchAccount('alice', 'INITIAL_SESSION');
+    expect(current.profile).toBeNull();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1100); });
+    expect(current.profile?.username).toBe('recovered');
+    expect(state.ensure).toHaveBeenCalledTimes(2); expect(state.signOut).not.toHaveBeenCalled();
+  });
+  it('bounds automatic startup retries when the network remains unavailable', async () => {
+    vi.useFakeTimers(); state.ensure.mockRejectedValue({ code: 'auth/network-request-failed' });
+    mount(); await switchAccount('alice', 'INITIAL_SESSION');
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(state.ensure).toHaveBeenCalledTimes(3);
+    expect(current.profileSetupError).not.toBeNull(); expect(state.signOut).not.toHaveBeenCalled();
+  });
+  it('retires a pending startup retry across account changes and unmount', async () => {
+    vi.useFakeTimers();
+    state.ensure.mockRejectedValueOnce({ code: 'auth/network-request-failed' }).mockImplementation(async uid => profile(uid, uid));
+    mount(); await switchAccount('alice', 'INITIAL_SESSION'); await switchAccount('bob');
+    await act(async () => { await vi.advanceTimersByTimeAsync(1100); });
+    expect(state.ensure).toHaveBeenCalledTimes(2); expect(current.profile?.user_id).toBe('bob');
+    cleanup(); await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(state.ensure).toHaveBeenCalledTimes(2);
+  });
   it.each(['online', 'app-resumed', 'document-resumed'])('retries a transient profile failure on %s with an unexpired token', async event => {
     state.ensure.mockRejectedValueOnce({ code: 'functions/unavailable' }).mockResolvedValueOnce(profile('alice', 'recovered'));
     mount(); await switchAccount('alice', 'INITIAL_SESSION');
