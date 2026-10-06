@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-06",
+  "deployedSource": "4b53f4550efa4c8d104b8036ed8719d3f450ae2b",
+  "publicDelivery": {
+    "ordinaryEntry": "/assets/app-BobHpUje.js",
+    "browserChromeEntry": "/assets/app-5p_yKDY_.js",
+    "browserIabEntry": "/assets/app-CGCcULTp.js",
+    "cacheControl": "no-cache, must-revalidate, max-age=0",
+    "revalidatedEntry": "/assets/app-BobHpUje.js",
+    "freshDocumentStillOld": true
+  },
+  "firebaseMedia": {
+    "missing": 0,
+    "bucket": "vybe-daaab.firebasestorage.app",
+    "legacyAppspotMatches": 0,
+    "checkedObjects": 6,
+    "existing": 6,
+    "contentTypes": {
+      "imageWebp": 1,
+      "imageJpeg": 1,
+      "videoMp4": 4
+    },
+    "loadedClipReadyState": 4,
+    "loadedClipBucket": "vybe-daaab.firebasestorage.app"
+  },
+  "mapRead": {
+    "retryStillFails": true,
+    "visibleError": "Friend locations could not load",
+    "httpStatusesDoNotProveClientReceiptAccepted": true,
+    "renderer": "3D Mapbox",
+    "recentHttpStatuses": [
+      200,
+      204
+    ]
+  },
+  "mutations": [],
+  "limits": [
+    "No physical-phone decoding, location sharing or latency proof",
+    "Six-object check does not cover all historical content or prove ownership/admission",
+    "Older browser delivery root cause unresolved; no cache/session/permission reset",
+    "Metadata copies exist; no byte-equivalence or object ownership claim from name match"
+  ]
+}
