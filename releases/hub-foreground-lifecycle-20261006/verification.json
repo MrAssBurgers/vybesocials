@@ -1,0 +1,71 @@
+{
+  "testedMain": "27404e57a480114bd9d4ff9a02d0468703a39015",
+  "deploymentId": "01c56088-b998-4474-82ee-fc3291dbb5e2",
+  "source": [
+    {
+      "host": "https://vybehub.app",
+      "resolvedOrigin": "https://vybehub.app",
+      "redirected": false,
+      "routes": [
+        "/",
+        "/home",
+        "/map",
+        "/clips",
+        "/onboarding",
+        "/spaces",
+        "/space/qa-route-check",
+        "/messages",
+        "/community"
+      ],
+      "sourceSha": "5219af13156207cbe5e99c8bfeb8a7e1b582a2d5d07bd6d1330eea73fabfd326",
+      "schema": "vybe-client-source-v2",
+      "files": 2581,
+      "built": "2026-10-06T15:14:28.279Z",
+      "entry": "/assets/app-BQKg9un5.js",
+      "entrySha": "6e405a3c6b303fed2f8a2d4f853c95718897a7f030f95cf053d95ba0c71e62e2"
+    },
+    {
+      "host": "https://vybesocials.lovable.app",
+      "resolvedOrigin": "https://vybehub.app",
+      "redirected": true,
+      "routes": [
+        "/",
+        "/home",
+        "/map",
+        "/clips",
+        "/onboarding",
+        "/spaces",
+        "/space/qa-route-check",
+        "/messages",
+        "/community"
+      ],
+      "sourceSha": "5219af13156207cbe5e99c8bfeb8a7e1b582a2d5d07bd6d1330eea73fabfd326",
+      "schema": "vybe-client-source-v2",
+      "files": 2581,
+      "built": "2026-10-06T15:14:28.279Z",
+      "entry": "/assets/app-BQKg9un5.js",
+      "entrySha": "6e405a3c6b303fed2f8a2d4f853c95718897a7f030f95cf053d95ba0c71e62e2"
+    }
+  ],
+  "tests": {
+    "passed": 4767,
+    "newLifecycleCases": 4,
+    "focused": 48,
+    "skipped": 6
+  },
+  "initialBundle": {
+    "rawKb": 1098.0,
+    "gzipKb": 333.2
+  },
+  "publisherObserved": "Your website was updated",
+  "proof": "outputs/vybe-hub-lifecycle-published.png",
+  "renderedProofs": [
+    "outputs/vybe-hub-paused-check.png",
+    "outputs/vybe-hub-resume-check.png"
+  ],
+  "limits": [
+    "Synthetic transport verifies hook lifecycle, not physical phone performance",
+    "Production historical identity/admission restoration and native current-version adoption remain open",
+    "No community messages, membership, credentials, Rules or Storage writes"
+  ]
+}
