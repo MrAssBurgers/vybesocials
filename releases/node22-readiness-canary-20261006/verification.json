@@ -1,0 +1,442 @@
+{
+  "release": "Existing social services Node22 and dependency compatibility canary",
+  "scope": "Eight named deployed functions; current versioned archives retained except two dependency/engine manifests",
+  "snapshot": {
+    "readOnly": true,
+    "totalFunctions": 233,
+    "selectedNode20": 230,
+    "downloaded": 230,
+    "uniqueArchives": 40,
+    "eventTriggered": 16,
+    "failures": []
+  },
+  "preflight": {
+    "runtime": "v22.23.3",
+    "uniqueBundles": 40,
+    "entrypointsResolved": 230,
+    "typeProjectsPassed": 40,
+    "outboundNetworkAttempts": 0,
+    "exactDependencySets": 2,
+    "installedPackagesPerSet": 300,
+    "installScriptsExecuted": false,
+    "nativeMediaExecutionVerified": false,
+    "rootTestsAndBuildRepeatedThisCheckpoint": false,
+    "priorCoreReleaseRootTestsPassed": 4844,
+    "priorCoreReleaseRootTestsSkipped": 6
+  },
+  "candidates": [
+    {
+      "name": "readSocialPostList",
+      "beforeSha": "cf5932d12d04be9a163e1d0f8afa3b361501afc77c51f81b4eca1ef1e41c5144",
+      "candidateSha": "9a5d100aad483ae438b76fcfd7bcd7be67f6f4f9dd6abff67ff581a1a68fd11e",
+      "files": 483,
+      "unchangedFiles": 481,
+      "changedFiles": [
+        "package-lock.json",
+        "package.json"
+      ],
+      "dependencyChanges": [
+        {
+          "name": "proxy-addr",
+          "before": "2.0.7",
+          "after": "2.0.8"
+        }
+      ],
+      "otherDependenciesRetained": true,
+      "dependencySetSha": "e2f71b9f37f9a885250693034a378d4ecf18ded3ac5e5b14407b9c2aab32ebf2",
+      "hasTypeProject": true
+    },
+    {
+      "name": "readSocialPostPreviews",
+      "beforeSha": "cf5932d12d04be9a163e1d0f8afa3b361501afc77c51f81b4eca1ef1e41c5144",
+      "candidateSha": "9a5d100aad483ae438b76fcfd7bcd7be67f6f4f9dd6abff67ff581a1a68fd11e",
+      "files": 483,
+      "unchangedFiles": 481,
+      "changedFiles": [
+        "package-lock.json",
+        "package.json"
+      ],
+      "dependencyChanges": [
+        {
+          "name": "proxy-addr",
+          "before": "2.0.7",
+          "after": "2.0.8"
+        }
+      ],
+      "otherDependenciesRetained": true,
+      "dependencySetSha": "e2f71b9f37f9a885250693034a378d4ecf18ded3ac5e5b14407b9c2aab32ebf2",
+      "hasTypeProject": true
+    },
+    {
+      "name": "readPostComments",
+      "beforeSha": "cf5932d12d04be9a163e1d0f8afa3b361501afc77c51f81b4eca1ef1e41c5144",
+      "candidateSha": "9a5d100aad483ae438b76fcfd7bcd7be67f6f4f9dd6abff67ff581a1a68fd11e",
+      "files": 483,
+      "unchangedFiles": 481,
+      "changedFiles": [
+        "package-lock.json",
+        "package.json"
+      ],
+      "dependencyChanges": [
+        {
+          "name": "proxy-addr",
+          "before": "2.0.7",
+          "after": "2.0.8"
+        }
+      ],
+      "otherDependenciesRetained": true,
+      "dependencySetSha": "e2f71b9f37f9a885250693034a378d4ecf18ded3ac5e5b14407b9c2aab32ebf2",
+      "hasTypeProject": true
+    },
+    {
+      "name": "readPostCommentCounts",
+      "beforeSha": "cf5932d12d04be9a163e1d0f8afa3b361501afc77c51f81b4eca1ef1e41c5144",
+      "candidateSha": "9a5d100aad483ae438b76fcfd7bcd7be67f6f4f9dd6abff67ff581a1a68fd11e",
+      "files": 483,
+      "unchangedFiles": 481,
+      "changedFiles": [
+        "package-lock.json",
+        "package.json"
+      ],
+      "dependencyChanges": [
+        {
+          "name": "proxy-addr",
+          "before": "2.0.7",
+          "after": "2.0.8"
+        }
+      ],
+      "otherDependenciesRetained": true,
+      "dependencySetSha": "e2f71b9f37f9a885250693034a378d4ecf18ded3ac5e5b14407b9c2aab32ebf2",
+      "hasTypeProject": true
+    },
+    {
+      "name": "managePost",
+      "beforeSha": "cf5932d12d04be9a163e1d0f8afa3b361501afc77c51f81b4eca1ef1e41c5144",
+      "candidateSha": "9a5d100aad483ae438b76fcfd7bcd7be67f6f4f9dd6abff67ff581a1a68fd11e",
+      "files": 483,
+      "unchangedFiles": 481,
+      "changedFiles": [
+        "package-lock.json",
+        "package.json"
+      ],
+      "dependencyChanges": [
+        {
+          "name": "proxy-addr",
+          "before": "2.0.7",
+          "after": "2.0.8"
+        }
+      ],
+      "otherDependenciesRetained": true,
+      "dependencySetSha": "e2f71b9f37f9a885250693034a378d4ecf18ded3ac5e5b14407b9c2aab32ebf2",
+      "hasTypeProject": true
+    },
+    {
+      "name": "manageSpaces",
+      "beforeSha": "d26cfaa6f27d1a732af755bb5ec01469416f2a947f17ec946b8aef9bc6b95c25",
+      "candidateSha": "4e2acc5009264f3673d1c7b702ad782b2c4e7d7ad7dbd9e78dec64ad06a2a5c5",
+      "files": 507,
+      "unchangedFiles": 505,
+      "changedFiles": [
+        "package-lock.json",
+        "package.json"
+      ],
+      "dependencyChanges": [
+        {
+          "name": "proxy-addr",
+          "before": "2.0.7",
+          "after": "2.0.8"
+        }
+      ],
+      "otherDependenciesRetained": true,
+      "dependencySetSha": "e2f71b9f37f9a885250693034a378d4ecf18ded3ac5e5b14407b9c2aab32ebf2",
+      "hasTypeProject": true
+    },
+    {
+      "name": "communityManage",
+      "beforeSha": "3cbc2a817e170ed4bf5b129c8544ab6ea76dcb6d491044819e5d6391361e1402",
+      "candidateSha": "7b45ac4399c9af96750783f9d691f09d6ec4785173c58a0c7cb18a7fd1033434",
+      "files": 483,
+      "unchangedFiles": 481,
+      "changedFiles": [
+        "package-lock.json",
+        "package.json"
+      ],
+      "dependencyChanges": [
+        {
+          "name": "proxy-addr",
+          "before": "2.0.7",
+          "after": "2.0.8"
+        }
+      ],
+      "otherDependenciesRetained": true,
+      "dependencySetSha": "e2f71b9f37f9a885250693034a378d4ecf18ded3ac5e5b14407b9c2aab32ebf2",
+      "hasTypeProject": true
+    },
+    {
+      "name": "sendDmMessage",
+      "beforeSha": "5bd6d2d5fe118b6df12dd9a03cbba806187da3379f541a2b6c6bf3a4cb246e97",
+      "candidateSha": "4bb68962a24636d8a1b6129031274cefe664bb7818c84ebed5400b61a3130aa0",
+      "files": 204,
+      "unchangedFiles": 202,
+      "changedFiles": [
+        "package-lock.json",
+        "package.json"
+      ],
+      "dependencyChanges": [
+        {
+          "name": "proxy-addr",
+          "before": "2.0.7",
+          "after": "2.0.8"
+        },
+        {
+          "name": "@grpc/grpc-js",
+          "before": "1.14.4",
+          "after": "1.14.5"
+        }
+      ],
+      "otherDependenciesRetained": true,
+      "dependencySetSha": "66be3c0286741c36c2db0491e9536d7d285f938e262f84b3bbc3d2df47b09b30",
+      "hasTypeProject": true
+    }
+  ],
+  "live": [
+    {
+      "target": "readSocialPostList",
+      "state": "ACTIVE",
+      "runtime": "nodejs22",
+      "entryPoint": "readSocialPostList",
+      "updated": "2026-10-06T20:29:08.297171259Z",
+      "revision": "readsocialpostlist-00003-ruj",
+      "sourceSha": "9a5d100aad483ae438b76fcfd7bcd7be67f6f4f9dd6abff67ff581a1a68fd11e",
+      "sourceBytes": 1148414,
+      "oldServiceHash": "82f6fca7b19f012d424e4f200a60dba4d2eb2c14f93b1f0f3c665a16272f7b74",
+      "newServiceHash": "82f6fca7b19f012d424e4f200a60dba4d2eb2c14f93b1f0f3c665a16272f7b74",
+      "effectiveServiceSettingsUnchangedExceptRevision": true,
+      "scalingNormalization": {
+        "previousRevisionMaximumUnset": true,
+        "previousEffectiveDefault": 100,
+        "finalExplicitMaximum": 100
+      },
+      "eventTriggerUnchanged": true,
+      "buildEnvironmentUnchanged": true,
+      "publicBoundary": {
+        "httpStatus": 401,
+        "callableStatus": "UNAUTHENTICATED",
+        "authenticated": false,
+        "emptyPayload": true
+      }
+    },
+    {
+      "target": "readSocialPostPreviews",
+      "state": "ACTIVE",
+      "runtime": "nodejs22",
+      "entryPoint": "readSocialPostPreviews",
+      "updated": "2026-10-06T20:28:56.253050623Z",
+      "revision": "readsocialpostpreviews-00003-fey",
+      "sourceSha": "9a5d100aad483ae438b76fcfd7bcd7be67f6f4f9dd6abff67ff581a1a68fd11e",
+      "sourceBytes": 1148414,
+      "oldServiceHash": "4e60539b92fa7659e06c8eaa76bd511b75b0d94cca259607b1ea87dcac6dea9b",
+      "newServiceHash": "4e60539b92fa7659e06c8eaa76bd511b75b0d94cca259607b1ea87dcac6dea9b",
+      "effectiveServiceSettingsUnchangedExceptRevision": true,
+      "scalingNormalization": {
+        "previousRevisionMaximumUnset": true,
+        "previousEffectiveDefault": 100,
+        "finalExplicitMaximum": 100
+      },
+      "eventTriggerUnchanged": true,
+      "buildEnvironmentUnchanged": true,
+      "publicBoundary": {
+        "httpStatus": 401,
+        "callableStatus": "UNAUTHENTICATED",
+        "authenticated": false,
+        "emptyPayload": true
+      }
+    },
+    {
+      "target": "readPostComments",
+      "state": "ACTIVE",
+      "runtime": "nodejs22",
+      "entryPoint": "readPostComments",
+      "updated": "2026-10-06T20:29:17.725613211Z",
+      "revision": "readpostcomments-00003-lom",
+      "sourceSha": "9a5d100aad483ae438b76fcfd7bcd7be67f6f4f9dd6abff67ff581a1a68fd11e",
+      "sourceBytes": 1148414,
+      "oldServiceHash": "f3e9c7289f3bb31ffac50b4eb30fefdc8a8feeacc7423a0c2904034b93a64dea",
+      "newServiceHash": "f3e9c7289f3bb31ffac50b4eb30fefdc8a8feeacc7423a0c2904034b93a64dea",
+      "effectiveServiceSettingsUnchangedExceptRevision": true,
+      "scalingNormalization": {
+        "previousRevisionMaximumUnset": true,
+        "previousEffectiveDefault": 100,
+        "finalExplicitMaximum": 100
+      },
+      "eventTriggerUnchanged": true,
+      "buildEnvironmentUnchanged": true,
+      "publicBoundary": {
+        "httpStatus": 401,
+        "callableStatus": "UNAUTHENTICATED",
+        "authenticated": false,
+        "emptyPayload": true
+      }
+    },
+    {
+      "target": "readPostCommentCounts",
+      "state": "ACTIVE",
+      "runtime": "nodejs22",
+      "entryPoint": "readPostCommentCounts",
+      "updated": "2026-10-06T20:28:58.584255976Z",
+      "revision": "readpostcommentcounts-00003-roq",
+      "sourceSha": "9a5d100aad483ae438b76fcfd7bcd7be67f6f4f9dd6abff67ff581a1a68fd11e",
+      "sourceBytes": 1148414,
+      "oldServiceHash": "b6a51498ec5bb9f26ba3f49f4cca61eb8840dc158618c4e33250c5193631cbb7",
+      "newServiceHash": "b6a51498ec5bb9f26ba3f49f4cca61eb8840dc158618c4e33250c5193631cbb7",
+      "effectiveServiceSettingsUnchangedExceptRevision": true,
+      "scalingNormalization": {
+        "previousRevisionMaximumUnset": true,
+        "previousEffectiveDefault": 100,
+        "finalExplicitMaximum": 100
+      },
+      "eventTriggerUnchanged": true,
+      "buildEnvironmentUnchanged": true,
+      "publicBoundary": {
+        "httpStatus": 401,
+        "callableStatus": "UNAUTHENTICATED",
+        "authenticated": false,
+        "emptyPayload": true
+      }
+    },
+    {
+      "target": "managePost",
+      "state": "ACTIVE",
+      "runtime": "nodejs22",
+      "entryPoint": "managePost",
+      "updated": "2026-10-06T20:29:55.512853740Z",
+      "revision": "managepost-00003-hiz",
+      "sourceSha": "9a5d100aad483ae438b76fcfd7bcd7be67f6f4f9dd6abff67ff581a1a68fd11e",
+      "sourceBytes": 1148414,
+      "oldServiceHash": "96661cd5818c37bbcff24c210898f256b3dd2e91b298d84e4533f9cd8b6e98e2",
+      "newServiceHash": "96661cd5818c37bbcff24c210898f256b3dd2e91b298d84e4533f9cd8b6e98e2",
+      "effectiveServiceSettingsUnchangedExceptRevision": true,
+      "scalingNormalization": {
+        "previousRevisionMaximumUnset": true,
+        "previousEffectiveDefault": 100,
+        "finalExplicitMaximum": 100
+      },
+      "eventTriggerUnchanged": true,
+      "buildEnvironmentUnchanged": true,
+      "publicBoundary": {
+        "httpStatus": 401,
+        "callableStatus": "UNAUTHENTICATED",
+        "authenticated": false,
+        "emptyPayload": true
+      }
+    },
+    {
+      "target": "manageSpaces",
+      "state": "ACTIVE",
+      "runtime": "nodejs22",
+      "entryPoint": "manageSpaces",
+      "updated": "2026-10-06T20:29:18.882872845Z",
+      "revision": "managespaces-00003-xoj",
+      "sourceSha": "4e2acc5009264f3673d1c7b702ad782b2c4e7d7ad7dbd9e78dec64ad06a2a5c5",
+      "sourceBytes": 1197750,
+      "oldServiceHash": "b0bfe1de665b74cdb55129802eab06e71bd89ac91a0c7ee24db53f02971cffa1",
+      "newServiceHash": "b0bfe1de665b74cdb55129802eab06e71bd89ac91a0c7ee24db53f02971cffa1",
+      "effectiveServiceSettingsUnchangedExceptRevision": true,
+      "scalingNormalization": {
+        "previousRevisionMaximumUnset": true,
+        "previousEffectiveDefault": 100,
+        "finalExplicitMaximum": 100
+      },
+      "eventTriggerUnchanged": true,
+      "buildEnvironmentUnchanged": true,
+      "publicBoundary": {
+        "httpStatus": 401,
+        "callableStatus": "UNAUTHENTICATED",
+        "authenticated": false,
+        "emptyPayload": true
+      }
+    },
+    {
+      "target": "communityManage",
+      "state": "ACTIVE",
+      "runtime": "nodejs22",
+      "entryPoint": "communityManage",
+      "updated": "2026-10-06T20:26:02.011708804Z",
+      "revision": "communitymanage-00002-rat",
+      "sourceSha": "7b45ac4399c9af96750783f9d691f09d6ec4785173c58a0c7cb18a7fd1033434",
+      "sourceBytes": 1149311,
+      "oldServiceHash": "f02f5547c605c07f75325557d8ae21273578a855b70487c8c1cac92efbe5019f",
+      "newServiceHash": "f02f5547c605c07f75325557d8ae21273578a855b70487c8c1cac92efbe5019f",
+      "effectiveServiceSettingsUnchangedExceptRevision": true,
+      "scalingNormalization": null,
+      "eventTriggerUnchanged": true,
+      "buildEnvironmentUnchanged": true,
+      "publicBoundary": {
+        "httpStatus": 401,
+        "callableStatus": "UNAUTHENTICATED",
+        "authenticated": false,
+        "emptyPayload": true
+      }
+    },
+    {
+      "target": "sendDmMessage",
+      "state": "ACTIVE",
+      "runtime": "nodejs22",
+      "entryPoint": "sendDmMessage",
+      "updated": "2026-10-06T20:26:11.982960993Z",
+      "revision": "senddmmessage-00012-paf",
+      "sourceSha": "4bb68962a24636d8a1b6129031274cefe664bb7818c84ebed5400b61a3130aa0",
+      "sourceBytes": 483250,
+      "oldServiceHash": "27bd75805ea8091ad91ed1ebd7d60e4d2bba3969ffd1bb8d5b3b2e4766fbf363",
+      "newServiceHash": "27bd75805ea8091ad91ed1ebd7d60e4d2bba3969ffd1bb8d5b3b2e4766fbf363",
+      "effectiveServiceSettingsUnchangedExceptRevision": true,
+      "scalingNormalization": null,
+      "eventTriggerUnchanged": true,
+      "buildEnvironmentUnchanged": true,
+      "publicBoundary": {
+        "httpStatus": 401,
+        "callableStatus": "UNAUTHENTICATED",
+        "authenticated": false,
+        "emptyPayload": true
+      }
+    }
+  ],
+  "inventory": {
+    "checkedAt": "2026-10-06T20:32:24.986Z",
+    "readOnly": true,
+    "allPagesRead": true,
+    "functions": 233,
+    "states": {
+      "ACTIVE": 233
+    },
+    "runtimes": {
+      "nodejs20": 222,
+      "nodejs22": 11
+    },
+    "otherFunctionRowsUnchanged": 225,
+    "metadataComparison": "canonical object keys and unordered event filter set; every other value retained"
+  },
+  "configurationCorrection": {
+    "affectedFunctions": 6,
+    "unexpectedDefaultMaximum": 20,
+    "previousRevisionMaximumUnset": true,
+    "previousEffectiveMaximum": 100,
+    "finalExplicitMaximum": 100,
+    "correctionCompleted": true,
+    "rawRepresentationChanged": true,
+    "effectiveServiceConfigurationRetained": true,
+    "futureRolloutRequirement": "Read prior Cloud Run revision and explicitly retain effective limits in the same scoped update; verify actual configuration afterward"
+  },
+  "limits": [
+    "Empty live requests prove unauthenticated rejection only; no signed-in write or provider delivery certification.",
+    "Prepared remaining candidates are not deployed; 222 services remain Node20.",
+    "Physical Play Store package adoption, startup/post latency, GPS permissions and Clips decoding/FPS remain unverified.",
+    "Other dependency advisories, first-factor/MFA authority and preserved-content restoration remain open.",
+    "No client publication, native binary distribution, account/content/Rules/provider/permission changes."
+  ],
+  "sources": [
+    "https://docs.cloud.google.com/run/docs/configuring/max-instances",
+    "https://github.com/grpc/grpc-node/releases",
+    "https://github.com/jshttp/proxy-addr/security/advisories/GHSA-jqcg-44mw-7w3h"
+  ]
+}
