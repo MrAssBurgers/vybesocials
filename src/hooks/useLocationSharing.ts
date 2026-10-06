@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useEffect, useMemo, useReducer, useState } from 'react';
+import { foregroundReadPhaseCurrent, useForegroundReadPhase } from './useForegroundReadPhase';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useProfileAccount } from './useProfileAccount';
 import type { LocationMutation, LocationRead } from '@/lib/locationSharingService';
@@ -12,17 +13,22 @@ export const locationSharingKey = (actor: { uid: string; profileId: string; epoc
 type ReadResult = LocationRead & { validUntil: number; receivedAt: number };
 export function useLocationSharing(targetId?: string, enabled = true) {
   const actor = useLocationActor(), client = useQueryClient();
-  const nativePaused = useRef(false);
-  const [visibility, setVisibility] = useState(() => ({ visible: document.visibilityState !== 'hidden', revision: 0 }));
-  const key = [...locationSharingKey(actor, targetId), visibility.revision];
+  const phase = useForegroundReadPhase();
+  const [revision, setRevision] = useState(0);
+  const key = [...locationSharingKey(actor, targetId), revision, phase.generation];
   const scope = JSON.stringify(key);
   const [clockRevision, tick] = useReducer((n: number) => n + 1, 0);
   const query = useQuery({
-    queryKey: key, enabled: actor.ready && enabled && visibility.visible,
+    queryKey: key, enabled: actor.ready && enabled && phase.foreground,
     queryFn: async (): Promise<ReadResult> => {
+      const guard = () => {
+        actor.guard();
+        if (!foregroundReadPhaseCurrent(phase)) throw Object.assign(new Error('Open the app to refresh location sharing.'), { code: 'location-paused' });
+      };
+      guard();
       const started = performance.now();
-      const received = await locationSharingRequest(actor, { action: 'read', ...(targetId ? { targetId } : {}) }, actor.guard) as LocationRead;
-      actor.guard();
+      const received = await locationSharingRequest(actor, { action: 'read', ...(targetId ? { targetId } : {}) }, guard) as LocationRead;
+      guard();
       const receivedAt = Date.now();
       const elapsed = Math.max(0, performance.now() - started);
       return { ...received, receivedAt: receivedAt - elapsed, validUntil: receivedAt + Math.max(0, Math.min(15_000, received.leaseUntil - received.serverTime) - elapsed) };
@@ -33,36 +39,28 @@ export function useLocationSharing(targetId?: string, enabled = true) {
   });
   useEffect(() => {
     const change = () => {
-      const visible = !nativePaused.current && document.visibilityState !== 'hidden';
-      // Remove hidden-page grants rather than painting them on foreground while
-      // a new read is pending. Query cancellation also discards late old reads.
+      // Reconnect must check fresh grants. The shared foreground phase handles
+      // hidden/native transitions and rejects late replies from earlier phases.
       void client.cancelQueries({ queryKey: key, exact: true });
       client.removeQueries({ queryKey: key, exact: true });
-      setVisibility(value => ({ visible, revision: value.revision + 1 }));
+      setRevision(value => value + 1);
     };
-    document.addEventListener('visibilitychange', change);
     // Reconnect checks current permissions instead of retaining a failed read
     // until the polling interval or painting a cached grant while retrying.
-    window.addEventListener('online', change);
-    const pause = () => { nativePaused.current = true; change(); };
-    const resume = () => { nativePaused.current = false; change(); };
-    window.addEventListener('app-paused', pause);
-    window.addEventListener('app-resumed', resume);
+    const online = () => { if (foregroundReadPhaseCurrent(phase)) change(); };
+    window.addEventListener('online', online);
     const tokenReady = () => {
-      if (!query.isError || !actor.ready || !enabled || nativePaused.current || document.visibilityState === 'hidden' || navigator.onLine === false) return;
+      if (!query.isError || !actor.ready || !enabled || !foregroundReadPhaseCurrent(phase) || navigator.onLine === false) return;
       try { actor.guard(); } catch { return; }
       change();
     };
     window.addEventListener('vybe-auth-token-ready', tokenReady);
     return () => {
-      document.removeEventListener('visibilitychange', change);
-      window.removeEventListener('online', change);
-      window.removeEventListener('app-paused', pause);
-      window.removeEventListener('app-resumed', resume);
+      window.removeEventListener('online', online);
       window.removeEventListener('vybe-auth-token-ready', tokenReady);
     };
   // This listener may only change the captured actor/target query.
-  }, [client, scope, query.isError, actor.ready, enabled]);
+  }, [client, scope, query.isError, actor.ready, enabled, phase]);
   const serverNow = query.data ? query.data.serverTime + Date.now() - query.data.receivedAt : Date.now();
   const deadlines = query.data ? [query.data.validUntil, ...query.data.locations.map(row => query.data!.receivedAt + Date.parse(row.expiresAt) - query.data!.serverTime), ...query.data.shares.filter(row => row.active).map(row => query.data!.receivedAt + Date.parse(row.expiresAt) - query.data!.serverTime), ...query.data.requests.filter(row => row.status === 'pending').map(row => query.data!.receivedAt + Date.parse(row.expiresAt) - query.data!.serverTime)] : [];
   const expiry = Math.min(...deadlines.filter(at => at > Date.now()));
@@ -73,7 +71,7 @@ export function useLocationSharing(targetId?: string, enabled = true) {
     const timer = setTimeout(tick, delay + 5);
     return () => clearTimeout(timer);
   }, [expiry, scope]);
-  let current = actor.ready && enabled && visibility.visible && query.isFetchedAfterMount && !query.isError && !query.isPlaceholderData && !!query.data && query.data.validUntil > Date.now();
+  let current = actor.ready && enabled && foregroundReadPhaseCurrent(phase) && query.isFetchedAfterMount && !query.isError && !query.isPlaceholderData && !!query.data && query.data.validUntil > Date.now();
   try { actor.guard(); } catch { current = false; }
   const data = useMemo(() => current && query.data ? {
     ...query.data,
@@ -81,7 +79,7 @@ export function useLocationSharing(targetId?: string, enabled = true) {
     locations: query.data.locations.filter(row => Date.parse(row.expiresAt) > serverNow),
     shares: query.data.shares.map(row => Date.parse(row.expiresAt) <= serverNow ? { ...row, active: false } : row),
     requests: query.data.requests.map(row => row.status === 'pending' && Date.parse(row.expiresAt) <= serverNow ? { ...row, status: 'expired' as const } : row),
-  } : undefined, [current, query.data, clockRevision, visibility.revision]);
+  } : undefined, [current, query.data, clockRevision, revision]);
   return { ...query, data, actor, isLoading: actor.ready && enabled && !data && !query.isError, isReady: !!data };
 }
 

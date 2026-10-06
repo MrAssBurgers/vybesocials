@@ -25,6 +25,8 @@ beforeEach(() => {
   vi.clearAllMocks(); state.uid = 'alice'; state.epoch = 1; state.enabled = false; state.revision = 'a'.repeat(48); state.invoke.mockImplementation(async (_, input) => response(input));
   permission.mockResolvedValue({ state: 'prompt' }); sessionStorage.clear();
   Object.defineProperty(navigator, 'geolocation', { configurable: true, value: gps }); Object.defineProperty(navigator, 'permissions', { configurable: true, value: { query: permission } }); Object.defineProperty(navigator, 'getBattery', { configurable: true, value: undefined }); Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+  // Each case starts a foreground app, including the shared map read phase.
+  window.dispatchEvent(new Event('app-resumed'));
 });
 afterEach(() => { cleanup(); clients.forEach(client => client.clear()); clients.length = 0; });
 const create = () => renderHook(() => useBackgroundLocation(`profile-${state.uid}`, { watchOnMap: true }), { wrapper: wrapper() });

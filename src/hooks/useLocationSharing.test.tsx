@@ -18,12 +18,32 @@ beforeEach(() => {
   stopNativeEvents = installNativeLifecycleEvents();
   vi.clearAllMocks(); vi.useFakeTimers(); state.uid = 'alice'; state.epoch++;
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+  window.dispatchEvent(new Event('app-resumed'));
   client = new QueryClient({ defaultOptions: { queries: { placeholderData: old => old, gcTime: 14 * 86400_000, refetchOnMount: false } } });
   state.request.mockImplementation(() => { const result = read(); return new Promise(resolve => setTimeout(() => resolve(result), 2_000)); });
 });
 afterEach(() => { cleanup(); stopNativeEvents(); client.clear(); vi.useRealTimers(); });
 async function advance(ms: number) { await act(async () => { await vi.advanceTimersByTimeAsync(ms); }); }
 describe('location sharing refresh continuity', () => {
+  it('does not send a manual refresh while the native app is paused', async () => {
+    const hook = renderHook(() => useLocationSharing(), { wrapper }); await advance(2_010);
+    act(() => window.dispatchEvent(new Event('app-paused'))); await advance(1);
+    const before = state.request.mock.calls.length;
+    state.request.mockResolvedValue(read());
+    await act(async () => { await hook.result.current.refetch(); });
+    expect(state.request).toHaveBeenCalledTimes(before);
+    expect(hook.result.current.data).toBeUndefined();
+  });
+  it('remembers a native pause across map remounts and checks fresh access on resume', async () => {
+    const first = renderHook(() => useLocationSharing(), { wrapper }); await advance(2_010);
+    act(() => window.dispatchEvent(new Event('app-paused'))); await advance(1); first.unmount();
+    const before = state.request.mock.calls.length;
+    const next = renderHook(() => useLocationSharing(), { wrapper }); await advance(2_010);
+    expect(state.request).toHaveBeenCalledTimes(before); expect(next.result.current.data).toBeUndefined();
+    act(() => window.dispatchEvent(new Event('app-resumed'))); await advance(1); await advance(2_010);
+    expect(state.request).toHaveBeenCalledTimes(before + 1); expect(next.result.current.error).toBeNull();
+    await advance(2_010); expect(next.result.current.data).toBeDefined();
+  });
   it('retries a failed read immediately after token recovery without waiting for polling', async () => {
     state.request.mockRejectedValueOnce(new Error('Fetching auth token failed'));
     const hook = renderHook(() => useLocationSharing(), { wrapper }); await advance(1);
