@@ -415,6 +415,7 @@ describe('AuthProvider restoration and refresh ownership', () => {
     state.ensure.mockRejectedValueOnce({ code: 'auth/network-request-failed' }).mockResolvedValueOnce(profile('alice', 'recovered'));
     mount(); await switchAccount('alice', 'INITIAL_SESSION');
     expect(current.profile).toBeNull();
+    expect(current.profileSetupError).toBeNull(); expect(current.profileSetupLoading).toBe(true);
     await act(async () => { await vi.advanceTimersByTimeAsync(1100); });
     expect(current.profile?.username).toBe('recovered');
     expect(state.ensure).toHaveBeenCalledTimes(2); expect(state.signOut).not.toHaveBeenCalled();
@@ -424,7 +425,23 @@ describe('AuthProvider restoration and refresh ownership', () => {
     mount(); await switchAccount('alice', 'INITIAL_SESSION');
     await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
     expect(state.ensure).toHaveBeenCalledTimes(3);
+    expect(current.profileSetupLoading).toBe(false);
     expect(current.profileSetupError).not.toBeNull(); expect(state.signOut).not.toHaveBeenCalled();
+  });
+  it.each(['offline', 'hidden', 'approval'])('ends the recovery loading state when a queued retry is stopped by %s', async reason => {
+    vi.useFakeTimers(); state.ensure.mockRejectedValue({ code: 'auth/network-request-failed' });
+    const online = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    try {
+      mount(); await switchAccount('alice', 'INITIAL_SESSION');
+      expect(current.profileSetupLoading).toBe(true); expect(current.profileSetupError).toBeNull();
+      if (reason === 'offline') online.mockReturnValue(false);
+      if (reason === 'hidden') visibility.mockReturnValue('hidden');
+      if (reason === 'approval') state.gate = true;
+      await act(async () => { await vi.advanceTimersByTimeAsync(1100); });
+      expect(state.ensure).toHaveBeenCalledOnce(); expect(current.profileSetupLoading).toBe(false);
+      expect(current.profileSetupError).not.toBeNull(); expect(current.user?.id).toBe('alice'); expect(state.signOut).not.toHaveBeenCalled();
+    } finally { online.mockRestore(); visibility.mockRestore(); }
   });
   it('retires a pending startup retry across account changes and unmount', async () => {
     vi.useFakeTimers();
@@ -438,7 +455,8 @@ describe('AuthProvider restoration and refresh ownership', () => {
   it.each(['online', 'app-resumed', 'document-resumed'])('retries a transient profile failure on %s with an unexpired token', async event => {
     state.ensure.mockRejectedValueOnce({ code: 'functions/unavailable' }).mockResolvedValueOnce(profile('alice', 'recovered'));
     mount(); await switchAccount('alice', 'INITIAL_SESSION');
-    await waitFor(() => expect(current.profileSetupError).not.toBeNull());
+    await waitFor(() => expect(state.ensure).toHaveBeenCalledOnce());
+    expect(current.profileSetupLoading).toBe(true); expect(current.profileSetupError).toBeNull();
     state.getSession.mockResolvedValue({ data: { session: { ...session('alice'), expires_at: Math.floor(Date.now() / 1000) + 3600 } }, error: null });
     await act(async () => { if (event === 'document-resumed') document.dispatchEvent(new CustomEvent('app-resumed')); else window.dispatchEvent(new Event(event)); });
     await waitFor(() => expect(current.profile?.username).toBe('recovered'));
@@ -455,7 +473,8 @@ describe('AuthProvider restoration and refresh ownership', () => {
   it('a delayed reconnect read cannot retry a retired account after Alice→Bob→Alice', async () => {
     state.ensure.mockRejectedValueOnce({ code: 'functions/unavailable' }).mockImplementation(async uid => profile(uid, `current-${uid}`));
     mount(); await switchAccount('alice', 'INITIAL_SESSION');
-    await waitFor(() => expect(current.profileSetupError).not.toBeNull());
+    await waitFor(() => expect(state.ensure).toHaveBeenCalledOnce());
+    expect(current.profileSetupLoading).toBe(true); expect(current.profileSetupError).toBeNull();
     const pending = deferred<any>(); state.getSession.mockReturnValue(pending.promise);
     act(() => window.dispatchEvent(new Event('online')));
     await switchAccount('bob'); await waitFor(() => expect(current.profile?.username).toBe('current-bob'));
@@ -467,7 +486,9 @@ describe('AuthProvider restoration and refresh ownership', () => {
   it.each(['functions/unavailable', 'auth/network-request-failed', 'functions/deadline-exceeded'])('retries failed initial profile setup after a current token event (%s)', async code => {
     state.ensure.mockRejectedValueOnce({ code, message: 'Temporary connection failure' }).mockResolvedValueOnce(profile('alice', 'recovered'));
     mount(); await switchAccount('alice', 'INITIAL_SESSION');
-    await waitFor(() => expect(current.profileSetupError).not.toBeNull());
+    await waitFor(() => expect(state.ensure).toHaveBeenCalledOnce());
+    expect(current.profileSetupLoading).toBe(code !== 'functions/deadline-exceeded');
+    expect(current.profileSetupError === null).toBe(code !== 'functions/deadline-exceeded');
     await act(async () => { await state.listener?.('TOKEN_REFRESHED', session('alice')); });
     await waitFor(() => expect(current.profile?.username).toBe('recovered'));
     expect(state.ensure).toHaveBeenCalledTimes(2); expect(current.user?.id).toBe('alice');

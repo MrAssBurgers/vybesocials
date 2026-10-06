@@ -1,0 +1,11 @@
+# Profile startup recovery continuity
+
+The checked AuthProvider bootstrap previously exposed a profile error immediately after a brief network/token-fetch failure, even when it had already queued a bounded recovery attempt. That could flash an error screen before the same signed-in account recovered.
+
+A queued brief network recovery now keeps the loading state continuous. The existing one-second/three-second delays and maximum two retries are unchanged. A full 15-second deadline still exposes recovery controls immediately. Offline, hidden-app or sign-in approval conditions stop a queued request and settle its loading state into the signed-in error state; account, attempt and provider-lifetime guards still reject retired work. Authoritative ownership and permission failures are never hidden or retried as network failures. No cached display profile establishes ownership, and no post-read gate or Firebase authority check is bypassed.
+
+Four focused pre-change cases failed at the expected continuous-loading assertion: ordinary recovery plus the offline, hidden and approval-stop cases. The latter cases also protect against introducing a stuck loading state when recovery is interrupted; their pre-change failure alone does not establish a prior stuck-spinner bug. After the repair, 116 tests across the actual AuthProvider, deadline/service and rendered status/protected-route suites pass. Reconnect and token-event tests now assert the continuous recovery state before triggering recovery; the real timeout and authoritative rejection assertions remain intact.
+
+This changes startup presentation, not Firebase latency, and is not proof of immediate profile/posts loading on a physical Play Store device. No production publish, native binary, Rules, IAM, backend or account data changes were made. The complete main branch still contains staged parental protocol changes that require coordinated server/client authority work before release; do not publish this entire branch as a completed readiness release.
+
+Final verification: 504 test files passed with one skipped; 4,912 tests passed with six skipped. Client type checking passed, lint reported zero errors and five existing warnings, and the matching build completed native/entry checks within budget (1095.1 KB raw / 332.1 KB gzip). Generated public stamps are restored.
