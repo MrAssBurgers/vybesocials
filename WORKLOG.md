@@ -9768,6 +9768,10 @@ Four initial regression cases fail previous source/pass fixed. Added native prod
 
 Next three tasks: publish and verify exact tested client; verify actual phone connection/location/Clips; continue safe existing Firebase content restoration and performance. No new features.
 
+Published14c84c72679e9e5aa542a2b6c0d5a6e317478d63, deploymentef976fe9-395c-48ac-b077-6c93c05b3a53. Actual publisher website-updated confirmation. Canonical schema v2 source15715b3df1bd526c0a6462a4ad62850c06d5da663dda737c0b229f5aeffc3a58/2545inputs; built08:25:24.997Z; entryapp-BDSp7RCo.js SHAac3a23b83ca4ff301ac2fc883977a62b3d98844940717791dcf36934b2a3812f. Metadata/bytes/five routeHTML pass; secondaryredirectscanonical. Screenshot outputs/vybe-mobile-native-resume-published.png inspected. Initialpubliccheckwhilepublishpendingcorrectlyfailedoldsource; finalcheckpassed. Logs work/mobile-resume-public-check.log and baselines unchanged8c9ac23d/a6aa1032. ActualpreviewSDKmapread121ms zerolocations/requests/shares. Userlive/localmaptabsretained. Nativeproducer test covers Capacitor; physicalDespia eventdelivery/sourceadoption and phoneGPS/codecs/FPS remain unverified. Goalactive.
+
+Next three tasks: physical phone source/native event/network/location/Clips verification; safe existing Firebase discovery/content restoration; whole-app readiness/performance. No new features.
+
 
 
 
