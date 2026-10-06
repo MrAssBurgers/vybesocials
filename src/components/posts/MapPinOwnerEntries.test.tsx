@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { ReactNode } from 'react';
@@ -49,6 +49,7 @@ let client: QueryClient;
 function wrapper({ children }: { children: ReactNode }) { return <QueryClientProvider client={client}><MemoryRouter>{children}</MemoryRouter></QueryClientProvider>; }
 function mountWatch() { return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/watch/video-one']}><Routes><Route path="/watch/:id" element={<Watch />} /></Routes></MemoryRouter></QueryClientProvider>); }
 beforeEach(() => {
+  window.dispatchEvent(new Event('app-resumed'));
   vi.clearAllMocks(); state.profileId = 'alice'; state.ready = true; state.epoch++;
   state.entry = { status: 'ready', expires: 30_000, post: video };
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -60,6 +61,24 @@ beforeEach(() => {
 afterEach(() => { cleanup(); client.clear(); vi.restoreAllMocks(); });
 
 describe.each([['mobile', MobileShortCard], ['desktop', ShortCard]] as const)('%s clip comments playback', (_, Card) => {
+  it('releases the decoder without reloading media during a same-turn native pause and reconnect', async () => {
+    const sources: (string | null)[] = [];
+    vi.mocked(HTMLMediaElement.prototype.load).mockImplementation(function (this: HTMLMediaElement) { sources.push(this.getAttribute('src')); });
+    const view = render(<Card post={clip} isActive />, { wrapper });
+    await waitFor(() => expect(HTMLMediaElement.prototype.play).toHaveBeenCalled());
+    const video = view.container.querySelector('video')!;
+    Object.defineProperty(video, 'error', { configurable: true, value: { code: 2 } });
+    act(() => {
+      window.dispatchEvent(new Event('app-paused'));
+      window.dispatchEvent(new Event('online'));
+      video.dispatchEvent(new Event('error'));
+    });
+    expect(sources.filter(Boolean)).toEqual([]);
+    expect(video.hasAttribute('src')).toBe(false);
+    expect(sources).toEqual([null]);
+    window.dispatchEvent(new Event('app-resumed'));
+    await waitFor(() => expect(sources.filter(Boolean)).toEqual([clip.media_url]));
+  });
   it('preserves the viewer’s explicit pause when comments close', async () => {
     actVisibility('visible');
     const view = render(<Card post={clip} isActive />, { wrapper });

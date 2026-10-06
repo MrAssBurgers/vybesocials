@@ -48,6 +48,7 @@ import { DeleteContentDialog } from '@/components/posts/DeleteContentDialog';
 import { isVideoPostMedia } from '@/lib/isVideoPostMedia';
 import { useClipPageVisible } from '@/hooks/useClipPageVisible';
 import { useClipNetworkRecovery } from '@/hooks/useClipNetworkRecovery';
+import { useClipMediaSource } from '@/hooks/useClipMediaSource';
 
 interface ShortCardProps {
   post: {
@@ -138,11 +139,15 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const media = useResolvedMediaUrl(post.media_url, isActive && pageVisible);
   const signedMediaUrl = media.url;
   const signedAvatarUrl = useSignedUrl(post.author?.avatar_url || null);
+  const isVideo = isVideoPostMedia(post);
+  const hasRenderableMedia = isValidMediaUrl(post.media_url);
+  const videoSource = useClipMediaSource(videoRef, signedMediaUrl, hasRenderableMedia && isVideo && isActive && pageVisible);
+  useEffect(() => { if (videoSource) { setIsLoading(true); setHasError(false); } }, [videoSource]);
   
   const effectiveIsHolding = externalIsHolding || isHolding;
   const resetPlaybackError = useCallback(() => { setHasError(false); setIsLoading(true); }, []);
   const playbackActive = isActive && pageVisible && !effectiveIsHolding && !showCommentSheet;
-  const recovery = useClipNetworkRecovery(videoRef, playbackActive, signedMediaUrl, postActions.contextKey, userPausedRef, resetPlaybackError);
+  const recovery = useClipNetworkRecovery(videoRef, playbackActive && isVideo, signedMediaUrl, postActions.contextKey, userPausedRef, resetPlaybackError);
   const playbackFailed = hasError || recovery.stalled || media.error;
   const playbackContext = useMemo(() => ({ active: playbackActive }), [playbackActive, signedMediaUrl, globalMuted, postActions.contextKey]);
   useEffect(() => {
@@ -410,9 +415,6 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     return count.toString();
   };
 
-  const isVideo = isVideoPostMedia(post);
-  const hasRenderableMedia = isValidMediaUrl(post.media_url);
-
   return (
     <div className="relative h-full w-full bg-black flex items-center justify-center overflow-hidden">
       {/* Media */}
@@ -440,16 +442,17 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         {hasRenderableMedia && isVideo ? (
           <video
             ref={videoRef}
-            src={signedMediaUrl || undefined}
+            src={videoSource}
             className={cn("h-full w-full object-contain", isLoading && "opacity-0")}
             loop
             playsInline
             webkit-playsinline="true"
             muted={isMuted}
-            preload={isActive ? "metadata" : "none"}
+            preload="none"
             onLoadedData={() => { setIsLoading(false); setHasError(false); }}
             onEnded={handleVideoEnded}
             onError={() => {
+              if (!videoSource) return;
               setIsLoading(false);
               setHasError(true);
             }}

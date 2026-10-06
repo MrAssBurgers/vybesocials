@@ -6,6 +6,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
+  window.dispatchEvent(new Event('app-resumed'));
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 function fixture() {
@@ -18,6 +19,29 @@ function fixture() {
   return { video, load, ref, paused, reload, hook };
 }
 describe('foreground clip buffering recovery', () => {
+  it('does not reload a clip when native pause and reconnect arrive before the card rerenders', () => {
+    const f = fixture();
+    Object.defineProperty(f.video, 'error', { configurable: true, value: { code: 2 } });
+    act(() => {
+      window.dispatchEvent(new Event('app-paused'));
+      window.dispatchEvent(new Event('online'));
+      f.video.dispatchEvent(new Event('error'));
+      vi.advanceTimersByTime(12_000);
+    });
+    expect(f.load).not.toHaveBeenCalled();
+    expect(f.reload).not.toHaveBeenCalled();
+  });
+  it('ignores a retained Retry action after switching clips or unmounting', () => {
+    const f = fixture();
+    const previousRetry = f.hook.result.current.retry;
+    f.hook.rerender({ active: true, source: 'https://example.test/other.mp4', scope: 'bob:2' });
+    act(() => previousRetry());
+    expect(f.load).not.toHaveBeenCalled();
+    const departedRetry = f.hook.result.current.retry;
+    f.hook.unmount();
+    act(() => departedRetry());
+    expect(f.load).not.toHaveBeenCalled();
+  });
   it('recovers a network error received after playback started, once per failure', () => {
     const f = fixture();
     Object.defineProperty(f.video, 'readyState', { configurable: true, value: 4 });

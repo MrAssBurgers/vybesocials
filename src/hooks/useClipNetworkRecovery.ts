@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useReducer, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, type RefObject } from 'react';
+import { isAppForeground } from '@/lib/foregroundReadPhase';
 
 /** Retry the foreground clip after a network failure, never a departed clip. */
 export function useClipNetworkRecovery(
@@ -6,21 +7,24 @@ export function useClipNetworkRecovery(
   scope: unknown, paused: RefObject<boolean>, onReload: () => void,
 ) {
   const [revision, retryPlayback] = useReducer((n: number) => n + 1, 0);
-  const context = useMemo(() => ({ retries: 0, failed: false }), [active, source, scope]);
+  const context = useMemo(() => ({ retries: 0, failed: false, mounted: true }), [active, source, scope]);
+  const current = useRef(context);
+  current.current = context;
   const [, update] = useReducer((n: number) => n + 1, 0);
   const retry = useCallback(() => {
     const video = videoRef.current;
-    if (!active || !source || !video || paused.current || document.visibilityState === 'hidden' || navigator.onLine === false) return;
+    if (current.current !== context || !context.mounted || !active || !source || !video || paused.current || !isAppForeground() || navigator.onLine === false) return;
     video.load();
     context.failed = false;
     onReload();
     retryPlayback();
   }, [active, source, scope, videoRef, paused, onReload, context]);
   useEffect(() => {
+    context.mounted = true;
     const video = videoRef.current;
-    if (!video || !active || !source) return;
+    if (!video || !active || !source) return () => { context.mounted = false; };
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const eligible = () => !paused.current && document.visibilityState !== 'hidden' && navigator.onLine !== false;
+    const eligible = () => current.current === context && context.mounted && !paused.current && isAppForeground() && navigator.onLine !== false;
     const networkFailure = () => video.error?.code === 2 || (!video.error && video.readyState < 3);
     const stop = () => { clearTimeout(timer); timer = undefined; };
     const watch = () => {
@@ -57,6 +61,7 @@ export function useClipNetworkRecovery(
     window.addEventListener('online', recover);
     document.addEventListener('visibilitychange', recover);
     return () => {
+      context.mounted = false;
       stop();
       video.removeEventListener('waiting', watch);
       video.removeEventListener('stalled', watch);

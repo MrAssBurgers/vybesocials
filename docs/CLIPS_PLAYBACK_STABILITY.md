@@ -1,0 +1,7 @@
+# Clips playback stability
+
+The existing mobile and desktop cards use the shared app foreground phase. Network recovery checks the current card/account/source context and mounted lifetime before any reload, including retained Retry actions. A reconnect/error delivered in the same turn as native pause cannot start a background download before React updates the card.
+
+Both cards attach video sources only to the active foreground video. Departure removes the source and reloads the empty element to release decoder/buffer resources. That release is distinct from a retry with a source. Returning uses the existing autoplay/mute/user-pause policy. Decoder/unsupported-source failures are not automatically retried; active network failures and bounded silent-buffering recovery remain available. No video bytes, publication access or checked post leases are cached or broadened by this repair.
+
+Verification covers the actual mobile and desktop components, current source/account retirement, unmount, native pause/reconnect, resume, comments, user pause, sound policy, media classification and buffer release. Browser verification uses synthetic media APIs and account boundaries; it does not certify physical Android/iOS codec compatibility, battery use, frame rate, current installed package adoption or real Firebase media restoration. See the matching release receipt and WORKLOG for exact source, tests and deployment evidence.
