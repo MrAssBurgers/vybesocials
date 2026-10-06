@@ -1,3 +1,13 @@
+## ACTIVE (2026-10-06) — Network profile preservation and deferred update setup
+
+- Previous goal turn made production progress: location boundary/index/Rules and clip fixes actually released. Current checkpoint started from clean main79d5cab4. Full user-readiness goal remains active; map social, cache adoption, retained Firebase media/content and real device/provider checks remain open.
+- Reproduced the reported Auth network error against an already confirmed same-session profile: auth/network-request-failed was not normalized with functions errors, so refresh dropped the profile. Regression failed before the fix and passes after normalizing both prefixes. Keeps only same UID/epoch in-memory confirmation; cold startup, account replacement and authoritative rejection retain their existing barriers. No profile recreation, credential changes or stale disk identity fallback.
+- Service-worker setup listened only for a future load event. Deferred imports can miss it; onPageLoaded now also schedules setup when the document is already complete, without blocking render. Actual local browser fixture confirms setup after document complete. Existing-worker branch also returned before hourly update checks; both existing/new registrations now receive exactly one shared timer. These close source-level update gaps, not proof of the root cause or repair of old mounted sessions.
+- Verification:38 focused tests pass; full466 files/4405 tests pass,6 skipped; build/native manifest/budget1096.0KBraw/332.7KB gzip pass; typecheck/lint pass with5 existing warnings. Logs work/startup-network-*.log and worker-updates-focused.log. Generated local build manifests reverted because provider build generates production artifacts. Client publication is next; no new backend/Rules release.
+
+Next3tasks: publish and verify actual current client plus mounted adoption; restore matched existing map-social readers; continue physical clip/location/network and guarded Firebase content readiness checks. No launch-ready claim.
+
+---
 ## ACTIVE (2026-10-06) — Mobile location boundary and clip audio cleanup
 
 - Existing manageLocationSharing and emergencyGhostMode deployed successfully; both public probes return callable401 UNAUTHENTICATED. Five location-only Rules blocks plus collision-checked history helper now active: ruleset517c66cb-d84b-4cda-9a69-e40d2216d475, SHA1531ca50646c2708f49cead40f372eb1f428ef8fb61a18aae491f6f908a19be4. Activation returned503 but independent read-back confirmed committed; no blind reapply. Four exact indexes READY. Scope and retained data/old wrappers/scheduler limits in releases/location-recovery-20261006. No real GPS/requests/consent submitted.

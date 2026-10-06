@@ -413,7 +413,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       try { guard(); } catch { return null; }
       const failure = error as { code?: string; name?: string; message?: string };
-      const failureCode = String(failure?.code || failure?.name || '').replace(/^functions\//, '');
+      const failureCode = String(failure?.code || failure?.name || '').replace(/^(?:functions|auth)\//, '');
       const transient = ['unavailable', 'deadline-exceeded', 'network-request-failed'].includes(failureCode) || (error instanceof TypeError && /fetch|network/i.test(error.message));
       const preserve = transient && preserveConfirmedOnFailure && profileScopeRef.current?.uid === userId && profileScopeRef.current.epoch === captured.epoch;
       if (!preserve) { profileScopeRef.current = null; setProfile(null); }

@@ -173,6 +173,14 @@ function logRegistrationOnce(scope: string) {
   }
 }
 
+function startUpdateChecks(registration: ServiceWorkerRegistration) {
+  if (updateIntervalStarted) return;
+  updateIntervalStarted = true;
+  setInterval(() => {
+    registration.update().catch(() => {});
+  }, 60 * 60 * 1000);
+}
+
 /** Single shared registration — safe to call from main.tsx and push hooks. */
 export async function registerVybeServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!shouldRegisterServiceWorker()) return null;
@@ -227,6 +235,7 @@ export async function registerVybeServiceWorker(): Promise<ServiceWorkerRegistra
           logRegistrationOnce(existing.scope);
           wireUpdateFlow(existing);
           void existing.update().catch(() => {});
+          startUpdateChecks(existing);
           return existing;
         }
 
@@ -237,12 +246,7 @@ export async function registerVybeServiceWorker(): Promise<ServiceWorkerRegistra
         logRegistrationOnce(registration.scope);
         wireUpdateFlow(registration);
 
-        if (!updateIntervalStarted) {
-          updateIntervalStarted = true;
-          setInterval(() => {
-            registration.update().catch(() => {});
-          }, 60 * 60 * 1000);
-        }
+        startUpdateChecks(registration);
 
         return registration;
       } catch (error) {

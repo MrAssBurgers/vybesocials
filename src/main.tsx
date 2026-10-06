@@ -43,6 +43,7 @@ import { markBootComplete, showBootRecovery } from "./lib/bootGuard";
 import { logStartupPhase } from "./lib/startupTiming";
 import { stampRuntimeOsOnDocument, getRuntimeOs } from "./lib/despiaBridge";
 import { installExternalLinkGuard } from "./lib/externalLinkGuard";
+import { onPageLoaded } from "./lib/onPageLoaded";
 
 // Mark eval BEFORE any native patches — Despia Android previously threw on
 // location.assign and never reached this flag (splash stuck forever).
@@ -235,7 +236,7 @@ function runPreRenderInit() {
       }
     });
 
-    window.addEventListener("load", async () => {
+    onPageLoaded(async () => {
       try {
         if (import.meta.env.DEV && isLocalDevHost()) {
           await cleanupPreviewServiceWorkers();

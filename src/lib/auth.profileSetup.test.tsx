@@ -293,8 +293,13 @@ describe('AuthProvider checked profile setup', () => {
     expect(state.currentCache).not.toHaveBeenCalled();
   });
 
-  it('returns null on a transient refresh failure while retaining only the same-session confirmed profile', async () => {
-    state.ensure.mockResolvedValueOnce(profile('alice', 'confirmed-alice')).mockRejectedValueOnce({ name: 'unavailable', message: 'offline' });
+  it.each([
+    { name: 'unavailable', message: 'offline' },
+    { code: 'functions/unavailable', message: 'offline' },
+    { code: 'auth/network-request-failed', message: 'offline' },
+    { code: 'functions/deadline-exceeded', message: 'offline' },
+  ])('retains only the same-session confirmed profile on transient refresh failure %#', async error => {
+    state.ensure.mockResolvedValueOnce(profile('alice', 'confirmed-alice')).mockRejectedValueOnce(error);
     mount(); await switchAccount('alice', 'INITIAL_SESSION');
     await waitFor(() => expect(current.profile?.username).toBe('confirmed-alice'));
     let result: unknown;
