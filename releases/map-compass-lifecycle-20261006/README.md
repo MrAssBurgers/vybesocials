@@ -10,4 +10,6 @@ Verification: three map regressions and three sensor regressions fail against th
 
 Device orientation permission requires transient user activation; checked against [MDN's API documentation](https://developer.mozilla.org/en-US/docs/Web/API/DeviceOrientationEvent/requestPermission_static). This repair retains the existing user interaction flow.
 
-Publication evidence follows after the tested main commit is released.
+Published tested commit `38fe353d7d68469a94ee3906659caa504f3922ea` after verifying exact GitSync and completed source processing. One Lovable deployment, `50b8d1c9-613a-4167-a500-a430ea26e440`, completed with the actual publisher message “Your website was updated.” The screenshot `outputs/vybe-compass-published.png` in the parent workspace was saved before documentation sync.
+
+Public verification matched source v2 `6aa1274cb2f5b6c3e8a07b695d0f04ec038004d60e183bb62979ac3468f87904` (2,565 inputs), built `2026-10-06T11:57:57.648Z`, entry `/assets/app-CanHYEij.js`, SHA256 `321a89bb435d1e981fdbeabc115c90e83f1b756ca24e5e09dfa2bbbb6d5d6374`. Metadata, entry bytes and `/`, `/home`, `/map`, `/clips`, `/onboarding` passed; the secondary origin redirected to the canonical site. The retained signed-in Home tab still mounted the older `app-CGCcULTp.js` after one ordinary reload with no draft inputs. Its source adoption cause remains unproved; no cache, session or browser security settings were changed. Own isolated QA server was stopped and its tab closed. Physical-phone location sharing, Clips performance and whole-app readiness remain open.
