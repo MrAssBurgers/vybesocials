@@ -52,16 +52,12 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     Promise.all([
       caches.open(STATIC_CACHE).then((cache) =>
-        cache.addAll(PRECACHE_ASSETS).catch((err) => {
-          console.warn('[SW] Precache partial failure:', err);
-        })
-      ),
+        cache.addAll(PRECACHE_ASSETS)
+      ).catch(() => {}),
       // Warm shell from network only — never seed from an older controlled response.
-      caches.open(SHELL_CACHE).then((cache) =>
-        fetch(SHELL_URL, { cache: 'no-store' })
-          .then((res) => saveAppShell(res, cache))
-          .catch(() => null)
-      ),
+      fetch(SHELL_URL, { cache: 'no-store' })
+        .then((res) => saveAppShell(res))
+        .catch(() => null),
     ])
   );
   self.skipWaiting();
@@ -78,7 +74,7 @@ self.addEventListener('activate', (event) => {
         Promise.all(
           names.filter((n) => /^vybe-(?:shell-|assets-|static-|v\d+(?:$|-))/.test(n) && !VALID_CACHES.has(n)).map((n) => caches.delete(n))
         )
-      ),
+      ).catch(() => {}),
     ])
   );
 });
@@ -155,7 +151,7 @@ self.addEventListener('fetch', (event) => {
 
     // Cache-first for media/fonts (immutable assets)
     if (CACHE_FIRST_PATTERNS.some((p) => url.href.includes(p))) {
-      event.respondWith(cacheFirst(event.request, MEDIA_CACHE));
+      respondCacheFirst(event, MEDIA_CACHE);
       return;
     }
 
@@ -181,7 +177,9 @@ self.addEventListener('fetch', (event) => {
       url.origin === self.location.origin &&
       /\.(?:js|mjs)(?:\?.*)?$/i.test(url.pathname)
     ) {
-      event.respondWith(networkFirstCached(event.request, ASSETS_CACHE, ASSETS_CACHE_MAX));
+      const response = networkFirstCached(event.request, ASSETS_CACHE);
+      event.respondWith(response);
+      event.waitUntil(response.then(res => saveAsset(event.request, res, ASSETS_CACHE, ASSETS_CACHE_MAX)).catch(() => {}));
       return;
     }
 
@@ -191,7 +189,7 @@ self.addEventListener('fetch', (event) => {
       url.origin === self.location.origin &&
       /\.(?:css|woff2?|ttf|otf)(?:\?.*)?$/i.test(url.pathname)
     ) {
-      event.respondWith(staleWhileRevalidateCapped(event.request, ASSETS_CACHE, ASSETS_CACHE_MAX));
+      event.respondWith(staleWhileRevalidateCapped(event, ASSETS_CACHE, ASSETS_CACHE_MAX));
       return;
     }
 
@@ -201,7 +199,7 @@ self.addEventListener('fetch', (event) => {
       url.origin === self.location.origin &&
       /\.(?:png|jpe?g|gif|webp|avif|svg|ico)(?:\?.*)?$/i.test(url.pathname)
     ) {
-      event.respondWith(cacheFirst(event.request, MEDIA_CACHE));
+      respondCacheFirst(event, MEDIA_CACHE);
       return;
     }
   } catch {
@@ -246,57 +244,42 @@ async function navigationStrategy(request) {
   }
 }
 
-// Stale-while-revalidate with simple FIFO cap to prevent unbounded growth
-// across deploys (each deploy ships fresh content-hashed filenames).
-async function staleWhileRevalidateCapped(request, cacheName, maxEntries) {
-  const cache = await caches.open(cacheName);
-  const cached = await cache.match(request);
-  const networkPromise = fetch(request)
-    .then(async (response) => {
-      if (response && response.ok) {
-        try {
-          await cache.put(request, response.clone());
-          const keys = await cache.keys();
-          if (keys.length > maxEntries) {
-            const excess = keys.length - maxEntries;
-            for (let i = 0; i < excess; i++) await cache.delete(keys[i]);
-          }
-        } catch {
-          /* ignore */
-        }
-      }
-      return response;
-    })
-    .catch(() => null);
-  if (cached) {
-    networkPromise; // fire-and-forget revalidation
-    return cached;
-  }
-  const network = await networkPromise;
-  return network || new Response('', { status: 504 });
+// Cache access is optional. Broken storage must never block a working network.
+async function readAsset(request, cacheName) {
+  try {
+    return cacheName ? await (await caches.open(cacheName)).match(request) : await caches.match(request);
+  } catch { return null; }
+}
+async function saveAsset(request, response, cacheName, maxEntries) {
+  try {
+    if (!response || !response.ok) return;
+    const copy = response.clone();
+    const cache = await caches.open(cacheName);
+    await cache.put(request, copy);
+    if (maxEntries) {
+      const keys = await cache.keys();
+      for (let i = 0; i < keys.length - maxEntries; i++) await cache.delete(keys[i]);
+    }
+  } catch { /* Optional offline files; keep the online response usable. */ }
+}
+
+// Register background work during dispatch, so cache writes neither delay the
+// response nor disappear when the worker finishes serving a cached stylesheet.
+function staleWhileRevalidateCapped(event, cacheName, maxEntries) {
+  const network = fetch(event.request).catch(() => null);
+  event.waitUntil(network.then(response => saveAsset(event.request, response, cacheName, maxEntries)));
+  return readAsset(event.request, cacheName).then(async cached =>
+    cached || await network || new Response('', { status: 504 })
+  );
 }
 
 // Network-first for JS chunks: fresh code wins, cached copy keeps offline boot
 // working, and successful fetches refresh the capped assets cache.
-async function networkFirstCached(request, cacheName, maxEntries) {
-  const cache = await caches.open(cacheName);
+async function networkFirstCached(request, cacheName) {
   try {
-    const response = await fetch(request);
-    if (response && response.ok) {
-      try {
-        await cache.put(request, response.clone());
-        const keys = await cache.keys();
-        if (keys.length > maxEntries) {
-          const excess = keys.length - maxEntries;
-          for (let i = 0; i < excess; i++) await cache.delete(keys[i]);
-        }
-      } catch {
-        /* ignore quota */
-      }
-    }
-    return response;
+    return await fetch(request);
   } catch {
-    const cached = await cache.match(request);
+    const cached = await readAsset(request, cacheName);
     return cached || new Response('', { status: 504 });
   }
 }
@@ -307,7 +290,7 @@ async function networkFirst(request) {
     const response = await fetch(request);
     return response;
   } catch {
-    const cached = await caches.match(request);
+    const cached = await readAsset(request);
     return cached || new Response(JSON.stringify({ error: 'Offline' }), {
       status: 503,
       headers: { 'Content-Type': 'application/json' },
@@ -316,20 +299,20 @@ async function networkFirst(request) {
 }
 
 // Strategy: Cache first, fallback to network (for immutable assets)
-async function cacheFirst(request, cacheName) {
-  const cached = await caches.match(request);
-  if (cached) return cached;
-
+async function cacheFirst(request) {
+  const cached = await readAsset(request);
+  if (cached) return { response: cached, network: false };
   try {
     const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(cacheName);
-      cache.put(request, response.clone());
-    }
-    return response;
+    return { response, network: true };
   } catch {
-    return new Response('', { status: 408 });
+    return { response: new Response('', { status: 408 }), network: false };
   }
+}
+function respondCacheFirst(event, cacheName) {
+  const result = cacheFirst(event.request);
+  event.respondWith(result.then(value => value.response));
+  event.waitUntil(result.then(value => value.network ? saveAsset(event.request, value.response, cacheName) : null));
 }
 
 // Push notification event - handle incoming push messages
