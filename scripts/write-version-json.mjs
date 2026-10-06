@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 import { clientSourceIdentity } from './build-source-identity.mjs';
 import { checkQueryRuntime } from './check-query-runtime.mjs';
+import { checkCapacitorRuntime } from './check-capacitor-runtime.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
@@ -36,7 +37,7 @@ if (existsSync(assetsDir)) {
 
 const version = {
   ...clientSourceIdentity(root),
-  runtime_dependencies: checkQueryRuntime(root),
+  runtime_dependencies: { ...checkQueryRuntime(root), ...checkCapacitorRuntime(root) },
   app_version: pkg.version || '0.0.0',
   commit,
   commit_short: commit.slice(0, 7),

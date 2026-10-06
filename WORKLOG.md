@@ -1,3 +1,13 @@
+## ACTIVE (2026-10-06) — Scoped Capacitor native dependency patch
+
+- Previous turn made authoritative progress publishing keep-alive9cf25b44/docs94ae2f97. Main clean at start. Full user-ready phone/map/clips/Auth/restoration/security scope unchanged.
+- Primary vendor GHSA-rvm3-566m-v7fv patch8.4.3 verified. Exact Android/iOS/core/CLI pins now8.4.3 in package.json/npm/Bun, aligning previous npm8.4.0/Bun8.0.1core/native/8.4.1CLI. Scoped npm diff32lines/Bun16lines; no bulk upgrade or other dependency changes. Bun1.3.9 frozen lock-only validation passes. Npm critical2→0, remaining24(11high13moderate) separately open; no blanket security-ready claim.
+- iOS manifest/resolved pin updated8.4.3/revision89e0d8ec2321025f549ddb19259a717467943b97, verified against official remote tag. Pin edited manually, retaining other pins/original originHash; Mac resolver/build/archive remains required. cap doctor confirms installed4packages8.4.3 and Xcode unavailable. No native compiler/archive/signing/provider/store update; checked-in/installed phone versions not equated. Native Android directory lacks complete Gradle project. Exact continuation documented docs/NATIVE_SECURITY_PATCH.md.
+- New build/test gate checks exact patched packages across root/npm/Bun/installed, including nested old copies; native preflight checks manifest/tag pin.7 meaningful gate tests pass. Metadata includes checked native4package versions. Full4782pass6skip/app-native-web build/budget1099.0KBraw333.6KBgzip/types pass, lint0errors5existingwarnings. Browser compiled Login→Sign Up renders/no errors; no credentials/terms/account/GPS/provider changes. Screenshot task outputs/vybe-capacitor-patch-browser-qa.png. Logs work/capacitor-{patch-*,gate-tests,bun-*}. No actual phone/native-security certification.
+- Generated public outputs restored; exact hosted web publication pending. Firebase backend/Rules/Auth/content untouched. Overall native distribution/phone adoption/historical authority/media/security gates open.
+Next3tasks: publish verified web/native dependency metadata and retain concrete native rebuild/distribution gate; continue compatible security patch review and actual phone/browser sign-in/map/clips; restore remaining preserved Firebase community/content/media and resolve old client adoption.
+
+---
 ## ACTIVE (2026-10-06) — Session keep-alive lifecycle recovery
 
 - Previous turn was authoritative progress: published late token continuity932a9cc7, docs c410fe84. Main clean at start; full user-ready phone/map/clips/Auth/restoration/security scope unchanged.
