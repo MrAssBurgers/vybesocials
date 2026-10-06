@@ -40,7 +40,7 @@ export function ParentalControlsSection() {
   const { data: safety, isError: safetyError, isLoading: safetyLoading, refetch: refetchSafety } = useSafetySettings();
   const setupMutation = useSetupParentalControls();
   const updateMutation = useUpdateParentalControls(unlockProof, () => setUnlockProof(null));
-  const updateSafetyMutation = useUpdateSafetySettings();
+  const updateSafetyMutation = useUpdateSafetySettings(unlockProof, () => setUnlockProof(null));
   const { data: screenTimeSec } = useTodayScreenTime();
 
   const [pin, setPin] = useState('');
@@ -175,9 +175,7 @@ export function ParentalControlsSection() {
               <Switch
                 checked={isActive}
                 onCheckedChange={(val) => {
-                  updateMutation.mutate({ is_active: val }, {
-                    onSuccess: () => { if (val && isCurrentAccount()) applyChildSafeDefaults(); },
-                  });
+                  updateMutation.mutate({ is_active: val });
                   haptics.tap();
                 }}
               />
@@ -224,11 +222,7 @@ export function ParentalControlsSection() {
                   variant={filterLevel === level ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => {
-                    updateMutation.mutate({ content_filter_level: level }, {
-                      onSuccess: () => {
-                        if (isCurrentAccount()) updateSafetyMutation.mutate({ content_filter_level: level as 'protected' | 'moderate' });
-                      },
-                    });
+                    updateMutation.mutate({ content_filter_level: level });
                     haptics.tap();
                   }}
                   className="capitalize"
@@ -404,7 +398,7 @@ export function ParentalControlsSection() {
               onSuccess: () => {
                 const current = reportAccountSnapshot();
                 if (!account.uid || current.uid !== account.uid || current.epoch !== account.epoch) return;
-                applyChildSafeDefaults();
+                void refetchSafety();
                 toast.success('Parental controls enabled!');
                 haptics.success();
                 setUnlockProof({ pin, uid: account.uid, epoch: account.epoch });

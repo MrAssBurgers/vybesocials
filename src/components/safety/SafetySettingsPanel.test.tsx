@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
-const state = vi.hoisted(() => ({ uid: 'alice', profile: 'profile-alice', epoch: 1, listeners: new Set<() => void>(), account: { uid: 'alice', epoch: 1 }, error: false, rpc: vi.fn(), save: vi.fn(), success: vi.fn(), failure: vi.fn(), retry: vi.fn() }));
+const state = vi.hoisted(() => ({ uid: 'alice', profile: 'profile-alice', epoch: 1, listeners: new Set<() => void>(), account: { uid: 'alice', epoch: 1 }, error: false, rpc: vi.fn(), save: vi.fn(), success: vi.fn(), failure: vi.fn(), retry: vi.fn(), verify: vi.fn(), proof: vi.fn() }));
 vi.mock('@/lib/auth', async () => {
   const { useSyncExternalStore } = await import('react');
   return { useAuth: () => {
@@ -12,7 +12,8 @@ vi.mock('@/lib/auth', async () => {
 vi.mock('@/lib/reportModerationService', () => ({ reportAccountSnapshot: () => { if (state.account.uid !== state.uid || state.account.epoch !== state.epoch) state.account = { uid: state.uid, epoch: state.epoch }; return state.account; }, reportAccountSubscribe: (fn: () => void) => { state.listeners.add(fn); return () => state.listeners.delete(fn); } }));
 vi.mock('@/lib/firebase', () => ({ db: { rpc: () => ({ single: () => state.rpc() }) } }));
 vi.mock('@/hooks/useSafetySettings', () => ({ useSafetySettings: () => ({ data: state.error ? undefined : { muted_keywords: [], content_filter_level: 'moderate' }, isLoading: false, isError: state.error, refetch: state.retry }),
-  useUpdateSafetySettings: () => ({ mutateAsync: state.save, isPending: false }), canAccessMinimalFiltering: (dob: string) => dob === '1990-01-01' }));
+  useUpdateSafetySettings: (proof: unknown) => { state.proof(proof); return { mutateAsync: state.save, isPending: false }; }, canAccessMinimalFiltering: (dob: string) => dob === '1990-01-01' }));
+vi.mock('@/hooks/useParentalControls', () => ({ useVerifyParentalPin: () => ({ mutateAsync: state.verify, isPending: false }) }));
 vi.mock('@/lib/haptics', () => ({ triggerHaptic: vi.fn() }));
 vi.mock('sonner', () => ({ toast: { success: state.success, error: state.failure } }));
 // Exercise the panel's option admission and dispatch without Radix portal gestures.
@@ -79,4 +80,38 @@ describe('safety panel reliable loading and account retirement', () => {
     await act(async () => { resolve({}); }); expect(state.success).not.toHaveBeenCalled();
   });
 
+});
+
+
+describe('protected safety settings unlock', () => {
+  it('retains a failed keyword draft and sends verified PIN proof only after unlocking', async () => {
+    state.verify.mockResolvedValue(true); state.proof.mockClear();
+    state.save.mockRejectedValueOnce({ code: 'functions/permission-denied', details: { reason: 'parental-pin-required' } }).mockResolvedValue({});
+    render(<SafetySettingsPanel />);
+    const keyword = screen.getByPlaceholderText('Add a keyword...');
+    fireEvent.change(keyword, { target: { value: 'keep me' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add keyword' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Unlock Safety Settings' })).toBeInTheDocument());
+    expect(keyword).toHaveValue('keep me');
+    fireEvent.change(screen.getByLabelText('Parental PIN for safety settings'), { target: { value: '1234' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Unlock Safety Settings' }));
+    await waitFor(() => expect(state.proof).toHaveBeenLastCalledWith({ pin: '1234', uid: 'alice', epoch: 1 }));
+    expect(state.save).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: 'Add keyword' }));
+    await waitFor(() => expect(keyword).toHaveValue(''));
+  });
+});
+
+
+it('retires a delayed safety unlock when the profile changes and returns', async () => {
+  let resolve!: (value: boolean) => void; state.verify.mockImplementation(() => new Promise(done => { resolve = done; })); state.proof.mockClear();
+  state.save.mockRejectedValueOnce({ details: { reason: 'parental-pin-required' } }); render(<SafetySettingsPanel />);
+  fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: 'nobody' } });
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Unlock Safety Settings' })).toBeInTheDocument());
+  fireEvent.change(screen.getByLabelText('Parental PIN for safety settings'), { target: { value: '1234' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Unlock Safety Settings' }));
+  state.profile = 'profile-other'; act(() => { for (const notify of state.listeners) notify(); });
+  state.profile = 'profile-alice'; act(() => { for (const notify of state.listeners) notify(); });
+  await act(async () => resolve(true)); expect(state.proof).toHaveBeenLastCalledWith(null);
+  expect(screen.queryByRole('button', { name: 'Unlock Safety Settings' })).not.toBeInTheDocument();
 });

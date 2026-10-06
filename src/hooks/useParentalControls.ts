@@ -1,11 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { httpsCallable, getFunctions } from 'firebase/functions';
 import { getApp } from 'firebase/app';
-import { useAuth } from '@/lib/auth';
-import { useRef, useSyncExternalStore } from 'react';
-import { reportAccountGuard, reportAccountSnapshot, reportAccountSubscribe } from '@/lib/reportModerationService';
+import { useRef } from 'react';
+import { reportAccountSnapshot } from '@/lib/reportModerationService';
 import { toast } from 'sonner';
-import { getFirebaseAuth } from '@/lib/firebase/authService';
+import { useVerifiedSettingsScope } from './useVerifiedSettingsScope';
 
 const fns = () => getFunctions(getApp());
 
@@ -43,28 +42,9 @@ export function verifyPin(_inputPin: string, _storedHash: string): boolean {
   return false;
 }
 
-function useParentalScope() {
-  const { user, profile } = useAuth();
-  const currentProfile = useRef(profile?.id); currentProfile.current = profile?.id;
-  const uid = user?.id, profileId = profile?.id;
-  const account = useSyncExternalStore(reportAccountSubscribe, reportAccountSnapshot, reportAccountSnapshot);
-  const capture = () => {
-    const authUser = getFirebaseAuth()?.currentUser;
-    const created = Date.parse(authUser?.metadata.creationTime ?? '');
-    const lease = reportAccountGuard(uid);
-    if (!uid || !profileId || profile?.user_id !== uid || authUser?.uid !== uid || !Number.isSafeInteger(created) || created <= 0 || account.uid !== uid || reportAccountSnapshot().epoch !== account.epoch) throw new Error('Load your current verified profile before managing parental controls.');
-    const guard = () => {
-      lease(); const live = getFirebaseAuth()?.currentUser;
-      if (currentProfile.current !== profileId || live?.uid !== uid || Date.parse(live.metadata.creationTime) !== created) throw Object.assign(new Error('Your account changed. Reopen parental controls.'), { code: 'account-changed' });
-    };
-    guard();
-    return { guard, fields: { expectedOwnerUid: uid, expectedProfileId: profileId, expectedAccountCreatedAt: created } };
-  };
-  return { user, account, capture, profileId, creationTime: getFirebaseAuth()?.currentUser?.metadata.creationTime, ready: !!uid && !!profileId && profile?.user_id === uid && account.uid === uid };
-}
 
 export function useParentalControls() {
-  const { user, account, capture, ready, profileId, creationTime } = useParentalScope();
+  const { user, account, capture, ready, profileId, creationTime } = useVerifiedSettingsScope();
 
   return useQuery({
     queryKey: ['parental-controls', user?.id, account.epoch, profileId, creationTime],
@@ -93,7 +73,7 @@ export function useParentalControls() {
 
 export function useSetupParentalControls() {
   const queryClient = useQueryClient();
-  const { user, capture, profileId, creationTime } = useParentalScope();
+  const { user, capture, profileId, creationTime } = useVerifiedSettingsScope();
   // Keep only the uncertain request in memory. No PIN/request is serialized.
   const pending = useRef<{ scope: string; effect: string; requestId: string } | null>(null);
 
@@ -127,6 +107,7 @@ export function useSetupParentalControls() {
       pending.current = null;
       queryClient.setQueryData(['parental-controls', user?.id, reportAccountSnapshot().epoch, profileId, creationTime], data);
       queryClient.invalidateQueries({ queryKey: ['parental-controls', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['safety-settings', profileId] });
     },
   });
 }
@@ -134,7 +115,7 @@ export function useSetupParentalControls() {
 export interface ParentalUnlockProof { pin: string; uid: string; epoch: number }
 export function useUpdateParentalControls(proof?: ParentalUnlockProof | null, onUnlockExpired?: () => void) {
   const queryClient = useQueryClient();
-  const { user, capture } = useParentalScope();
+  const { user, capture, profileId } = useVerifiedSettingsScope();
 
   return useMutation({
     retry: false, networkMode: 'always', gcTime: 0,
@@ -144,15 +125,18 @@ export function useUpdateParentalControls(proof?: ParentalUnlockProof | null, on
       const started = reportAccountSnapshot(), { guard, fields } = capture();
       if (!proof || proof.uid !== user.id || proof.epoch !== started.epoch) throw new Error('Unlock parental controls again.');
       const call = httpsCallable<unknown, { ok: boolean }>(fns(), 'updateParentalControls');
-      await call({ updates, pin: proof.pin, ...fields });
+      const res = await call({ updates, pin: proof.pin, ...fields });
       guard();
+      if (res.data?.ok !== true) throw new Error('Your save confirmation was incomplete. Refresh controls before retrying.');
       return updates as ParentalControls;
     },
     onSuccess: (_data, _variables, context) => {
       try { context?.guard(); } catch { return; }
       queryClient.invalidateQueries({ queryKey: ['parental-controls', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['safety-settings', profileId] });
     },
-    onError: error => {
+    onError: (error, _variables, context) => {
+      try { context?.guard(); } catch { return; }
       const current = reportAccountSnapshot();
       if (current.uid !== user?.id || proof?.epoch !== current.epoch) return;
       const code = String((error as { code?: string }).code ?? '').replace(/^functions\//, '');
@@ -164,7 +148,7 @@ export function useUpdateParentalControls(proof?: ParentalUnlockProof | null, on
 
 /** Server-side PIN verification. Returns true iff the PIN matches. */
 export function useVerifyParentalPin() {
-  const { user, capture } = useParentalScope();
+  const { user, capture } = useVerifiedSettingsScope();
   return useMutation({
     retry: false, networkMode: 'always', gcTime: 0,
     mutationFn: async (pin: string) => {

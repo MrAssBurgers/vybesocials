@@ -2,6 +2,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { db, auth, requireAuth } from './_shared/admin.js';
 import { parentalScopeFields, parentalRequestIdentity, checkParentalAuth, resolveParentalActor, parentalBinding, readParentalRow } from './_shared/parentalAccountAuthority.js';
+import { readSafetyRow, safetyPatch, safeSafety, validateSafetyUpdates, relatedSafetyUpdates } from './_shared/safetySettingsAuthority.js';
 const object = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
 const validPin = (pin) => typeof pin === 'string' && /^\d{4,8}$/.test(pin);
 const requestId = (value) => typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value);
@@ -65,7 +66,7 @@ function fail(result) {
     if (result.limited)
         throw new HttpsError('resource-exhausted', 'Too many PIN attempts. Wait five minutes and try again.');
     if (result.denied)
-        throw new HttpsError('permission-denied', 'Enter the current parental PIN to make changes.');
+        throw new HttpsError('permission-denied', 'Enter the current parental PIN to make changes.', { reason: 'parental-pin-required' });
 }
 export const setParentalPin = onCall(async (request) => {
     const uid = requireAuth(request), raw = object(request.data) ? request.data : {};
@@ -133,6 +134,11 @@ export const setParentalPin = onCall(async (request) => {
             allowed_features: prev && Object.hasOwn(prev, 'allowed_features') ? prev.allowed_features : ['messaging', 'feed', 'profile'], ...input,
             control_revision: resultRevision, pin_hash: nextMaterial.hash, pin_salt: nextMaterial.salt, pin_algo: 'scrypt-v2', pin_failures: 0, pin_lock_until: 0,
             created_at: prev?.created_at ?? time, updated_at: time };
+        const related = relatedSafetyUpdates(input, !prev && merged.is_active === true);
+        const safety = Object.keys(related).length ? await readSafetyRow(db, tx, actor) : null;
+        await checkParentalAuth(auth, identity);
+        if (safety)
+            tx.set(safety.ref, safetyPatch(actor, safety.row, related, time));
         tx.set(ref, merged);
         tx.set(receiptRef, { version: 1, owner_uid: uid, profile_id: actor.profileId, auth_created_at_ms: actor.created, binding_revision: actor.bindingRevision,
             request_id: raw.requestId, nonce: receiptNonce, fingerprint: createHmac('sha256', receiptNonce).update(effect(raw.pin, input)).digest('hex'),
@@ -200,10 +206,44 @@ export const updateParentalControls = onCall(async (request) => {
             tx.set(ref, proof.patch, { merge: true });
             return { denied: true };
         }
-        tx.set(ref, { ...input, ...proof.patch, control_revision: randomBytes(24).toString('hex'), updated_at: new Date().toISOString() }, { merge: true });
+        const related = relatedSafetyUpdates(input), safety = Object.keys(related).length ? await readSafetyRow(db, tx, actor) : null;
+        const now = new Date().toISOString();
+        await checkParentalAuth(auth, identity);
+        if (safety)
+            tx.set(safety.ref, safetyPatch(actor, safety.row, related, now));
+        tx.set(ref, { ...input, ...proof.patch, control_revision: randomBytes(24).toString('hex'), updated_at: now }, { merge: true });
         return {};
     });
     fail(result);
     return { ok: true };
+});
+/** The sole client safety-write path; current parental PIN protects every field. */
+export const updateSafetySettings = onCall(async (request) => {
+    const uid = requireAuth(request), raw = object(request.data) ? request.data : {};
+    const identity = parentalRequestIdentity(request, raw);
+    if (Object.keys(raw).some(key => !['pin', 'updates', ...parentalScopeFields].includes(key)))
+        throw new HttpsError('invalid-argument', 'Invalid safety update details.');
+    const input = validateSafetyUpdates(raw.updates);
+    await checkParentalAuth(auth, identity);
+    const result = await db.runTransaction(async (tx) => {
+        const actor = await resolveParentalActor(db, tx, identity), controls = await readParentalRow(db, tx, actor);
+        const safety = await readSafetyRow(db, tx, actor);
+        await checkParentalAuth(auth, identity);
+        const proof = controls ? check(controls, raw.pin, Date.now()) : null;
+        const ref = db.collection('parental_controls').doc(uid);
+        if (proof?.limited)
+            return { limited: true };
+        if (proof && !proof.ok) {
+            tx.set(ref, proof.patch, { merge: true });
+            return { denied: true };
+        }
+        const now = new Date().toISOString(), merged = safetyPatch(actor, safety.row, input, now);
+        tx.set(safety.ref, merged);
+        if (proof)
+            tx.set(ref, { ...proof.patch, ...(input.content_filter_level ? { content_filter_level: input.content_filter_level === 'minimal' ? 'unrestricted' : input.content_filter_level } : {}), control_revision: randomBytes(24).toString('hex'), updated_at: now }, { merge: true });
+        return { settings: safeSafety(merged, safety.ref.id) };
+    });
+    fail(result);
+    return { ok: true, settings: 'settings' in result ? result.settings : undefined };
 });
 //# sourceMappingURL=parental.js.map

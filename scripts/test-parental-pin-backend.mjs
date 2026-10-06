@@ -9,13 +9,13 @@ assert.equal(process.env.FIREBASE_AUTH_EMULATOR_HOST, '127.0.0.1:9497');
 process.env.FIREBASE_CONFIG = JSON.stringify({ projectId: process.env.GCLOUD_PROJECT });
 const require = createRequire(path.resolve('../qa-tools/package.json'));
 const { initializeTestEnvironment, assertFails } = require('@firebase/rules-unit-testing');
-const { doc, getDoc, setDoc, updateDoc } = require('firebase/firestore');
+const { doc, getDoc, setDoc, updateDoc, deleteDoc } = require('firebase/firestore');
 const { db, auth } = await import('../functions/lib/_shared/admin.js');
 const api = await import('../functions/lib/parental.js');
 const env = await initializeTestEnvironment({ projectId: process.env.GCLOUD_PROJECT, firestore: {
   host: '127.0.0.1', port: 9494, rules: await readFile('releases/people-discovery-20261006/firestore.rules', 'utf8'),
 } });
-let checks = 0, ruleChecks = 0;
+let checks = 0, ruleChecks = 0, candidateEnv;
 const check = async (name, run) => { await run(); checks++; console.log('PASS ' + name); };
 const uid = 'parental-qa-alice', ref = db.doc(`parental_controls/${uid}`);
 const profileId = 'parental-qa-profile', revision = 'a'.repeat(48);
@@ -148,6 +148,47 @@ try {
       for (const operation of [() => getDoc(clientRef), () => setDoc(clientRef, { owner_uid: actor, fingerprint: 'forged' }), () => updateDoc(clientRef, { result_revision: 'forged' })]) { await assertFails(operation()); ruleChecks++; }
     }
   });
+  await check('real atomic activation preserves the legacy safety row and updates both settings', async () => {
+    await seed({ is_active: false }); const safetyRef = db.doc('user_safety_settings/parental-qa-legacy');
+    const oldRows = await db.collection('user_safety_settings').where('user_id', '==', profileId).get(); await Promise.all(oldRows.docs.map(doc => doc.ref.delete()));
+    await safetyRef.set({ user_id: profileId, created_at: '2020-01-01', muted_keywords: ['keep'] });
+    await api.updateParentalControls.run(request({ pin: '1234', updates: { is_active: true } }));
+    assert.equal((await ref.get()).data().is_active, true); assert.deepEqual((await safetyRef.get()).data().muted_keywords, ['keep']);
+    assert.equal((await safetyRef.get()).data().created_at, '2020-01-01'); assert.equal((await safetyRef.get()).data().message_requests_enabled, false);
+    assert.equal((await db.doc(`user_safety_settings/${profileId}`).get()).exists, false);
+  });
+  await check('ambiguous real safety rows abort activation and leave both records unchanged', async () => {
+    await seed({ is_active: false }); const original = (await ref.get()).data();
+    const collision = db.doc('user_safety_settings/parental-qa-collision'); await collision.set({ user_id: profileId, muted_keywords: ['second'] });
+    await assert.rejects(api.updateParentalControls.run(request({ pin: '1234', updates: { is_active: true } })), { code: 'failed-precondition' });
+    assert.deepEqual((await ref.get()).data(), original); assert.deepEqual((await collision.get()).data().muted_keywords, ['second']); await collision.delete();
+  });
+  await check('real safety callable rejects missing PIN and shares the five-attempt lockout', async () => {
+    await seed({ is_active: false });
+    for (let i = 0; i < 5; i++) await assert.rejects(api.updateSafetySettings.run(request({ updates: { dm_filter: 'everyone' } })), { code: 'permission-denied' });
+    assert.equal((await ref.get()).data().pin_failures, 5); await assert.rejects(api.updateSafetySettings.run(request({ pin: '1234', updates: { dm_filter: 'everyone' } })), { code: 'resource-exhausted' });
+    await assert.rejects(api.verifyParentalPin.run(request({ pin: '1234' })), { code: 'resource-exhausted' });
+  });
+  await check('real authorized safety save preserves history and synchronizes the parental filter', async () => {
+    await seed(); const result = await api.updateSafetySettings.run(request({ pin: '1234', updates: { content_filter_level: 'moderate', dm_filter: 'nobody' } }));
+    assert.equal(result.settings.id, 'parental-qa-legacy'); assert.equal(result.settings.created_at, '2020-01-01'); assert.equal(result.settings.dm_filter, 'nobody');
+    assert.equal((await ref.get()).data().content_filter_level, 'moderate'); assert.doesNotMatch(JSON.stringify(result), /binding_revision|auth_created_at|pin_hash|owner_uid/);
+  });
+  await check('narrow candidate Rules deny raw safety create/update/delete, including admin', async () => {
+    const baseline = (await readFile('releases/people-discovery-20261006/firestore.rules', 'utf8')).replace(/\r\n/g, '\n');
+    const candidate = (await readFile('security/safety-settings-authority-candidate.rules', 'utf8')).replace(/\r\n/g, '\n');
+    const old = "    match /user_safety_settings/{docId} {\n      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();\n    }";
+    const patch = "    match /user_safety_settings/{docId} {\n      allow read: if ownsUserField('user_id') || isAdmin();\n      // Save through current-account/PIN-checked Firebase callable only.\n      allow write: if false;\n    }";
+    assert.equal(candidate.replace(patch, old), baseline); assert.notEqual(candidate, baseline);
+    candidateEnv = await initializeTestEnvironment({ projectId: process.env.GCLOUD_PROJECT, firestore: { host: '127.0.0.1', port: 9494, rules: candidate } });
+    for (const [actor, claims] of [[uid, {}], ['parental-qa-other', {}], ['parental-qa-admin', { admin: true }]]) {
+      const clientDb = env.authenticatedContext(actor, claims).firestore();
+      const owned = doc(clientDb, 'user_safety_settings/parental-qa-legacy');
+      for (const operation of [() => setDoc(doc(clientDb, `user_safety_settings/new-${actor}`), { user_id: profileId }), () => updateDoc(owned, { dm_filter: 'everyone' }), () => deleteDoc(owned)]) { await assertFails(operation()); ruleChecks++; }
+    }
+    await getDoc(doc(env.authenticatedContext(uid).firestore(), 'user_safety_settings/parental-qa-legacy')); ruleChecks++;
+    await assertFails(getDoc(doc(env.authenticatedContext('parental-qa-other').firestore(), 'user_safety_settings/parental-qa-legacy'))); ruleChecks++;
+  });
   await check('actual Auth revocation rejects old credentials without changing the PIN', async () => {
     await seed(); const original = (await ref.get()).data(); await auth.revokeRefreshTokens(uid);
     const cutoff = Date.parse((await auth.getUser(uid)).tokensValidAfterTime); assert.ok(cutoff > authTime * 1000);
@@ -162,5 +203,5 @@ try {
     await assert.rejects(api.verifyParentalPin.run(fresh), { code: 'failed-precondition' }); assert.deepEqual((await ref.get()).data(), original);
   });
   console.log(JSON.stringify({ groupedChecks: checks, rulesChecks: ruleChecks, project: process.env.GCLOUD_PROJECT, actualCompiledHandlers: true,
-    productionWrites: false, actualAuthLifecycleCases: true, setupReceiptReplayCases: true, verifiedHttpAuthenticationAdmission: false, fullRestrictionEnforcementCertified: false }));
-} finally { await env.cleanup(); }
+    productionWrites: false, candidateSafetyRulesOnly: true, actualAuthLifecycleCases: true, setupReceiptReplayCases: true, verifiedHttpAuthenticationAdmission: false, fullRestrictionEnforcementCertified: false }));
+} finally { await candidateEnv?.cleanup(); await env.cleanup(); }

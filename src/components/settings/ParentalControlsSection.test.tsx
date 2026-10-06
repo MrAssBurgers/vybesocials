@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({
   account: { uid: 'alice', epoch: 1 }, listeners: new Set<() => void>(), error: false, controls: true, setupError: false, safetyError: false,
-  verify: vi.fn(), update: vi.fn(), proof: vi.fn(), refetch: vi.fn(), safety: vi.fn(), refetchSafety: vi.fn(),
+  verify: vi.fn(), update: vi.fn(), proof: vi.fn(), refetch: vi.fn(), safety: vi.fn(), safetyProof: vi.fn(), refetchSafety: vi.fn(),
 }));
 vi.mock('@/lib/reportModerationService', () => ({ reportAccountSnapshot: () => state.account,
   reportAccountSubscribe: (fn: () => void) => { state.listeners.add(fn); return () => state.listeners.delete(fn); } }));
@@ -14,7 +14,7 @@ vi.mock('@/hooks/useParentalControls', () => ({
   useUpdateParentalControls: (proof: unknown) => { state.proof(proof); return { mutate: state.update }; },
   useVerifyParentalPin: () => ({ mutateAsync: state.verify, isPending: false }),
 }));
-vi.mock('@/hooks/useSafetySettings', () => ({ useSafetySettings: () => ({ data: {}, isError: state.safetyError, refetch: state.refetchSafety }), useUpdateSafetySettings: () => ({ mutate: state.safety }) }));
+vi.mock('@/hooks/useSafetySettings', () => ({ useSafetySettings: () => ({ data: {}, isError: state.safetyError, refetch: state.refetchSafety }), useUpdateSafetySettings: (proof: unknown) => { state.safetyProof(proof); return { mutate: state.safety }; } }));
 vi.mock('@/hooks/useScreenTime', () => ({ useTodayScreenTime: () => ({ data: 0 }), formatScreenTime: () => '0 minutes' }));
 // Check the section's drag/commit wiring independently of Radix's gesture implementation.
 vi.mock('@/components/ui/slider', () => ({ Slider: ({ value, onValueChange, onValueCommit }: { value: number[]; onValueChange: (v: number[]) => void; onValueCommit: (v: number[]) => void }) =>
@@ -43,19 +43,17 @@ describe('parental section loading, PIN length and account retirement', () => {
     expect(screen.queryByLabelText('Parental PIN, four to eight digits')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Try again' })); expect(state.refetchSafety).toHaveBeenCalledOnce();
   });
-  it('waits for a successful PIN-authorized filter change before updating safety settings', async () => {
+  it('sends filter changes through the atomic parental operation without a second safety write', async () => {
     render(<ParentalControlsSection />); await unlock();
     fireEvent.click(screen.getByRole('button', { name: 'moderate' }));
+    expect(state.update).toHaveBeenCalledExactlyOnceWith({ content_filter_level: 'moderate' });
     expect(state.safety).not.toHaveBeenCalled();
-    const callbacks = state.update.mock.calls[0][1]; callbacks.onSuccess();
-    expect(state.safety).toHaveBeenCalledExactlyOnceWith({ content_filter_level: 'moderate' });
   });
-  it('ignores a successful filter change after the account is retired', async () => {
+  it('supplies current PIN proof for the protected safety controls', async () => {
     render(<ParentalControlsSection />); await unlock();
-    fireEvent.click(screen.getByRole('button', { name: 'moderate' }));
-    const callbacks = state.update.mock.calls[0][1];
-    await act(async () => { state.account = { uid: 'bob', epoch: 2 }; for (const notify of state.listeners) notify(); });
-    callbacks.onSuccess(); expect(state.safety).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Nobody' }));
+    expect(state.safety).toHaveBeenCalledExactlyOnceWith({ dm_filter: 'nobody' });
+    expect(state.safetyProof).toHaveBeenLastCalledWith({ pin: '1234', uid: 'alice', epoch: 1 });
   });
   it('accepts an existing eight-digit PIN and retires the proof after an account epoch change', async () => {
     render(<ParentalControlsSection />); await unlock('12345678');

@@ -30,6 +30,7 @@ import {
   useUpdateSafetySettings,
   canAccessMinimalFiltering 
 } from '@/hooks/useSafetySettings';
+import { useVerifyParentalPin, type ParentalUnlockProof } from '@/hooks/useParentalControls';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
 import { triggerHaptic } from '@/lib/haptics';
@@ -48,7 +49,14 @@ export const SafetySettingsPanel = memo(function SafetySettingsPanel() {
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const { data: settings, isLoading, isError, refetch } = useSafetySettings();
-  const updateSettings = useUpdateSafetySettings();
+  const [unlock, setUnlock] = useState<{ scope: string; proof: ParentalUnlockProof } | null>(null);
+  const [unlockNeeded, setUnlockNeeded] = useState<string | null>(null);
+  const [pinDraft, setPinDraft] = useState({ scope, value: '' });
+  const pin = pinDraft.scope === scope ? pinDraft.value : '';
+  const proof = unlock?.scope === scope ? unlock.proof : null;
+  const verifyPin = useVerifyParentalPin();
+  const unlocking = useRef<string | null>(null);
+  const updateSettings = useUpdateSafetySettings(proof, () => { if (scopeRef.current === scope) { setUnlock(null); setUnlockNeeded(scope); } });
   const [keywordDraft, setKeywordDraft] = useState({ scope, text: '' });
   const newKeyword = keywordDraft.scope === scope ? keywordDraft.text : '';
   const [ageAccess, setAgeAccess] = useState<{ scope: string; allowed: boolean } | null>(null);
@@ -76,7 +84,7 @@ export const SafetySettingsPanel = memo(function SafetySettingsPanel() {
   }, [scope, ready, profile?.id, isCurrent]);
 
   const handleUpdate = async (updates: Parameters<typeof updateSettings.mutateAsync>[0]) => {
-    if (!isCurrent() || isError || !settings || saving.current === scope) return false;
+    if (!isCurrent() || isError || !settings || saving.current === scope || unlocking.current === scope) return false;
     saving.current = scope; setSavingScope(scope);
     triggerHaptic('light');
     try {
@@ -84,8 +92,12 @@ export const SafetySettingsPanel = memo(function SafetySettingsPanel() {
       if (!isCurrent()) return false;
       toast.success('Settings updated');
       return true;
-    } catch {
-      if (isCurrent()) toast.error('Failed to update settings. Try again.');
+    } catch (error) {
+      if (isCurrent()) {
+        if ((error as { details?: { reason?: string } }).details?.reason === 'parental-pin-required') {
+          setUnlock(null); setUnlockNeeded(scope); toast.error('Unlock parental controls to save these settings.');
+        } else toast.error('Failed to update settings. Try again.');
+      }
       return false;
     } finally {
       if (saving.current === scope) saving.current = null;
@@ -123,7 +135,24 @@ export const SafetySettingsPanel = memo(function SafetySettingsPanel() {
   }
 
   return (
-    <fieldset disabled={isSaving} aria-busy={isSaving} className="min-w-0 space-y-6">
+    <fieldset disabled={isSaving || verifyPin.isPending} aria-busy={isSaving || verifyPin.isPending} className="min-w-0 space-y-6">
+      {unlockNeeded === scope && <Card><CardContent className="space-y-3 pt-6">
+        <p role="status" className="text-sm text-muted-foreground">These settings are protected by your parental PIN. Unlock them, then retry your change.</p>
+        <Input type="password" inputMode="numeric" autoComplete="off" maxLength={8} aria-label="Parental PIN for safety settings"
+          value={pin} disabled={verifyPin.isPending} onChange={event => setPinDraft({ scope, value: event.target.value.replace(/\D/g, '').slice(0, 8) })} />
+        <Button disabled={pin.length < 4 || verifyPin.isPending} onClick={async () => {
+          if (!isCurrent() || verifyPin.isPending || unlocking.current === scope || !user?.id) return;
+          unlocking.current = scope;
+          try {
+            const valid = await verifyPin.mutateAsync(pin); if (!isCurrent()) return;
+            if (!valid) { toast.error('Incorrect PIN'); setPinDraft({ scope, value: '' }); return; }
+            setUnlock({ scope, proof: { pin, uid: user.id, epoch: account.epoch } });
+            setUnlockNeeded(null); setPinDraft({ scope, value: '' }); toast.success('Safety settings unlocked. Retry your change.');
+          } catch { if (isCurrent()) { toast.error('Could not unlock settings. Check your PIN or try again later.'); setPinDraft({ scope, value: '' }); } }
+          finally { if (unlocking.current === scope) unlocking.current = null; }
+        }}>{verifyPin.isPending ? 'Checking PIN…' : 'Unlock Safety Settings'}</Button>
+      </CardContent></Card>}
+
       {/* Content Filtering */}
       <Card>
         <CardHeader>

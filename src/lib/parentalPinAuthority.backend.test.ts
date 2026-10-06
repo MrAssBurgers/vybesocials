@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const fixture = vi.hoisted(() => {
   const rows = new Map<string, Record<string, unknown>>();
   let tail = Promise.resolve();
-  const ref = (id: string) => ({ id, get: async () => ({ id: id.split('/').at(-1), exists: rows.has(id), data: () => structuredClone(rows.get(id)) }),
+  const ref = (id: string) => ({ id: id.split('/').at(-1), get: async () => ({ id: id.split('/').at(-1), exists: rows.has(id), data: () => structuredClone(rows.get(id)) }),
     set: async (data: Record<string, unknown>, options?: { merge?: boolean }) => { rows.set(id, { ...(options?.merge ? rows.get(id) : {}), ...structuredClone(data) }); } });
   const query = (collection: string, filters: Array<[string, string, unknown]> = [], max = 99): any => ({
     where: (field: string, op: string, value: unknown) => query(collection, [...filters, [field, op, value]], max), limit: (size: number) => query(collection, filters, size),
@@ -19,7 +19,7 @@ const fixture = vi.hoisted(() => {
 });
 vi.mock('../../functions/src/_shared/admin.js', () => ({ db: fixture.db, auth: { getUser: fixture.getUser },
   requireAuth: (request: { auth?: { uid: string } }) => { if (!request.auth) throw Object.assign(new Error('Sign in required'), { code: 'unauthenticated' }); return request.auth.uid; } }));
-import { getParentalControlsSafe, setParentalPin, updateParentalControls, verifyParentalPin } from '../../functions/src/parental';
+import { updateSafetySettings, getParentalControlsSafe, setParentalPin, updateParentalControls, verifyParentalPin } from '../../functions/src/parental';
 
 const path = 'parental_controls/alice';
 const salt = '0123456789abcdef0123456789abcdef';
@@ -195,4 +195,76 @@ describe('actual parental callable PIN authorization', () => {
     expect(before()).toEqual(saved);
   });
 
+});
+
+
+describe('parental and related safety commit authority', () => {
+  it('commits first setup and child-safe defaults together, preserving historical safety identity', async () => {
+    fixture.rows.delete(path); fixture.rows.set('user_safety_settings/legacy-row', { user_id: 'profile-alice', created_at: '2020-01-01', muted_keywords: ['keep'] });
+    await setParentalPin.run(pinRequest({ pin: '1234' }));
+    expect(fixture.rows.get('user_safety_settings/legacy-row')).toMatchObject({ user_id: 'profile-alice', created_at: '2020-01-01', muted_keywords: ['keep'], content_filter_level: 'protected', dm_content_filter_enabled: true, message_requests_enabled: false });
+    expect(fixture.rows.has('user_safety_settings/profile-alice')).toBe(false);
+  });
+  it('commits activation and safer defaults in the same checked operation', async () => {
+    seed({ is_active: false });
+    await updateParentalControls.run(request({ pin: '1234', updates: { is_active: true } }));
+    expect(fixture.rows.get('user_safety_settings/profile-alice')).toMatchObject({ dm_filter: 'friends_only', quiet_hours_enabled: true });
+  });
+  it('commits the matching safety filter with the parental filter change', async () => {
+    await updateParentalControls.run(request({ pin: '1234', updates: { content_filter_level: 'moderate' } }));
+    expect(fixture.rows.get('user_safety_settings/profile-alice')).toMatchObject({ content_filter_level: 'moderate' });
+  });
+  it('does not partly activate controls when safety ownership is ambiguous', async () => {
+    seed({ is_active: false }); const original = before();
+    fixture.rows.set('user_safety_settings/one', { user_id: 'profile-alice' }); fixture.rows.set('user_safety_settings/two', { user_id: 'profile-alice' });
+    await expect(updateParentalControls.run(request({ pin: '1234', updates: { is_active: true } }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(before()).toEqual(original);
+  });
+});
+
+
+describe('actual safety callable current account and parental proof', () => {
+  it('requires PIN proof even when existing parental controls are inactive', async () => {
+    seed({ is_active: false });
+    await expect(updateSafetySettings.run(request({ updates: { dm_filter: 'everyone' } }))).rejects.toMatchObject({ code: 'permission-denied', details: { reason: 'parental-pin-required' } });
+    expect(fixture.rows.get(path)?.pin_failures).toBe(1); expect(fixture.rows.has('user_safety_settings/profile-alice')).toBe(false);
+  });
+  it('shares failed guesses and lockout with parental mutations', async () => {
+    for (let i = 0; i < 5; i++) await expect(updateSafetySettings.run(request({ pin: '9999', updates: { dm_filter: 'everyone' } }))).rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(verifyParentalPin.run(request({ pin: '1234' }))).rejects.toMatchObject({ code: 'resource-exhausted' });
+    expect(fixture.rows.has('user_safety_settings/profile-alice')).toBe(false);
+  });
+  it('preserves unique legacy identity and private history and returns only public settings', async () => {
+    fixture.rows.set('user_safety_settings/legacy', { user_id: 'profile-alice', created_at: '2020-01-01', muted_keywords: ['keep'], private_note: 'server only' });
+    const result = await updateSafetySettings.run(request({ pin: '1234', updates: { content_filter_level: 'moderate' } }));
+    expect(result).toMatchObject({ ok: true, settings: { id: 'legacy', user_id: 'profile-alice', created_at: '2020-01-01', muted_keywords: ['keep'] } });
+    expect(JSON.stringify(result)).not.toMatch(/private_note|binding_revision|auth_created_at|pin_hash/);
+    expect(fixture.rows.get('user_safety_settings/legacy')?.private_note).toBe('server only');
+    expect(fixture.rows.get(path)?.content_filter_level).toBe('moderate');
+  });
+  it('allows ordinary verified owners without parental controls to save', async () => {
+    fixture.rows.delete(path); await updateSafetySettings.run(request({ updates: { dm_filter: 'nobody' } }));
+    expect(fixture.rows.get('user_safety_settings/profile-alice')).toMatchObject({ user_id: 'profile-alice', dm_filter: 'nobody', owner_uid: 'alice' });
+  });
+  it('rejects unknown, protected and malformed input without changes', async () => {
+    for (const updates of [{ owner_uid: 'bob' }, { updated_at: 'forged' }, { dm_filter: 'invalid' }, { quiet_hours_start: '30:00' }, { muted_keywords: [''] }]) {
+      const original = before(); await expect(updateSafetySettings.run(request({ pin: '1234', updates }))).rejects.toMatchObject({ code: 'invalid-argument' }); expect(before()).toEqual(original);
+    }
+  });
+  it('rejects contradictory safety ownership and previous account metadata', async () => {
+    for (const row of [{ user_id: 'other-profile' }, { user_id: 'profile-alice', authority_version: 1, owner_uid: 'alice', auth_created_at_ms: 1, binding_revision: 'a'.repeat(48) }]) {
+      fixture.rows.set('user_safety_settings/profile-alice', row); const original = before();
+      await expect(updateSafetySettings.run(request({ pin: '1234', updates: { dm_filter: 'everyone' } }))).rejects.toMatchObject({ code: 'failed-precondition' }); expect(before()).toEqual(original);
+    }
+  });
+  it('refuses ambiguous historical parental rows instead of bypassing their PIN', async () => {
+    fixture.rows.delete(path); fixture.rows.set('parental_controls/legacy', { user_id: 'profile-alice' });
+    await expect(updateSafetySettings.run(request({ updates: { dm_filter: 'everyone' } }))).rejects.toMatchObject({ code: 'failed-precondition' }); expect(fixture.rows.has('user_safety_settings/profile-alice')).toBe(false);
+  });
+  it('does not accept a setup receipt replay after a later protected safety change', async () => {
+    fixture.rows.delete(path); await setParentalPin.run(pinRequest({ pin: '1234' }));
+    await updateSafetySettings.run(request({ pin: '1234', updates: { dm_filter: 'nobody' } }));
+    await expect(setParentalPin.run(pinRequest({ pin: '1234' }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(fixture.rows.get('user_safety_settings/profile-alice')?.dm_filter).toBe('nobody');
+  });
 });

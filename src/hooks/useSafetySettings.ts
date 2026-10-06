@@ -1,8 +1,10 @@
-import { useSyncExternalStore } from 'react';
-import { reportAccountGuard, reportAccountSnapshot, reportAccountSubscribe } from '@/lib/reportModerationService';
+import { reportAccountSnapshot } from '@/lib/reportModerationService';
 import { useQuery, useMutation, useQueryClient, onlineManager } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
-import { useAuth } from '@/lib/auth';
+import { httpsCallable, getFunctions } from 'firebase/functions';
+import { getApp } from 'firebase/app';
+import { useVerifiedSettingsScope } from './useVerifiedSettingsScope';
+import type { ParentalUnlockProof } from './useParentalControls';
 
 export interface SafetySettings {
   id: string;
@@ -58,53 +60,48 @@ function ownedSafetyRow(row: SafetySettings | null, profileId: string) {
 }
 
 export function useSafetySettings() {
-  const { user, profile } = useAuth();
-  const account = useSyncExternalStore(reportAccountSubscribe, reportAccountSnapshot, reportAccountSnapshot);
+  const { user, account, profileId, capture, ready, creationTime } = useVerifiedSettingsScope();
   return useQuery({
-    queryKey: ['safety-settings', profile?.id, account.epoch],
+    queryKey: ['safety-settings', profileId, account.epoch, creationTime],
     queryFn: async () => {
-      if (!profile || !user) return null;
-      const guard = reportAccountGuard(user.id); guard();
-      const { data, error } = await db.from('user_safety_settings').select('*').eq('user_id', profile.id).maybeSingle();
+      if (!profileId || !user) return null;
+      const { guard } = capture();
+      const { data, error } = await db.from('user_safety_settings').select('*').eq('user_id', profileId).maybeSingle();
       guard();
       if (error) throw error;
-      ownedSafetyRow(data as SafetySettings | null, profile.id);
-      return data ? { ...DEFAULT_SETTINGS, ...data } as SafetySettings : { ...DEFAULT_SETTINGS, user_id: profile.id } as SafetySettings;
+      ownedSafetyRow(data as SafetySettings | null, profileId);
+      return data ? { ...DEFAULT_SETTINGS, ...data } as SafetySettings : { ...DEFAULT_SETTINGS, user_id: profileId } as SafetySettings;
     },
-    enabled: !!profile && !!user && account.uid === user.id,
+    enabled: ready,
   });
 }
 
-export function useUpdateSafetySettings() {
+export function useUpdateSafetySettings(proof?: ParentalUnlockProof | null, onUnlockExpired?: () => void) {
   const queryClient = useQueryClient();
-  const { user, profile } = useAuth();
-  const account = useSyncExternalStore(reportAccountSubscribe, reportAccountSnapshot, reportAccountSnapshot);
+  const { user, account, profileId, capture, creationTime } = useVerifiedSettingsScope();
   return useMutation({
-    retry: false,
-    networkMode: 'always',
-    gcTime: 0,
+    retry: false, networkMode: 'always', gcTime: 0,
+    onMutate: () => capture(),
     mutationFn: async (updates: SafetySettingsUpdate) => {
-      if (!profile || !user || account.uid !== user.id || reportAccountSnapshot().epoch !== account.epoch) throw new Error('Reopen safety settings for your current account.');
-      const guard = reportAccountGuard(user.id); guard();
-      validUpdates(updates);
+      const { guard, fields } = capture(); validUpdates(updates);
       if (!onlineManager.isOnline()) throw new Error('Connect to the internet before saving safety settings.');
-      // The legacy adapter otherwise picks profile.id and refreshes created_at on
-      // every upsert, potentially duplicating a historical differently keyed row.
-      const existing = await db.from('user_safety_settings').select('*').eq('user_id', profile.id).maybeSingle();
-      guard(); if (existing.error) throw existing.error;
-      ownedSafetyRow(existing.data as SafetySettings | null, profile.id);
-      const now = new Date().toISOString();
-      const { data, error } = await db.from('user_safety_settings').upsert({
-        ...updates, id: existing.data?.id ?? profile.id, user_id: profile.id,
-        created_at: existing.data?.created_at ?? now, updated_at: now,
-      }, { onConflict: 'user_id' }).select().single();
-      guard(); if (error) throw error;
-      return data;
+      if (proof && (proof.uid !== user?.id || proof.epoch !== account.epoch)) throw new Error('Unlock parental controls again.');
+      const call = httpsCallable<unknown, { ok: boolean; settings: SafetySettings }>(getFunctions(getApp()), 'updateSafetySettings');
+      const res = await call({ updates, ...fields, ...(proof ? { pin: proof.pin } : {}) }); guard();
+      if (res.data?.ok !== true || !res.data.settings) throw new Error('Your safety save confirmation was incomplete. Refresh settings before retrying.');
+      ownedSafetyRow(res.data.settings, fields.expectedProfileId);
+      return res.data.settings;
     },
-    onSuccess: () => {
-      if (reportAccountSnapshot().uid === user?.id && reportAccountSnapshot().epoch === account.epoch) {
-        void queryClient.invalidateQueries({ queryKey: ['safety-settings', profile?.id, account.epoch], exact: true });
-      }
+    onSuccess: (_data, _variables, context) => {
+      try { context?.guard(); } catch { return; }
+      void queryClient.invalidateQueries({ queryKey: ['safety-settings', profileId, account.epoch, creationTime], exact: true });
+      void queryClient.invalidateQueries({ queryKey: ['parental-controls', user?.id] });
+    },
+    onError: (error, _variables, context) => {
+      try { context?.guard(); } catch { return; }
+      if (reportAccountSnapshot().uid !== user?.id || reportAccountSnapshot().epoch !== account.epoch) return;
+      const code = String((error as { code?: string }).code ?? '').replace(/^functions\//, '');
+      if (proof && ['permission-denied', 'failed-precondition', 'resource-exhausted'].includes(code)) onUnlockExpired?.();
     },
   });
 }
