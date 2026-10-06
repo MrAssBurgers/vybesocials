@@ -21,6 +21,7 @@ import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
+import { useResolvedMediaUrl } from '@/hooks/useFastSignedUrl';
 import { CommentSheet } from '@/components/comments/CommentSheet';
 import { ShareSheet } from '@/components/share/ShareSheet';
 import { HoldToShare } from '@/components/share/HoldToShare';
@@ -120,13 +121,14 @@ export const MobileShortCard = memo(function MobileShortCard({
     setViewCount(post.view_count || 0);
   }, [post.view_count]);
 
-  const signedMediaUrl = useSignedUrl(post.media_url);
+  const media = useResolvedMediaUrl(post.media_url, isActive && pageVisible);
+  const signedMediaUrl = media.url;
   const signedAvatarUrl = useSignedUrl(post.author.avatar_url);
 
   const isVideo = isVideoPostMedia(post);
   const resetPlaybackError = useCallback(() => { setHasError(false); setIsLoading(true); }, []);
   const recovery = useClipNetworkRecovery(videoRef, isActive && pageVisible && !isHolding && isVideo, signedMediaUrl, postActions.contextKey, userPausedRef, resetPlaybackError);
-  const playbackFailed = hasError || recovery.stalled;
+  const playbackFailed = hasError || recovery.stalled || media.error;
   const playbackContext = useMemo(() => ({ active: isActive && pageVisible && !isHolding }), [isActive, pageVisible, signedMediaUrl, isHolding, globalMuted, postActions.contextKey]);
   useEffect(() => {
     playbackContext.active = isActive && pageVisible && !isHolding;
@@ -385,7 +387,7 @@ export const MobileShortCard = memo(function MobileShortCard({
         {/* Error fallback */}
         {playbackFailed && (
           <div className="absolute inset-0 flex items-center justify-center bg-muted/50">
-            {isVideo ? <button className="rounded-full bg-black/60 px-5 py-3 text-sm font-semibold text-white" onClick={e => { e.stopPropagation(); recovery.retry(); }}>Retry clip</button> : <span className="text-4xl">🖼️</span>}
+            {isVideo ? <button className="rounded-full bg-black/60 px-5 py-3 text-sm font-semibold text-white" onClick={e => { e.stopPropagation(); if (media.error) { resetPlaybackError(); media.retry(); } else recovery.retry(); }}>Retry clip</button> : <span className="text-4xl">🖼️</span>}
           </div>
         )}
 

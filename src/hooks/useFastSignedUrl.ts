@@ -4,7 +4,7 @@
  * Optimized to reduce re-renders and network calls
  */
 
-import { useState, useEffect, useSyncExternalStore, useRef, useMemo } from 'react';
+import { useState, useEffect, useSyncExternalStore, useRef, useMemo, useReducer, useCallback } from 'react';
 import { getCachedSignedUrl, getSignedUrl, needsSigning, batchSignUrls, cacheSignedUrl } from '@/lib/signedUrlCache';
 import { firebaseStorageNeedsToken, normalizeMediaUrl } from '@/lib/mediaUrl';
 import { firebaseStorage } from '@/lib/firebase/storageService';
@@ -41,19 +41,24 @@ function resolveFirebaseUrlShared(normalizedUrl: string): Promise<string> {
   const existing = firebaseResolveInflight.get(normalizedUrl);
   if (existing) return existing;
 
-  const promise = firebaseStorage
-    .resolveMediaUrl(normalizedUrl)
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const promise = Promise.race([
+    firebaseStorage.resolveMediaUrl(normalizedUrl),
+    new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Media connection timed out.')), 10_000); }),
+  ])
     .then((url) => {
-      firebaseResolveInflight.delete(normalizedUrl);
+      // Storage returns the original URL when resolution fails. A tokenless
+      // URL is not a usable download and must remain retryable.
+      if (!url || firebaseStorageNeedsToken(url)) throw new Error('Media could not be loaded.');
       if (url && (url !== normalizedUrl || /[?&]token=/.test(url))) {
         cacheSignedUrl(normalizedUrl, url);
         notifySubscribers();
       }
       return url;
     })
-    .catch((err) => {
-      firebaseResolveInflight.delete(normalizedUrl);
-      throw err;
+    .finally(() => {
+      clearTimeout(timer);
+      if (firebaseResolveInflight.get(normalizedUrl) === promise) firebaseResolveInflight.delete(normalizedUrl);
     });
 
   firebaseResolveInflight.set(normalizedUrl, promise);
@@ -65,6 +70,11 @@ function resolveFirebaseUrlShared(normalizedUrl: string): Promise<string> {
  * Falls back to async fetch if not cached
  */
 export function useFastSignedUrl(publicUrl: string | null | undefined): string | null {
+  return useResolvedMediaUrl(publicUrl).url;
+}
+
+/** Bounded resolution with an explicit retry for cards whose URL never loaded. */
+export function useResolvedMediaUrl(publicUrl: string | null | undefined, enabled = true) {
   const normalizedUrl = normalizeMediaUrl(publicUrl);
   const needsFirebaseToken = firebaseStorageNeedsToken(normalizedUrl);
   const cached = useSyncExternalStore(
@@ -74,73 +84,44 @@ export function useFastSignedUrl(publicUrl: string | null | undefined): string |
   );
   const syncCached = cached ?? null;
   
-  const [asyncUrl, setAsyncUrl] = useState<string | null>(() =>
-    resolveUrlSync(normalizedUrl ?? null, needsFirebaseToken),
-  );
-  const fetchedRef = useRef<string | null>(null);
+  const [revision, restart] = useReducer((value: number) => value + 1, 0);
+  const retry = useCallback(() => restart(), []);
+  const [result, setResult] = useState<{ source: string; revision: number; url: string | null; error: boolean } | null>(null);
+  const immediate = syncCached || resolveUrlSync(normalizedUrl, needsFirebaseToken);
+  const current = result?.source === normalizedUrl && result.revision === revision ? result : null;
+  const url = immediate || current?.url || null;
   
   useEffect(() => {
-    if (!normalizedUrl) {
-      setAsyncUrl(null);
-      fetchedRef.current = null;
-      return;
-    }
-
-    if (needsFirebaseToken) {
-      if (syncCached) {
-        setAsyncUrl(syncCached);
-        return;
-      }
-      let cancelled = false;
-      void resolveFirebaseUrlShared(normalizedUrl)
-        .then((url) => {
-          // Cache already updated in shared resolver; apply locally if still mounted.
-          if (cancelled || !url) return;
-          setAsyncUrl(url);
-        })
-        .catch(() => {});
-      return () => { cancelled = true; };
-    }
-    
-    if (!needsSigning(normalizedUrl)) {
-      setAsyncUrl(normalizedUrl);
-      return;
-    }
-    
-    if (syncCached) {
-      setAsyncUrl(syncCached);
-      return;
-    }
-
-    if (fetchedRef.current === normalizedUrl) {
-      return;
-    }
-    
-    fetchedRef.current = normalizedUrl;
+    if (!enabled || !normalizedUrl || immediate || document.visibilityState === 'hidden' || navigator.onLine === false) return;
     let cancelled = false;
-    
-    getSignedUrl(normalizedUrl).then(url => {
-      if (cancelled) {
-        // Allow remount/retry after a discarded result
-        if (fetchedRef.current === normalizedUrl) fetchedRef.current = null;
-        return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const resolve = async (attempt: number) => {
+      try {
+        const resolved = await (needsFirebaseToken ? resolveFirebaseUrlShared(normalizedUrl) : getSignedUrl(normalizedUrl));
+        if (!resolved) throw new Error('Media could not be loaded.');
+        if (!cancelled) setResult({ source: normalizedUrl, revision, url: resolved, error: false });
+      } catch {
+        if (cancelled) return;
+        if (attempt === 0 && document.visibilityState !== 'hidden' && navigator.onLine !== false) {
+          timer = setTimeout(() => {
+            if (!cancelled && document.visibilityState !== 'hidden' && navigator.onLine !== false) void resolve(1);
+          }, 2000);
+        } else setResult({ source: normalizedUrl, revision, url: null, error: true });
       }
-      if (url && url !== normalizedUrl) {
-        setAsyncUrl(url);
-      }
-      notifySubscribers();
-    }).catch(() => {
-      if (fetchedRef.current === normalizedUrl) fetchedRef.current = null;
-      if (!cancelled) notifySubscribers();
-    });
-    
-    return () => {
-      cancelled = true;
-      if (fetchedRef.current === normalizedUrl) fetchedRef.current = null;
     };
-  }, [normalizedUrl, syncCached, needsFirebaseToken]);
+    void resolve(0);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [normalizedUrl, immediate, needsFirebaseToken, revision, enabled]);
+
+  useEffect(() => {
+    if (!enabled || !normalizedUrl || url) return;
+    const resume = () => { if (document.visibilityState !== 'hidden' && navigator.onLine !== false) retry(); };
+    window.addEventListener('online', resume);
+    document.addEventListener('visibilitychange', resume);
+    return () => { window.removeEventListener('online', resume); document.removeEventListener('visibilitychange', resume); };
+  }, [enabled, normalizedUrl, url, retry]);
   
-  return syncCached || asyncUrl || resolveUrlSync(normalizedUrl ?? null, needsFirebaseToken);
+  return { url, error: enabled && !url && (!!publicUrl && !normalizedUrl || !!current?.error), retry };
 }
 
 /**

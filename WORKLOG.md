@@ -9724,6 +9724,14 @@ Publication completed for b9d63e49, deploymentb67fed36-bdca-4c6e-bf96-242bce2111
 
 Next three tasks: investigate browser/phone adoption with concrete network evidence; restore missing safe Firebase discovery and retained content; complete real phone location/Clips/performance verification. No new feature work.
 
+## 2026-10-06 — Clips URL resolution recovery
+
+Latest user reports mobile map sharing failure, Clips failure/lag and Firebase auth/network-request-failed on onboarding. Focused on a concrete media defect: tokenless Storage resolution failures/hangs never reached playback recovery, and Retry clip could not restart URL resolution. Added ten-second Firebase resolution deadline, one bounded two-second retry, reconnect/foreground recovery, explicit resolution retry in both Clips cards, and source-bound results. Inactive cards do not start resolutions; late timed-out replies cannot replace a newer successful cache result. No account/session purge or backend/security/Auth configuration changes.
+
+Ten new hook tests; full4542pass6skip; build/native/types/lint pass (five existing warnings). Bundle1101.2KB raw334.4KB gzip within limits. Actual synthetic Firebase preview clip at390x844 reached readyState4/pausedfalse/errornull; screenshot outputs/vybe-media-resolution-mobile-qa.png inspected. This is responsive desktop evidence, not physical-phone GPS/codecs/FPS proof. Retained signed-in live map URL with fresh update query still mountsoldCGCc entry; source/network cause remains unproven. Release releases/media-url-recovery-20261006/README.md. Matched client publication pending.
+
+Next three tasks: publish/verify this tested client; diagnose current phone source/auth-network/location and real Clips playback; continue existing Firebase content/discovery restoration. Goal active, no new features.
+
 
 
 

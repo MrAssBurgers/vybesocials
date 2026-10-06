@@ -25,6 +25,7 @@ import { useUserRole } from '@/hooks/useModeration';
 import { isModOrAdminRole } from '@/lib/adminAccess';
 import { useUserRoleById } from '@/hooks/useUserRoleById';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
+import { useResolvedMediaUrl } from '@/hooks/useFastSignedUrl';
 import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { ModBadge } from '@/components/ui/ModBadge';
@@ -133,14 +134,15 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const holdStartedRef = useRef(false);
   const userPausedRef = useRef(false);
   
-  const signedMediaUrl = useSignedUrl(post.media_url);
+  const pageVisible = useClipPageVisible();
+  const media = useResolvedMediaUrl(post.media_url, isActive && pageVisible);
+  const signedMediaUrl = media.url;
   const signedAvatarUrl = useSignedUrl(post.author?.avatar_url || null);
   
   const effectiveIsHolding = externalIsHolding || isHolding;
-  const pageVisible = useClipPageVisible();
   const resetPlaybackError = useCallback(() => { setHasError(false); setIsLoading(true); }, []);
   const recovery = useClipNetworkRecovery(videoRef, isActive && pageVisible && !effectiveIsHolding, signedMediaUrl, postActions.contextKey, userPausedRef, resetPlaybackError);
-  const playbackFailed = hasError || recovery.stalled;
+  const playbackFailed = hasError || recovery.stalled || media.error;
   const playbackContext = useMemo(() => ({ active: isActive && pageVisible && !effectiveIsHolding }), [isActive, pageVisible, signedMediaUrl, effectiveIsHolding, globalMuted, postActions.contextKey]);
   useEffect(() => {
     playbackContext.active = isActive && pageVisible && !effectiveIsHolding;
@@ -433,7 +435,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         {(playbackFailed || !hasRenderableMedia) && (
           <MediaFallback type={isVideo ? 'video' : 'image'} caption={post.caption} className="absolute inset-0" />
         )}
-        {playbackFailed && isVideo && isActive && <button className="absolute bottom-20 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/60 px-5 py-3 text-sm font-semibold text-white" onClick={e => { e.stopPropagation(); recovery.retry(); }}>Retry clip</button>}
+        {playbackFailed && isVideo && isActive && <button className="absolute bottom-20 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/60 px-5 py-3 text-sm font-semibold text-white" onClick={e => { e.stopPropagation(); if (media.error) { resetPlaybackError(); media.retry(); } else recovery.retry(); }}>Retry clip</button>}
 
         {hasRenderableMedia && isVideo ? (
           <video

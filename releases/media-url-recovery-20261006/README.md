@@ -1,0 +1,9 @@
+# Clips media resolution recovery — October 6, 2026
+
+Firebase Storage resolution failures previously returned an unusable tokenless URL or left the hook empty indefinitely. Playback recovery only handles a video with a resolved source, and its Retry button could not restart URL resolution. The shared resolver now bounds a hung Firebase request to ten seconds, retries once after two seconds, and reports failure to both existing Clips cards. Retry clip restarts URL resolution when that stage failed. Unresolved URLs also retry on reconnect/foreground; inactive Clips do not start resolution. A source change immediately retires the previous asynchronous URL, and late timed-out results cannot replace a successful retry in the cache.
+
+Ten focused hook tests cover failed/unchanged URLs, bounded retry, reconnect, foreground, hanging requests, late results, source changes, offline/inactive/hidden cards and teardown. Full suite:4542 passed, six skipped. Build, native entry validation, types and lint passed; five existing lint warnings. Bundle1101.2KB raw334.4KB gzip remains within1125/335KB limits. Actual isolated demo-vybe-preview Clips playback at390x844 reached readyState4, pausedfalse, errornull; screenshot task-root outputs/vybe-media-resolution-mobile-qa.png. This is desktop responsive-layout evidence, not physical-phone codec/GPS/performance certification.
+
+No backend deployment, Rules, Auth configuration, production location consent or account/session purge. The retained production browser still loads app-CGCcULTp.js even after a fresh map URL query, so current phone source adoption and the reported auth/network-request-failed/location issue remain open. This fix addresses demonstrated media resolution defects; it does not prove all reported mobile problems resolved. Matching main publication and public source verification pending.
+
+Logs: work/media-resolution-{focused,full,build,types,lint,native,budget}.log.
