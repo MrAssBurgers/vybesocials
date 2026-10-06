@@ -61,3 +61,27 @@ it('does not forget a pause when a retired recovery is replaced', async () => {
   await vi.advanceTimersByTimeAsync(0);
   expect(retry).toHaveBeenCalledOnce();
 });
+it('gives a resumed connection a bounded retry window after the original window failed', async () => {
+  const retry = vi.fn(async () => false);
+  stop = recoverTokenTransport(retry, () => true);
+  await vi.advanceTimersByTimeAsync(10_000);
+  expect(retry).toHaveBeenCalledTimes(2);
+  window.dispatchEvent(new Event('app-paused'));
+  await vi.advanceTimersByTimeAsync(30_000);
+  window.dispatchEvent(new Event('app-resumed'));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(retry).toHaveBeenCalledTimes(3);
+  // The radio can still be reconnecting when the first resume request runs.
+  await vi.advanceTimersByTimeAsync(8000);
+  expect(retry).toHaveBeenCalledTimes(4);
+  await vi.advanceTimersByTimeAsync(120_000);
+  expect(retry).toHaveBeenCalledTimes(4);
+});
+it('handles a rejected recovery request and still retries without an unhandled rejection', async () => {
+  const retry = vi.fn().mockRejectedValueOnce(new Error('network unavailable')).mockResolvedValue(true);
+  stop = recoverTokenTransport(retry, () => true);
+  await vi.advanceTimersByTimeAsync(10_000);
+  expect(retry).toHaveBeenCalledTimes(2);
+  window.dispatchEvent(new Event('online'));
+  expect(retry).toHaveBeenCalledTimes(2);
+});
