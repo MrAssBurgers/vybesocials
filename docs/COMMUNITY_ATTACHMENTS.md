@@ -1,6 +1,6 @@
 # Private community attachments
 
-New channel attachments use authenticated HTTP upload and delivery. They do not use Firebase download URLs, signed URLs, or the shared URL cache. This is a source change validated in isolated demo emulators; production deployment and historical migration have not occurred.
+New channel attachments use authenticated HTTP upload and delivery. They do not use Firebase download URLs, signed URLs, or the shared URL cache. Deployment status and exact production boundaries are recorded in [the attachment recovery checkpoint](../releases/community-attachments-recovery-20261006/README.md). Historical migration remains separate.
 
 ## User flow
 
@@ -30,7 +30,7 @@ All browser reads, writes, updates, deletes, and lists in `community-private/**`
 
 ## Viewing bytes
 
-`GET /{messageId}` and `HEAD /{messageId}` accept only header authentication. Every request derives the asset from the actual stored message, validates the exact message/proof/owner/channel/server tuple, checks current channel visibility, and pins the selected object generation. GET validates authority again after reading bytes, before responding. The handler permits only one strict byte range and returns private `no-store`, `nosniff`, and explicit length/type headers. It never redirects to a Storage URL. Response memory is bounded by 20 MiB; the function uses 512 MiB, concurrency four, and a 60-second timeout.
+`GET /{messageId}` and `HEAD /{messageId}` accept only header authentication. Every request derives the asset from the actual stored message, validates the exact message/proof/owner/channel/server tuple, checks current channel visibility, and pins the selected object generation. GET validates authority again after reading bytes, before responding. The handler permits only one strict byte range and returns private `no-store`, `nosniff`, and explicit length/type headers. It never redirects to a Storage URL. Response memory is bounded by 20 MiB; the function uses one CPU, 512 MiB, concurrency four, and a 60-second timeout.
 
 The MIME and byte checks are transport constraints, not file decoding, malware scanning, content moderation, encryption, or DRM. Authorized users can retain bytes they received. Removal blocks future service requests; it cannot retract prior downloads. Existing LiveKit token revocation limitations are unchanged.
 

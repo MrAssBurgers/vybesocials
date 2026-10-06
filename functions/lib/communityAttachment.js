@@ -1,7 +1,7 @@
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
 import { auth, enforceRateLimit, rateLimit, requireAuth } from './_shared/admin.js';
 import { finalizeCommunityAttachment, readCommunityAttachment, reserveCommunityAttachment, uploadCommunityAttachment } from './_shared/communityAttachments.js';
-export const communityAttachment = onCall({ region: 'us-central1', maxInstances: 10, concurrency: 10 }, async (request) => {
+export const communityAttachment = onCall({ region: 'us-central1', cpu: 1, maxInstances: 10, concurrency: 10 }, async (request) => {
     const uid = requireAuth(request);
     const input = request.data;
     if (!input || typeof input !== 'object' || Array.isArray(input))
@@ -59,5 +59,5 @@ export async function handleCommunityAttachmentBytes(request, response) {
         response.status(status).json({ error: code, message: 'This attachment is unavailable. Check your access and try again.' });
     }
 }
-export const communityAttachmentBytes = onRequest({ region: 'us-central1', invoker: 'public', timeoutSeconds: 60, memory: '512MiB', concurrency: 4, maxInstances: 10 }, handleCommunityAttachmentBytes);
+export const communityAttachmentBytes = onRequest({ region: 'us-central1', cpu: 1, invoker: 'public', timeoutSeconds: 60, memory: '512MiB', concurrency: 4, maxInstances: 10 }, handleCommunityAttachmentBytes);
 //# sourceMappingURL=communityAttachment.js.map

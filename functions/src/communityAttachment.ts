@@ -3,7 +3,7 @@ import type { Response } from 'express';
 import { auth, enforceRateLimit, rateLimit, requireAuth } from './_shared/admin.js';
 import { finalizeCommunityAttachment, readCommunityAttachment, reserveCommunityAttachment, uploadCommunityAttachment } from './_shared/communityAttachments.js';
 
-export const communityAttachment = onCall({ region: 'us-central1', maxInstances: 10, concurrency: 10 }, async request => {
+export const communityAttachment = onCall({ region: 'us-central1', cpu: 1, maxInstances: 10, concurrency: 10 }, async request => {
   const uid = requireAuth(request); const input = request.data;
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new HttpsError('invalid-argument', 'Attachment details required.');
   enforceRateLimit(await rateLimit(`community-attachment:${uid}`, 60, 60));
@@ -43,4 +43,4 @@ export async function handleCommunityAttachmentBytes(request: Request, response:
   }
 }
 
-export const communityAttachmentBytes = onRequest({ region: 'us-central1', invoker: 'public', timeoutSeconds: 60, memory: '512MiB', concurrency: 4, maxInstances: 10 }, handleCommunityAttachmentBytes);
+export const communityAttachmentBytes = onRequest({ region: 'us-central1', cpu: 1, invoker: 'public', timeoutSeconds: 60, memory: '512MiB', concurrency: 4, maxInstances: 10 }, handleCommunityAttachmentBytes);

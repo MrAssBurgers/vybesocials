@@ -11,8 +11,8 @@ const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@fir
 const { doc, collection, setDoc, getDoc, getDocs, updateDoc, deleteDoc } = require('firebase/firestore');
 const { ref, uploadBytes, getBytes, getDownloadURL, getMetadata, updateMetadata, deleteObject, listAll } = require('firebase/storage');
 const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':'), [storageHost, storagePort] = process.env.FIREBASE_STORAGE_EMULATOR_HOST.split(':');
-const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile('firestore.rules', 'utf8') },
-  storage: { host: storageHost, port: Number(storagePort), rules: await readFile('storage.rules', 'utf8') } });
+const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile(process.env.FIREBASE_TEST_RULES_PATH || 'firestore.rules', 'utf8') },
+  storage: { host: storageHost, port: Number(storagePort), rules: await readFile(process.env.FIREBASE_TEST_STORAGE_RULES_PATH || 'storage.rules', 'utf8') } });
 const uid = 'attachment-rule-alice', alice = env.authenticatedContext(uid), bob = env.authenticatedContext('attachment-rule-bob'), admin = env.authenticatedContext('attachment-rule-admin', { admin: true }), guest = env.unauthenticatedContext();
 const bytes = new Uint8Array([1, 2, 3]); let checks = 0, next = 1;
 const allow = async (label, run) => { await assertSucceeds(run()); checks++; console.log(`PASS ${label}`); };
