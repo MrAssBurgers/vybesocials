@@ -1,4 +1,16 @@
-## ACTIVE (2026-10-06) — Missing chunk refresh and Notes completion
+## ACTIVE (2026-10-06) — Recovery preserves drafts, account state and customization
+
+- Continued full user-readiness objective; prior turn produced verified production publication and live route evidence. Current main baseline2ace9b0e was clean. No new product features or production content/membership rewrites.
+- Found GlobalErrorHandler classified generic Failed to fetch as a chunk update and automatically reloaded after2s; rejected dynamic imports were ignored. It now recognizes browser module-loading errors specifically, catches rejected imports, uses the existing startup recovery if blank and offers one explicit Refresh when a screen is already present. Drafts are not automatically discarded. App file cache removal is awaited before the explicit refresh.
+- Recovery formerly deleted all Cache API buckets and storage quota cleanup deleted every localStorage key except two legacy prefixes. Cleanup now restricts deletion to VYBE shell/static/JS caches, retains media/other/private buckets and offline caches, catches browser storage failures and prunes only the regenerable avatar/level display caches. Firebase account/device state, settings, drafts and unknown keys remain. Repeated ordinary network errors request query refetch instead of cache deletion.
+- Deferred background reporting to a separate lazy component while keeping screen recovery in the initial app. Initial entry1095.8KB raw/332.7KB gzip vs prior1103.0/335.0, within unchanged1125/335KB limit. No crash-consent change.
+- Verification:18 focused recovery tests; full462 files/4391 tests passed,6 skipped; build/native manifest/budget,typecheck,lint passed with5 existing warnings. Browser manual check used an ignored emulator-only fixture: network error retained draft/no notice; missing module retained draft and showed explicit Refresh. Screenshotoutputs/vybe-recovery-preserves-draft.png. Publication is the next action; unchanged mounted live tabs still report preceding entries, so automatic current-entry adoption remains unverified.
+
+Next3tasks: publish this checked repair and verify public manifest/files; finish mounted-tab update diagnosis; continue guarded Firebase media/DM/hub restoration and native/provider checks before any readiness claim.
+
+---
+
+## PRIOR CHECKPOINT (2026-10-06) — Missing chunk refresh and Notes completion
 
 - Publication completed: Lovable deployment3165c1c4-2e33-450b-a8e4-e632838867b1, sourcec041b78a87c04949c3007143dddef7f26e1009ab. Both production manifests independently confirm that exact commit, built2026-10-06T01:23:09.698Z, entry/assets/app-CZCa6jSr.js and matching manifest hash. Both public workers serve v42. All eight current Community/menu/leaderboard/Spaces/sliders/Upload/Challenges chunk references return200 with JavaScript content type. No stale filenames were hardcoded or aliased.
 - Actual signed-in Chrome session retains @bakrix across reloads. Communities, Upload, Spaces and Challenges interfaces open; Challenges loads retained progress. Reports now shows pending0, the actual empty queue and No deletions recorded, with no unavailable counter/history. Proof: workspaceoutputs/vybe-reports-restored-live.png. Current open tabs still reported earlier entries (Chrome6075 artifact, IABe145 artifact) despite refresh, so automatic mounted-tab adoption of c041 is not certified. Public c041 availability and route loading are independently verified; keep this cache-adoption limitation visible for continued QA.

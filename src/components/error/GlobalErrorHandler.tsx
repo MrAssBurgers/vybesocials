@@ -1,14 +1,12 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useErrorReporter } from '@/hooks/useErrorReporter';
-import { useAutoBugReporter } from '@/hooks/useAutoBugReporter';
 import { toast } from 'sonner';
-import { trackError, clearAppCache } from '@/lib/selfHealingMonitor';
+import { trackError, clearAppCache, isChunkLoadError } from '@/lib/selfHealingMonitor';
 import { showBootRecovery } from '@/lib/bootGuard';
 
+const BackgroundErrorReporter = lazy(() => import('./BackgroundErrorReporter'));
+
 export function GlobalErrorHandler() {
-  useErrorReporter();
-  useAutoBugReporter();
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -16,12 +14,10 @@ export function GlobalErrorHandler() {
     // Reconnect logic still runs via reconnectManager; we just don't surface UI.
 
     // Handle chunk loading errors — show recovery if shell is blank
-    const handleChunkError = (event: ErrorEvent) => {
-      const isChunk =
-        event.message?.includes('Loading chunk') ||
-        event.message?.includes('Failed to fetch') ||
-        event.message?.includes('Importing a module script failed');
-      if (!isChunk) return;
+    let chunkNoticeShown = false;
+    const recoverChunk = (message: string) => {
+      if (!isChunkLoadError(message) || chunkNoticeShown) return;
+      chunkNoticeShown = true;
 
       const hasContent =
         typeof window.__VYBE_HAS_MEANINGFUL_CONTENT__ === 'function' &&
@@ -30,14 +26,20 @@ export function GlobalErrorHandler() {
       if (!hasContent) {
         showBootRecovery('chunk_error');
       } else {
-        toast.error('Update available! 🔄', {
-          description: 'Refreshing to get the latest version...',
-          duration: 2000,
+        toast.error('This screen couldn’t load', {
+          description: 'Refresh to get the latest app files. Your account stays signed in.',
+          duration: Infinity,
+          action: {
+            label: 'Refresh',
+            onClick: async () => {
+              await clearAppCache();
+              window.location.reload();
+            },
+          },
         });
-        clearAppCache();
-        setTimeout(() => window.location.reload(), 2000);
       }
     };
+    const handleChunkError = (event: ErrorEvent) => recoverChunk(event.message || '');
 
     const shouldIgnoreForSelfHeal = (msg: string) => {
       const m = msg.toLowerCase();
@@ -68,6 +70,10 @@ export function GlobalErrorHandler() {
     const handleRejection = (event: PromiseRejectionEvent) => {
       if (event.reason?.isAuthGuard) return;
       const msg = event.reason?.message || event.reason?.toString() || '';
+      if (isChunkLoadError(msg)) {
+        recoverChunk(msg);
+        return;
+      }
       if (shouldIgnoreForSelfHeal(msg)) return;
       if (msg) trackError(msg);
     };
@@ -92,5 +98,5 @@ export function GlobalErrorHandler() {
     };
   }, [queryClient]);
 
-  return null;
+  return <Suspense fallback={null}><BackgroundErrorReporter /></Suspense>;
 }

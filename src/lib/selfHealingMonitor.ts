@@ -86,9 +86,15 @@ function notifyPatternDetected(record: ErrorRecord) {
 
 type FixAction = 'clear_cache' | 'refresh_auth' | 'refetch_queries' | 'prune_storage' | 'reload' | 'none';
 
+/** Module loading failures, rather than ordinary failed API requests. */
+export function isChunkLoadError(message: string): boolean {
+  return /chunkloaderror|loading chunk .+ failed|failed to fetch dynamically imported module|error loading dynamically imported module|importing a module script failed/i.test(message);
+}
+
 function pickHeuristic(rawKey: string): FixAction | null {
   const key = rawKey.toLowerCase();
-  if (key.includes('fetch') || key.includes('network') || key.includes('failed to fetch') || key.includes('loading chunk')) return 'clear_cache';
+  if (isChunkLoadError(key)) return 'clear_cache';
+  if (key.includes('fetch') || key.includes('network')) return 'refetch_queries';
   if (key.includes('jwt') || key.includes('token') || (key.includes('auth') && !key.includes('author'))) return 'refresh_auth';
   if (key.includes('quota') || key.includes('localstorage') || key.includes('quotaexceeded')) return 'prune_storage';
   return null;
@@ -192,14 +198,18 @@ function defaultDescFor(action: FixAction): string {
   }
 }
 
-/** Clear browser caches (Service Worker, Cache API) */
-export function clearAppCache() {
-  if ('caches' in window) {
-    caches.keys().then(names => names.forEach(name => caches.delete(name)));
-  }
+/** Clear replaceable app files, preserving offline media and other applications. */
+export async function clearAppCache(): Promise<void> {
+  if (!('caches' in window) || navigator.onLine === false) return;
+  try {
+    const names = await caches.keys();
+    await Promise.all(names
+      .filter(name => /^vybe-(?:shell-|assets-|static-|v\d+(?:$|-))/.test(name))
+      .map(name => caches.delete(name)));
+  } catch { /* Recovery must not introduce another unhandled rejection. */ }
 }
 
-/** Force a Supabase session refresh */
+/** Refresh the existing Firebase session. */
 async function refreshAuth() {
   try {
     await refreshFirebaseSession();
@@ -211,11 +221,12 @@ async function refreshAuth() {
 /** Remove non-essential items from localStorage when nearing quota */
 function pruneLocalStorage() {
   try {
-    const preserveKeys = ['sb-', 'db.auth'];
     const toRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && !preserveKeys.some(p => key.startsWith(p))) {
+      // These are regenerable display caches. Everything else may be a draft,
+      // preference, trusted-device proof or account state and must be retained.
+      if (key === 'vybe_profile_avatar_v1' || key?.startsWith('vybe-user-level-v1:')) {
         toRemove.push(key);
       }
     }
