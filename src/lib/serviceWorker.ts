@@ -1,5 +1,5 @@
 import { isDespiaRuntime } from '@/lib/despiaBridge';
-import { signalAppUpdate, APP_UPDATE_RELOAD_DELAY_MS } from '@/lib/appUpdateBridge';
+import { signalAppUpdate, APP_UPDATE_RELOAD_DELAY_MS, hasActiveAppDraft } from '@/lib/appUpdateBridge';
 
 export function isPreviewServiceWorkerDisabled() {
   if (typeof window === 'undefined') return false;
@@ -123,8 +123,7 @@ function wireUpdateFlow(registration: ServiceWorkerRegistration) {
   const RELOAD_ONCE_KEY = 'vybe-sw-reload-once';
 
   const promoteWaitingWorker = (worker: ServiceWorker | null) => {
-    if (!worker) return;
-    signalAppUpdate();
+    if (!worker || hasActiveAppDraft()) return;
     worker.postMessage({ type: 'SKIP_WAITING' });
   };
 
@@ -145,24 +144,30 @@ function wireUpdateFlow(registration: ServiceWorkerRegistration) {
   // Distinguish "update replaced the controller" from the very first claim.
   const hadController = Boolean(navigator.serviceWorker.controller);
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (reloadingForUpdate || !hadController) return;
+    if (reloadingForUpdate || !hadController || hasActiveAppDraft()) return;
     // Prevent A→B→A restart loops when another SW (e.g. messaging) also claims.
-    if (sessionStorage.getItem(RELOAD_ONCE_KEY) === '1') return;
+    try {
+      if (sessionStorage.getItem(RELOAD_ONCE_KEY) === '1') return;
+    } catch { return; }
     reloadingForUpdate = true;
-    sessionStorage.setItem(RELOAD_ONCE_KEY, '1');
-    // Let the fullscreen overlay paint before refresh (avoids half-screen tear).
+    // Recheck edits after the delay; only signal the overlay when navigation proceeds.
     setTimeout(() => {
+      if (hasActiveAppDraft()) { reloadingForUpdate = false; return; }
+      try { sessionStorage.setItem(RELOAD_ONCE_KEY, '1'); } catch { reloadingForUpdate = false; return; }
+      signalAppUpdate();
       window.location.replace(`/?_vybe=${Date.now()}`);
     }, APP_UPDATE_RELOAD_DELAY_MS);
   });
 
   // After a successful controlled reload, clear the once-guard so future deploys can update.
-  if (registration.active && !registration.waiting && sessionStorage.getItem(RELOAD_ONCE_KEY) === '1') {
-    // Delay clear slightly so a same-tick controllerchange from messaging can't loop.
-    window.setTimeout(() => {
-      if (!registration.waiting) sessionStorage.removeItem(RELOAD_ONCE_KEY);
-    }, 4_000);
-  }
+  try {
+    if (registration.active && !registration.waiting && sessionStorage.getItem(RELOAD_ONCE_KEY) === '1') {
+      // Delay clear slightly so a same-tick controllerchange from messaging can't loop.
+      window.setTimeout(() => {
+        try { if (!registration.waiting) sessionStorage.removeItem(RELOAD_ONCE_KEY); } catch { /* optional metadata */ }
+      }, 4_000);
+    }
+  } catch { /* blocked storage must not prevent startup */ }
 }
 
 function logRegistrationOnce(scope: string) {

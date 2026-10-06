@@ -76,7 +76,7 @@ self.addEventListener('activate', (event) => {
       clients.claim(),
       caches.keys().then((names) =>
         Promise.all(
-          names.filter((n) => !VALID_CACHES.has(n)).map((n) => caches.delete(n))
+          names.filter((n) => /^vybe-(?:shell-|assets-|static-|v\d+(?:$|-))/.test(n) && !VALID_CACHES.has(n)).map((n) => caches.delete(n))
         )
       ),
     ])

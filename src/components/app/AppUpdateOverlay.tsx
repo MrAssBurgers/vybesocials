@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { Sparkles } from 'lucide-react';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
-import { clearAppUpdateFlag, isAppUpdateInProgress } from '@/lib/appUpdateBridge';
+import { clearAppUpdateFlag, isAppUpdateInProgress, hasActiveAppDraft } from '@/lib/appUpdateBridge';
 import { Button } from '@/components/ui/button';
 import { clearOwnedAppFiles } from '@/lib/appFileRecovery';
 
@@ -57,7 +57,7 @@ function unlockUpdateShell() {
 
 async function clearAppCachesAndReload() {
   await clearOwnedAppFiles();
-  sessionStorage.removeItem(RELOAD_ONCE_KEY);
+  try { sessionStorage.removeItem(RELOAD_ONCE_KEY); } catch { /* optional metadata */ }
   clearAppUpdateFlag();
   window.location.replace(`/?_vybe=${Date.now()}`);
 }
@@ -74,7 +74,7 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
     setShowRecovery(false);
     clearAppUpdateFlag();
     unlockUpdateShell();
-    sessionStorage.removeItem(RELOAD_ONCE_KEY);
+    try { sessionStorage.removeItem(RELOAD_ONCE_KEY); } catch { /* optional metadata */ }
   };
 
   useEffect(() => {
@@ -86,9 +86,11 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
       return;
     }
     // If we just finished a controlled reload onto the current entry, stay usable.
-    if (sessionStorage.getItem(RELOAD_ONCE_KEY) === '1' && !isAppUpdateInProgress()) {
-      sessionStorage.removeItem(RELOAD_ONCE_KEY);
-    }
+    try {
+      if (sessionStorage.getItem(RELOAD_ONCE_KEY) === '1' && !isAppUpdateInProgress()) {
+        sessionStorage.removeItem(RELOAD_ONCE_KEY);
+      }
+    } catch { /* optional metadata */ }
     clearAppUpdateFlag();
 
     let cancelled = false;
@@ -103,7 +105,7 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
     })();
 
     const begin = () => {
-      if (activeRef.current) return;
+      if (activeRef.current || hasActiveAppDraft()) return;
       activeRef.current = true;
       lockUpdateShell();
       setIsUpdating(true);
@@ -112,28 +114,23 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
     };
 
     const handleVybeUpdate = () => begin();
-    const hadControllerAtMount = Boolean(navigator.serviceWorker?.controller);
-    const handleSWUpdate = () => {
-      if (!hadControllerAtMount) return;
-      begin();
-    };
-
     const handleTombstone = (event: MessageEvent) => {
-      if (event.data?.type !== 'VYBE_LEGACY_SW_TOMBSTONE') return;
-      begin();
+      if (event.data?.type !== 'VYBE_LEGACY_SW_TOMBSTONE' || hasActiveAppDraft()) return;
+      try { if (sessionStorage.getItem(RELOAD_ONCE_KEY) === '1') return; } catch { return; }
       window.setTimeout(() => {
+        if (cancelled || hasActiveAppDraft()) return;
+        try { sessionStorage.setItem(RELOAD_ONCE_KEY, '1'); } catch { return; }
+        begin();
         window.location.replace(`/?_vybe_migrate=${Date.now()}`);
       }, 400);
     };
 
     window.addEventListener('vybe-app-update', handleVybeUpdate);
-    navigator.serviceWorker?.addEventListener('controllerchange', handleSWUpdate);
     navigator.serviceWorker?.addEventListener('message', handleTombstone);
 
     return () => {
       cancelled = true;
       window.removeEventListener('vybe-app-update', handleVybeUpdate);
-      navigator.serviceWorker?.removeEventListener('controllerchange', handleSWUpdate);
       navigator.serviceWorker?.removeEventListener('message', handleTombstone);
       if (!activeRef.current) unlockUpdateShell();
     };
@@ -256,7 +253,7 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
             <Button
               className="rounded-full"
               onClick={() => {
-                sessionStorage.setItem(RELOAD_ONCE_KEY, '1');
+                try { sessionStorage.setItem(RELOAD_ONCE_KEY, '1'); } catch { /* user-requested retry */ }
                 clearAppUpdateFlag();
                 window.location.replace(`/?_vybe=${Date.now()}`);
               }}

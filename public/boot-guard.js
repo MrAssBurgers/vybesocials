@@ -19,83 +19,94 @@
     }
   } catch (e) { /* ignore */ }
 
-  // If a fresh shell somehow references a stale entry (or version.json moved),
-  // unregister workers, drop caches, and hard-navigate once.
+  // Recovery owns app files only, never account, media or other worker data.
+  function clearOwnedBootFiles() {
+    if (navigator.onLine === false) return Promise.resolve();
+    var tasks = [];
+    if ('serviceWorker' in navigator) {
+      tasks.push(navigator.serviceWorker.getRegistrations().then(function (regs) {
+        return Promise.all(regs.filter(function (reg) {
+          try {
+            var worker = reg.active || reg.waiting || reg.installing;
+            var script = new URL(worker && worker.scriptURL, location.origin);
+            var scope = new URL(reg.scope);
+            return script.origin === location.origin && script.pathname === '/sw.js' &&
+              scope.origin === location.origin && scope.pathname === '/';
+          } catch (e) { return false; }
+        }).map(function (reg) { return reg.unregister(); }));
+      }).catch(function () {}));
+    }
+    if ('caches' in window) {
+      tasks.push(caches.keys().then(function (names) {
+        return Promise.all(names.filter(function (name) {
+          return /^vybe-(?:shell-|assets-|static-|v\d+(?:$|-))/.test(name);
+        }).map(function (name) { return caches.delete(name); }));
+      }).catch(function () {}));
+    }
+    return Promise.all(tasks);
+  }
+
+  var editedDuringBoot = false;
+  document.addEventListener('input', function () { editedDuringBoot = true; }, true);
+  document.addEventListener('change', function () { editedDuringBoot = true; }, true);
+  function hasBootDraft() {
+    if (editedDuringBoot) return true;
+    var active = document.activeElement;
+    if (active && active.matches('input, textarea, select, [contenteditable="true"]')) return true;
+    var fields = document.querySelectorAll('input, textarea, [contenteditable="true"]');
+    for (var i = 0; i < fields.length; i++) {
+      var field = fields[i];
+      if (field.tagName === 'INPUT' && /^(checkbox|radio|range|button|submit|hidden)$/i.test(field.type)) continue;
+      if (field.value || (field.isContentEditable && field.textContent)) return true;
+    }
+    return false;
+  }
+  window.__VYBE_HAS_BOOT_DRAFT__ = hasBootDraft;
+
   var ENTRY_MIGRATE_KEY = 'vybe.boot.entry-migrate';
   var ENTRY_MIGRATE_ATTEMPTS_KEY = 'vybe.boot.entry-migrate-attempts';
-  try {
+  function checkBootEntry() {
+    if (navigator.onLine === false) return;
     var moduleScript = document.querySelector('script[type="module"][src*="/assets/app-"]');
-    var localSrc = moduleScript && moduleScript.getAttribute('src');
-    var localEntry = '';
-    if (localSrc) {
-      try { localEntry = new URL(localSrc, location.origin).pathname; } catch (e2) { localEntry = String(localSrc).split('?')[0]; }
-    }
-    if (localEntry && typeof fetch === 'function') {
-      fetch('/version.json?_=' + Date.now(), { cache: 'no-store' })
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (v) {
-          if (!v || !v.entry || v.entry === localEntry) {
-            try {
-              sessionStorage.removeItem(ENTRY_MIGRATE_KEY);
-              sessionStorage.removeItem(ENTRY_MIGRATE_ATTEMPTS_KEY);
-            } catch (e3) { /* ignore */ }
-            return;
-          }
-          var attempts = 0;
-          var previousTarget = '';
+    if (!moduleScript || typeof fetch !== 'function') return;
+    var local;
+    try { local = new URL(moduleScript.getAttribute('src'), location.origin); } catch (e) { return; }
+    if (local.origin !== location.origin) return;
+    var controller = new AbortController();
+    var deadline = setTimeout(function () { controller.abort(); }, 8000);
+    fetch('/version.json?_=' + Date.now(), { cache: 'no-store', signal: controller.signal })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (v) {
+        if (!v || !/^\/assets\/app-[\w-]+\.js$/.test(v.entry || '')) return;
+        if (v.entry === local.pathname) {
           try {
-            previousTarget = sessionStorage.getItem(ENTRY_MIGRATE_KEY) || '';
-            // Attempts from an older release must never pin a session forever.
-            attempts = previousTarget === v.entry
-              ? (parseInt(sessionStorage.getItem(ENTRY_MIGRATE_ATTEMPTS_KEY) || '0', 10) || 0)
-              : 0;
-          } catch (e4a) { /* ignore */ }
-          // Allow a second attempt — first pass often clears SW but still serves a sticky shell.
+            sessionStorage.removeItem(ENTRY_MIGRATE_KEY);
+            sessionStorage.removeItem(ENTRY_MIGRATE_ATTEMPTS_KEY);
+          } catch (e) { /* optional metadata */ }
+          return;
+        }
+        if (hasBootDraft() || navigator.onLine === false) return;
+        // A durable attempt marker is required before any automatic restart.
+        try {
+          var target = sessionStorage.getItem(ENTRY_MIGRATE_KEY);
+          var attempts = target === v.entry ? parseInt(sessionStorage.getItem(ENTRY_MIGRATE_ATTEMPTS_KEY) || '0', 10) || 0 : 0;
           if (attempts >= 2) return;
-          try {
-            sessionStorage.setItem(ENTRY_MIGRATE_ATTEMPTS_KEY, String(attempts + 1));
-            sessionStorage.setItem(ENTRY_MIGRATE_KEY, v.entry);
-          } catch (e4) { /* ignore */ }
-          var tasks = [];
-          try {
-            if ('serviceWorker' in navigator) {
-              tasks.push(
-                navigator.serviceWorker.getRegistrations().then(function (regs) {
-                  return Promise.all(
-                    regs.map(function (r) {
-                      var updateP = Promise.resolve();
-                      try {
-                        if (r && typeof r.update === 'function') updateP = r.update().catch(function () {});
-                      } catch (eUp) { /* ignore */ }
-                      return updateP.then(function () {
-                        return r.unregister();
-                      });
-                    }),
-                  );
-                }),
-              );
-            }
-            if ('caches' in window) {
-              tasks.push(
-                caches.keys().then(function (names) {
-                  return Promise.all(names.map(function (n) { return caches.delete(n); }));
-                }),
-              );
-            }
-            // Bust sticky messaging worker script cache before reload.
-            tasks.push(
-              fetch('/firebase-messaging-sw.js?_tombstone=' + Date.now(), { cache: 'no-store', credentials: 'same-origin' })
-                .then(function () {})
-                .catch(function () {}),
-            );
-          } catch (e5) { /* ignore */ }
-          var go = function () { location.replace('/?_vybe_entry=' + Date.now()); };
-          if (tasks.length) Promise.all(tasks).finally(go);
-          else go();
-        })
-        .catch(function () { /* ignore */ });
-    }
-  } catch (e) { /* ignore */ }
+          sessionStorage.setItem(ENTRY_MIGRATE_ATTEMPTS_KEY, String(attempts + 1));
+          sessionStorage.setItem(ENTRY_MIGRATE_KEY, v.entry);
+        } catch (e) { return; }
+        return clearOwnedBootFiles().then(function () {
+          if (!hasBootDraft() && navigator.onLine !== false) location.replace('/?_vybe_entry=' + Date.now());
+        });
+      })
+      .catch(function () { /* normal app update checks retry after reconnect */ })
+      .finally(function () { clearTimeout(deadline); });
+  }
+  // The watchdog can precede the module tag in the HTML document.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', checkBootEntry, { once: true });
+  } else {
+    checkBootEntry();
+  }
 
   var BOOT_ATTR = 'data-vybe-boot';
   var APP_READY_ATTR = 'data-vybe-app-ready';
@@ -150,25 +161,7 @@
 
   function clearCacheAndReload() {
     var reload = function () { window.location.reload(); };
-    var tasks = [];
-    try {
-      if ('serviceWorker' in navigator) {
-        tasks.push(
-          navigator.serviceWorker.getRegistrations().then(function (regs) {
-            return Promise.all(regs.map(function (r) { return r.unregister(); }));
-          })
-        );
-      }
-      if ('caches' in window) {
-        tasks.push(
-          caches.keys().then(function (names) {
-            return Promise.all(names.map(function (n) { return caches.delete(n); }));
-          })
-        );
-      }
-    } catch (e) { /* ignore */ }
-    if (tasks.length) Promise.all(tasks).finally(reload);
-    else reload();
+    clearOwnedBootFiles().then(reload, reload);
   }
 
   function showRecoveryUi(reason) {

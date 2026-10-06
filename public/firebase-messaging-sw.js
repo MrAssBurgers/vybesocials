@@ -3,7 +3,7 @@
  * Legacy clients registered this file at scope "/". That stole control from
  * /sw.js and pinned sessions to old hashed app entries. When this worker is
  * still controlling "/", it now self-tombstones, clears obsolete shell caches,
- * and reloads clients once. FCM continues to work only under the narrow
+ * and informs clients so they can refresh safely around drafts. FCM continues under the narrow
  * /firebase-cloud-messaging-push-scope registration.
  */
 const ROOT_TOMBSTONE_FLAG = 'vybe-fcm-root-tombstone-v2';
@@ -29,7 +29,7 @@ if (isRootScope()) {
           const keys = await caches.keys();
           await Promise.all(
             keys
-              .filter((name) => /vybe-(?:v|static|shell|assets)/i.test(name))
+              .filter((name) => /^vybe-(?:shell-|assets-|static-|v\d+(?:$|-))/.test(name))
               .map((name) => caches.delete(name)),
           );
         } catch {
@@ -49,13 +49,7 @@ if (isRootScope()) {
           } catch {
             /* ignore */
           }
-          try {
-            if ('navigate' in client && typeof client.navigate === 'function') {
-              await client.navigate(`/?_vybe_migrate=${Date.now()}`);
-            }
-          } catch {
-            /* ignore */
-          }
+          // Workers cannot inspect unsaved UI. The page owns the guarded refresh.
         }
       })(),
     );
