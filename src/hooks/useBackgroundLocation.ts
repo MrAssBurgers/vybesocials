@@ -148,18 +148,19 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
       return;
     }
     let active = true, fellBack = false;
+    let watchRevision = 0;
     let watchId: number | undefined;
-    const current = () => { try { latest.current.guard(); return active && document.visibilityState !== 'hidden' && latest.current.scope === scope; } catch { return false; } };
-    const success = (pos: GeolocationPosition) => {
-      if (!current()) return;
+    const current = (revision: number) => { try { latest.current.guard(); return active && revision === watchRevision && document.visibilityState !== 'hidden' && latest.current.scope === scope; } catch { return false; } };
+    const success = (pos: GeolocationPosition, revision: number) => {
+      if (!current(revision)) return;
       const { latitude, longitude, accuracy, speed, heading } = pos.coords;
       if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return;
       setPosition({ scope, coords: [latitude, longitude], accuracy, speed, heading: heading != null && Number.isFinite(heading) ? heading : null, denied: false });
       setPositionProblem(null);
       void publish(pos);
     };
-    const failure = (error: GeolocationPositionError) => {
-      if (!current()) return;
+    const failure = (error: GeolocationPositionError, revision: number) => {
+      if (!current(revision)) return;
       if (error.code === 1) {
         context.intent++; setPublished(null);
         setPosition({ ...EMPTY_POSITION, scope, denied: true });
@@ -167,7 +168,8 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
       } else if (!fellBack && (error.code === 2 || error.code === 3)) {
         fellBack = true;
         if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
-        watchId = navigator.geolocation.watchPosition(success, failure, { enableHighAccuracy: false, maximumAge: 30_000, timeout: 30_000 });
+        const fallbackRevision = ++watchRevision;
+        watchId = navigator.geolocation.watchPosition(pos => success(pos, fallbackRevision), error => failure(error, fallbackRevision), { enableHighAccuracy: false, maximumAge: 30_000, timeout: 30_000 });
       } else if (error.code === 2 || error.code === 3) {
         setPositionProblem({ scope, message: 'Your device could not get a location. Check location services and try again.' });
       }
@@ -175,11 +177,12 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
     const start = () => {
       if (document.visibilityState === 'hidden') return;
       fellBack = false;
-      navigator.geolocation.getCurrentPosition(success, failure, { enableHighAccuracy: false, timeout: 10_000, maximumAge: 30_000 });
-      watchId = navigator.geolocation.watchPosition(success, failure, { enableHighAccuracy: true, maximumAge: 4000, timeout: 20_000 });
+      const revision = ++watchRevision;
+      navigator.geolocation.getCurrentPosition(pos => success(pos, revision), error => failure(error, revision), { enableHighAccuracy: false, timeout: 10_000, maximumAge: 30_000 });
+      watchId = navigator.geolocation.watchPosition(pos => success(pos, revision), error => failure(error, revision), { enableHighAccuracy: true, maximumAge: 4000, timeout: 20_000 });
     };
     const visibility = () => {
-      context.intent++; setPublished(null);
+      watchRevision++; context.intent++; setPublished(null);
       if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
       watchId = undefined;
       if (document.visibilityState !== 'hidden') start();
@@ -188,16 +191,40 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
     document.addEventListener('visibilitychange', visibility);
     return () => { active = false; context.intent++; document.removeEventListener('visibilitychange', visibility); if (watchId !== undefined) navigator.geolocation.clearWatch(watchId); };
   }, [shouldWatch, request?.revision, scope, context, publish]);
-  // Once enable has been acknowledged, request a fresh sample. Never re-label a
-  // cached coordinate with a new timestamp or republish another account's sample.
+  // A stationary device may not emit watch callbacks. Refresh an approved share
+  // using actual fresh samples before its two-minute server expiry; never extend
+  // an old coordinate's timestamp or request location while backgrounded.
   useEffect(() => {
     let active = true;
-    if (shouldWatch && read.data?.state.enabled && !context.blocked && document.visibilityState !== 'hidden') {
-      const success = (pos: GeolocationPosition) => { try { latest.current.guard(); if (active && latest.current.scope === scope) void publish(pos); } catch { /* Account retired. */ } };
-      navigator.geolocation?.getCurrentPosition(success, () => {}, { enableHighAccuracy: false, maximumAge: 0, timeout: 10_000 });
-    }
-    return () => { active = false; };
-  }, [read.data?.state.revision, shouldWatch, request?.revision, context, scope, publish]);
+    if (!shouldWatch || !read.data?.state.enabled || currentPosition.denied) return;
+    let waiting = false, sequence = 0;
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    const requestFresh = () => {
+      if (!active || waiting || context.blocked || !latest.current.state?.enabled || document.visibilityState === 'hidden') return;
+      try { latest.current.guard(); } catch { return; }
+      const intent = context.intent, requestSequence = ++sequence;
+      waiting = true;
+      deadline = setTimeout(() => { waiting = false; sequence++; }, 11_000);
+      const finish = (pos?: GeolocationPosition) => {
+        if (!active || requestSequence !== sequence) return;
+        waiting = false; clearTimeout(deadline);
+        try {
+          latest.current.guard();
+          if (pos && context.intent === intent && latest.current.scope === scope && document.visibilityState !== 'hidden') void publish(pos);
+        } catch { /* Retired account or location request. */ }
+      };
+      try { navigator.geolocation?.getCurrentPosition(pos => finish(pos), () => finish(), { enableHighAccuracy: false, maximumAge: 0, timeout: 10_000 }); }
+      catch { finish(); }
+    };
+    const visible = () => {
+      sequence++; waiting = false; clearTimeout(deadline);
+      if (document.visibilityState !== 'hidden') requestFresh();
+    };
+    requestFresh();
+    const interval = setInterval(requestFresh, 45_000);
+    document.addEventListener('visibilitychange', visible);
+    return () => { active = false; sequence++; clearTimeout(deadline); clearInterval(interval); document.removeEventListener('visibilitychange', visible); };
+  }, [read.data?.state.revision, shouldWatch, request?.revision, currentPosition.denied, context, scope, publish]);
 
   const sharingEnabled = !!read.data?.state.enabled && ready;
   return {

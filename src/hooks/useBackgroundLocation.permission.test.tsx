@@ -168,3 +168,69 @@ it('a deferred fresh sample is retired when the user restarts GPS', async () => 
   await act(async () => fresh(sample()));
   expect(state.invoke.mock.calls.some(([, input]) => input.action === 'publishPosition')).toBe(false);
 });
+
+it('rejects callbacks from a watch stopped before backgrounding, after the map resumes', async () => {
+  const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
+  act(() => hook.result.current.requestLocation());
+  const oldSuccess = gps.watchPosition.mock.calls[0][0], oldFailure = gps.watchPosition.mock.calls[0][1];
+  act(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' }); document.dispatchEvent(new Event('visibilitychange')); });
+  act(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' }); document.dispatchEvent(new Event('visibilitychange')); });
+  await act(async () => gps.watchPosition.mock.calls[1][0](sample()));
+  await act(async () => oldSuccess({ ...sample(), coords: { ...sample().coords, latitude: 70 } }));
+  act(() => oldFailure({ code: 1, message: 'Old denied result' }));
+  expect(hook.result.current.coords).toEqual([10, 20]);
+  expect(hook.result.current.locationDenied).toBe(false);
+  expect(hook.result.current.sharingError).toBeNull();
+});
+
+it('keeps a stationary approved share fresh without enabling sharing or requesting GPS in the background', async () => {
+  state.enabled = true;
+  const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
+  vi.useFakeTimers();
+  try {
+    act(() => hook.result.current.requestLocation());
+    const freshCalls = () => gps.getCurrentPosition.mock.calls.filter(([, , options]) => options.maximumAge === 0);
+    await act(async () => freshCalls()[0][0](sample()));
+    const before = freshCalls().length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(45_000); });
+    expect(freshCalls().length).toBe(before + 1);
+    await act(async () => freshCalls().at(-1)![0](sample()));
+    expect(state.invoke.mock.calls.filter(([, input]) => input.action === 'publishPosition')).toHaveLength(2);
+    act(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' }); document.dispatchEvent(new Event('visibilitychange')); });
+    const hiddenCount = gps.getCurrentPosition.mock.calls.length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(90_000); });
+    expect(gps.getCurrentPosition.mock.calls).toHaveLength(hiddenCount);
+    expect(state.invoke.mock.calls.some(([, input]) => input.action === 'setSharing')).toBe(false);
+  } finally { vi.useRealTimers(); }
+});
+
+it('retires a delayed fresh sample across background/resume and stops periodic requests on permission denial', async () => {
+  state.enabled = true;
+  const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
+  act(() => hook.result.current.requestLocation());
+  const beforeHide = gps.getCurrentPosition.mock.calls.find(([, , options]) => options.maximumAge === 0)![0];
+  act(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' }); document.dispatchEvent(new Event('visibilitychange')); });
+  act(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' }); document.dispatchEvent(new Event('visibilitychange')); });
+  await act(async () => beforeHide(sample()));
+  expect(state.invoke.mock.calls.some(([, input]) => input.action === 'publishPosition')).toBe(false);
+  act(() => gps.watchPosition.mock.calls.at(-1)![1]({ code: 1, message: 'Denied' }));
+  const requests = gps.getCurrentPosition.mock.calls.length;
+  vi.useFakeTimers();
+  try { await act(async () => { await vi.advanceTimersByTimeAsync(90_000); }); expect(gps.getCurrentPosition.mock.calls).toHaveLength(requests); }
+  finally { vi.useRealTimers(); }
+});
+
+it('retires a fresh-sample timeout before a later periodic attempt and ignores the old answer', async () => {
+  state.enabled = true;
+  const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
+  vi.useFakeTimers();
+  try {
+    act(() => hook.result.current.requestLocation());
+    const old = gps.getCurrentPosition.mock.calls.find(([, , options]) => options.maximumAge === 0)![0];
+    await act(async () => { await vi.advanceTimersByTimeAsync(45_000); });
+    await act(async () => old(sample()));
+    expect(state.invoke.mock.calls.some(([, input]) => input.action === 'publishPosition')).toBe(false);
+    await act(async () => gps.getCurrentPosition.mock.calls.filter(([, , options]) => options.maximumAge === 0).at(-1)![0](sample()));
+    expect(state.invoke.mock.calls.filter(([, input]) => input.action === 'publishPosition')).toHaveLength(1);
+  } finally { vi.useRealTimers(); }
+});

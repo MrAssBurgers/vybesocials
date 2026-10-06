@@ -54,6 +54,55 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); client.clear(); vi.restoreAllMocks(); });
 
+describe('actual mobile clip playback lifecycle', () => {
+  it('starts one play request, including rerenders with the same account', async () => {
+    const view = render(<MobileShortCard post={clip} isActive />, { wrapper });
+    await new Promise(resolve => setTimeout(resolve, 180));
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledOnce();
+    view.rerender(<MobileShortCard post={{ ...clip, caption: 'Updated caption' }} isActive />);
+    await new Promise(resolve => setTimeout(resolve, 180));
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledOnce();
+    state.epoch++;
+    view.rerender(<MobileShortCard post={clip} isActive />);
+    await new Promise(resolve => setTimeout(resolve, 180));
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(2);
+  });
+  it('pauses in the background and resumes only the active clip on return', async () => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    const view = render(<MobileShortCard post={clip} isActive />, { wrapper });
+    await new Promise(resolve => setTimeout(resolve, 180));
+    const played = vi.mocked(HTMLMediaElement.prototype.play).mock.calls.length;
+    vi.mocked(HTMLMediaElement.prototype.pause).mockClear();
+    fireEvent(document, new Event('visibilitychange')); // Visible event alone must not restart.
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(played);
+    actVisibility('hidden');
+    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
+    actVisibility('visible');
+    await new Promise(resolve => setTimeout(resolve, 180));
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(played + 1);
+    view.rerender(<MobileShortCard post={clip} isActive={false} />);
+    actVisibility('hidden'); actVisibility('visible');
+    await new Promise(resolve => setTimeout(resolve, 180));
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(played + 1);
+  });
+  it('keeps an explicitly paused clip paused after background/resume', async () => {
+    const view = render(<MobileShortCard post={clip} isActive />, { wrapper });
+    await new Promise(resolve => setTimeout(resolve, 180));
+    const video = view.container.querySelector('video')!;
+    Object.defineProperty(video, 'paused', { configurable: true, value: false });
+    fireEvent.click(video);
+    await new Promise(resolve => setTimeout(resolve, 350));
+    const count = vi.mocked(HTMLMediaElement.prototype.play).mock.calls.length;
+    actVisibility('hidden'); actVisibility('visible');
+    await new Promise(resolve => setTimeout(resolve, 180));
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(count);
+  });
+});
+function actVisibility(value: string) {
+  Object.defineProperty(document, 'visibilityState', { configurable: true, value });
+  fireEvent(document, new Event('visibilitychange'));
+}
+
 describe('actual mobile clip map consent entry', () => {
   it('opens the exact clip consent only after owner action and supports cancellation', () => {
     render(<MobileShortCard post={clip} isActive={false} />, { wrapper });

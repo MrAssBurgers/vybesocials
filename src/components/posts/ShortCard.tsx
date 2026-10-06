@@ -45,6 +45,7 @@ import { ReportContentDialog } from '@/components/safety/ReportContentDialog';
 import { useSafetyReport } from '@/hooks/useSafetyReport';
 import { DeleteContentDialog } from '@/components/posts/DeleteContentDialog';
 import { isVideoPostMedia } from '@/lib/isVideoPostMedia';
+import { useClipPageVisible } from '@/hooks/useClipPageVisible';
 
 interface ShortCardProps {
   post: {
@@ -135,9 +136,10 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const signedAvatarUrl = useSignedUrl(post.author?.avatar_url || null);
   
   const effectiveIsHolding = externalIsHolding || isHolding;
-  const playbackContext = useMemo(() => ({ active: isActive && !effectiveIsHolding }), [isActive, signedMediaUrl, effectiveIsHolding, globalMuted]);
+  const pageVisible = useClipPageVisible();
+  const playbackContext = useMemo(() => ({ active: isActive && pageVisible && !effectiveIsHolding }), [isActive, pageVisible, signedMediaUrl, effectiveIsHolding, globalMuted, postActions.contextKey]);
   useEffect(() => {
-    playbackContext.active = isActive && !effectiveIsHolding;
+    playbackContext.active = isActive && pageVisible && !effectiveIsHolding;
     const video = videoRef.current;
     return () => {
       playbackContext.active = false;
@@ -169,10 +171,6 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       if (effectiveIsHolding) {
         videoRef.current.pause();
         setIsPlaying(false);
-      } else if (isActive && !userPausedRef.current) {
-        videoRef.current.play().then(() => {
-          setIsPlaying(true);
-        }).catch(() => {});
       }
     }
   }, [effectiveIsHolding, isActive]);
@@ -181,6 +179,11 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   useEffect(() => {
     let current = true;
     const video = videoRef.current;
+    if (!pageVisible) {
+      if (video) video.pause();
+      setIsPlaying(false);
+      return;
+    }
     if (videoRef.current && signedMediaUrl) {
       if (effectiveIsHolding) return;
 
@@ -215,7 +218,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       current = false;
       if (video) { cancelVideoAudioUnlock(video); video.pause(); }
     };
-  }, [isActive, signedMediaUrl, globalMuted, profile, effectiveIsHolding]);
+  }, [isActive, pageVisible, signedMediaUrl, globalMuted, profile?.id, postActions.contextKey, effectiveIsHolding]);
 
   const incrementViewCount = async () => {
     await applyConfirmedPostView(postActions.actor, post.id, postActions.guard, setViewCount);

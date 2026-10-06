@@ -36,6 +36,7 @@ import { applyConfirmedPostView } from '@/lib/postViewService';
 import { usePostMutations } from '@/hooks/usePostMutations';
 import { isVideoPostMedia } from '@/lib/isVideoPostMedia';
 import { PausedMuteButton } from '@/components/video/PausedMuteButton';
+import { useClipPageVisible } from '@/hooks/useClipPageVisible';
 
 interface MobileShortCardProps {
   post: {
@@ -74,6 +75,7 @@ export const MobileShortCard = memo(function MobileShortCard({
   immersiveFlow = false,
 }: MobileShortCardProps) {
   const { profile } = useAuth();
+  const pageVisible = useClipPageVisible();
   const postActions = usePostMutations(post.id);
   const queryClient = useQueryClient();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -121,9 +123,9 @@ export const MobileShortCard = memo(function MobileShortCard({
   const signedAvatarUrl = useSignedUrl(post.author.avatar_url);
 
   const isVideo = isVideoPostMedia(post);
-  const playbackContext = useMemo(() => ({ active: isActive && !isHolding }), [isActive, signedMediaUrl, isHolding, globalMuted]);
+  const playbackContext = useMemo(() => ({ active: isActive && pageVisible && !isHolding }), [isActive, pageVisible, signedMediaUrl, isHolding, globalMuted, postActions.contextKey]);
   useEffect(() => {
-    playbackContext.active = isActive && !isHolding;
+    playbackContext.active = isActive && pageVisible && !isHolding;
     const video = videoRef.current;
     return () => {
       playbackContext.active = false;
@@ -147,10 +149,6 @@ export const MobileShortCard = memo(function MobileShortCard({
     if (isHolding) {
       video.pause();
       setIsPlaying(false);
-    } else if (isActive && signedMediaUrl && !userPausedRef.current) {
-      video.play().then(() => {
-        setIsPlaying(true);
-      }).catch(() => {});
     }
   }, [isHolding, isActive, signedMediaUrl]);
 
@@ -162,6 +160,11 @@ export const MobileShortCard = memo(function MobileShortCard({
     const video = videoRef.current;
     if (!video || !signedMediaUrl || !isVideo) return;
     let current = true;
+
+    if (!pageVisible) {
+      video.pause(); setIsPlaying(false);
+      return;
+    }
 
     // Clear any pending play attempts
     if (playAttemptRef.current) {
@@ -210,7 +213,7 @@ export const MobileShortCard = memo(function MobileShortCard({
         clearTimeout(playAttemptRef.current);
       }
     };
-  }, [isActive, signedMediaUrl, isVideo, globalMuted, profile, isHolding]);
+  }, [isActive, pageVisible, signedMediaUrl, isVideo, globalMuted, profile?.id, postActions.contextKey, isHolding]);
 
   const incrementViewCount = async () => {
     await applyConfirmedPostView(postActions.actor, post.id, postActions.guard, setViewCount);
