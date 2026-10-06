@@ -29,6 +29,42 @@ beforeEach(() => {
 afterEach(() => { cleanup(); clients.forEach(client => client.clear()); clients.length = 0; });
 const create = () => renderHook(() => useBackgroundLocation(`profile-${state.uid}`, { watchOnMap: true }), { wrapper: wrapper() });
 describe('map GPS consent and checked publication', () => {
+  it('retires a battery-delayed upload and old fresh samples across a visible native pause and resume', async () => {
+    state.enabled = true;
+    let finishBattery!: (value: { level: number }) => void;
+    Object.defineProperty(navigator, 'getBattery', { configurable: true, value: () => new Promise(resolve => { finishBattery = resolve; }) });
+    const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
+    act(() => hook.result.current.requestLocation());
+    const oldFresh = gps.getCurrentPosition.mock.calls.filter(([, , options]) => options.maximumAge === 0)[0][0];
+    await act(async () => gps.watchPosition.mock.calls[0][0](sample()));
+    act(() => window.dispatchEvent(new Event('app-paused')));
+    await act(async () => finishBattery({ level: 0.5 }));
+    act(() => window.dispatchEvent(new Event('app-resumed')));
+    await act(async () => oldFresh(sample()));
+    expect(state.invoke.mock.calls.some(([, input]) => input.action === 'publishPosition')).toBe(false);
+    expect(hook.result.current.sharing).toBe(false);
+  });
+  it('does not restart fresh GPS during a visible native pause, including a same-turn visibility event', async () => {
+    state.enabled = true;
+    const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
+    act(() => hook.result.current.requestLocation());
+    const before = gps.getCurrentPosition.mock.calls.length;
+    act(() => {
+      window.dispatchEvent(new Event('app-paused'));
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(gps.getCurrentPosition).toHaveBeenCalledTimes(before);
+    act(() => hook.result.current.requestLocation());
+    expect(gps.getCurrentPosition).toHaveBeenCalledTimes(before);
+    expect(gps.watchPosition).toHaveBeenCalledOnce();
+    act(() => window.dispatchEvent(new Event('app-resumed')));
+    await waitFor(() => expect(gps.watchPosition).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));
+    const fresh = gps.getCurrentPosition.mock.calls.filter(([, , options]) => options.maximumAge === 0).at(-1)![0];
+    await act(async () => fresh(sample()));
+    expect(state.invoke.mock.calls.filter(([, input]) => input.action === 'publishPosition')).toHaveLength(1);
+    expect(state.invoke.mock.calls.some(([, input]) => input.action === 'setSharing')).toBe(false);
+  });
   it('rechecks an approved stationary share immediately on reconnect using a fresh GPS sample', async () => {
     state.enabled = true;
     const hook = create(); await waitFor(() => expect(hook.result.current.sharingReady).toBe(true));

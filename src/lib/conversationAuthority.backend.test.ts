@@ -337,17 +337,18 @@ describe('room tokens require verified authority before minting', () => {
     await expect(community()).rejects.toHaveProperty('code', row === undefined ? 'not-found' : row.server_id !== 'server-one' ? 'not-found' : 'permission-denied');
     expect(state.mints).toBe(0); expect(state.writes).toEqual([]);
   });
-  it('keeps ambiguous underscore server/channel pairs in distinct rooms across both issuers', async () => {
+  it('keeps ambiguous community pairs distinct and refuses them through the separate Spaces issuer', async () => {
     const cases = [['server_sub', 'voice'], ['server', 'sub_voice']];
     for (const [serverId, channelId] of cases) {
       trustedCommunity(serverId);
       state.rows.set(`channels/${channelId}`, { server_id: serverId, type: 'voice' });
       const canonical = await community({ serverId, channelId });
-      const alias = await spacesToken.run({ ...actor, data: { serverId, channelId } } as Parameters<typeof spacesToken.run>[0]);
       expect(canonical.room).toBe(communityRoom(serverId, channelId));
-      expect(alias.room).toBe(canonical.room);
+      await expect(spacesToken.run({ ...actor, data: { serverId, channelId } } as Parameters<typeof spacesToken.run>[0])).rejects.toMatchObject({ code: 'failed-precondition' });
     }
-    expect(state.grants[0].room).not.toBe(state.grants[2].room);
+    expect(spacesToken).not.toBe(communityVoiceToken);
+    expect(state.mints).toBe(2);
+    expect(state.grants[0].room).not.toBe(state.grants[1].room);
     expect(state.grants[0].room).not.toBe('comm_server_sub_voice');
   });
   it('rechecks a community membership revocation before token mint', async () => {

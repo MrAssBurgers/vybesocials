@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useProfileAccount } from './useProfileAccount';
-import { locationAttempt, locationSharingRequest, type LocationMutation, type LocationRead } from '@/lib/locationSharingService';
+import type { LocationMutation, LocationRead } from '@/lib/locationSharingService';
+import { locationSharingRequest } from '@/lib/locationSharingClient';
 
 export function useLocationActor() {
   const account = useProfileAccount();
@@ -95,8 +96,11 @@ export function useLocationMutation(targetId?: string) {
       guard();
       if (context.pending) throw new Error('A location change is still saving.');
       context.pending = true; update();
-      const attempt = locationAttempt(actor, input);
+      let attempt: ReturnType<typeof import('@/lib/locationSharingService').locationAttempt> | undefined;
       try {
+        const service = await import('@/lib/locationSharingService');
+        guard();
+        attempt = service.locationAttempt(actor, input);
         const result = await locationSharingRequest(actor, attempt.body, guard);
         guard(); attempt.complete();
         await client.cancelQueries({ queryKey: ['location-sharing', actor.uid, actor.profileId, actor.epoch] });
@@ -107,7 +111,7 @@ export function useLocationMutation(targetId?: string) {
         guard();
         return result;
       } catch (error) {
-        if (error && typeof error === 'object' && 'code' in error && /(^|\/)(aborted|already-exists|invalid-argument)$/.test(String(error.code))) attempt.complete();
+        if (error && typeof error === 'object' && 'code' in error && /(^|\/)(aborted|already-exists|invalid-argument)$/.test(String(error.code))) attempt?.complete();
         throw error;
       } finally { context.pending = false; if (context.active) update(); }
     },
