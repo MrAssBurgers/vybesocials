@@ -59,7 +59,7 @@ self.addEventListener('install', (event) => {
       // Warm shell from network only — never seed from an older controlled response.
       caches.open(SHELL_CACHE).then((cache) =>
         fetch(SHELL_URL, { cache: 'no-store' })
-          .then((res) => (res && res.ok ? cache.put(SHELL_URL, res.clone()) : null))
+          .then((res) => saveAppShell(res, cache))
           .catch(() => null)
       ),
     ])
@@ -140,7 +140,10 @@ self.addEventListener('fetch', (event) => {
     // Navigation requests: network-first, fall back to cached app shell so the
     // real Vybe UI loads offline instead of a placeholder page.
     if (event.request.mode === 'navigate') {
-      event.respondWith(navigationStrategy(event.request));
+      const navigation = navigationStrategy(event.request);
+      event.respondWith(navigation);
+      // Extend lifetime during dispatch; validation never delays the response.
+      event.waitUntil(navigation.then(response => saveAppShell(response)).catch(() => {}));
       return;
     }
 
@@ -206,25 +209,36 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
-// Navigation strategy: try network with a short timeout, otherwise serve
+async function isAppShell(response) {
+  if (!response || !response.ok || response.type === 'opaqueredirect' ||
+      !/^text\/html\b/i.test(response.headers.get('Content-Type') || '')) return false;
+  const html = await response.clone().text();
+  return !/data-vybe-maintenance=["']true["']/i.test(html) &&
+    /<script\b[^>]+\bsrc=["']\/assets\/app(?:-[\w-]+)?\.js["']/i.test(html);
+}
+
+async function saveAppShell(response, cache) {
+  try {
+    if (!await isAppShell(response)) return;
+    const target = cache || await caches.open(SHELL_CACHE);
+    await target.put(SHELL_URL, response.clone());
+  } catch { /* Cache failures must not turn a working connection into an offline launch. */ }
+}
+
+// Navigation strategy: try network, otherwise serve
 // the cached SPA shell so React boots and renders persisted data offline.
 async function navigationStrategy(request) {
-  const cache = await caches.open(SHELL_CACHE);
   try {
     const networkResponse = await fetch(request, { cache: 'no-store' });
-    if (networkResponse && networkResponse.ok && networkResponse.type !== 'opaqueredirect') {
-      try {
-        cache.put(SHELL_URL, networkResponse.clone());
-      } catch {
-        /* ignore quota */
-      }
-    }
     return networkResponse;
   } catch {
-    const cachedShell = (await cache.match(SHELL_URL)) || (await caches.match(SHELL_URL));
-    if (cachedShell) return cachedShell;
+    try {
+      const cache = await caches.open(SHELL_CACHE);
+      const cachedShell = (await cache.match(SHELL_URL)) || (await caches.match(SHELL_URL));
+      if (await isAppShell(cachedShell)) return cachedShell;
+    } catch { /* Storage can be unavailable independently of the network. */ }
     // Never return 204/empty — that causes a black screen offline.
-    const fallbackHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0"><title>VYBE</title></head><body style="margin:0;background:#0B0B10;color:#fff;font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh">Reconnecting…</body></html>';
+    const fallbackHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VYBE</title></head><body style="margin:0;background:radial-gradient(ellipse at top,#24385a,#111b31 65%);color:#edf3ff;font-family:system-ui;display:grid;place-items:center;min-height:100vh"><main style="text-align:center;padding:32px"><h1>Reconnecting to Vybe</h1><p>Check your connection, then try again.</p><button onclick="location.reload()" style="border:0;border-radius:16px;padding:14px 28px;background:linear-gradient(100deg,#9769ff,#54cfff);color:#101b31;font:inherit;font-weight:600;cursor:pointer">Try again</button></main></body></html>';
     return new Response(fallbackHtml, {
       status: 200,
       headers: { 'Content-Type': 'text/html; charset=utf-8' },
