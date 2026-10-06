@@ -1,3 +1,14 @@
+## ACTIVE (2026-10-06) — Contact recovery, clip detection and mobile map incident
+
+- User confirmed the phone profile failure happened once, then self-recovered, with sign-in retained. Latest pending console error is auth/network-request-failed during Firestore token acquisition on onboarding. This establishes a network-token failure, not a missing account. No credential/profile recreation or broad storage deletion.
+- Contact service matchContacts restored; live Security eligibility reads now work and correctly require verification of legacy phone before opt-in. Prior uploaded contact hashes208 retained; no contact upload/opt-in/SMS. Contact12 backend groups/100 exact-baseline private Rules checks/32 client tests passed. Sign-out endpoint authSessionRevoke deployed; CLI initially missed its intended public-invoker binding, corrected by exact-service etag IAM update preserving others. All8 Auth preflight guards now pass. No live credentials revoked. Receipt/quota2 TTLsACTIVE. Details releases/contact-security-recovery-20261006.
+- Mobile user reports map sharing fails and clips lag/do not play. Actual live map retains original Mapbox world map but shows friend locations/check-ins/meetups errors. manageLocationSharing absent from production (route404 and inventory). Required matched privacy Rules/index/function slice is documented in docs/LOCATION_SHARING_STABILITY.md; do not open raw coordinates or inherit old sharing consent.
+- Corrected MobileShortCard/ShortCard filename-only video detection: admitted short/video type now drives player even for extensionless Firebase Storage URLs; legacy extension inputs retained with case/encoded-path handling. New actual mobile-card regression and3 helper tests pass. Full463 files/4395 tests pass,6 skipped; build budget1095.8KBraw/332.7gzip, typecheck/lint pass with5 existing warnings. Publication pending for this client change.
+- Live browser Clips already plays first Firebase Storage video (readyState4, time advances, no error); neighboring players are paused with preload none. This does not certify the reported physical mobile playback. Asked phone/app/browser and black/spinner/audio symptom; answer pending. Investigate buffering, codec and native visibility/autoplay after exact-device evidence. No additional preload/animation feature added.
+
+Next3tasks: publish checked clip detection and verify exact public artifact; prepare/test/release the matched existing location-sharing/privacy/index slice and map social readers; finish device playback/network recovery and remaining guarded Firebase content restoration before any launch-ready claim.
+
+---
 ## ACTIVE (2026-10-06) — Existing account readers restored
 
 - User clarified that phone profile initially failed, then recovered itself; sign-in persisted. Platform is still unspecified. Do not recreate the account or claim the transient startup defect fixed.

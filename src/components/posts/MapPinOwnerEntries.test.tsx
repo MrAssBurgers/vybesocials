@@ -34,6 +34,11 @@ vi.mock('@/components/vybemap/MapPinDialogLoader', () => ({ MapPinDialogLoader: 
 import { MobileShortCard } from './MobileShortCard';
 import Watch from '@/pages/Watch';
 
+it('renders an extensionless admitted clip as video on mobile', () => {
+  const view = render(<MobileShortCard post={{ ...clip, type: 'short', media_url: 'https://example.test/storage/opaque-id?alt=media' }} isActive={false} />, { wrapper });
+  expect(view.container.querySelector('video')?.getAttribute('src')).toBe('https://example.test/storage/opaque-id?alt=media');
+});
+
 const clip = { id: 'clip-one', media_url: 'https://example.test/clip.mp4', caption: 'A published clip', tags: [], author: { id: 'alice', username: 'alice', avatar_url: null }, like_count: 0, comment_count: 0, is_liked: false, is_bookmarked: false };
 const video = { id: 'video-one', type: 'video', mediaUrl: 'https://example.test/video.mp4', caption: 'A published video', tags: [], createdAt: '2026-10-04T12:00:00.000Z', viewCount: 0, likeCount: 0, commentCount: 0, author: { id: 'alice', username: 'alice', avatarUrl: null }, publicationRevision: 'a'.repeat(48), needsOwnerConfirmation: false };
 let client: QueryClient;

@@ -1,0 +1,1 @@
+{"indexes":[],"ttl":[{"collection":"_auth_session_revocations","field":"expireAt"},{"collection":"_auth_session_revoke_limits","field":"expireAt"}]}

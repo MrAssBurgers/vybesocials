@@ -865,7 +865,7 @@ export async function runAuthLoginNotify(request: CallableRequest, providers = {
 }
 
 /** Account-wide only; never turn a one-device request into global revocation. */
-export const authSessionRevoke = onCall({ cors: true, timeoutSeconds: 60 }, request =>
+export const authSessionRevoke = onCall({ cors: true, timeoutSeconds: 60, invoker: 'public' }, request =>
   revokeAccountSessions(db, auth, requireAuth(request), request.auth?.token.auth_time, request.data));
 
 const QR_SIGNIN_TTL_SEC = 180;

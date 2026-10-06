@@ -3,13 +3,14 @@ import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 const projectId = process.env.GCLOUD_PROJECT;
-assert.match(projectId || '', /^demo-[a-z0-9-]+$/);
+assert.equal(projectId, 'demo-vybe-contacts-qa');
 assert.match(process.env.FIRESTORE_EMULATOR_HOST || '', /^(127\.0\.0\.1|localhost):\d+$/);
+assert.notEqual(process.env.FIRESTORE_EMULATOR_HOST?.split(':')[1], '8280', 'Never overwrite the retained live preview');
 const require = createRequire(path.resolve(process.env.FIREBASE_TEST_TOOLS_ROOT || '.', 'package.json'));
 const { initializeTestEnvironment, assertFails } = require('@firebase/rules-unit-testing');
 const { doc, setDoc, updateDoc, getDoc, getDocs, collection, deleteDoc } = require('firebase/firestore');
 const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
-const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile(new URL('../firestore.rules', import.meta.url), 'utf8') } });
+const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile(process.env.FIRESTORE_RULES_FILE || new URL('../firestore.rules', import.meta.url), 'utf8') } });
 let checks = 0;
 try {
   await env.clearFirestore();

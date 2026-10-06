@@ -44,9 +44,11 @@ import { usePostReaction } from '@/hooks/usePostReaction';
 import { ReportContentDialog } from '@/components/safety/ReportContentDialog';
 import { useSafetyReport } from '@/hooks/useSafetyReport';
 import { DeleteContentDialog } from '@/components/posts/DeleteContentDialog';
+import { isVideoPostMedia } from '@/lib/isVideoPostMedia';
 
 interface ShortCardProps {
   post: {
+    type?: string;
     publication_revision?: string;
     needs_owner_confirmation?: boolean;
     id: string;
@@ -383,7 +385,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     return count.toString();
   };
 
-  const isVideo = !!post.media_url && (post.media_url.includes('.mp4') || post.media_url.includes('.webm') || post.media_url.includes('.mov'));
+  const isVideo = isVideoPostMedia(post);
   const hasRenderableMedia = isValidMediaUrl(post.media_url);
 
   return (

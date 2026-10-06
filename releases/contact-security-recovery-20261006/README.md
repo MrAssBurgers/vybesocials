@@ -1,0 +1,13 @@
+# Existing contact and account sign-out services
+
+Deployed only `matchContacts` and `authSessionRevoke` in `vybe-daaab`. Contact discovery now uses the app's checked state/explicit opt-in/match contract, instead of requiring hashes for its state read. Its protected phone index, choices and quota namespaces remain denied to all browser clients by the unchanged active Rules baseline below.
+
+Exact baseline: `00d7a6c4-2633-4da1-8045-daea63d99d89`, SHA256 `6217f4c3bcd40a9e43e5af69980844a1945e3dab7fe099c9986d5921388aa924`, source `../notes-recovery-20261006/firestore.rules`. No Rules publication, opt-in, address-book import, contact deletion, SMS or production credential revocation occurred.
+
+The sign-out deployment succeeded but initially retained a missing Cloud Run public-invoker binding. Independently inspected the exact ACTIVE `authsessionrevoke` service and restored its intended callable ingress with an etag-bound IAM update preserving other bindings. Its handler still requires authenticated ownership, matching Auth time, recent sign-in, explicit all-devices confirmation and durable checked receipts. Public ingress does not authorize unauthenticated revocation. All eight existing sign-in preflight routes now reach the expected callable input/Auth guards; no actual account was signed out to test this.
+
+Only the two receipt/quota TTL policies in `resources.json` were added; both are ACTIVE. No new contact index/TTL was required. Sign-out receipt replay and quota expiry checks apply independently of managed TTL deletion.
+
+Validation: Functions build; 12 real Auth/Firestore contact backend groups; 100 exact-baseline private Rules denials; 32 contact client tests; prior unchanged revocation authority passed the 13 security backend/Rules groups, including real Auth emulator cutoff and lost-response/concurrency guards. Live user Security panel now loads contact eligibility without `hashes required`, correctly requires verification of the legacy saved phone, and retains 208 previous uploaded hashes. Those rows are not discovery evidence and were not cleared. Screenshot: workspace `outputs/vybe-security-readers-restored.png`.
+
+Limits: SMS delivery/native permission flows and a deliberate live sign-out were not tested. User confirmed the temporary phone profile error happened only once and self-recovered with sign-in retained. New mobile map/clip lag report remains open: `manageLocationSharing` is absent (public route 404), live map has friend-location/check-in/meetup errors, while the live browser's first clip currently plays from Firebase Storage without a media error. No readiness claim follows from that desktop observation.

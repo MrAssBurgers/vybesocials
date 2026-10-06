@@ -32,10 +32,12 @@ import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { usePostReaction } from '@/hooks/usePostReaction';
 import { avatarInitial } from '@/lib/parseApiDate';
 import { playWithAudio } from '@/lib/videoPlayback';
+import { isVideoPostMedia } from '@/lib/isVideoPostMedia';
 import { PausedMuteButton } from '@/components/video/PausedMuteButton';
 
 interface MobileShortCardProps {
   post: {
+    type?: string;
     id: string;
     media_url: string;
     caption: string;
@@ -115,7 +117,7 @@ export const MobileShortCard = memo(function MobileShortCard({
   const signedMediaUrl = useSignedUrl(post.media_url);
   const signedAvatarUrl = useSignedUrl(post.author.avatar_url);
 
-  const isVideo = post.media_url?.includes('.mp4') || post.media_url?.includes('.webm') || post.media_url?.includes('.mov');
+  const isVideo = isVideoPostMedia(post);
 
   // Sync with global mute state
   useEffect(() => {
