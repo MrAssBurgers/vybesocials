@@ -9826,3 +9826,8 @@ Next three tasks: finish checks and publish exact client; verify physical-phone 
 
 Final verification: full4578pass6skip; final client build/native manifest/budget/types/lint passed. Source92ae5919be51b815c55ff53efd38bf59123f781a548825f6b869b27b6ad8dfff/2553inputs, entryapp-CXQeI3LC.js. Exact publication pending.
 
+
+Published9937afbd888c91c83996d7f7d9cf476c6c3c3237, deployment90ddb96c-97eb-45cd-afe4-4df5a8d8c727. Actual publisher says website up to date. Publicsource92ae5919be51b815c55ff53efd38bf59123f781a548825f6b869b27b6ad8dfff/2553inputs, built09:09:12.352Z, entryapp-B1nmBGbA.js SHA89ccb846792e45557e15035ddff4c4b90a661c647c318cc28fb51921e19ce01e. Exact metadata/bytes/five routeHTML verified, secondary redirects canonical. Logs work/mobile-recovery-public-check.log and baselines unchanged8c9ac23d/a6aa1032. Publication screenshot outputs/vybe-mobile-startup-clips-published.png. Retained live browser and a fresh IAB tab still ran app-CGCcULTp.js before this latest publication; no speculative account/cache/worker purge. Physical phone source/GPS/network/codecs/FPS unverified; user device/symptom reply pending. Live/local3Dmap sessions retained. Goal active.
+
+Next three tasks: verify current physical phone release and explicit sharing/GPS/Clips; diagnose residual Firebase connectivity/adoption; resume preserved existing discovery/UI/content recovery. No new features.
+
