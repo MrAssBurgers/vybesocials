@@ -130,11 +130,12 @@ export const MobileShortCard = memo(function MobileShortCard({
   const videoSource = useClipMediaSource(videoRef, signedMediaUrl, isVideo && isActive && pageVisible);
   useEffect(() => { if (videoSource) { setIsLoading(true); setHasError(false); } }, [videoSource]);
   const resetPlaybackError = useCallback(() => { setHasError(false); setIsLoading(true); }, []);
-  const recovery = useClipNetworkRecovery(videoRef, isActive && pageVisible && !isHolding && isVideo, signedMediaUrl, postActions.contextKey, userPausedRef, resetPlaybackError);
+  const playbackActive = isActive && pageVisible && !isHolding && !showCommentSheet;
+  const recovery = useClipNetworkRecovery(videoRef, playbackActive && isVideo, signedMediaUrl, postActions.contextKey, userPausedRef, resetPlaybackError);
   const playbackFailed = hasError || recovery.stalled || media.error;
-  const playbackContext = useMemo(() => ({ active: isActive && pageVisible && !isHolding }), [isActive, pageVisible, signedMediaUrl, isHolding, globalMuted, postActions.contextKey]);
+  const playbackContext = useMemo(() => ({ active: playbackActive }), [playbackActive, signedMediaUrl, globalMuted, postActions.contextKey]);
   useEffect(() => {
-    playbackContext.active = isActive && pageVisible && !isHolding;
+    playbackContext.active = playbackActive;
     const video = videoRef.current;
     return () => {
       playbackContext.active = false;
@@ -170,7 +171,7 @@ export const MobileShortCard = memo(function MobileShortCard({
     if (!video || !signedMediaUrl || !isVideo) return;
     let current = true;
 
-    if (!pageVisible) {
+    if (!pageVisible || showCommentSheet) {
       video.pause(); setIsPlaying(false);
       return;
     }
@@ -222,7 +223,7 @@ export const MobileShortCard = memo(function MobileShortCard({
         clearTimeout(playAttemptRef.current);
       }
     };
-  }, [isActive, pageVisible, signedMediaUrl, isVideo, globalMuted, profile?.id, postActions.contextKey, isHolding, recovery.revision]);
+  }, [isActive, pageVisible, showCommentSheet, signedMediaUrl, isVideo, globalMuted, profile?.id, postActions.contextKey, isHolding, recovery.revision]);
 
   const incrementViewCount = async () => {
     await applyConfirmedPostView(postActions.actor, post.id, postActions.guard, setViewCount);
@@ -353,11 +354,6 @@ export const MobileShortCard = memo(function MobileShortCard({
 
   const handleCloseComments = () => {
     setShowCommentSheet(false);
-    // Resume video when closing comments
-    if (videoRef.current && isActive) {
-      videoRef.current.play().catch(() => {});
-      setIsPlaying(true);
-    }
   };
 
   const formatViewCount = (count: number) => {

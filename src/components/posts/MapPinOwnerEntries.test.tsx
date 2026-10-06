@@ -21,7 +21,10 @@ vi.mock('@/components/chat/SharedPostPreviews', () => ({ SharedPostPreviewProvid
 vi.mock('@/components/layout/AppLayout', () => ({ AppLayout: ({ children }: { children: ReactNode }) => <>{children}</> }));
 vi.mock('@/components/profile/ProfileLink', () => ({ ProfileLink: ({ children }: { children: ReactNode }) => <span>{children}</span> }));
 vi.mock('@/components/reactions/ReactionPicker', () => ({ ReactionPicker: ({ children }: { children: ReactNode }) => <>{children}</> }));
-vi.mock('@/components/comments/CommentSheet', () => ({ CommentSheet: () => null }));
+vi.mock('@/components/comments/CommentSheet', () => ({ CommentSheet: ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => isOpen ? <section role="dialog" aria-label="Clip comments"><button onClick={onClose}>Close clip comments</button></section> : null }));
+vi.mock('@/hooks/useModeration', () => ({ useUserRole: () => ({ data: 'user' }) }));
+vi.mock('@/hooks/useUserRoleById', () => ({ useUserRoleById: () => ({ data: 'user' }) }));
+vi.mock('@/components/moderation/ModeratorActionsMenu', () => ({ useIsModOrAdmin: () => false, ModeratorMenuItems: () => null, ModeratorDialogs: () => null }));
 vi.mock('@/components/comments/InlineComments', () => ({ InlineComments: () => null }));
 vi.mock('@/components/share/ShareSheet', () => ({ ShareSheet: () => null }));
 vi.mock('@/components/share/HoldToShare', () => ({ HoldToShare: ({ children }: { children: ReactNode }) => <>{children}</> }));
@@ -32,6 +35,7 @@ vi.mock('@/components/explore/VideoCard', () => ({ VideoCard: () => null }));
 vi.mock('@/components/vybemap/MapPinDialogLoader', () => ({ MapPinDialogLoader: ({ sourceId, kind, onClose }: { sourceId: string; kind: string; onClose: () => void }) => <section role="dialog" aria-label="Map consent"><p>{kind}:{sourceId}</p><button onClick={onClose}>Cancel map consent</button></section> }));
 
 import { MobileShortCard } from './MobileShortCard';
+import { ShortCard } from './ShortCard';
 import Watch from '@/pages/Watch';
 
 it('renders an extensionless admitted clip as video on mobile', () => {
@@ -54,6 +58,53 @@ beforeEach(() => {
   vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
 });
 afterEach(() => { cleanup(); client.clear(); vi.restoreAllMocks(); });
+
+describe.each([['mobile', MobileShortCard], ['desktop', ShortCard]] as const)('%s clip comments playback', (_, Card) => {
+  it('preserves the viewer’s explicit pause when comments close', async () => {
+    actVisibility('visible');
+    const view = render(<Card post={clip} isActive />, { wrapper });
+    await waitFor(() => expect(HTMLMediaElement.prototype.play).toHaveBeenCalled());
+    const video = view.container.querySelector('video')!;
+    Object.defineProperty(video, 'paused', { configurable: true, value: false });
+    fireEvent.click(video);
+    await new Promise(resolve => setTimeout(resolve, 350));
+    const count = vi.mocked(HTMLMediaElement.prototype.play).mock.calls.length;
+    fireEvent.click(screen.getByRole('button', { name: 'Open comments (0)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close clip comments' }));
+    await new Promise(resolve => setTimeout(resolve, 180));
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(count);
+  });
+  it('keeps recovery stopped while comments are open, then resumes through guarded autoplay', async () => {
+    actVisibility('visible');
+    const view = render(<Card post={clip} isActive />, { wrapper });
+    await waitFor(() => expect(HTMLMediaElement.prototype.play).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: 'Open comments (0)' }));
+    const count = vi.mocked(HTMLMediaElement.prototype.play).mock.calls.length;
+    const video = view.container.querySelector('video')!;
+    vi.mocked(HTMLMediaElement.prototype.load).mockClear();
+    Object.defineProperty(video, 'error', { configurable: true, value: { code: 2 } });
+    fireEvent.error(video); fireEvent(window, new Event('online'));
+    await new Promise(resolve => setTimeout(resolve, 180));
+    expect(HTMLMediaElement.prototype.load).not.toHaveBeenCalled();
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(count);
+    Object.defineProperty(video, 'error', { configurable: true, value: null });
+    fireEvent.click(screen.getByRole('button', { name: 'Close clip comments' }));
+    await waitFor(() => expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(count + 1));
+  });
+  it('does not restart when comments close while the native app is paused', async () => {
+    actVisibility('visible');
+    render(<Card post={clip} isActive />, { wrapper });
+    await waitFor(() => expect(HTMLMediaElement.prototype.play).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: 'Open comments (0)' }));
+    fireEvent(window, new Event('app-paused'));
+    const count = vi.mocked(HTMLMediaElement.prototype.play).mock.calls.length;
+    fireEvent.click(screen.getByRole('button', { name: 'Close clip comments' }));
+    await new Promise(resolve => setTimeout(resolve, 180));
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(count);
+    fireEvent(window, new Event('app-resumed'));
+    await waitFor(() => expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(count + 1));
+  });
+});
 
 describe('actual mobile clip playback lifecycle', () => {
   it('automatically retries an active network-failed clip without waiting for reconnect', async () => {
