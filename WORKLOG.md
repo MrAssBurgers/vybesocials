@@ -4,7 +4,9 @@
 - Current Functions build and20 grouped backend/189 raw Rules checks pass again on isolated demo-vybe-contacts-qa8387 using active8c candidate. Four exact request/grant indexes independently READY now. Prepared named two-job release with existing unchanged code; precise intended cleanup scopes documented in releases/location-jobs-recovery-20261006. No manual production job invocation, new feature, broad Functions/Rules/index/TTL/Auth/secrets/client mutation.
 - Stale mounted client/phone map/clip and full historical Firebase restoration/security gates remain active. Exact deployment and actual scheduler execution pending; no cleanup success or broad readiness claim.
 
-Next3tasks: deploy/verify two exact scheduled location exports and unchanged Rules/Storage; diagnose current-client browser/phone map and clips; continue retained Firebase content/media and security review.
+- Exact two-target deploy27915 terminal0; ACTIVE snapshot06:26:35Z/heatmap06:26:32Z, Scheduler bothENABLED/OIDC. Actual snapshot post-release attempt06:31:00.820642Z status object present/code0, next06:36:03Z. Scheduled acknowledgment verified, not deleted-row count. Heatmap new-code attempt still due06:41Z; pre-release06:14 success not claimed as new-code proof. No manual cleanup execution. Firestore9d06/8c and Storage3b9/a6 unchanged; web source14e29af0/entryBUIZS4A0 unchanged. Evidence work/location-jobs-first-run-observation.log. Earlier optional missing-status fallback corrected to null; actual first-run status is present.
+- Read-only current-client syntax/cloud-service audit239refs174derived names230services yields34 missing candidates, with deliberate diagnostic/legacy RPC/deferred SDK/dynamic limitations; not34 verified user bugs. Referenced manageMapPin/manageMapWave/manageMapSquad/getDiscoveryProfiles are actually absent. Existing Quick Add discovery reader lacks privacy/block checks and clients fallback to direct profiles on errors; do not deploy as-is. Plan checked account/privacy/block/age-safe discovery source repair next, then coordinated existing map controls. No new feature, production profile/data migration or fabricated restoration. Full readiness active.
+Next3tasks: repair/restore checked existing people discovery and remove raw failure fallback; diagnose current-client browser/phone map and clips; continue retained Firebase content/media and security review.
 
 ---
 ## ACTIVE (2026-10-06) — Location action endpoint parity
@@ -9670,6 +9672,7 @@ All eight migration phases complete. See `.lovable/plan.md` for per-phase detail
 - Live signed-in Clips read succeeds: one active Firebase Storage video readyState4/pausedfalse/errornull while two others paused. Desktop observation only, no physical phone/FPS/codec proof. Direct map navigation in older CGCcULTp client triggers real retained-account profile timeout; read retry started. No sign-out/account storage/cache/worker/GPS permission/share mutation. Browser adoption remains unresolved.
 
 Next3tasks: publish/verify corrected source schema against full input map; diagnose mounted old-client/profile timeout and physical phone location/clips; continue Firebase retained content/media and separate security review.
+
 
 
 
