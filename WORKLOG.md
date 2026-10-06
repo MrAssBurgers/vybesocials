@@ -9712,6 +9712,14 @@ Publication complete for4d98667f: deployment1dce9b12-2d37-4aeb-a1ef-50e646e28865
 
 Next three tasks: prove phone current build and genuine location/Clips/network behavior; restore existing safe Firebase discovery/content paths; continue user-ready performance and release verification. Goal remains active.
 
+## 2026-10-06 — Completed login no longer permanently blocks updates
+
+Previous goal turn classified progress: mobile buffering/reconnect client published and independently verified. Current source inspection found permanent edited flags in both boot-guard.js and useAutoUpdate.ts: a completed login form continued blocking automatic updates after it unmounted. Two added tests failed on that previous source; fixed both guards to retain only live edited elements. Cleared but still-mounted fields remain protected, as do prefilled/rich-text/focused drafts and late edits. No account/cache/session purge performed as part of diagnosis; automatic file-only recovery retains existing ownership/loop safeguards.
+
+Checks:37focusedpass; full4532pass6skip; build/native/budget1100.5KB raw334.1KB gzip passed; types/lint passed with five existing warnings. Final built index contains editedBootFields. Fresh isolated preview syntheticBob password login reached Home, zero password/login fields remaining, matching the tested real form lifecycle. Production older-client/network/phone root cause remains unproven; this fixes a demonstrated source blocker, not every source-adoption failure. Logs work/draft-update-{before,focused,full,build,types,lint}. Release record releases/completed-login-update-20261006/README.md. Exact publication pending.
+
+Next three tasks: publish and verify this tested client; continue genuine mobile source/network/location/Clips verification; restore existing Firebase discovery/content with checked privacy and truthful UI errors.
+
 
 
 

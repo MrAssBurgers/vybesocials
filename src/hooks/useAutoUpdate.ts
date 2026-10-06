@@ -26,16 +26,25 @@ function readReloadGuard(): string | null | undefined {
 export function useAutoUpdate() {
   useEffect(() => {
     if (import.meta.env.DEV || isDespiaRuntime() || isNativePlatform) return;
-    let disposed = false, busy = false, edited = false, failures = 0;
+    let disposed = false, busy = false, failures = 0;
+    const editedFields = new Set<Element>();
     let lastStarted = -Infinity;
     let retryTimer: number | undefined, reloadTimer: number | undefined;
     let requestController: AbortController | null = null;
 
-    const hasDraft = () => edited || document.activeElement?.matches('input,textarea,select,[contenteditable="true"]') ||
+    const hasLiveEdits = () => {
+      // A submitted login or closed editor is not an open draft. Keep cleared
+      // fields protected while mounted, since deleting text may be unsaved.
+      for (const field of editedFields) if (!field.isConnected) editedFields.delete(field);
+      return editedFields.size > 0;
+    };
+    const hasDraft = () => hasLiveEdits() || document.activeElement?.matches('input,textarea,select,[contenteditable="true"]') ||
       Array.from(document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="hidden"]),textarea')).some(field => Boolean(field.value)) ||
       Array.from(document.querySelectorAll('[contenteditable="true"]')).some(field => Boolean(field.textContent?.trim()));
     const markEdited = (event: Event) => {
-      if (event.target instanceof Element && event.target.closest('input,textarea,select,[contenteditable="true"]')) edited = true;
+      if (!(event.target instanceof Element)) return;
+      const field = event.target.closest('input,textarea,select,[contenteditable="true"]');
+      if (field) editedFields.add(field);
     };
 
     const check = async (force = false) => {

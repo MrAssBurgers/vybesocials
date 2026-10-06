@@ -49,6 +49,17 @@ describe('worker cache activation ownership', () => {
 });
 
 describe('startup entry recovery', () => {
+  it('stops treating a removed login form as an unsaved draft', async () => {
+    const state = boot({ loading: true });
+    const login = state.doc.createElement('input'); login.type = 'password'; state.doc.body.append(login);
+    login.value = 'synthetic-password'; login.dispatchEvent(new Event('input', { bubbles: true }));
+    expect((state.win.__VYBE_HAS_BOOT_DRAFT__ as () => boolean)()).toBe(true);
+    login.remove();
+    expect((state.win.__VYBE_HAS_BOOT_DRAFT__ as () => boolean)()).toBe(false);
+    state.doc.head.innerHTML = '<script type="module" src="/assets/app-old.js"></script>';
+    state.doc.dispatchEvent(new Event('DOMContentLoaded')); await settle();
+    expect(state.replace).toHaveBeenCalledOnce();
+  });
   it('waits for the parsed module tag and only retires owned app files', async () => {
     const state = boot({ loading: true });
     expect(state.fetchVersion).not.toHaveBeenCalled();
@@ -71,7 +82,8 @@ describe('startup entry recovery', () => {
   });
   it('cancels automatic navigation if editing starts during cleanup', async () => {
     const state = boot({ delayedCleanup: true }); await settle();
-    state.doc.dispatchEvent(new Event('input')); state.finish(); await settle();
+    const editor = state.doc.createElement('textarea'); state.doc.body.append(editor);
+    editor.dispatchEvent(new Event('input', { bubbles: true })); state.finish(); await settle();
     expect(state.replace).not.toHaveBeenCalled();
   });
   it('preserves the last usable offline files for both automatic and manual recovery', async () => {

@@ -46,11 +46,19 @@
     return Promise.all(tasks);
   }
 
-  var editedDuringBoot = false;
-  document.addEventListener('input', function () { editedDuringBoot = true; }, true);
-  document.addEventListener('change', function () { editedDuringBoot = true; }, true);
+  var editedBootFields = new Set();
+  function markBootEdit(event) {
+    var target = event.target;
+    var field = target && typeof target.closest === 'function' && target.closest('input, textarea, select, [contenteditable="true"]');
+    if (field) editedBootFields.add(field);
+  }
+  document.addEventListener('input', markBootEdit, true);
+  document.addEventListener('change', markBootEdit, true);
   function hasBootDraft() {
-    if (editedDuringBoot) return true;
+    // Completed login forms and closed editors no longer block updates. A
+    // cleared field stays protected until its editor is actually removed.
+    editedBootFields.forEach(function (field) { if (!field.isConnected) editedBootFields.delete(field); });
+    if (editedBootFields.size > 0) return true;
     var active = document.activeElement;
     if (active && active.matches('input, textarea, select, [contenteditable="true"]')) return true;
     var fields = document.querySelectorAll('input, textarea, [contenteditable="true"]');

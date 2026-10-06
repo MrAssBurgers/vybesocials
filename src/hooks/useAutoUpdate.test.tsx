@@ -33,6 +33,20 @@ afterEach(() => {
 });
 
 describe('returning-session updates', () => {
+  it('allows updates after a completed login form is removed, while retaining a live cleared editor', async () => {
+    const login = document.createElement('input'); login.type = 'password'; login.dataset.updateTest = 'true'; document.body.append(login);
+    renderHook(useAutoUpdate);
+    fireEvent.input(login, { target: { value: 'synthetic-password' } });
+    await advance(1200); expect(replace).not.toHaveBeenCalled();
+    login.remove();
+    const editor = document.createElement('textarea'); editor.dataset.updateTest = 'true'; document.body.append(editor);
+    fireEvent.input(editor, { target: { value: '' } });
+    act(() => window.dispatchEvent(new Event('online'))); await advance(1500);
+    expect(replace).not.toHaveBeenCalled();
+    editor.remove();
+    act(() => window.dispatchEvent(new Event('online'))); await advance(1500);
+    expect(replace).toHaveBeenCalledOnce(); expect(mocks.signal).toHaveBeenCalledOnce();
+  });
   it('retries a failed first check and reloads once after success', async () => {
     fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
     renderHook(useAutoUpdate); await advance(1200);
