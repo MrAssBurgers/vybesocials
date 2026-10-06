@@ -2,8 +2,9 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
-const state = vi.hoisted(() => ({ uid: 'alice', account: { uid: 'alice', epoch: 1 }, listeners: new Set<() => void>(), call: vi.fn() }));
-vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: state.uid } }) }));
+const state = vi.hoisted(() => ({ uid: 'alice', profile: 'profile-alice' as string | null, created: '2026-01-01T00:00:00Z', account: { uid: 'alice', epoch: 1 }, listeners: new Set<() => void>(), call: vi.fn() }));
+vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: state.uid }, profile: state.profile ? { id: state.profile, user_id: state.uid } : null }) }));
+vi.mock('@/lib/firebase/authService', () => ({ getFirebaseAuth: () => ({ currentUser: { uid: state.uid, metadata: { creationTime: state.created } } }) }));
 vi.mock('firebase/app', () => ({ getApp: () => ({}) }));
 vi.mock('firebase/functions', () => ({ getFunctions: () => ({}), httpsCallable: (_fns: unknown, name: string) => (body: unknown) => state.call(name, body) }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn() } }));
@@ -17,9 +18,9 @@ vi.mock('@/lib/reportModerationService', () => ({
 import { useSetupParentalControls, useUpdateParentalControls, useVerifyParentalPin } from './useParentalControls';
 let client: QueryClient;
 const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
-beforeEach(() => { state.uid = 'alice'; state.account = { uid: 'alice', epoch: 1 }; state.call.mockReset(); client = new QueryClient({ defaultOptions: { mutations: { retry: false } } }); });
+beforeEach(() => { state.uid = 'alice'; state.profile = 'profile-alice'; state.created = '2026-01-01T00:00:00Z'; state.account = { uid: 'alice', epoch: 1 }; state.call.mockReset(); client = new QueryClient({ defaultOptions: { mutations: { retry: false } } }); });
 afterEach(() => { cleanup(); client.clear(); });
-const change = (uid: string) => { state.uid = uid; state.account = { uid, epoch: state.account.epoch + 1 }; for (const notify of state.listeners) notify(); };
+const change = (uid: string) => { state.uid = uid; state.profile = `profile-${uid}`; state.account = { uid, epoch: state.account.epoch + 1 }; for (const notify of state.listeners) notify(); };
 
 describe('parental PIN proof transport and retirement', () => {
   it('does not send a direct update without an unlock proof', async () => {
@@ -31,7 +32,7 @@ describe('parental PIN proof transport and retirement', () => {
     state.call.mockResolvedValue({ data: { ok: true } });
     const hook = renderHook(() => useUpdateParentalControls({ pin: '1234', uid: 'alice', epoch: 1 }), { wrapper });
     await act(async () => { await hook.result.current.mutateAsync({ max_screen_time_minutes: 60 }); });
-    expect(state.call).toHaveBeenCalledExactlyOnceWith('updateParentalControls', { expectedOwnerUid: 'alice', pin: '1234', updates: { max_screen_time_minutes: 60 } });
+    expect(state.call).toHaveBeenCalledExactlyOnceWith('updateParentalControls', { expectedOwnerUid: 'alice', expectedProfileId: 'profile-alice', expectedAccountCreatedAt: Date.parse('2026-01-01T00:00:00Z'), pin: '1234', updates: { max_screen_time_minutes: 60 } });
     const options = client.getMutationCache().getAll()[0]?.options;
     expect(options).toMatchObject({ retry: false, networkMode: 'always', gcTime: 0 });
   });
@@ -45,7 +46,7 @@ describe('parental PIN proof transport and retirement', () => {
     let resolve!: (value: unknown) => void; state.call.mockImplementation(() => new Promise(done => { resolve = done; }));
     const hook = renderHook(() => useVerifyParentalPin(), { wrapper });
     let pending!: Promise<boolean>; await act(async () => { pending = hook.result.current.mutateAsync('1234'); });
-    expect(state.call).toHaveBeenCalledWith('verifyParentalPin', { pin: '1234', expectedOwnerUid: 'alice' });
+    expect(state.call).toHaveBeenCalledWith('verifyParentalPin', { pin: '1234', expectedOwnerUid: 'alice', expectedProfileId: 'profile-alice', expectedAccountCreatedAt: Date.parse('2026-01-01T00:00:00Z') });
     change('bob');
     await act(async () => { resolve({ data: { ok: true } }); await expect(pending).rejects.toMatchObject({ code: 'account-changed' }); });
   });
@@ -64,4 +65,15 @@ describe('parental PIN proof transport and retirement', () => {
     await act(async () => { await expect(hook.result.current.mutateAsync({ is_active: false })).rejects.toThrow('Rejected'); });
     expect(expired).toHaveBeenCalledOnce(); expect(state.call).toHaveBeenCalledOnce();
   });
+  it('rejects late results after Auth creation metadata changes for the same UID', async () => {
+    let resolve!: (value: unknown) => void; state.call.mockImplementation(() => new Promise(done => { resolve = done; }));
+    const hook = renderHook(() => useVerifyParentalPin(), { wrapper }); let pending!: Promise<boolean>;
+    await act(async () => { pending = hook.result.current.mutateAsync('1234'); }); state.created = '2026-02-01T00:00:00Z';
+    await act(async () => { resolve({ data: { ok: true } }); await expect(pending).rejects.toMatchObject({ code: 'account-changed' }); });
+  });
+  it('does not issue a request before its matching profile is ready', async () => {
+    state.profile = null; const hook = renderHook(() => useVerifyParentalPin(), { wrapper });
+    await act(async () => { await expect(hook.result.current.mutateAsync('1234')).rejects.toThrow('verified profile'); }); expect(state.call).not.toHaveBeenCalled();
+  });
+
 });

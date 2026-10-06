@@ -4,27 +4,31 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const fixture = vi.hoisted(() => {
   const rows = new Map<string, Record<string, unknown>>();
   let tail = Promise.resolve();
-  const ref = (id: string) => ({ id, get: async () => ({ exists: rows.has(id), data: () => structuredClone(rows.get(id)) }),
+  const ref = (id: string) => ({ id, get: async () => ({ id: id.split('/').at(-1), exists: rows.has(id), data: () => structuredClone(rows.get(id)) }),
     set: async (data: Record<string, unknown>, options?: { merge?: boolean }) => { rows.set(id, { ...(options?.merge ? rows.get(id) : {}), ...structuredClone(data) }); } });
-  const db = { collection: (collection: string) => ({ doc: (id: string) => ref(`${collection}/${id}`) }),
+  const query = (collection: string, filters: Array<[string, string, unknown]> = [], max = 99): any => ({
+    where: (field: string, op: string, value: unknown) => query(collection, [...filters, [field, op, value]], max), limit: (size: number) => query(collection, filters, size),
+    get: async () => { const docs = [...rows.entries()].filter(([key, row]) => key.startsWith(`${collection}/`) && filters.every(([field, op, value]) => op === 'in' ? (value as unknown[]).includes(row[field]) : row[field] === value)).slice(0, max).map(([key]) => ({ id: key.split('/').at(-1), exists: true, data: () => structuredClone(rows.get(key)) })); return { docs, size: docs.length, empty: !docs.length }; },
+  });
+  const db = { doc: ref, collection: (collection: string) => ({ ...query(collection), doc: (id: string) => ref(`${collection}/${id}`) }),
     runTransaction: (run: (tx: unknown) => Promise<unknown>) => {
-      const result = tail.then(() => run({ get: (target: ReturnType<typeof ref>) => target.get(), set: (target: ReturnType<typeof ref>, data: Record<string, unknown>, options?: { merge?: boolean }) => target.set(data, options) }));
+      const result = tail.then(() => run({ get: (target: ReturnType<typeof ref>) => target.get(), getAll: (...targets: ReturnType<typeof ref>[]) => Promise.all(targets.map(target => target.get())), set: (target: ReturnType<typeof ref>, data: Record<string, unknown>, options?: { merge?: boolean }) => target.set(data, options) }));
       tail = result.then(() => undefined, () => undefined); return result;
     } };
-  return { rows, db };
+  return { rows, db, user: { uid: 'alice', disabled: false, metadata: { creationTime: '2026-01-01T00:00:00.000Z' }, tokensValidAfterTime: '2026-01-01T00:00:00.000Z' }, getUser: vi.fn() };
 });
-vi.mock('../../functions/src/_shared/admin.js', () => ({ db: fixture.db,
+vi.mock('../../functions/src/_shared/admin.js', () => ({ db: fixture.db, auth: { getUser: fixture.getUser },
   requireAuth: (request: { auth?: { uid: string } }) => { if (!request.auth) throw Object.assign(new Error('Sign in required'), { code: 'unauthenticated' }); return request.auth.uid; } }));
 import { getParentalControlsSafe, setParentalPin, updateParentalControls, verifyParentalPin } from '../../functions/src/parental';
 
 const path = 'parental_controls/alice';
 const salt = '0123456789abcdef0123456789abcdef';
-const seed = (extra = {}) => fixture.rows.set(path, { user_id: 'alice', is_active: true, content_filter_level: 'protected', max_screen_time_minutes: 120,
+const seed = (extra = {}) => fixture.rows.set(path, { user_id: 'alice', authority_version: 1, profile_id: 'profile-alice', auth_created_at_ms: Date.parse('2026-01-01T00:00:00Z'), binding_revision: 'a'.repeat(48), is_active: true, content_filter_level: 'protected', max_screen_time_minutes: 120,
   allowed_features: ['feed', 'profile'], pin_hash: createHash('sha256').update(`${salt}:1234`).digest('hex'), pin_salt: salt, pin_algo: 'sha256-v1',
   created_at: '2026-01-01T00:00:00.000Z', updated_at: '2026-01-01T00:00:00.000Z', ...extra });
-const request = (data: Record<string, unknown>, uid = 'alice') => ({ auth: { uid, token: {} }, data: { expectedOwnerUid: uid, ...data } } as never);
+const request = (data: Record<string, unknown>, uid = 'alice') => ({ auth: { uid, token: { auth_time: Date.parse('2026-01-02T00:00:00Z') / 1000 } }, data: { expectedOwnerUid: uid, expectedProfileId: 'profile-alice', expectedAccountCreatedAt: Date.parse('2026-01-01T00:00:00Z'), ...data } } as never);
 const before = () => structuredClone(fixture.rows.get(path));
-beforeEach(() => { fixture.rows.clear(); seed(); });
+beforeEach(() => { fixture.rows.clear(); fixture.user.disabled = false; fixture.user.metadata.creationTime = '2026-01-01T00:00:00.000Z'; fixture.user.tokensValidAfterTime = '2026-01-01T00:00:00.000Z'; fixture.getUser.mockReset().mockImplementation(async () => structuredClone(fixture.user)); fixture.rows.set('profiles/profile-alice', { user_id: 'alice' }); fixture.rows.set('_account_profile_bindings/alice', { version: 1, owner_uid: 'alice', profile_id: 'profile-alice', auth_created_at_ms: Date.parse('2026-01-01T00:00:00Z'), revision: 'a'.repeat(48), status: 'active' }); seed(); });
 
 describe('actual parental callable PIN authorization', () => {
   it('requires the current PIN to replace an existing PIN', async () => {
@@ -106,4 +110,43 @@ describe('actual parental callable PIN authorization', () => {
     await setParentalPin.run(request({ pin: '5678', currentPin: '1234' }));
     expect(before()).toMatchObject({ max_screen_time_minutes: null, allowed_features: null });
   });
+  it('rejects disabled and recreated Auth accounts without reading out or changing controls', async () => {
+    const original = before(); fixture.user.disabled = true;
+    await expect(getParentalControlsSafe.run(request({}))).rejects.toMatchObject({ code: 'failed-precondition' });
+    fixture.user.disabled = false; fixture.user.metadata.creationTime = '2026-02-01T00:00:00Z';
+    await expect(updateParentalControls.run(request({ pin: '1234', updates: { is_active: false } }))).rejects.toMatchObject({ code: 'failed-precondition' }); expect(before()).toEqual(original);
+  });
+  it('rejects revoked credentials and requests captured for an older profile', async () => {
+    const original = before(); fixture.user.tokensValidAfterTime = '2026-01-03T00:00:00Z';
+    await expect(verifyParentalPin.run(request({ pin: '1234' }))).rejects.toMatchObject({ code: 'unauthenticated' });
+    fixture.user.tokensValidAfterTime = '2026-01-01T00:00:00Z';
+    await expect(verifyParentalPin.run(request({ pin: '1234', expectedProfileId: 'other-profile' }))).rejects.toMatchObject({ code: 'failed-precondition' }); expect(before()).toEqual(original);
+  });
+  it('rechecks Auth after transactional identity resolution before a write', async () => {
+    const original = before(); fixture.getUser.mockResolvedValueOnce(structuredClone(fixture.user)).mockResolvedValue({ ...fixture.user, disabled: true });
+    await expect(updateParentalControls.run(request({ pin: '1234', updates: { is_active: false } }))).rejects.toMatchObject({ code: 'failed-precondition' }); expect(before()).toEqual(original);
+  });
+  it('requires the protected current binding and unambiguous canonical profile', async () => {
+    const original = before(); fixture.rows.set('profiles/duplicate', { user_id: 'alice' });
+    await expect(getParentalControlsSafe.run(request({}))).rejects.toMatchObject({ code: 'failed-precondition' });
+    fixture.rows.delete('profiles/duplicate'); fixture.rows.get('_account_profile_bindings/alice')!.status = 'retired';
+    await expect(updateParentalControls.run(request({ pin: '1234', updates: { is_active: false } }))).rejects.toMatchObject({ code: 'failed-precondition' }); expect(before()).toEqual(original);
+  });
+  it('preserves unbound legacy and retired-incarnation controls instead of adopting them', async () => {
+    seed({ authority_version: undefined }); const original = before();
+    await expect(verifyParentalPin.run(request({ pin: '1234' }))).rejects.toMatchObject({ code: 'failed-precondition' }); expect(before()).toEqual(original);
+    seed({ auth_created_at_ms: Date.parse('2025-01-01T00:00:00Z') }); const retired = before();
+    await expect(setParentalPin.run(request({ pin: '5678', currentPin: '1234' }))).rejects.toMatchObject({ code: 'failed-precondition' }); expect(before()).toEqual(retired);
+  });
+  it('does not create a second PIN row over profile-alias or differently keyed historical controls', async () => {
+    const original = before(); fixture.rows.delete(path); fixture.rows.set('parental_controls/legacy-id', original!);
+    await expect(setParentalPin.run(request({ pin: '5678' }))).rejects.toMatchObject({ code: 'failed-precondition' }); expect(before()).toBeUndefined();
+    fixture.rows.delete('parental_controls/legacy-id'); fixture.rows.set('parental_controls/profile-alice', { ...original, user_id: 'profile-alice' });
+    await expect(getParentalControlsSafe.run(request({}))).rejects.toMatchObject({ code: 'failed-precondition' }); expect(before()).toBeUndefined();
+  });
+  it('returns an unavailable error on Auth transport failure without changing saved controls', async () => {
+    const original = before(); fixture.getUser.mockRejectedValue(new Error('Network'));
+    await expect(updateParentalControls.run(request({ pin: '1234', updates: { is_active: false } }))).rejects.toMatchObject({ code: 'unavailable' }); expect(before()).toEqual(original);
+  });
+
 });

@@ -1,6 +1,8 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
-import { db, requireAuth } from './_shared/admin.js';
+import { db, auth, requireAuth } from './_shared/admin.js';
+
+import { parentalScopeFields, parentalRequestIdentity, checkParentalAuth, resolveParentalActor, parentalBinding, readParentalRow } from './_shared/parentalAccountAuthority.js';
 
 type Row = Record<string, unknown>;
 const object = (value: unknown): value is Row => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -24,9 +26,6 @@ function settings(raw: unknown): Row {
 
 function owned(row: Row | undefined, uid: string) {
   if (row && row.user_id !== uid) throw new HttpsError('failed-precondition', 'These controls need an ownership review. Nothing was changed.');
-}
-function caller(raw: Row, uid: string) {
-  if (raw.expectedOwnerUid !== uid) throw new HttpsError('failed-precondition', 'Your account changed. Reopen parental controls.');
 }
 function material(row: Row) {
   if (typeof row.pin_salt !== 'string' || !/^[a-f0-9]{32,64}$/.test(row.pin_salt)
@@ -67,14 +66,17 @@ function fail(result: { limited?: boolean; denied?: boolean }) {
 
 export const setParentalPin = onCall(async request => {
   const uid = requireAuth(request), raw = object(request.data) ? request.data : {};
-  caller(raw, uid);
+  const identity = parentalRequestIdentity(request, raw);
+  await checkParentalAuth(auth, identity);
   if (!validPin(raw.pin)) throw new HttpsError('invalid-argument', 'PIN must be 4–8 digits.');
-  if (Object.keys(raw).some(key => !['pin', 'currentPin', 'settings', 'expectedOwnerUid'].includes(key))) throw new HttpsError('invalid-argument', 'Invalid PIN setup details.');
+  if (Object.keys(raw).some(key => !['pin', 'currentPin', 'settings', ...parentalScopeFields].includes(key))) throw new HttpsError('invalid-argument', 'Invalid PIN setup details.');
   const input = raw.settings === undefined ? {} : settings(raw.settings);
   let nextMaterial: { salt: string; hash: string } | undefined;
   const ref = db.collection('parental_controls').doc(uid);
   const result = await db.runTransaction(async tx => {
-    const prev = (await tx.get(ref)).data(); owned(prev, uid);
+    const actor = await resolveParentalActor(db, tx, identity);
+    const prev = await readParentalRow(db, tx, actor); owned(prev, uid);
+    await checkParentalAuth(auth, identity);
     const now = Date.now();
     if (prev) {
       const proof = check(prev, raw.currentPin, now);
@@ -86,7 +88,7 @@ export const setParentalPin = onCall(async request => {
       nextMaterial = { salt, hash: scryptSync(raw.pin as string, salt, 32, { N: 16384, r: 8, p: 1 }).toString('hex') };
     }
     const time = new Date(now).toISOString();
-    const merged = { ...(prev ?? {}), user_id: uid, is_active: prev?.is_active ?? true,
+    const merged = { ...(prev ?? {}), ...parentalBinding(actor), user_id: uid, is_active: prev?.is_active ?? true,
       content_filter_level: prev?.content_filter_level ?? 'protected',
       max_screen_time_minutes: prev && Object.hasOwn(prev, 'max_screen_time_minutes') ? prev.max_screen_time_minutes : 120,
       allowed_features: prev && Object.hasOwn(prev, 'allowed_features') ? prev.allowed_features : ['messaging', 'feed', 'profile'], ...input,
@@ -99,11 +101,14 @@ export const setParentalPin = onCall(async request => {
 
 export const verifyParentalPin = onCall(async request => {
   const uid = requireAuth(request), raw = object(request.data) ? request.data : {};
-  caller(raw, uid);
-  if (Object.keys(raw).some(key => !['pin', 'expectedOwnerUid'].includes(key))) throw new HttpsError('invalid-argument', 'Invalid PIN verification details.');
+  const identity = parentalRequestIdentity(request, raw);
+  await checkParentalAuth(auth, identity);
+  if (Object.keys(raw).some(key => !['pin', ...parentalScopeFields].includes(key))) throw new HttpsError('invalid-argument', 'Invalid PIN verification details.');
   const ref = db.collection('parental_controls').doc(uid);
   const result = await db.runTransaction(async tx => {
-    const row = (await tx.get(ref)).data(); owned(row, uid);
+    const actor = await resolveParentalActor(db, tx, identity);
+    const row = await readParentalRow(db, tx, actor); owned(row, uid);
+    await checkParentalAuth(auth, identity);
     if (!row) return { ok: false, limited: false };
     const proof = check(row, raw.pin, Date.now());
     if (!proof.limited) tx.set(ref, proof.patch, { merge: true });
@@ -113,18 +118,29 @@ export const verifyParentalPin = onCall(async request => {
 });
 
 export const getParentalControlsSafe = onCall(async request => {
-  const uid = requireAuth(request), row = (await db.collection('parental_controls').doc(uid).get()).data();
-  owned(row, uid); return { controls: row ? safe(row) : null };
+  const uid = requireAuth(request), raw = object(request.data) ? request.data : {};
+  const identity = parentalRequestIdentity(request, raw);
+  if (Object.keys(raw).some(key => !parentalScopeFields.includes(key))) throw new HttpsError('invalid-argument', 'Invalid parental-control read details.');
+  await checkParentalAuth(auth, identity);
+  return db.runTransaction(async tx => {
+    const actor = await resolveParentalActor(db, tx, identity);
+    const row = await readParentalRow(db, tx, actor);
+    owned(row, uid); await checkParentalAuth(auth, identity);
+    return { controls: row ? safe(row) : null };
+  });
 });
 
 export const updateParentalControls = onCall(async request => {
   const uid = requireAuth(request), raw = object(request.data) ? request.data : {};
-  caller(raw, uid);
-  if (Object.keys(raw).some(key => !['pin', 'updates', 'expectedOwnerUid'].includes(key))) throw new HttpsError('invalid-argument', 'Invalid control update details.');
+  const identity = parentalRequestIdentity(request, raw);
+  await checkParentalAuth(auth, identity);
+  if (Object.keys(raw).some(key => !['pin', 'updates', ...parentalScopeFields].includes(key))) throw new HttpsError('invalid-argument', 'Invalid control update details.');
   const input = settings(raw.updates);
   const ref = db.collection('parental_controls').doc(uid);
   const result = await db.runTransaction(async tx => {
-    const row = (await tx.get(ref)).data(); owned(row, uid);
+    const actor = await resolveParentalActor(db, tx, identity);
+    const row = await readParentalRow(db, tx, actor); owned(row, uid);
+    await checkParentalAuth(auth, identity);
     if (!row) throw new HttpsError('failed-precondition', 'Set up parental controls first.');
     const proof = check(row, raw.pin, Date.now());
     if (proof.limited) return { limited: true };
