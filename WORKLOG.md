@@ -5,7 +5,10 @@
 - Seven new actual-provider tests cover recovery, bounded retries, offline pause, account retirement and delayed foreground reads. Focused40 checks pass before the last two added cases; final full474 files/4503 tests pass6 skip, build/native manifest/budget1099.8KBraw333.9KBgzip pass, types/lint pass with5 existing warnings. Logs work/auth-network-{before,focused,full,build,types,lint}. No physical network/GPS/codec or native persistence claim. No backend/Rules/index/TTL/data/secret mutation in this slice.
 - Exact client publication and manual retained-session observation pending at this source checkpoint. Independent static publication must be distinguished from mounted browser adoption. Existing client was served at1c4fa847 while IAB/Chrome mounted older versions; cause unproven and no account cache/worker/permission purge performed.
 
-Next3tasks: publish exact tested token-recovery client and inspect actual signed-in flow; resolve browser adoption and verify phone map/clip/Firebase recovery; continue guarded retained posts/DM/hubs/media and provider readiness.
+- Source66d773bb pushed, independently confirmed exact Lovable source ready before publish65be28ac-74bf-4c4d-af05-b48b5eebc687. Actual dialog reports website updated. Both origins now serve entryDohoRlVT/built05:19:39Z/SHA b961c2c22483376e05e6b28b6a475b3f2ccac94d9398eea4243ce469aac3c57d with matching manifest hash and recovery/GPS markers. But manifest commit unknown means strict exact-source verifier fails by design, not a successful identity proof. Version writer uses only git rev-parse, failing closed to unknown in non-Git builds. No invented hash fallback or successful proof file. Observation work/auth-network-public-observation.jsonl; release record releases/auth-network-recovery-20261006.
+- Actual signed-in IAB reload retains @bakrix and Home posts, still app-CGCcULTp.js. Screenshot task-root outputs/vybe-account-retained-after-network-recovery.png. No account/cache/worker/GPS/permission/content changes. All checks terminal0; hosting completion confirmed separately from unknown identity and old mounted client. Phone recovery still unverified. Goal active.
+
+Next3tasks: repair build source identity and diagnose browser release adoption; verify actual phone Firebase token/map/clip recovery; continue guarded retained posts/DM/hubs/media and provider readiness.
 
 ---
 
