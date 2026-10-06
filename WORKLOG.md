@@ -1,3 +1,12 @@
+## ACTIVE (2026-10-06) — Late native token recovery continuity
+
+- Previous turn made authoritative progress: published clip pause continuity source3fb5e216, docs64aa1d1e. Overall user-ready restoration/mobile map/clips/Auth/network/adoption scope unchanged. Main clean at start.
+- Two new actual token helper regressions fail before: recovery created after native pause, and replacement recovery during pause, both request while background WebView remains visible. Helper now checks the existing shared foreground phase; account retirement, bounded retries and reconnect/resume coalescing retained. Existing phase implementation moved unchanged into neutral lib/foregroundReadPhase.ts, with same hook/compatibility exports. Main imports neutral state before startup/native listeners, so lazy screens and late token recovery cannot miss prior native pause. No credentials, Auth configuration, Firebase backend/Rules, consent, location or content changes.
+- Focused40 checks and full4773pass6skip pass. App/native build and budget1098.6KBraw333.4KBgzip/types pass; lint0errors5existingwarnings. Logs work/token-phase-{before,focused,full,build,types,lint}.log. Synthetic actual-module Chrome check: pause, dynamic late recovery import, online gives0requests; resume gives1. Screenshot task outputs/vybe-token-phase-browser-qa.png. This is no Firebase token/phone/network/FPS proof.
+- Generated public outputs restored; exact current metadata prepared. Exact publication pending. Prior real-phone auth/network-request-failed root cause remains unproven; no claim current accounts/video/map are broadly certified.
+Next3tasks: publish exact tested token continuity source and verify hosted files; diagnose real phone/current-browser sign-in/map/clips and old mounted source adoption; restore remaining preserved Firebase content/media/community and finish security checks.
+
+---
 ## ACTIVE (2026-10-06) — Clip native foreground continuity
 
 - Previous turn was authoritative progress: exact production message index READY and all4 preserved-room queries succeeded; main e8beb726 clean at start. Overall user-ready/mobile map/clips/Auth/restoration scope unchanged.
