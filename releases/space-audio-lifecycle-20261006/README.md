@@ -8,4 +8,6 @@ Six initial lifecycle regressions failed against prior source. Twelve focused ca
 
 This is one necessary restoration step. Production Spaces membership reads/writes, counts and its mismatched Firebase token contract remain unresolved; this does not establish live audio-room readiness. Phone map sharing, Clips performance, source adoption and broader content restoration also remain open.
 
-Publication evidence follows after the tested source is released.
+Published tested main commit `2c5622369e79826819093cde3dfcb0942562df5e` after exact GitSync and completed processing were verified. One Lovable deployment `fa94ae01-055a-4e05-aeea-ca0953b30cc2` changed from the actual “Updating project…” dialog to “Your website was updated.” Parent workspace screenshot `outputs/vybe-space-audio-published.png` was saved before documentation sync and must be preserved.
+
+Public source v2 `350222ccf4f9b0caf393de6ee573f92d7dd336d904be10dc9788048a56c385ee` (2,566 inputs), built `2026-10-06T12:11:59.860Z`, entry `/assets/app-gspJgfpX.js`, SHA256 `a51f8f7fbca3050dbf85f8b926514e35985900e3cfbaa5f4e10aa61999dfb234` matched exact source metadata, entry bytes and five routes on the canonical origin; the secondary origin redirected correctly. Own isolated QA server was stopped and its tab closed. These checks establish publication, not physical-phone source adoption or unresolved room backend readiness.
