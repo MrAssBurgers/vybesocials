@@ -6,7 +6,10 @@
 - Functions build,24 backend groups,8 pagination groups,102 exact candidate Rules assertions, full474 files/4496 pass6 skip, app/native build/budget1099.2KBraw333.7KBgzip and lint5existingwarnings pass. Initial combined backend/listing run red because intentionally malformed backend test rows remained in the shared project; separate fresh-project rerun green without changing application behavior. Generated public manifests reverted before checkpoint. Required manual signed-in theme read and production deployment outcome remain pending.
 - Release scope/evidence in releases/shared-theme-recovery-20261006/README.md. Other open gates: real phone Firebase token/network recovery/map/clips, mounted release adoption, retained posts/DM/hubs/media and generic push/music/role authority. Goal active, no perfection/readiness claim.
 
-Next3tasks: finish exact theme resource/Rules/service release and verify live reads; diagnose actual browser adoption and phone Firebase map/clip/auth; continue guarded historical content and media restoration.
+- Source e4ad96c5 pushed before cutover. All four exact resource jobs completed SUCCESSFUL, indexes READY/TTL ACTIVE. Exact candidate released as9d06e352-7fff-41d6-8ce5-e6e3efe065e5, independently reread SHA8c9ac23dca7994c7093d1168998366588b0ca2e39ab753f9facd3e9581ef069b. Storage unchangeda6aa1032... . Three-export deployment38389 terminal0; all ACTIVE updated05:11:55–56Z; guest probes401 UNAUTHENTICATED. Logs work/theme-recovery-{deploy,final-services,release-probes}. No unrelated service/Auth/secrets/data mutation.
+- Live signed-in Browse now shows two existing community themes, Mine five cards and Saved three cards after a read retry. No equip/edit/share/code redemption/write. Screenshots task-root outputs/vybe-{theme-browsing,saved-themes}-restored.png. Compatible older mounted client remains, so no latest adoption claim. Canonical-origin browser attempt also returns old custom-domain manifest; cause unproven. Source inspection identifies potential transient refresh timer retry/near-expiry foreground gaps; reproduction required before changing auth. No new auth repair claimed.
+
+Next3tasks: reproduce and repair transient auth/network recovery with account guards; diagnose browser adoption and real phone map/clip/auth; continue guarded historical content and media restoration.
 
 ---
 

@@ -12,6 +12,10 @@ Production web hosting is **Lovable**, with custom domain **`vybehub.app`**. Lov
 | Firebase Hosting staging frontend | https://vybe-daaab.web.app — shares the production Firebase project; not an isolated data environment |
 | Isolated local QA | `demo-vybe-preview`; follow [LOCAL_PREVIEW_QA.md](docs/LOCAL_PREVIEW_QA.md). Never deploy its configuration or fixtures. |
 
+## Shared theme service recovery (2026-10-06)
+
+The exact three existing theme services and matched resources are released. See [shared theme release record](releases/shared-theme-recovery-20261006/README.md). Active Firestore Rules now have SHA2568c9ac23dca7994c7093d1168998366588b0ca2e39ab753f9facd3e9581ef069b; preserve that baseline for later scoped releases. Actual signed-in community and saved theme reads work. No client publication, historical migration, Auth change or new feature was included. Older mounted release adoption and physical-phone Firebase map/clip/network behavior remain unverified.
+
 ## Production stability release (2026-10-05)
 
 User-authorized scoped post/feed/comments/follow/stories/streak/sound deployment is now live. See [exact release record](releases/post-loading-20261005/README.md) and firebase.post-loading.json for the 28-function slice, baseline-preserving Firestore/Storage candidates and additive resources. Actual Lovable production manifest confirms main 0503197824f066dc05b775b435e3675aa32f5064; latest client/auth motion is published. The previously blocked narrow sign-in/Home Rules candidate is also released; older 503 and auth2faRequest hold descriptions below describe earlier checkpoints, superseded only for the explicitly reviewed ordinary sign-in slice. Other documented matched release prerequisites remain applicable. No whole Functions/Rules deploy, new game platform, tokenMarketplace or native persistence certification is implied.

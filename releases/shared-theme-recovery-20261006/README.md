@@ -14,6 +14,14 @@ Release the exact candidate only after verifying the baseline hash and resource 
 
 Functions build passes. Real emulator backend tests pass24 groups; separate fresh-project pagination tests pass8 groups. Exact candidate Rules pass102 assertions. Full suite passes474 files/4496 tests,6 skipped; app/native build and unchanged bundle budget pass1099.2KBraw/333.7KBgzip; lint passes with5 existing warnings. The initial combined backend/listing invocation failed because intentional malformed negative-test records were left in the same emulator project; the listing rerun used a separate project without changing production logic or concealing malformed data.
 
-Logs: work/theme-recovery-{functions,backend,listing-isolated,rules,full,build,lint}.log. Production release and signed-in read verification remain pending at this checkpoint. Historical malformed/unsupported themes and all retained content are not automatically declared restored.
+Logs: work/theme-recovery-{functions,backend,listing-isolated,rules,full,build,lint}.log. Historical malformed/unsupported themes and all retained content are not automatically declared restored.
+
+## Production outcome
+
+Source/candidate checkpoint e4ad96c5 was pushed before release. All four exact resource operations completed SUCCESSFUL; all three indexes independently report READY and cursor TTL ACTIVE. Rules released as 9d06e352-7fff-41d6-8ce5-e6e3efe065e5 and independently reread with the candidate SHA above. Storage remains a6aa1032b05815594041d457e4064f72cc6596f9850d527efb84fbec43e3e3d8. Exact three-export deploy session38389 completed with exit0; all three services independently report ACTIVE, updated2026-10-06T05:11:55–56Z. All three anonymous callable probes return401 UNAUTHENTICATED. No secret bindings, Auth changes or client publication were added.
+
+The actual signed-in theme browser now displays two existing community themes after its prior failed-read alert. My Themes displays five existing cards; Saved displays three existing cards after an explicit read retry. No equip, edit, share, save, import, code creation/redemption or user data write occurred. Screenshots outputs/vybe-theme-browsing-restored.png and outputs/vybe-saved-themes-restored.png are in the task workspace root. This browser still mounts the old compatible client, so these are live service-read proofs and do not prove latest client adoption. Code expiry, concurrency and replay are emulator-tested; actual production redemption is not claimed verified.
+
+Evidence: work/theme-recovery-deploy.log, theme-recovery-final-services.jsonl, theme-recovery-release-probes.jsonl and shared-theme-resource-operations.json. Future releases must treat this Rules hash as the baseline; do not rerun older notification/map Rules mutators.
 
 Browser release adoption also remains unresolved: browser-visible manifests differ from independent requests to the same URLs. No account storage, cache, worker or permission was cleared, and the cause is not assumed. Full phone map/clip/auth and broader app readiness remain active.
