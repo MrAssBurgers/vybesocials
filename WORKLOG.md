@@ -9831,3 +9831,15 @@ Published9937afbd888c91c83996d7f7d9cf476c6c3c3237, deployment90ddb96c-97eb-45cd-
 
 Next three tasks: verify current physical phone release and explicit sharing/GPS/Clips; diagnose residual Firebase connectivity/adoption; resume preserved existing discovery/UI/content recovery. No new features.
 
+
+## 2026-10-06 — Existing friend discovery UI and mutual recovery
+
+Previous turn made verified mobile startup/clip recovery progress and published9937afbd. Resumed saved mutual diff. General/mutual suggestions now share checked account-bound Firebase reads with lease/deadline/lifecycle guards, no raw fallback or durable cache. Six existing Quick Add consumers show loading, retry and private birthday review. Existing friends/pending requests/dismissed aliases are excluded; intermediary aliases deduplicate, bidirectional blocks and target mutual visibility apply. Dismissal reads/actions retire A-B-A responses and tolerate restricted storage. Unchecked New Message DNA backfill retired; checked DNA restoration remains open.
+
+Full4596pass6skip, types/lint passfiveexistingwarnings. Client/native build/budget1102.8raw334.8gzip pass. Real Auth/Firestore backend13groups pass, 120selected/30admitted1116ms and read-only database comparison. Actual SDK transport accepted114ms syntheticBobageReviewtrue. Manual /friends/add displays private birthday requirement, opens blank dialog with Save disabled and cancels without account data mutation. Screenshot outputs/vybe-discovery-birthday-preview.png.
+
+Production preflight: namedgetDiscoveryProfiles absent; four indexes READY, exactdismissed_profilespairindexmissing. Created only that additive indexCICAgPj-z4oK, currentlyCREATING. ActiveRules8c9ac23d lackedprofile_private, so existing birthday save would fail. Complete exactbaseline-preserving candidate adds only canonical protected active owner private get/create/update, denies list/delete and collision/contradictory ownership. 62actualemulatorRuleschecks pass including reproduced prior owner denial; production compilepass12warnings. Candidatef7be92e5abb8fa5fb8c8a9fc263440a3478a0e9829b92c84d0085402df999f78. RootbroaderRulesnotdeployed; Storageunchangeda6aa1032. Exactservice/Rules/clientcutoverpending finalcheck and READYindex.
+
+Retained live browserstilloldapp-CGCcULTp.js; noerrorinlastconsoleinspection. Physicalphone release/network/GPS/clipcodec/FPS unverified, device/symptomquestion unanswered. No realGPSconsent/sessionpurge/Authconfig/DOBguess/contentmigration. Goalactive, no newfeatures.
+
+Next three tasks: finish exact discovery prerequisites/namedservice/client publication verification; verify actual phone current source/location/Clips; restore checked DNA and other existing Firebase content then complete app-wide readiness.

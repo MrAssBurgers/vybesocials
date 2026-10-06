@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { usePeopleDiscovery } from './usePeopleDiscovery';
 import { db } from '@/lib/firebase';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
@@ -66,88 +67,10 @@ export function useMutualFriendsCount(targetUserId?: string) {
  * — age-filtered by the server without returning DOBs to the browser.
  */
 export function useSuggestedFriends() {
-  const profileId = useAuthProfileId();
-
-  return useQuery({
-    queryKey: ['suggested-friends', profileId],
-    queryFn: async () => {
-      if (!profileId) return [];
-
-      const { data: myFriends } = await db
-        .from('friend_requests')
-        .select('sender_id, receiver_id')
-        .eq('status', 'accepted')
-        .or(`sender_id.eq.${profileId},receiver_id.eq.${profileId}`);
-
-      const myFriendIds = new Set<string>(
-        (myFriends || []).map(f => String(f.sender_id === profileId ? f.receiver_id : f.sender_id))
-      );
-      myFriendIds.add(profileId);
-
-      if (myFriendIds.size <= 1) return [];
-
-      const friendIdsArr = [...myFriendIds].filter(id => id !== profileId);
-      const fofCounts = new Map<string, { count: number; viaFriends: string[] }>();
-
-      // For each friend, get their friends
-      for (const friendId of friendIdsArr.slice(0, 20)) {
-        const { data: theirFriends } = await db
-          .from('friend_requests')
-          .select('sender_id, receiver_id')
-          .eq('status', 'accepted')
-          .or(`sender_id.eq.${friendId},receiver_id.eq.${friendId}`)
-          .limit(50);
-
-        for (const f of theirFriends || []) {
-          const fofId = String(f.sender_id === friendId ? f.receiver_id : f.sender_id);
-          if (myFriendIds.has(fofId)) continue; // Already friends
-
-          const existing = fofCounts.get(fofId) || { count: 0, viaFriends: [] };
-          existing.count += 1;
-          if (existing.viaFriends.length < 3) existing.viaFriends.push(friendId);
-          fofCounts.set(fofId, existing);
-        }
-      }
-
-      // Sort by mutual count, take top 30 (we'll trim after age filtering)
-      const sortedFof = [...fofCounts.entries()]
-        .sort((a, b) => b[1].count - a[1].count)
-        .slice(0, 30);
-
-      if (sortedFof.length === 0) return [];
-
-      const fofIds = sortedFof.map(([id]) => id);
-      let filtered: any[] = [];
-      const discovery = await db.functions.invoke('get-discovery-profiles', {
-        body: { candidateIds: fofIds, limit: 30 },
-      });
-      if (!discovery.error && Array.isArray((discovery.data as any)?.profiles)) {
-        filtered = (discovery.data as any).profiles;
-      } else {
-        if (discovery.error) {
-          console.warn('[FriendsOfFriends] discovery callable unavailable; using public profile fallback', discovery.error.message);
-        }
-        const { data: profiles } = await db
-          .from('profiles')
-          .select('id, username, display_name, avatar_url, is_verified')
-          .in('id', fofIds);
-        filtered = profiles || [];
-      }
-
-      // Merge with mutual count
-      return filtered.map((p: any) => ({
-        ...p,
-        mutual_count: fofCounts.get(p.id)?.count || 0,
-        via_friend_ids: fofCounts.get(p.id)?.viaFriends || [],
-      }))
-        .sort((a, b) => b.mutual_count - a.mutual_count)
-        .slice(0, 15);
-    },
-    enabled: !!profileId,
-    staleTime: 300000, // 5 min cache
-  });
+  const discovery = usePeopleDiscovery();
+  return { ...discovery, data: discovery.data?.profiles.filter(profile => profile.mutual_count > 0).sort((a, b) => b.mutual_count - a.mutual_count).slice(0, 15),
+    ageReviewRequired: discovery.data?.ageReviewRequired ?? false };
 }
-
 /**
  * Check if friends of friends are attending a specific event
  */

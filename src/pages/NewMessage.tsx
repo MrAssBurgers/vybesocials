@@ -16,10 +16,9 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useAuthProfileId } from "@/hooks/useAuthProfileId";
 import { RecentMessageUser } from "@/lib/recentMessageUsers";
 import { useFriendshipStatus, useSendFriendRequest, useFriends, useRespondToFriendRequest, useFriendRequests } from "@/hooks/useFriends";
-import { useSuggestedFriends } from "@/hooks/useFriendsOfFriends";
+import { DiscoveryReadStatus } from '@/components/friends/DiscoveryReadStatus';
 import { useQuickAddSuggestions, type QuickAddUser } from "@/hooks/useQuickAddSuggestions";
 import { useDismissedQuickAdd } from "@/hooks/useDismissedQuickAdd";
-import { useSimilarDNAUsers } from "@/hooks/useSimilarDNAUsers";
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -135,8 +134,7 @@ function InviteBanner() {
 const EMPTY_FRIENDS: never[] = [];
 
 function FindFriendsSection() {
-  const { suggestions, isLoading } = useQuickAddSuggestions(40);
-  const { data: similarDNA } = useSimilarDNAUsers(30);
+  const { suggestions, isLoading, error, ageReviewRequired, retry } = useQuickAddSuggestions(40);
   const { data: friendsData } = useFriends();
   const friends = friendsData ?? EMPTY_FRIENDS;
   const { dismissUser } = useDismissedQuickAdd();
@@ -150,7 +148,7 @@ function FindFriendsSection() {
     [friends],
   );
 
-  // Build the master pool: mutual / interest matches first, then DNA-similar users as backfill
+  // Only the current checked discovery read admits suggestions.
   const pool = useMemo<QuickAddUser[]>(() => {
     const seen = new Set<string>();
     const out: QuickAddUser[] = [];
@@ -159,20 +157,8 @@ function FindFriendsSection() {
       seen.add(s.id);
       out.push(s);
     }
-    for (const s of similarDNA || []) {
-      if (friendIds.has(s.id) || seen.has(s.id)) continue;
-      seen.add(s.id);
-      out.push({
-        id: s.id,
-        username: s.username,
-        display_name: s.display_name,
-        avatar_url: s.avatar_url,
-        mutual_count: 0,
-        subtitle: `${s.similarity}% DNA match · ${s.dominant_trait}`,
-      });
-    }
     return out;
-  }, [suggestions, similarDNA, friendIds]);
+  }, [suggestions, friendIds]);
 
   // Visible suggestions are derived state. Keeping a second synchronized array
   // here caused a render loop whenever the suggestion hooks returned new array
@@ -204,6 +190,7 @@ function FindFriendsSection() {
     dismissUser(userId);
   };
 
+  if (error || ageReviewRequired) return <DiscoveryReadStatus error={error} ageReviewRequired={ageReviewRequired} retry={retry} />;
   if (isLoading && slots.length === 0) {
     return (
       <section className="space-y-2">

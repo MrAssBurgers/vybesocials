@@ -9,6 +9,7 @@ const profileSchema = z.object({
   id, username: z.string().max(100).refine(value => !!value.trim()), display_name: z.string().max(200).nullable(),
   avatar_url: z.string().max(8192).url().refine(value => value.startsWith('https://')).nullable(),
   interests: z.array(z.string().max(100)).max(30),
+  mutual_count: z.number().int().min(0).max(20),
 }).strict();
 const receiptSchema = z.object({ ok: z.literal(true), ownerUid: id, profileId: id, accountCreatedAt: stamp,
   serverTime: stamp, leaseUntil: stamp, ageReviewRequired: z.boolean(), profiles: z.array(profileSchema).max(30) }).strict();

@@ -33,7 +33,8 @@ const PRIVATE_THEME_KEYS = new Set(['shared-theme', 'public-themes', 'saved-them
 const PRIVATE_LOCATION_KEYS = new Set(['vybemap-location-intel', 'map-social', 'map-pins', 'vybemap-meetups', 'vybemap-places', 'vybemap-place-posts', 'vybemap-place-comments', 'vybemap-friend-checkins', 'vybemap-meetup-memberships', 'vybemap-group-maps', 'vybemap-group-members', 'vybemap-stories', 'vybemap-posts', 'vybemap-clips', 'vybemap-event-pins', 'location-sharing', 'location-share', 'vybemap-history', 'vybemap-heatmap']);
 const PRIVATE_DNA_KEYS = new Set(['dna-agent-settings', 'dna-content-preferences', 'dna-actions']);
 const PRIVATE_POST_KEYS = new Set(['posts', 'ranked-feed-v2', 'social-post-list', 'post-activity-summary', 'profile-visible-post-count', 'notification-preferences', 'saved-posts', 'infinite-posts', 'following-posts', 'posts-with-sound', 'filter-posts', 'search-posts', 'search-hashtags', 'spotlight-posts', 'header-search', 'activity-stats', 'rhythm-data', 'creator-analytics', 'hover-profile']);
-const isPrivatePersistedKey = (key?: readonly unknown[]) => typeof key?.[0] === 'string'
+const PRIVATE_DISCOVERY_KEYS = new Set(['people-discovery', 'quick-add-general', 'suggested-friends']);
+const isPrivatePersistedKey = (key?: readonly unknown[]) => PRIVATE_DISCOVERY_KEYS.has(String(key?.[0])) || typeof key?.[0] === 'string'
   && (PRIVATE_LOCATION_KEYS.has(key[0]) || PRIVATE_POST_KEYS.has(key[0]) || PRIVATE_DNA_KEYS.has(key[0]) || PRIVATE_REPORT_KEYS.has(key[0]) || PRIVATE_THEME_KEYS.has(key[0]) || PRIVATE_DM_KEYS.has(key[0]) || PRIVATE_COMMUNITY_KEYS.has(key[0]) || PRIVATE_STORY_KEYS.has(key[0]) || PRIVATE_PROFILE_KEYS.has(key[0]) || (key[0] === 'posts' && key[1] === 'profile-server-v2'));
 
 /**

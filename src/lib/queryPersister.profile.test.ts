@@ -31,6 +31,18 @@ function snapshot(): PersistedClient {
 }
 
 describe('private profile sections never enter or return from shared disk query storage', () => {
+  it('strips previous suggestion snapshots and excludes fresh checked discovery from disk', () => {
+    const client = new QueryClient();
+    const roots = ['people-discovery', 'quick-add-general', 'suggested-friends'];
+    for (const root of roots) {
+      expect(shouldPersistQueryKey([root, 'alice'], [{ id: 'private-target' }])).toBe(false);
+      client.setQueryData([root, 'alice'], [{ id: 'private-target' }]);
+    }
+    const value = { timestamp: Date.now(), buster: 'fixture', clientState: dehydrate(client) };
+    expect(state.options!.serialize(value)).not.toContain('private-target');
+    expect(state.options!.deserialize(JSON.stringify(value)).clientState.queries).toHaveLength(0);
+    client.clear();
+  });
   it.each(privateKeys)('denies %s even with a nonempty, account-scoped result', root => {
     expect(shouldPersistQueryKey([root, 'alice', 3], [{ content: 'private' }])).toBe(false);
   });

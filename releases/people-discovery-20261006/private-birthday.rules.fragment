@@ -1,0 +1,41 @@
+    // Existing private birthday repair. Only the protected canonical owner can
+    // read or save; a raw UID alias, stale index or contradictory row cannot grant access.
+    function privateBirthdayOwner(profileId) {
+      let binding = get(/databases/$(database)/documents/_account_profile_bindings/$(request.auth.uid));
+      let profile = get(/databases/$(database)/documents/profiles/$(profileId));
+      let direct = get(/databases/$(database)/documents/profiles/$(request.auth.uid));
+      return binding != null && binding.data.get('version', 0) == 1
+        && binding.data.get('status', '') == 'active'
+        && binding.data.get('owner_uid', '') == request.auth.uid
+        && binding.data.get('profile_id', '') == profileId
+        && binding.data.get('auth_created_at_ms', 0) is int
+        && binding.data.get('auth_created_at_ms', 0) > 0
+        && binding.data.get('revision', '') is string
+        && binding.data.get('revision', '').matches('^[a-f0-9]{48}$')
+        && profile != null && profile.data.get('user_id', '') == request.auth.uid
+        && profile.data.get('is_deleted', false) == false
+        && profile.data.get('deleted_at', null) == null
+        && profile.data.get('is_banned', false) == false
+        && profile.data.get('deletion_requested_at', null) == null
+        && profile.data.get('scheduled_purge_at', null) == null
+        && (direct == null || direct.data.get('user_id', '') == request.auth.uid);
+    }
+    function privateBirthdayRowOwned(row, profileId) {
+      return row.get('id', profileId) == profileId
+        && row.get('profile_id', profileId) == profileId
+        && (row.get('user_id', null) == null || row.get('user_id', null) == request.auth.uid);
+    }
+    match /profile_private/{profileId} {
+      allow get: if request.auth != null && privateBirthdayOwner(profileId)
+        && (resource == null || privateBirthdayRowOwned(resource.data, profileId));
+      allow create, update: if request.auth != null && privateBirthdayOwner(profileId)
+        && (resource == null || privateBirthdayRowOwned(resource.data, profileId))
+        && request.resource.data.keys().hasOnly(['id', 'profile_id', 'user_id', 'date_of_birth', 'created_at', 'updated_at'])
+        && request.resource.data.id == profileId
+        && request.resource.data.profile_id == profileId
+        && request.resource.data.user_id == request.auth.uid
+        && request.resource.data.date_of_birth is string
+        && request.resource.data.date_of_birth.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && (resource == null || request.resource.data.get('created_at', null) == resource.data.get('created_at', null));
+      allow list, delete: if false;
+    }

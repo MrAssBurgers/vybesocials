@@ -6,12 +6,14 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { useSuggestedFriends } from '@/hooks/useFriendsOfFriends';
+import { DiscoveryReadStatus } from './DiscoveryReadStatus';
 import { triggerHaptic } from '@/lib/haptics';
 
 export const SuggestedFriends = memo(function SuggestedFriends() {
-  const { data: suggestions, isLoading } = useSuggestedFriends();
+  const { data: suggestions, isLoading, error, ageReviewRequired, retry } = useSuggestedFriends();
 
-  if (isLoading || !suggestions || suggestions.length === 0) return null;
+  if (error || ageReviewRequired || isLoading) return <DiscoveryReadStatus error={error} ageReviewRequired={ageReviewRequired} isLoading={isLoading} retry={retry} />;
+  if (!suggestions || suggestions.length === 0) return null;
 
   return (
     <div className="friends-shell-card rounded-2xl p-4 space-y-3">

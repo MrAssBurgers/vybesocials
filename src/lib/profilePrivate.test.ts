@@ -10,6 +10,10 @@ import { savePrivateProfileDateOfBirth } from './profilePrivate';
 const input = { authUid: 'alice', profileId: 'profile-alice', dateOfBirth: '2000-01-02' };
 beforeEach(() => { state.uid = 'alice'; state.epoch = 1; state.set.mockReset().mockResolvedValue(undefined); });
 describe('private profile save', () => {
+  it.each(['2026-02-30', '2100-01-01', '1900-01-01'])('rejects invalid or future birthday %s before any write', async dateOfBirth => {
+    await expect(savePrivateProfileDateOfBirth({ ...input, dateOfBirth })).rejects.toThrow('birthday');
+    expect(state.set).not.toHaveBeenCalled();
+  });
   it('writes the birthday to the canonical private profile only', async () => {
     await savePrivateProfileDateOfBirth(input);
     expect(state.set).toHaveBeenCalledWith('profile_private', 'profile-alice', { id: 'profile-alice', profile_id: 'profile-alice', user_id: 'alice', date_of_birth: '2000-01-02' });

@@ -1,0 +1,9 @@
+{
+  "indexes": [
+    { "collectionGroup": "blocked_users", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "blocker_id", "order": "ASCENDING" }, { "fieldPath": "blocked_id", "order": "ASCENDING" }] },
+    { "collectionGroup": "friend_requests", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "sender_id", "order": "ASCENDING" }, { "fieldPath": "receiver_id", "order": "ASCENDING" }, { "fieldPath": "status", "order": "ASCENDING" }] },
+    { "collectionGroup": "friend_requests", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "sender_id", "order": "ASCENDING" }, { "fieldPath": "status", "order": "ASCENDING" }] },
+    { "collectionGroup": "friend_requests", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "receiver_id", "order": "ASCENDING" }, { "fieldPath": "status", "order": "ASCENDING" }] },
+    { "collectionGroup": "dismissed_profiles", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "user_id", "order": "ASCENDING" }, { "fieldPath": "dismissed_user_id", "order": "ASCENDING" }] }
+  ]
+}

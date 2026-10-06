@@ -14,6 +14,7 @@ import { useAuth } from '@/lib/auth';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useSearchPeople } from '@/hooks/useSearchPeople';
 import { useQuickAddSuggestions } from '@/hooks/useQuickAddSuggestions';
+import { DiscoveryReadStatus } from '@/components/friends/DiscoveryReadStatus';
 import { useRecentlyAcceptedFriends } from '@/hooks/useFriends';
 import { useDismissedQuickAdd } from '@/hooks/useDismissedQuickAdd';
 import { haptics } from '@/lib/haptics';
@@ -189,7 +190,7 @@ function SearchResults({
 }
 
 function QuickAddSection({ currentProfileId }: { currentProfileId?: string }) {
-  const { suggestions, isLoading } = useQuickAddSuggestions(20);
+  const { suggestions, isLoading, error, ageReviewRequired, retry } = useQuickAddSuggestions(20);
   const { dismissUser } = useDismissedQuickAdd();
   const filtered = suggestions.filter((s) => s.id !== currentProfileId);
 
@@ -211,7 +212,7 @@ function QuickAddSection({ currentProfileId }: { currentProfileId?: string }) {
           <h2 className="text-sm font-semibold text-foreground">Suggested for you</h2>
         </div>
 
-        {isLoading && filtered.length === 0 ? (
+        {error || ageReviewRequired ? <DiscoveryReadStatus error={error} ageReviewRequired={ageReviewRequired} retry={retry} /> : isLoading && filtered.length === 0 ? (
           <div className="space-y-1">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 p-2.5">

@@ -7,7 +7,7 @@ vi.mock('./profileAccountGuard', () => ({ profileAccountGuard: (uid: string, ext
 } }));
 import { readPeopleDiscovery } from './peopleDiscoveryService';
 const actor = { uid: 'alice', profileId: 'profile-alice' }, guard = () => {};
-const profile = { id: 'profile-bob', username: 'bob', display_name: null, avatar_url: null, interests: ['music'] };
+const profile = { id: 'profile-bob', username: 'bob', display_name: null, avatar_url: null, interests: ['music'], mutual_count: 0 };
 const receipt = (patch: object = {}) => ({ ok: true, ownerUid: actor.uid, profileId: actor.profileId,
   accountCreatedAt: Date.parse(state.user.metadata.creationTime), serverTime: 1000, leaseUntil: 16000, ageReviewRequired: false, profiles: [profile], ...patch });
 beforeEach(() => { vi.clearAllMocks(); state.epoch++; state.user = { uid: 'alice', metadata: { creationTime: '2026-01-01T00:00:00Z' } }; state.call.mockResolvedValue({ data: receipt(), error: null }); });

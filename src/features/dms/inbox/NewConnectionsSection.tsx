@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
 import type { MessageRequest } from '@/hooks/useMessageRequests';
 import { useQuickAddSuggestions } from '@/hooks/useQuickAddSuggestions';
+import { DiscoveryReadStatus } from '@/components/friends/DiscoveryReadStatus';
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { DMRequestRow } from '@/features/dms/DMRequestRow';
 import { INBOX_CATEGORY_EMPTY } from './inboxCategoryModel';
@@ -21,7 +22,7 @@ export function NewConnectionsSection({
   onOpenConversation,
 }: NewConnectionsSectionProps) {
   const navigate = useNavigate();
-  const { suggestions } = useQuickAddSuggestions(8);
+  const { suggestions, error, ageReviewRequired, isLoading, retry } = useQuickAddSuggestions(8);
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
   const empty = INBOX_CATEGORY_EMPTY.new;
 
@@ -34,6 +35,7 @@ export function NewConnectionsSection({
   );
 
   if (!pendingRequests.length && !visibleSuggestions.length) {
+    if (error || ageReviewRequired || isLoading) return <DiscoveryReadStatus error={error} ageReviewRequired={ageReviewRequired} isLoading={isLoading} retry={retry} />;
     return (
       <div className="dm-inbox-new-section dm-inbox-empty dm-inbox-empty--inline">
         <h2>{empty.title}</h2>
@@ -48,6 +50,7 @@ export function NewConnectionsSection({
 
   return (
     <section className="dm-inbox-new-section" aria-label="New connections">
+      <DiscoveryReadStatus error={error} ageReviewRequired={ageReviewRequired} isLoading={isLoading} retry={retry} />
       {pendingRequests.map((request) => (
         <DMRequestRow key={`new-request-${request.id}`} request={request} />
       ))}

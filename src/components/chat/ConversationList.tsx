@@ -59,6 +59,7 @@ import { getVibeColor } from '@/components/status/StatusPicker';
 import { compactTime } from '@/lib/compactTime';
 import { safeMapGet } from '@/lib/persistedCollections';
 import { useQuickAddSuggestions } from '@/hooks/useQuickAddSuggestions';
+import { DiscoveryReadStatus } from '@/components/friends/DiscoveryReadStatus';
 import { useDismissedQuickAdd } from '@/hooks/useDismissedQuickAdd';
 import { NotesRow } from './NotesRow';
 import { useSendFriendRequest } from '@/hooks/useFriends';
@@ -1210,13 +1211,14 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
 // Recommended Friends Section - Snapchat Quick Add style at bottom of DMs
 const RecommendedFriendsSection = memo(function RecommendedFriendsSection() {
   const navigate = useNavigate();
-  const { suggestions, isLoading } = useQuickAddSuggestions(8);
+  const { suggestions, isLoading, error, ageReviewRequired, retry } = useQuickAddSuggestions(8);
   const sendRequest = useSendFriendRequest();
   const { dismissUser } = useDismissedQuickAdd();
   const [added, setAdded] = useState<Set<string>>(new Set());
   const [localDismissed, setLocalDismissed] = useState<Set<string>>(new Set());
 
-  if (isLoading || suggestions.length === 0) return null;
+  if (error || ageReviewRequired || isLoading) return <DiscoveryReadStatus error={error} ageReviewRequired={ageReviewRequired} isLoading={isLoading} retry={retry} />;
+  if (suggestions.length === 0) return null;
 
   const visible = suggestions.filter(s => !localDismissed.has(s.id));
   if (visible.length === 0) return null;

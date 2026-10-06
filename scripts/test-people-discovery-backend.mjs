@@ -45,7 +45,7 @@ try {
     let time = now;
     const result = await run(alice, { candidateIds: [alice.profileId, bob.profileId, bob.profileId] }, auth, () => time++);
     assert.equal(result.profiles.length, 1); assert.equal(result.profiles[0].id, bob.profileId);
-    assert.deepEqual(Object.keys(result.profiles[0]).sort(), ['avatar_url', 'display_name', 'id', 'interests', 'username']);
+    assert.deepEqual(Object.keys(result.profiles[0]).sort(), ['avatar_url', 'display_name', 'id', 'interests', 'mutual_count', 'username']);
     assert.ok(!JSON.stringify(result).includes('2001-05-03')); assert.ok(!JSON.stringify(result).includes('not-for-discovery'));
     assert.equal(result.accountCreatedAt, alice.created); assert.equal(result.serverTime, now + 1); assert.equal(result.leaseUntil, now + 15001);
   });
@@ -108,6 +108,34 @@ try {
     await db.doc(`user_auth_index/${owner.uid}`).set({ profile_id: caller.uid });
     await db.doc(`_account_profile_bindings/${owner.uid}`).update({ profile_id: caller.uid });
     await assert.rejects(run({ uid: caller.uid, profileId: caller.uid, created: owner.created }, { candidateIds: [] }), { code: 'failed-precondition' });
+  });
+  await check('canonical mutual counts respect visibility, aliases and intermediary blocks', async () => {
+    const friend = await seed('mutual-friend'), target = await seed('mutual-target');
+    const rows = [
+      ['discovery-mutual-1', { sender_id: alice.uid, receiver_id: friend.profileId, status: 'accepted' }],
+      ['discovery-mutual-2', { sender_id: friend.uid, receiver_id: alice.profileId, status: 'accepted' }],
+      ['discovery-mutual-3', { sender_id: friend.profileId, receiver_id: target.uid, status: 'accepted' }],
+      ['discovery-mutual-4', { sender_id: target.profileId, receiver_id: friend.uid, status: 'accepted' }],
+    ];
+    for (const [id, row] of rows) await db.doc(`friend_requests/${id}`).set(row);
+    assert.equal((await run(alice, { candidateIds: [target.profileId] })).profiles[0].mutual_count, 0);
+    await db.doc(`profile_visibility/${target.profileId}`).set({ fields: { mutual_friends: 'public' } });
+    assert.equal((await run(alice, { candidateIds: [target.profileId] })).profiles[0].mutual_count, 1);
+    const general = await run(alice);
+    assert.equal(general.profiles.filter(p => p.id === target.profileId).length, 1);
+    assert.ok(!general.profiles.some(p => p.id === friend.profileId));
+    await db.doc('blocked_users/discovery-mutual-block').set({ blocker_id: target.uid, blocked_id: friend.profileId });
+    assert.equal((await run(alice, { candidateIds: [target.profileId] })).profiles[0].mutual_count, 0);
+    await db.doc('blocked_users/discovery-mutual-block').delete();
+    for (const [id] of rows) await db.doc(`friend_requests/${id}`).delete();
+  });
+  await check('pending outgoing and dismissed aliases are excluded by exact current pairs', async () => {
+    await db.doc('friend_requests/discovery-pending').set({ sender_id: alice.uid, receiver_id: bob.uid, status: 'pending' });
+    assert.deepEqual((await run(alice, { candidateIds: [bob.profileId] })).profiles, []);
+    await db.doc('friend_requests/discovery-pending').delete();
+    await db.doc('dismissed_profiles/discovery-dismissed').set({ user_id: alice.profileId, dismissed_user_id: bob.uid });
+    assert.deepEqual((await run(alice, { candidateIds: [bob.profileId] })).profiles, []);
+    await db.doc('dismissed_profiles/discovery-dismissed').delete();
   });
   await check('read-only 120-selection performance and output cap', async () => {
     const candidates = [];

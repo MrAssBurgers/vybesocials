@@ -13,6 +13,7 @@ import { motion } from 'framer-motion';
 import { haptics } from '@/lib/haptics';
 import { SuggestedFriends } from '@/components/friends/SuggestedFriends';
 import { useQuickAddSuggestions } from '@/hooks/useQuickAddSuggestions';
+import { DiscoveryReadStatus } from '@/components/friends/DiscoveryReadStatus';
 import { Link } from 'react-router-dom';
 import { stashAuthReturnPath } from '@/lib/authReturnPath';
 
@@ -230,11 +231,11 @@ function QuickAddPanel({
   currentProfileId?: string;
   excludeId?: string;
 }) {
-  const { suggestions, isLoading } = useQuickAddSuggestions(12);
+  const { suggestions, isLoading, error, ageReviewRequired, retry } = useQuickAddSuggestions(12);
   const sendRequest = useSendFriendRequest();
   const filtered = suggestions.filter(s => s.id !== currentProfileId && s.id !== excludeId);
 
-  if (isLoading && filtered.length === 0) return null;
+  if (error || ageReviewRequired || isLoading) return <DiscoveryReadStatus error={error} ageReviewRequired={ageReviewRequired} isLoading={isLoading} retry={retry} />;
   if (!isLoading && filtered.length === 0) return null;
 
   const handleAdd = async (id: string, username: string) => {

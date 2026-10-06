@@ -1,0 +1,1631 @@
+rules_version = '2';
+
+// VYBE — Firestore Security Rules (ported from Supabase RLS, Phase 4)
+//
+// Access model:
+//   - Auth ID == document field `user_id` / `author_id` / `owner_id` for ownership.
+//   - `profiles` is globally readable to authenticated users (matches Supabase
+//     "Authenticated users can view all profiles USING (true)" policy).
+//   - `user_roles` is read-only to the owning user; admin escalation flows via
+//     custom claims (`request.auth.token.admin == true`) set by a Cloud Function.
+//   - Sensitive admin tables (app_secrets, error_logs, payouts, etc.) are
+//     deny-all to clients; access is server-side via Cloud Functions only.
+//   - Chat membership uses subcollections under `conversations/{cid}/members/{uid}`
+//     to keep rules O(1); legacy `conversation_members` collection is read-gated
+//     on `request.auth.uid in resource.data.member_ids` arrays during cutover.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function accountBindingActive() {
+      let binding = get(/databases/$(database)/documents/_account_profile_bindings/$(request.auth.uid));
+      // Imported accounts without a binding remain usable. Retired identities
+      // must not regain direct UID aliases through a still-valid old token.
+      return binding == null || (binding.data.get('version', 0) == 1 &&
+        binding.data.get('owner_uid', '') == request.auth.uid && binding.data.get('status', '') == 'active' &&
+        binding.data.get('profile_id', '') is string && binding.data.get('profile_id', '').size() > 0);
+    }
+    function activeStaffRoleAt(col, identity, role) {
+      let rolePath = /databases/$(database)/documents/$(col)/$(identity + '_' + role);
+      let grant = get(rolePath);
+      // Imported grants predate enabled. Only a missing flag or boolean true
+      // grants authority; disabled or malformed rows must not revive a role.
+      return identity is string && identity.size() > 0 && grant != null && grant.data.get('enabled', true) == true;
+    }
+    function staffUidUnambiguous(authUid) {
+      let row = get(/databases/$(database)/documents/profiles/$(authUid));
+      return row == null || (row.data.get('user_id', '') == authUid &&
+        row.data.get('is_deleted', false) == false && row.data.get('deleted_at', null) == null);
+    }
+    function staffProfileOwnedBy(profile, authUid) {
+      let row = get(/databases/$(database)/documents/profiles/$(profile));
+      return row != null && row.data.get('user_id', '') == authUid &&
+        row.data.get('is_deleted', false) == false && row.data.get('deleted_at', null) == null;
+    }
+    function staffProfileCandidate(authUid) {
+      let binding = get(/databases/$(database)/documents/_account_profile_bindings/$(authUid));
+      return binding != null && binding.data.get('profile_id', '') is string && binding.data.get('profile_id', '').size() > 0
+        ? binding.data.get('profile_id', '') : legacyStaffProfileCandidate(authUid);
+    }
+    function legacyStaffProfileCandidate(authUid) {
+      let index = get(/databases/$(database)/documents/user_auth_index/$(authUid));
+      let candidate = index == null ? authUid : index.data.get('profile_id', '');
+      return candidate is string ? candidate : '';
+    }
+    function staffModeratorFor(profile, authUid) {
+      return staffRoleDoc('user_roles', 'owner', profile, authUid) ||
+        staffRoleDoc('user_roles', 'admin', profile, authUid) ||
+        staffRoleDoc('user_roles', 'moderator', profile, authUid) ||
+        staffRoleDoc('user_roles_auth', 'owner', profile, authUid) ||
+        staffRoleDoc('user_roles_auth', 'admin', profile, authUid) ||
+        staffRoleDoc('user_roles_auth', 'moderator', profile, authUid);
+    }
+    function staffAdminFor(profile, authUid) {
+      return staffRoleDoc('user_roles', 'owner', profile, authUid) ||
+        staffRoleDoc('user_roles', 'admin', profile, authUid) ||
+        staffRoleDoc('user_roles_auth', 'owner', profile, authUid) ||
+        staffRoleDoc('user_roles_auth', 'admin', profile, authUid);
+    }
+    function signedIn() {
+      return request.auth != null && accountBindingActive();
+    }
+    function uid() { return signedIn() ? request.auth.uid : ''; }
+    function isAdmin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+    function staffRoleDoc(col, role, profile, authUid) {
+      // A UID grant needs no profile alias. For a migrated alias, validate its
+      // owner only after finding a grant, so failed lookups do not consume an
+      // extra document access before the legitimate UID fallback.
+      return (activeStaffRoleAt(col, profile, role) &&
+          (profile == authUid ? staffUidUnambiguous(authUid) : staffProfileOwnedBy(profile, authUid))) ||
+        (profile != authUid && activeStaffRoleAt(col, authUid, role) && staffUidUnambiguous(authUid));
+    }
+    function isStaffModerator() {
+      // Checked setup supplies the protected candidate without an extra index
+      // lookup. Legacy unbound staff should finish setup before using late role
+      // fallbacks. The exact-baseline test covers every supported bound case.
+      // Resolve canonical identity once, rather than repeating its binding and
+      // ownership predicates for every possible role (Rules expression limit).
+      return isAdmin() || (signedIn() && staffModeratorFor(staffProfileCandidate(request.auth.uid), request.auth.uid));
+    }
+    // Owner/admin can manage roles (moderators cannot grant roles).
+    function isStaffAdmin() {
+      return isAdmin() || (signedIn() && staffAdminFor(staffProfileCandidate(request.auth.uid), request.auth.uid));
+    }
+    // Migrated rows use profiles.id (legacy UUID) while user_id holds Firebase Auth uid.
+    function profileId() {
+      let index = get(/databases/$(database)/documents/user_auth_index/$(uid()));
+      let candidate = index == null ? uid() : index.data.get('profile_id', '');
+      let profile = candidate is string && candidate.size() > 0
+        ? get(/databases/$(database)/documents/profiles/$(candidate)) : null;
+      return profile != null && profile.data.get('user_id', '') == uid()
+        && profile.data.get('is_deleted', false) == false && profile.data.get('deleted_at', null) == null
+        ? candidate : '';
+    }
+    function ownsProfileId(pid) {
+      let profile = pid is string && pid.size() > 0 ? get(/databases/$(database)/documents/profiles/$(pid)) : null;
+      let direct = get(/databases/$(database)/documents/profiles/$(uid()));
+      return signedIn() && (direct == null || direct.data.get('user_id', '') == uid()) && (
+        (pid == uid() && profileId() != '') ||
+        (profile != null && profile.data.get('user_id', '') == uid()
+          && profile.data.get('is_deleted', false) == false && profile.data.get('deleted_at', null) == null)
+      );
+    }
+    function isParticipantInPair(pairId) {
+      return signedIn() && pairId is string && profileId() != '' && (
+        pairId.matches('.*' + profileId() + '.*')
+      );
+    }
+
+    function isOwner(field) {
+      return signedIn() && resource.data[field] == uid();
+    }
+    function isOwnerProfile(field) {
+      return ownsProfileId(resource.data[field]);
+    }
+    function willOwn(field) {
+      return signedIn() && request.resource.data[field] == uid();
+    }
+    function willOwnProfile(field) {
+      return ownsProfileId(request.resource.data[field]);
+    }
+    function isConversationCreatorOf(cid) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/conversations/$(cid)) && (
+          ownsProfileId(conversationData(cid).get('created_by', '')) ||
+          conversationData(cid).get('created_by', '') == uid()
+        );
+    }
+    // Rows may store Firebase Auth uid or profiles.id in user_id / owner fields.
+    function ownsUserField(field) {
+      return isOwner(field) || isOwnerProfile(field);
+    }
+    function willOwnUserField(field) {
+      return willOwn(field) || willOwnProfile(field);
+    }
+    function isFlatConversationMember(cid) {
+      return signedIn() && (
+        exists(/databases/$(database)/documents/conversation_members/$(cid + '_' + profileId())) ||
+        exists(/databases/$(database)/documents/conversation_members/$(cid + '_' + uid()))
+      );
+    }
+    function isMemberViaConversationDoc(cid) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/conversations/$(cid)) && (
+          profileId() in get(/databases/$(database)/documents/conversations/$(cid)).data.get('member_ids', []) ||
+          uid() in get(/databases/$(database)/documents/conversations/$(cid)).data.get('member_ids', [])
+        );
+    }
+    function isMember(cid) {
+      return signedIn() && (
+        isFlatConversationMember(cid) ||
+        isMemberViaConversationDoc(cid) ||
+        exists(/databases/$(database)/documents/conversations/$(cid)/members/$(uid())) ||
+        exists(/databases/$(database)/documents/conversations/$(cid)/members/$(profileId()))
+      );
+    }
+    function isConversationParticipant(cid) {
+      return isMember(cid) || isConversationCreatorOf(cid);
+    }
+    function safetyOverrideConversationId(overrideId) {
+      return get(/databases/$(database)/documents/conversation_safety_overrides/$(overrideId)).data.conversation_id;
+    }
+    function isFriendRequestParty() {
+      return signedIn() && (
+        ownsProfileId(resource.data.sender_id) ||
+        ownsProfileId(resource.data.get('receiver_id', '')) ||
+        ownsProfileId(resource.data.get('recipient_id', ''))
+      );
+    }
+    // Canonical friend_requests schema:
+    // deterministic id `${sender_id}_${receiver_id}`; immutable parties/timestamps;
+    // status is pending | accepted | declined | cancelled.
+    function isValidFriendRequest(data, docId) {
+      return data.keys().hasAll([
+          'id', 'sender_id', 'receiver_id', 'status', 'created_at', 'updated_at'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'sender_id', 'receiver_id', 'status', 'created_at', 'updated_at'
+        ]) &&
+        data.id is string && data.id == docId &&
+        data.sender_id is string && data.sender_id.size() > 0 && data.sender_id.size() <= 160 &&
+        data.receiver_id is string && data.receiver_id.size() > 0 && data.receiver_id.size() <= 160 &&
+        data.sender_id != data.receiver_id &&
+        docId == data.sender_id + '_' + data.receiver_id &&
+        data.status in ['pending', 'accepted', 'declined', 'cancelled'] &&
+        data.created_at is string && data.created_at.size() >= 20 && data.created_at.size() <= 40 &&
+        data.updated_at is string && data.updated_at.size() >= 20 && data.updated_at.size() <= 40;
+    }
+    function isValidFriendRequestTransition() {
+      return request.resource.data.id == resource.data.id &&
+        request.resource.data.sender_id == resource.data.sender_id &&
+        request.resource.data.receiver_id == resource.data.receiver_id &&
+        request.resource.data.created_at == resource.data.created_at &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updated_at']) &&
+        (
+          (resource.data.status == 'pending' &&
+            request.resource.data.status in ['accepted', 'declined', 'cancelled']) ||
+          (resource.data.status in ['declined', 'cancelled'] &&
+            request.resource.data.status == 'pending')
+        );
+    }
+    // get() on a missing doc leaves resource null — guard before reading resource.data.
+    function canReadMissingDoc(path) {
+      return signedIn() && !exists(path);
+    }
+    function conversationData(cid) {
+      return get(/databases/$(database)/documents/conversations/$(cid)).data;
+    }
+    function canSeedFlatConversationMember(cid) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/conversations/$(cid)) && (
+          profileId() in conversationData(cid).get('member_ids', []) ||
+          uid() in conversationData(cid).get('member_ids', []) ||
+          ownsProfileId(conversationData(cid).get('created_by', '')) ||
+          conversationData(cid).get('created_by', '') == uid()
+        );
+    }
+    // Self-seed composite `${cid}_${profileId}` for legacy DMs missing member_ids on conv doc.
+    function isSelfCompositeMembershipCreate() {
+      return signedIn() &&
+        request.resource.data.conversation_id is string &&
+        request.resource.data.user_id is string &&
+        (
+          (
+            request.resource.id == request.resource.data.conversation_id + '_' + profileId() &&
+            ownsProfileId(request.resource.data.user_id)
+          ) ||
+          (
+            request.resource.id == request.resource.data.conversation_id + '_' + uid() &&
+            request.resource.data.user_id == uid()
+          )
+        );
+    }
+
+    // Auth uid → profiles.id lookup. Write only when the target profile.user_id matches caller.
+    // Canonical profile setup owns this mapping.
+    match /user_auth_index/{authUid} {
+      allow read: if signedIn() && authUid == uid();
+      allow write: if false;
+    }
+    match /_account_profile_bindings/{docId} { allow read, write: if false; }
+    match /_account_profile_receipts/{docId} { allow read, write: if false; }
+    match /_account_profile_recovery/{docId} { allow read, write: if false; }
+
+
+
+    match /legal_acceptances/{docId} {
+      allow read: if signedIn() && resource.data.user_id == uid();
+      allow create: if signedIn() && request.resource.data.user_id == uid();
+      allow update: if signedIn() && resource.data.user_id == uid();
+      allow delete: if false;
+    }
+
+    // ---------- profiles ----------
+    // Public-ish read for any authed user (prevents "Unknown User" bug).
+    match /profiles/{userId} {
+      allow read: if signedIn();
+      allow create: if false;
+      allow update: if signedIn() && (ownsProfileId(userId) || isAdmin())
+        && request.resource.data.get('user_id', userId) == resource.data.get('user_id', userId)
+        && request.resource.data.get('id', userId) == resource.data.get('id', userId)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['email']);
+      allow delete: if isAdmin();
+    }
+
+    // Profile-scoped subcollections (settings, prefs, etc.)
+    match /profiles/{userId}/{collectionId}/{documentId}/{sub=**} {
+      allow read, write: if signedIn() && (ownsProfileId(userId) || isAdmin());
+    }
+
+    // ---------- user roles (staff admin manages; moderators read) ----------
+    match /user_roles/{docId} {
+      allow read: if signedIn() && (
+        ownsProfileId(resource.data.user_id) || isStaffModerator() || isAdmin()
+      );
+      allow create, update, delete: if isStaffAdmin();
+    }
+    match /user_roles_auth/{docId} {
+      allow read: if signedIn() && (
+        resource.data.user_id == uid() ||
+        ownsProfileId(resource.data.user_id) ||
+        isStaffModerator() ||
+        isAdmin()
+      );
+      allow create, update, delete: if isStaffAdmin();
+    }
+
+    // ---------- progression / XP / streaks ----------
+    match /user_levels/{docId} {
+      // Prefer direct uid match so list queries `.eq('user_id', authUid)` validate.
+      allow read: if signedIn() && (
+        resource.data.user_id == uid() ||
+        resource.data.user_id == profileId() ||
+        ownsProfileId(docId) ||
+        docId == uid()
+      );
+      allow create: if signedIn() && (willOwnUserField('user_id') || willOwnProfile('user_id'));
+      allow update: if signedIn() && (
+        resource.data.user_id == uid() ||
+        resource.data.user_id == profileId() ||
+        ownsProfileId(docId)
+      );
+      allow delete: if isAdmin();
+    }
+    match /login_streaks/{docId} {
+      // Historical caller-writable values are display history only. The checked
+      // endpoint preserves them without granting restore or reward authority.
+      allow read, write: if false;
+    }
+    match /streaks/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /reaction_streaks/{docId} {
+      allow read: if signedIn();
+      allow write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /challenge_progress/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /challenge_rewards/{docId} {
+      allow read: if signedIn() && (
+        resource.data.user_id == uid() ||
+        resource.data.user_id == profileId() ||
+        isAdmin()
+      );
+      allow create, update: if signedIn() && (
+        willOwnUserField('user_id') || ownsUserField('user_id') || isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+    // VYBE Score (Snapscore-style) — public read for authed users; writes via triggers/Functions only
+    match /vybe_scores/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+    match /vybe_score_events/{docId} {
+      allow read: if signedIn() && (
+        ownsProfileId(resource.data.user_id) || ownsProfileId(resource.data.profile_id) || isAdmin()
+      );
+      allow write: if false;
+    }
+    match /vybe_score_daily_limits/{docId} {
+      allow read: if signedIn() && ownsProfileId(resource.data.user_id);
+      allow write: if false;
+    }
+    match /vybe_score_milestones/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+    match /vybe_score_adjustments/{docId} {
+      allow read: if signedIn() && ownsProfileId(resource.data.user_id);
+      allow write: if false;
+    }
+    match /vybe_score_preferences/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    // Relationship engine — server writes only; viewer-scoped reads
+    match /relationship_scores/{docId} {
+      allow read: if signedIn() && ownsProfileId(resource.data.viewer_id);
+      allow write: if false;
+    }
+    match /relationship_activity_events/{docId} {
+      allow read: if false;
+      allow write: if false;
+    }
+    match /friendship_rankings/{docId} {
+      allow read: if signedIn() && ownsProfileId(resource.data.viewer_id);
+      allow write: if false;
+    }
+    match /friendship_milestones/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+    match /friendship_streaks/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+    match /friendship_preferences/{docId} {
+      allow read: if signedIn() && ownsProfileId(docId);
+      allow write: if false;
+    }
+    match /friendship_emoji_preferences/{docId} {
+      allow read: if signedIn() && ownsProfileId(docId);
+      allow write: if false;
+    }
+    match /friendship_bonds/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+    match /relationship_daily_caps/{docId} {
+      allow read: if false;
+      allow write: if false;
+    }
+    match /_relationship_recalc_pending/{docId} {
+      allow read, write: if false;
+    }
+
+    // ---------- user badges / locations / prefs ----------
+    match /user_badges/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /user_locations/{docId} {
+      // Orphaned legacy coordinate rows have no current sharing authority.
+      allow read, write: if false;
+    }
+    // VybeMap — canonical live location (doc id = profiles.id)
+    match /user_live_locations/{profileDocId} {
+      // Checked callables project grant precision and recheck current consent.
+      allow read, write: if false;
+    }
+    function ownsLocationAlias(value) {
+      let canonical = profileId();
+      let profile = get(/databases/$(database)/documents/profiles/$(canonical));
+      let uidProfile = get(/databases/$(database)/documents/profiles/$(uid()));
+      return signedIn() && value in [uid(), canonical] && profile != null && profile.data.user_id == uid()
+        && profile.data.get('is_deleted', false) == false && profile.data.get('deleted_at', null) == null
+        && (uidProfile == null || canonical == uid());
+    }
+    match /location_history/{docId} {
+      allow read: if ownsLocationAlias(resource.data.get('user_id', ''));
+      allow create: if ownsLocationAlias(request.resource.data.get('user_id', ''))
+        && request.resource.data.keys().hasOnly(['id', 'user_id', 'latitude', 'longitude', 'accuracy', 'speed', 'heading', 'activity_type', 'geohash', 'recorded_at'])
+        && request.resource.data.latitude is number && request.resource.data.latitude >= -90 && request.resource.data.latitude <= 90
+        && request.resource.data.longitude is number && request.resource.data.longitude >= -180 && request.resource.data.longitude <= 180
+        && request.resource.data.recorded_at is string;
+      allow update: if false;
+      allow delete: if ownsLocationAlias(resource.data.get('user_id', ''));
+    }
+    match /location_access_logs/{docId} {
+      allow read: if signedIn() && (ownsUserField('viewer_id') || ownsUserField('target_id') || isAdmin());
+      allow create: if signedIn() && willOwnUserField('viewer_id');
+      allow update, delete: if isAdmin();
+    }
+    match /location_permissions/{docId} {
+      allow read, write: if signedIn() && (ownsUserField('owner_id') || willOwnUserField('owner_id') || isAdmin());
+    }
+    match /map_places/{docId} {
+      allow read, write: if false;
+    }
+    match /map_place_posts/{docId} {
+      allow read, write: if false;
+    }
+    match /map_place_post_comments/{docId} {
+      allow read, write: if false;
+    }
+    match /map_check_ins/{docId} {
+      allow read, write: if false;
+    }
+    match /map_meetups/{docId} {
+      allow read, write: if false;
+    }
+    match /map_meetup_members/{docId} {
+      allow read, write: if false;
+    }
+    match /map_story_pins/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /map_post_pins/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /map_clip_pins/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /map_event_pins/{docId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+    match /map_group_maps/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('owner_id');
+      allow update, delete: if ownsUserField('owner_id') || isAdmin();
+    }
+    match /map_group_members/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /map_location_intel/{docId} {
+      allow read, write: if false;
+    }
+    match /friend_finder_sessions/{docId} {
+      allow read: if signedIn() && (ownsUserField('seeker_id') || ownsUserField('target_id'));
+      allow create: if signedIn() && willOwnUserField('seeker_id');
+      allow update: if signedIn() && (ownsUserField('seeker_id') || ownsUserField('target_id'));
+      allow delete: if isAdmin();
+    }
+    match /map_notification_prefs/{docId} {
+      allow read, write: if signedIn() && (ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin());
+    }
+    match /heatmap_tiles/{cellId} {
+      allow read, write: if false;
+    }
+    match /map_access_rate/{docId} {
+      allow read, write: if false;
+    }
+    match /user_bans/{docId} {
+      allow read: if ownsUserField('user_id') || isStaffModerator();
+      allow write: if isStaffModerator();
+    }
+    match /user_warnings/{docId} {
+      allow read: if ownsUserField('user_id') || isStaffModerator();
+      allow create: if isStaffModerator();
+      allow update: if ownsUserField('user_id') || isStaffModerator();
+      allow delete: if isStaffModerator();
+    }
+    match /user_presence/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnUserField('user_id');
+      allow update: if ownsUserField('user_id');
+      allow delete: if ownsUserField('user_id') || isAdmin();
+    }
+    // Snapchat-style per-user activity (online, typing, in-chat, in-call)
+    match /users/{userDocId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && (
+        userDocId == profileId() ||
+        userDocId == uid() ||
+        ownsProfileId(userDocId)
+      );
+      allow delete: if ownsProfileId(userDocId) || userDocId == uid() || isAdmin();
+    }
+    match /user_statuses/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnProfile('user_id') || willOwnUserField('user_id');
+      allow update: if ownsProfileId(resource.data.user_id) || ownsUserField('user_id');
+      allow delete: if ownsProfileId(resource.data.user_id) || ownsUserField('user_id');
+    }
+    match /notification_preferences/{docId} {
+      allow read: if ownsUserField('user_id') || isAdmin();
+      allow write: if false; // Checked canonical preferences preserve existing opt-outs.
+    }
+    match /_notification_preferences/{docId} { allow read, write: if false; }
+    match /_notification_preference_requests/{docId} { allow read, write: if false; }
+    match /music_settings/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /spotify_connections/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /live_music_presence/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && (
+        request.resource.data.user_id == uid() ||
+        ownsProfileId(request.resource.data.user_id)
+      );
+      allow update: if signedIn() && (
+        resource.data.user_id == uid() ||
+        ownsProfileId(resource.data.user_id)
+      );
+      allow delete: if signedIn() && (
+        resource.data.user_id == uid() ||
+        ownsProfileId(resource.data.user_id)
+      );
+    }
+    match /user_preferences/{docId} {
+      // Resolve ownership once per candidate. Repeated uid()/profileId() calls
+      // exceed Rules' expression limit on the first migrated-profile save.
+      function ownsPreferences(identity) {
+        let authUid = request.auth.uid;
+        let direct = get(/databases/$(database)/documents/profiles/$(authUid));
+        let profile = identity is string && identity.size() > 0
+          ? get(/databases/$(database)/documents/profiles/$(identity)) : null;
+        return signedIn() && (direct == null || direct.data.get('user_id', '') == authUid) && (
+          identity == authUid || (profile != null && profile.data.get('user_id', '') == authUid &&
+            profile.data.get('is_deleted', false) == false && profile.data.get('deleted_at', null) == null)
+        );
+      }
+      allow get: if resource == null ? ownsPreferences(docId) : ownsPreferences(resource.data.get('user_id', ''));
+      allow list: if ownsPreferences(resource.data.get('user_id', ''));
+      allow create: if docId == request.resource.data.get('user_id', '') && ownsPreferences(docId);
+      allow update: if ownsPreferences(resource.data.get('user_id', ''))
+        && request.resource.data.get('user_id', '') == resource.data.get('user_id', '');
+      allow delete: if ownsPreferences(resource.data.get('user_id', ''));
+    }
+    match /dna_content_preferences/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || docId == uid() || ownsProfileId(docId);
+    }
+    match /user_active_boosts/{docId} {
+      allow read: if signedIn() && (ownsUserField('user_id') || ownsProfileId(docId));
+      allow create, update: if signedIn() && (willOwnUserField('user_id') || ownsUserField('user_id'));
+      allow delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /screen_time_sessions/{docId} {
+      allow read: if signedIn() && (ownsUserField('user_id') || ownsProfileId(docId));
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update: if signedIn() && (ownsUserField('user_id') || ownsProfileId(docId));
+      allow delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /analytics_events/{docId} {
+      // Clients may append their own telemetry; admin dashboards read aggregates.
+      allow create: if signedIn() && (
+        !('user_id' in request.resource.data) ||
+        request.resource.data.user_id == null ||
+        willOwnUserField('user_id')
+      );
+      allow read, update, delete: if isAdmin() || isStaffModerator();
+    }
+    match /ai_brief_preferences/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || ownsProfileId(docId);
+    }
+
+    // ---------- messages extras ----------
+    match /message_reactions/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnUserField('user_id');
+      allow delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /message_views/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnUserField('user_id') || willOwnProfile('viewer_id');
+      allow update, delete: if ownsUserField('user_id') || ownsProfileId(resource.data.viewer_id) || isAdmin();
+    }
+    match /message_pins/{docId} {
+      allow read: if signedIn();
+      allow write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    // "Delete for me" — per-viewer soft delete, upserted client-side (message_id,user_id).
+    match /message_deletions/{docId} {
+      allow read: if ownsUserField('user_id') || isAdmin();
+      allow create, update: if willOwnUserField('user_id');
+      allow delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /saved_messages/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+
+    // ---------- marketplace ----------
+    match /listings/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnUserField('seller_id') || willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('seller_id') || ownsUserField('user_id') || isStaffModerator();
+    }
+    match /listing_favorites/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /seller_ratings/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnUserField('reviewer_id') || willOwnUserField('user_id');
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------- invites / friend drops ----------
+    match /invites/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnUserField('inviter_id') || willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('inviter_id') || ownsUserField('user_id') || isAdmin();
+    }
+    match /friend_drops/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnUserField('sender_id') || willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('sender_id') || ownsUserField('user_id') || isAdmin();
+    }
+    // Short-lived presence docs for the FriendLink "Nearby" fallback (no-NFC phones).
+    match /friend_link_nearby/{docId} {
+      allow read: if signedIn();
+      allow create, update: if willOwnUserField('user_id');
+      allow delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /_report_authority/{id}             { allow read, write: if false; }
+    match /_message_report_evidence/{document=**} { allow read, write: if false; }
+    match /_report_requests/{id}              { allow read, write: if false; }
+    match /_report_audit/{id}                 { allow read, write: if false; }
+    match /_report_quotas/{id}                { allow read, write: if false; }
+    match /_mini_app_moderation/{id}          { allow read, write: if false; }
+    match /report_notification_deliveries/{id} { allow read, write: if false; }
+    match /admin_alerts/{id}                 { allow read, write: if false; }
+    match /reports/{docId} {
+      // Submission, staff reads/review and mini-app removal use the verified
+      // callable. Retained browser-authored reports remain untrusted leads.
+      allow read, write: if false;
+    }
+
+    // ---------- social: follows / blocks / friend requests ----------
+    match /feed_mutes/{ownerUid}/authors/{targetProfileId} {
+      allow read, delete: if signedIn() && uid() == ownerUid;
+      allow create: if signedIn() && uid() == ownerUid &&
+        request.resource.data.keys().hasAll(['schema_version', 'owner_uid', 'target_profile_id', 'target_uid', 'created_at']) &&
+        request.resource.data.keys().hasOnly(['schema_version', 'owner_uid', 'target_profile_id', 'target_uid', 'created_at']) &&
+        request.resource.data.schema_version == 1 &&
+        request.resource.data.owner_uid == ownerUid &&
+        request.resource.data.target_profile_id == targetProfileId &&
+        request.resource.data.target_uid is string &&
+        request.resource.data.target_uid.size() > 0 &&
+        request.resource.data.target_uid.size() <= 200 &&
+        request.resource.data.target_uid != ownerUid &&
+        request.resource.data.created_at == request.time &&
+        exists(/databases/$(database)/documents/profiles/$(targetProfileId)) &&
+        get(/databases/$(database)/documents/profiles/$(targetProfileId)).data.user_id == request.resource.data.target_uid;
+      allow update: if false;
+    }
+    match /follows/{docId} {
+      allow read: if signedIn();
+      // manageFollow maintains this count/list projection and its approval proof.
+      allow write: if false;
+    }
+    match /blocked_users/{docId} {
+      allow read: if isOwnerProfile('blocker_id') || isAdmin();
+      allow create: if willOwnProfile('blocker_id');
+      allow delete: if isOwnerProfile('blocker_id');
+    }
+    match /friend_requests/{docId} {
+      allow read: if isFriendRequestParty();
+      // Writes are callable-only because blocked_users has legacy random IDs,
+      // which prevents a complete two-way block check in Security Rules.
+      // Admin client writes remain schema/transition constrained for diagnostics.
+      allow create: if isAdmin() && isValidFriendRequest(request.resource.data, docId);
+      allow update: if isAdmin() &&
+        isValidFriendRequest(request.resource.data, docId) &&
+        isValidFriendRequestTransition();
+      allow delete: if false;
+    }
+    match /message_requests/{docId} {
+      allow read: if canReadMissingDoc(/databases/$(database)/documents/message_requests/$(docId)) ||
+        signedIn() && (
+          ownsProfileId(resource.data.sender_id) || ownsProfileId(resource.data.receiver_id)
+        );
+      allow create: if willOwnProfile('sender_id');
+      allow update: if signedIn() && (
+        ownsProfileId(resource.data.sender_id) || ownsProfileId(resource.data.receiver_id)
+      );
+    }
+    match /close_friends/{docId} {
+      function ownsCloseFriendList(identity) {
+        let profile = /databases/$(database)/documents/profiles/$(identity);
+        // A UID that also names somebody else's profile is never an alias.
+        return signedIn() && identity is string && (
+          (exists(profile) && get(profile).data.user_id == uid())
+          || (identity == uid() && !exists(profile))
+        );
+      }
+      allow read: if ownsCloseFriendList(resource.data.user_id);
+      // Historical rows are reference-only, never a private-story grant.
+      // New selections use server-owned _close_friend_authority proofs.
+      allow create, update, delete: if false;
+    }
+    match /dismissed_profiles/{docId} {
+      allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
+    }
+
+    // ---------- private friend profile ----------
+    function friendshipPairDocId(a, b) {
+      return a < b ? a + '_' + b : b + '_' + a;
+    }
+    function isFriendshipPairMember() {
+      return signedIn() && (
+        ownsProfileId(resource.data.user_a) ||
+        ownsProfileId(resource.data.user_b)
+      );
+    }
+    function isLocationShareMember() {
+      return signedIn() && (
+        ownsProfileId(resource.data.sharer_id) ||
+        ownsProfileId(resource.data.viewer_id)
+      );
+    }
+    function hasActiveLocationShareFrom(sharerProfileId) {
+      let pairId = friendshipPairDocId(profileId(), sharerProfileId);
+      return signedIn() &&
+        exists(/databases/$(database)/documents/location_shares/$(pairId)) &&
+        get(/databases/$(database)/documents/location_shares/$(pairId)).data.active == true &&
+        get(/databases/$(database)/documents/location_shares/$(pairId)).data.sharer_id == sharerProfileId &&
+        get(/databases/$(database)/documents/location_shares/$(pairId)).data.viewer_id == profileId();
+    }
+    match /friendship_pairs/{pairId} {
+      allow read: if isFriendshipPairMember();
+      allow write: if false;
+    }
+    match /location_requests/{docId} {
+      allow read, write: if false;
+    }
+    match /location_shares/{pairId} {
+      allow read, write: if false;
+    }
+    match /profile_visibility/{ownerId} {
+      allow read, write: if ownsProfileId(ownerId);
+    }
+    match /shared_content_index/{docId} {
+      allow read: if signedIn() && (
+        ownsProfileId(resource.data.user_a) ||
+        ownsProfileId(resource.data.user_b)
+      );
+      allow write: if false;
+    }
+    match /user_safety_settings/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /user_notes/{docId} {
+      // Current owner/friend/block/expiry checks are made by the Notes service.
+      allow read, write: if false;
+    }
+
+    // ---------- posts / comments / reactions ----------
+    match /_post_publications/{postId} { allow read, write: if false; }
+    match /_post_publication_receipts/{receiptId} { allow read, write: if false; }
+    match /_post_pin_state/{ownerUid} { allow read, write: if false; }
+    match /_post_view_receipts/{receiptId} { allow read, write: if false; }
+    match /_post_view_limits/{limitId} { allow read, write: if false; }
+    match /_comment_authority/{docId} { allow read, write: if false; }
+    match /_comment_receipts/{docId} { allow read, write: if false; }
+    match /_comment_cursors/{docId} { allow read, write: if false; }
+    match /_follow_authority/{id}        { allow read, write: if false; }
+    match /_story_publish_receipts/{id} { allow read, write: if false; }
+    match /_story_publish_limits/{id} { allow read, write: if false; }
+    match /_close_friend_authority/{id} { allow read, write: if false; }
+    match /_login_streak_state/{docId} { allow read, write: if false; }
+    match /_login_streak_receipts/{docId} { allow read, write: if false; }
+    match /_social_post_list_cursors/{id} { allow read, write: if false; }
+    match /_social_feed_cursors/{id}     { allow read, write: if false; }
+    match /_sound_uploads/{id} { allow read, write: if false; }
+    match /_sound_upload_limits/{id} { allow read, write: if false; }
+    match /_sound_library_cursors/{id} { allow read, write: if false; }
+    match /user_saved_sounds/{id} { allow read, write: if false; }
+    match /_saved_sound_refs/{id} { allow read, write: if false; }
+    match /_saved_sound_requests/{id} { allow read, write: if false; }
+    match /_saved_sound_limits/{id} { allow read, write: if false; }
+    match /_post_local_areas/{id}       { allow read, write: if false; }
+    match /posts/{postId} {
+      function ownsPostRead() {
+        let canonical = profileId();
+        let profile = get(/databases/$(database)/documents/profiles/$(canonical));
+        let uidProfile = get(/databases/$(database)/documents/profiles/$(uid()));
+        return signedIn() && resource.data.author_id in [uid(), canonical]
+          && profile != null && profile.data.user_id == uid()
+          && (uidProfile == null || canonical == uid());
+      }
+      // Other viewers receive current audience/block/deletion checked DTOs
+      // from readSocialFeed/readSocialPostPreviews/readSocialPostList.
+      allow read: if ownsPostRead() || isStaffModerator();
+      // Publication ownership, revision checks and retry tombstones are server-owned.
+      // Staff post removal also uses managePost rather than bypassing its receipt.
+      allow create, update, delete: if false;
+    }
+    match /comments/{commentId} {
+      function ownAlias(value) {
+        let canonical = profileId();
+        let profile = get(/databases/$(database)/documents/profiles/$(canonical));
+        let uidProfile = get(/databases/$(database)/documents/profiles/$(uid()));
+        return signedIn() && value in [uid(), canonical] && profile != null && profile.data.user_id == uid()
+          && (uidProfile == null || canonical == uid());
+      }
+      // Other-user content is projected by readPostComments under fresh parent
+      // audience/block authority. Own learning history and staff tools remain.
+      allow read: if ownAlias(resource.data.get('user_id', '')) || ownAlias(resource.data.get('author_id', '')) || isStaffModerator();
+      allow create: if false;
+      allow update: if isStaffModerator()
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['user_id', 'author_id', 'post_id']);
+      allow delete: if isStaffModerator();
+    }
+    match /comment_likes/{docId} {
+      allow read: if isOwnerProfile('user_id') || isStaffModerator();
+      allow write: if false;
+    }
+    match /bookmarks/{docId} {
+      allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
+    }
+    match /likes/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id');
+    }
+    match /post_mood_signals/{docId} {
+      allow read: if signedIn();
+      // Writes restricted to Cloud Functions (admin SDK) to protect ranking integrity.
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /user_interactions/{docId} {
+      allow read: if signedIn() && isOwnerProfile('user_id');
+      allow create: if willOwnProfile('user_id');
+      allow update: if isOwnerProfile('user_id');
+      allow delete: if isOwnerProfile('user_id');
+    }
+    match /post_reactions/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnProfile('user_id');
+      allow delete: if isOwnerProfile('user_id');
+    }
+    match /post_views/{docId} {
+      allow read: if signedIn() && (ownsProfileId(resource.data.viewer_id) || isAdmin());
+      allow create: if willOwnProfile('viewer_id');
+    }
+
+    // ---------- conversations / messages ----------
+    match /conversations/{cid} {
+      allow read: if isAdmin() || canReadMissingDoc(/databases/$(database)/documents/conversations/$(cid)) || (
+        signedIn() && (
+          profileId() in resource.data.get('member_ids', []) ||
+          uid() in resource.data.get('member_ids', []) ||
+          isFlatConversationMember(cid) ||
+          isMemberViaConversationDoc(cid) ||
+          isConversationCreatorOf(cid)
+        )
+      );
+      allow create: if signedIn() &&
+        willOwnProfile('created_by') &&
+        (
+          profileId() in request.resource.data.get('member_ids', []) ||
+          uid() in request.resource.data.get('member_ids', [])
+        );
+      allow update: if isMember(cid) || isAdmin() || (
+        signedIn() && (
+          ownsProfileId(resource.data.get('created_by', '')) ||
+          resource.data.get('created_by', '') == uid() ||
+          profileId() in request.resource.data.get('member_ids', []) ||
+          uid() in request.resource.data.get('member_ids', [])
+        )
+      );
+      allow delete: if isAdmin();
+
+      match /members/{memberId} {
+        allow read: if isMember(cid);
+        allow write: if isMember(cid) || isAdmin();
+      }
+      match /messages/{messageId} {
+        allow read: if isMember(cid);
+        // Client creates denied — all DM inserts go through sendDmMessage callable.
+        allow create: if false;
+        allow delete: if signedIn() &&
+          (ownsProfileId(resource.data.sender_id) || isAdmin());
+        // Sender full update; other members may only touch view/save/expiry fields
+        // (needed for 24h timer + keep on save when the recipient is not the sender).
+        allow update: if signedIn() && (
+          ownsProfileId(resource.data.sender_id) ||
+          isAdmin() ||
+          (
+            isMember(cid) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'expires_at',
+              'viewed_at',
+              'saved_by_sender',
+              'saved_by_recipient',
+              'saved_at',
+              'updated_at',
+              'replay_count',
+              'vybe_replay_exhausted',
+              'view_mode'
+            ])
+          )
+        );
+      }
+      match /typing/{typingUid} {
+        allow read: if isMember(cid);
+        allow write: if isMember(cid) && typingUid == uid();
+      }
+    }
+    // Legacy flat collections (migrated from Supabase)
+    match /conversation_members/{docId} {
+      allow read: if canReadMissingDoc(/databases/$(database)/documents/conversation_members/$(docId)) ||
+        signedIn() && (
+          ownsProfileId(resource.data.user_id) ||
+          isConversationParticipant(resource.data.conversation_id)
+        );
+      allow create: if signedIn() && (
+        willOwnProfile('user_id') ||
+        isSelfCompositeMembershipCreate() ||
+        (
+          request.resource.data.conversation_id is string &&
+          (
+            canSeedFlatConversationMember(request.resource.data.conversation_id) ||
+            isConversationCreatorOf(request.resource.data.conversation_id)
+          )
+        )
+      );
+      allow update: if ownsProfileId(resource.data.user_id);
+      allow delete: if isOwnerProfile('user_id') || isAdmin();
+    }
+    match /messages/{messageId} {
+      allow read: if signedIn() && isConversationParticipant(resource.data.conversation_id);
+      // Client creates denied — all DM inserts go through sendDmMessage callable
+      // (blocked-user checks, rate limits, schema/media/membership validation).
+      allow create: if false;
+      allow delete: if ownsProfileId(resource.data.sender_id) || isAdmin();
+      allow update: if ownsProfileId(resource.data.sender_id) || isAdmin() || (
+        isConversationParticipant(resource.data.conversation_id) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'expires_at',
+          'viewed_at',
+          'saved_by_sender',
+          'saved_by_recipient',
+          'saved_at',
+          'updated_at',
+          'replay_count',
+          'vybe_replay_exhausted',
+          'view_mode'
+        ])
+      );
+    }
+
+    // Server-written send audit (Admin SDK only).
+    match /dm_send_audit/{docId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
+    match /hidden_conversations/{docId} {
+      allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
+    }
+    match /trashed_conversations/{docId} {
+      allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
+    }
+    match /dm_settings/{docId} {
+      allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
+    }
+    match /scheduled_messages/{docId} {
+      allow read: if signedIn() && ownsProfileId(resource.data.sender_id);
+      allow create: if signedIn() && willOwnProfile('sender_id');
+      allow update, delete: if ownsProfileId(resource.data.sender_id) || isAdmin();
+    }
+    match /locked_chats/{docId} {
+      allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
+    }
+    match /dm_reminders/{docId} {
+      allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
+    }
+
+    // Server-written DM inbox projection. Viewers may read only their own rows;
+    // clients cannot create/update/delete projection documents.
+    match /dm_inbox_entries/{entryId} {
+      allow read: if signedIn() && (
+        ownsProfileId(resource.data.viewer_id) ||
+        resource.data.viewer_id == uid() ||
+        isAdmin()
+      );
+      allow create, update, delete: if false;
+    }
+    match /message_transcripts/{docId} {
+      // Doc id equals the parent messages/{docId}; gate on membership in
+      // that message's conversation. Client writes are denied — transcripts
+      // are only produced by the transcribeVoiceMessage Cloud Function
+      // (Admin SDK bypasses rules).
+      function transcriptParentConversationId() {
+        return get(/databases/$(database)/documents/messages/$(docId)).data.conversation_id;
+      }
+      allow read: if signedIn() && isConversationParticipant(transcriptParentConversationId());
+      allow create, update, delete: if false;
+    }
+    match /message_media_rules/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
+    match /vanish_threads/{docId} {
+      allow read: if signedIn() && isConversationParticipant(resource.data.conversation_id);
+      allow create: if signedIn() &&
+        willOwnProfile('created_by') &&
+        isConversationParticipant(request.resource.data.conversation_id);
+      allow update, delete: if signedIn() && isConversationParticipant(resource.data.conversation_id);
+    }
+    match /vanish_messages/{docId} {
+      function vanishThreadConversationId(threadId) {
+        return get(/databases/$(database)/documents/vanish_threads/$(threadId)).data.conversation_id;
+      }
+      allow read: if signedIn() &&
+        isConversationParticipant(vanishThreadConversationId(resource.data.thread_id));
+      allow create: if signedIn() &&
+        willOwnProfile('sender_id') &&
+        isConversationParticipant(vanishThreadConversationId(request.resource.data.thread_id));
+      allow update, delete: if isOwnerProfile('sender_id') || isAdmin();
+    }
+    match /screenshot_notifications/{docId} {
+      allow read: if isOwnerProfile('user_id') || ownsProfileId(resource.data.recipient_id) || isAdmin();
+      allow create: if signedIn() &&
+        willOwnProfile('user_id') &&
+        isConversationParticipant(request.resource.data.conversation_id);
+    }
+    match /typing_indicators/{docId} {
+      allow read: if signedIn() && isConversationParticipant(resource.data.conversation_id);
+      allow create, update: if signedIn() &&
+        willOwnProfile('user_id') &&
+        isConversationParticipant(request.resource.data.conversation_id);
+      allow delete: if signedIn() && ownsProfileId(resource.data.user_id);
+    }
+    match /chat_presence/{docId} {
+      allow read: if signedIn() && (
+        isConversationParticipant(resource.data.conversation_id) ||
+        isStaffModerator()
+      );
+      allow create, update: if signedIn() &&
+        willOwnProfile('user_id') &&
+        isConversationParticipant(request.resource.data.conversation_id);
+      allow delete: if signedIn() && ownsProfileId(resource.data.user_id);
+    }
+    match /conversation_safety_overrides/{docId} {
+      allow read: if signedIn() && isConversationParticipant(resource.data.conversation_id);
+      allow create: if signedIn() &&
+        willOwnProfile('requested_by') &&
+        isConversationParticipant(request.resource.data.conversation_id) &&
+        request.resource.data.status == 'pending';
+      allow update: if signedIn() && isConversationParticipant(resource.data.conversation_id);
+    }
+    match /conversation_safety_responses/{docId} {
+      allow read: if signedIn() &&
+        exists(/databases/$(database)/documents/conversation_safety_overrides/$(resource.data.override_id)) &&
+        isConversationParticipant(safetyOverrideConversationId(resource.data.override_id));
+      allow create: if signedIn() &&
+        willOwnProfile('user_id') &&
+        request.resource.data.override_id is string &&
+        exists(/databases/$(database)/documents/conversation_safety_overrides/$(request.resource.data.override_id)) &&
+        isConversationParticipant(safetyOverrideConversationId(request.resource.data.override_id));
+    }
+
+    // ---------- calls / signaling ----------
+    match /calls/{callId} {
+      allow read: if signedIn() && (
+        ownsProfileId(resource.data.caller_id) ||
+        ownsProfileId(resource.data.receiver_id) ||
+        resource.data.caller_id == uid() ||
+        resource.data.receiver_id == uid() ||
+        profileId() in resource.data.get('participant_ids', []) ||
+        uid() in resource.data.get('participant_ids', [])
+      );
+      allow create: if signedIn() && willOwnProfile('caller_id');
+      allow update: if signedIn() && (
+        ownsProfileId(resource.data.caller_id) ||
+        ownsProfileId(resource.data.receiver_id) ||
+        resource.data.caller_id == uid() ||
+        resource.data.receiver_id == uid() ||
+        isAdmin()
+      );
+    }
+    match /call_signals/{docId} {
+      allow read: if signedIn() && (
+        ownsProfileId(resource.data.to_profile_id) ||
+        ownsProfileId(resource.data.from_profile_id) ||
+        resource.data.to_user == uid() ||
+        resource.data.from_user == uid()
+      );
+      allow create: if signedIn() && (
+        willOwnProfile('from_profile_id') || willOwn('from_user')
+      );
+      allow delete: if signedIn() && (
+        ownsProfileId(resource.data.from_profile_id) ||
+        isOwner('from_user') ||
+        isOwner('to_user')
+      );
+    }
+    match /webrtc_signals/{docId} {
+      // Channel-scoped WebRTC broadcast signals (no per-user fields on the doc).
+      allow read: if signedIn() && (
+        resource.data.channel is string ||
+        resource.data.to_user == uid() ||
+        resource.data.from_user == uid() ||
+        ownsProfileId(resource.data.to_profile_id) ||
+        ownsProfileId(resource.data.from_profile_id)
+      );
+      allow create: if signedIn() && (
+        (request.resource.data.channel is string && request.resource.data.from_user == uid()) ||
+        willOwn('from_user') || willOwnProfile('from_profile_id')
+      );
+      allow delete: if signedIn() && (
+        isOwner('from_user') || isOwner('to_user') || isAdmin()
+      );
+    }
+
+    // ---------- stories ----------
+    match /stories/{id} {
+      // The callable evaluates current friendship and Close Friends membership.
+      allow read: if false;
+      // Publishing and immutable identity belong to the authenticated callable.
+      // Keeping the receipt after deletion prevents a lost-ack retry reposting.
+      allow create, update: if false;
+      function ownsPublishedStory() {
+        let receiptId = resource.data.get('publish_receipt_id', null);
+        let receipt = /databases/$(database)/documents/_story_publish_receipts/$(receiptId);
+        return signedIn() && receiptId is string && exists(receipt)
+          && get(receipt).data.version == 1
+          && get(receipt).data.owner_uid == uid()
+          && get(receipt).data.profile_id == resource.data.author_id
+          && get(receipt).data.story_id == id;
+      }
+      allow delete: if ownsPublishedStory()
+        || (resource.data.get('publish_receipt_id', null) == null && isOwnerProfile('author_id'))
+        || isStaffModerator();
+    }
+    match /story_views/{id} {
+      allow read: if signedIn() && (ownsProfileId(resource.data.viewer_id) || isAdmin());
+      allow create: if willOwnProfile('viewer_id');
+    }
+
+    // ---------- story highlights (saved story collections) ----------
+    match /story_highlights/{id} {
+      function ownsHighlightOwner(identity) {
+        let profile = /databases/$(database)/documents/profiles/$(identity);
+        return signedIn() && identity is string && (
+          (exists(profile) && get(profile).data.user_id == uid())
+          || (identity == uid() && !exists(profile))
+        );
+      }
+      // Legacy covers can include private story URLs. They are owner-only
+      // until a server reader can evaluate the audience of every saved story.
+      allow read: if ownsHighlightOwner(resource.data.owner_id);
+      allow create: if ownsHighlightOwner(request.resource.data.owner_id);
+      allow update, delete: if signedIn() && (
+        (ownsHighlightOwner(resource.data.owner_id)
+          && (request.method == 'delete' || request.resource.data.owner_id == resource.data.owner_id))
+        || isStaffModerator()
+      );
+    }
+
+    // ---------- post person tags (lean Tagged grid) ----------
+    match /post_user_tags/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() &&
+        willOwnProfile('tagged_by') &&
+        request.resource.data.keys().hasAll(['post_id', 'tagged_user_id', 'tagged_by']) &&
+        request.resource.data.post_id is string &&
+        request.resource.data.tagged_user_id is string;
+      allow update: if signedIn() && (
+        isOwnerProfile('tagged_by') ||
+        isOwnerProfile('tagged_user_id') ||
+        isStaffModerator()
+      );
+      allow delete: if signedIn() && (
+        isOwnerProfile('tagged_by') ||
+        isOwnerProfile('tagged_user_id') ||
+        isStaffModerator()
+      );
+    }
+
+    // ---------- notifications / push tokens ----------
+    match /notifications/{id} {
+      allow read: if ownsUserField('user_id') || ownsProfileId(resource.data.user_id) || isAdmin();
+      allow update: if ownsUserField('user_id') || ownsProfileId(resource.data.user_id);
+      // Strict schema validation on client-created notifications to prevent
+      // spam / phishing (attacker-controlled title/body/image_url/deep_link
+      // sent to arbitrary recipients). Server (Admin SDK) still bypasses.
+      allow create: if isAdmin() || (
+        signedIn() &&
+        willOwnProfile('actor_id') &&
+        request.resource.data.user_id is string &&
+        request.resource.data.user_id.size() > 0 &&
+        request.resource.data.user_id.size() <= 128 &&
+        request.resource.data.type in ['like', 'comment', 'follow', 'mention', 'friend_request', 'collab', 'share', 'missed_call', 'friend_accepted', 'friend_declined'] &&
+        (!('title' in request.resource.data) || (request.resource.data.title is string && request.resource.data.title.size() <= 140)) &&
+        (!('body' in request.resource.data) || (request.resource.data.body is string && request.resource.data.body.size() <= 500)) &&
+        (!('image_url' in request.resource.data) || (request.resource.data.image_url is string && request.resource.data.image_url.size() <= 500 && request.resource.data.image_url.matches('^https://.*'))) &&
+        (!('deep_link' in request.resource.data) || (request.resource.data.deep_link is string && request.resource.data.deep_link.size() <= 300 && request.resource.data.deep_link.matches('^/[A-Za-z0-9_/?=&%.,:@#\\-]*$')))
+      );
+      allow delete: if ownsUserField('user_id') || ownsProfileId(resource.data.user_id) || isAdmin();
+    }
+    match /push_tokens/{id} {
+      allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id') ||
+        (signedIn() && (resource.data.user_id == uid() || request.resource.data.user_id == uid()));
+    }
+
+    // ---------- user-owned generic ----------
+    match /bug_reports/{id} {
+      allow create: if signedIn();
+      allow read, update, delete: if isStaffModerator();
+    }
+    match /feedback/{id} {
+      allow create: if signedIn();
+      allow read: if signedIn();
+      allow update, delete: if isOwner('user_id') || isAdmin();
+    }
+    match /feature_requests/{id} {
+      allow read: if signedIn();
+      allow create: if willOwn('user_id');
+      allow update, delete: if isOwner('user_id') || isAdmin();
+    }
+    match /feature_votes/{id} {
+      allow read: if signedIn();
+      allow create: if willOwn('user_id');
+      allow delete: if isOwner('user_id');
+    }
+    match /capture_events/{id} {
+      allow create: if signedIn() && (willOwn('user_id') || willOwnProfile('captured_by'));
+      allow read: if isOwner('user_id') || ownsProfileId(resource.data.captured_by) || isAdmin() ||
+        (resource.data.conversation_id is string &&
+          isConversationParticipant(resource.data.conversation_id));
+    }
+
+    // ---------- communities / channels ----------
+    match /communities/{cid} {
+      allow read: if signedIn();
+      allow create: if willOwn('owner_id');
+      allow update, delete: if isOwner('owner_id') || isAdmin();
+    }
+    match /channels/{id} {
+      allow read: if communityChannelVisible(id);
+      allow write: if false;
+    }
+    match /channel_messages/{id} {
+      allow read: if communityChannelVisible(resource.data.channel_id);
+      allow write: if false;
+    }
+    match /group_members/{id} {
+      allow read: if signedIn();
+      allow create: if willOwn('user_id');
+      allow delete: if isOwner('user_id') || isAdmin();
+    }
+
+    // ---------- public-ish reference data ----------
+    match /badges/{id}            { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /challenges/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+    match /challenge_templates/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /announcements/{id}     { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /battle_pass_tiers/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /algorithm_settings/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /community_guidelines/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /growth_config/{id}     { allow read: if signedIn(); allow write: if isAdmin(); }
+
+    function communityRole(serverId) {
+      let server = get(/databases/$(database)/documents/servers/$(serverId));
+      let grant = get(/databases/$(database)/documents/community_admissions/$(uid())/grants/$(serverId));
+      return ownsProfileId(server.data.owner_id) ? 'owner' :
+        (grant != null && grant.data.get('role', '') in ['admin', 'moderator'] ? grant.data.role : 'member');
+    }
+    function communityChannelVisible(channelId) {
+      let channel = get(/databases/$(database)/documents/channels/$(channelId));
+      return signedIn() && channel != null && channel.data.get('deleted_at', null) == null &&
+        isServerMember(channel.data.server_id) && communityChannelRoleVisible(channelId, channel.data);
+    }
+    function communityChannelRoleVisible(channelId, channel) {
+      let role = communityRole(channel.server_id);
+      let permission = get(/databases/$(database)/documents/channel_permissions/$(channelId + '_' + role));
+      let scoped = permission != null && permission.data.get('channel_id', '') == channelId && permission.data.get('role', '') == role;
+      return role in ['owner', 'admin'] ||
+        (scoped && 'can_view' in permission.data ? permission.data.can_view == true : channel.get('is_private', false) == false);
+    }
+    match /channel_permissions/{id} {
+      allow read: if communityChannelVisible(resource.data.channel_id);
+      allow write: if false;
+    }
+    match /community_admissions/{authUid}/grants/{serverId} {
+      allow read: if signedIn() && authUid == uid();
+      allow write: if false;
+    }
+    match /community_rosters/{serverId}/members/{authUid} {
+      allow read: if signedIn() && isServerMember(serverId);
+      allow write: if false;
+    }
+    match /community_invites/{hash} {
+      allow read, write: if false;
+    }
+    // ---------- Discord-style servers ----------
+    function isServerMember(serverId) {
+      let server = get(/databases/$(database)/documents/servers/$(serverId));
+      let grant = get(/databases/$(database)/documents/community_admissions/$(uid())/grants/$(serverId));
+      return signedIn() && server != null && server.data.get('deleted_at', null) == null && (
+        ownsProfileId(server.data.owner_id) ||
+        (grant != null && grant.data.get('server_id', '') == serverId &&
+          grant.data.get('auth_uid', '') == uid() && grant.data.get('active', false) == true &&
+          grant.data.get('role', '') in ['owner', 'admin', 'moderator', 'member'])
+      );
+    }
+    match /servers/{docId} {
+      allow read: if signedIn() && (
+        (resource.data.get('is_public', false) == true && resource.data.get('deleted_at', null) == null) ||
+        ownsProfileId(resource.data.owner_id) ||
+        isServerMember(docId)
+      );
+      allow write: if false;
+    }
+    match /server_members/{docId} {
+      // Legacy client-mutable admissions are quarantined, never upgraded by a
+      // browser write. Owners recover and members rejoin through the service.
+      allow read, write: if false;
+    }
+
+    // ---------- commerce ----------
+    match /creator_profiles/{id} {
+      allow read: if signedIn();
+      allow create, update: if isOwner('user_id') || willOwn('user_id');
+      allow delete: if isAdmin();
+    }
+    match /creator_earnings/{id}   { allow read: if isOwner('creator_id') || isAdmin(); allow write: if isAdmin(); }
+    match /creator_payouts/{id}    { allow read: if isOwner('creator_id') || isAdmin(); allow write: if isAdmin(); }
+    match /creator_daily_stats/{id} { allow read: if isOwner('creator_id') || isAdmin(); allow write: if isAdmin(); }
+    match /business_profiles/{id} {
+      allow read: if signedIn();
+      allow write: if isOwner('owner_id') || willOwn('owner_id') || isAdmin();
+    }
+    match /business_products/{id}  { allow read: if signedIn(); allow write: if isOwner('owner_id') || willOwn('owner_id') || isAdmin(); }
+    match /business_orders/{id}    { allow read: if isOwner('buyer_id') || isOwner('seller_id') || isAdmin(); allow write: if isAdmin(); }
+    match /gifted_premium/{id} {
+      allow read: if ownsUserField('user_id') || ownsUserField('gifted_by') || isAdmin();
+      allow create: if willOwnUserField('gifted_by') || isAdmin();
+      allow update: if ownsUserField('user_id') || ownsUserField('gifted_by') || isAdmin();
+      allow delete: if isAdmin();
+    }
+    match /vybe_tokens/{docId} {
+      allow read: if ownsUserField('user_id') || ownsProfileId(docId) || isAdmin();
+      // Balance writes restricted to Cloud Functions (admin SDK) to prevent self-minting.
+      allow create, update, delete: if isAdmin();
+    }
+    match /token_transactions/{docId} {
+      allow read: if ownsUserField('user_id') || isAdmin();
+      // Transaction ledger writes restricted to Cloud Functions only.
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /marketplace_purchases/{docId} {
+      allow read: if ownsUserField('user_id') || isAdmin();
+      allow create: if willOwnUserField('user_id') || isAdmin();
+      allow update, delete: if isAdmin();
+    }
+    match /sounds/{id} {
+      // The checked library binds these rows to protected decoded-media proof.
+      // Historical caller-writable approval/owner flags are not authority.
+      allow read, write: if false;
+    }
+    match /vybe_dna/{id} {
+      allow read: if ownsUserField('user_id') || isAdmin();
+      allow create, update: if willOwnUserField('user_id') || isAdmin();
+      allow delete: if isAdmin();
+    }
+    match /dna_agent_settings/{id} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /user_backgrounds/{id} {
+      allow read: if signedIn();
+      allow create: if willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /user_custom_sounds/{id} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /user_active_boosts/{id} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /screen_time_sessions/{id} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /analytics_events/{id} {
+      allow create: if signedIn();
+      allow read: if isAdmin() || isStaffModerator();
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------- events / RSVPs ----------
+    match /events/{id} {
+      allow read: if signedIn();
+      allow create: if willOwnProfile('host_id');
+      allow update, delete: if isOwnerProfile('host_id') || isStaffModerator();
+    }
+    match /event_rsvps/{id} {
+      allow read: if signedIn();
+      allow create: if willOwnProfile('user_id');
+      allow update, delete: if isOwnerProfile('user_id') || isStaffModerator();
+    }
+
+    // ---------- security / sessions ----------
+    match /user_2fa_settings/{userId} {
+      allow read: if signedIn() && userId == uid();
+      allow write: if false;
+    }
+    match /user_passkeys/{id} {
+      allow read: if signedIn() && (
+        resource.data.user_id == uid() || ownsProfileId(resource.data.user_id)
+      );
+      allow create: if signedIn() && request.resource.data.user_id == uid();
+      allow update, delete: if signedIn() && (
+        resource.data.user_id == uid() || ownsProfileId(resource.data.user_id)
+      );
+    }
+    match /user_sessions/{id} {
+      allow read: if signedIn() && (
+        resource.data.user_id == uid() || ownsProfileId(resource.data.user_id)
+      );
+      allow write: if false;
+    }
+    match /login_history/{id} {
+      allow read: if signedIn() && (
+        resource.data.user_id == uid() || ownsProfileId(resource.data.user_id)
+      );
+      allow write: if false;
+    }
+
+    // ---------- themes (user customization + marketplace) ----------
+    match /user_themes/{id} {
+      allow read: if signedIn() && ownsUserField('user_id');
+      allow create, update: if signedIn() && willOwnUserField('user_id');
+      allow delete: if signedIn() && ownsUserField('user_id');
+    }
+    match /shared_themes/{id} {
+      allow read: if signedIn() && (
+        isOwnerProfile('creator_id') ||
+        resource.data.creator_id == uid()
+      );
+      // Audience grants and immutable theme snapshots are issued by the callable.
+      allow create: if false;
+      allow update: if signedIn() && (
+        isOwnerProfile('creator_id') || isStaffModerator()
+      ) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['theme_name', 'description'])
+        && request.resource.data.theme_name is string && request.resource.data.theme_name.size() > 0
+        && request.resource.data.theme_name.size() <= 80
+        && (request.resource.data.get('description', null) == null || (request.resource.data.description is string && request.resource.data.description.size() <= 1000));
+      allow delete: if signedIn() && (
+        isOwnerProfile('creator_id') || isStaffModerator()
+      );
+    }
+    match /saved_themes/{id} {
+      allow read: if signedIn() && isOwnerProfile('user_id');
+      allow write: if false;
+    }
+    match /theme_likes/{id} {
+      allow read: if signedIn() && isOwnerProfile('user_id');
+      allow write: if false;
+    }
+    match /_shared_theme_authority/{id} { allow read, write: if false; }
+    match /_shared_theme_receipts/{id} { allow read, write: if false; }
+    match /_shared_theme_cursors/{id} { allow read, write: if false; }
+    match /_theme_codes/{id} { allow read, write: if false; }
+    match /_theme_code_receipts/{id} { allow read, write: if false; }
+
+    // ---------- explicit deny-all admin-only tables (Cloud Functions handle these) ----------
+    match /app_secrets/{id}                   { allow read, write: if false; }
+    // Client-readable rollout knobs (admin writes only).
+    match /app_config/{docId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+    match /user_ai_keys/{id}                  { allow read, write: if false; }
+    match /ai_usage/{profileId} {
+      allow read: if ownsProfileId(profileId);
+      allow write: if false;
+    }
+    match /encryption_keys/{id}               { allow read, write: if false; }
+    match /error_logs/{id}                    { allow read, write: if isAdmin(); }
+    match /email_send_log/{id}                { allow read, write: if isAdmin(); }
+    match /email_send_state/{id}              { allow read, write: if isAdmin(); }
+    match /email_unsubscribe_tokens/{id}      { allow read, write: if false; }
+    match /_auth_email_challenges/{id} { allow read, write: if false; }
+    match /_auth_email_limits/{id} { allow read, write: if false; }
+    match /_auth_device_session_heads/{id} { allow read, write: if false; }
+    match /auth_challenges/{id} {
+      // Only non-secret device/QR status rows may be watched. Reject legacy
+      // public OTP/token material regardless of the document's name.
+      allow read: if signedIn()
+        && resource.data.get('challenge_type', '') != 'email_2fa'
+        && !resource.data.keys().hasAny(['code_hash', 'code_salt'])
+        && !resource.data.get('metadata', {}).keys().hasAny(['code_hash', 'code_salt', 'custom_token', 'pending_session'])
+        && resource.data.user_id == uid();
+      allow create, update, delete: if false;
+    }
+    match /account_deletion_requests/{id}     { allow create: if willOwn('user_id'); allow read, update, delete: if isAdmin(); }
+    match /content_appeals/{id}               { allow create: if willOwn('user_id'); allow read: if isOwner('user_id') || isAdmin(); allow update, delete: if isAdmin(); }
+    match /content_flags/{id}                 { allow create: if willOwn('reporter_id'); allow read, update, delete: if isStaffModerator(); }
+    match /ad_campaigns/{id}                  { allow read: if signedIn(); allow write: if isOwner('owner_id') || willOwn('owner_id') || isAdmin(); }
+    match /ad_impressions/{id}                { allow create: if signedIn(); allow read: if isAdmin(); }
+    match /ad_daily_stats/{id}                { allow read: if isAdmin(); }
+    match /ad_credits/{id}                    { allow read: if isOwner('user_id') || isAdmin(); allow write: if isAdmin(); }
+    match /contact_hashes/{id}                { allow read, write: if isOwner('user_id') || willOwn('user_id'); }
+
+    // Vybe Check results — users read own; writes via Cloud Functions only
+    match /vybe_checks/{checkId} {
+      allow read: if signedIn() && resource.data.user_id == uid();
+      allow write: if false;
+    }
+
+    // Saved DM stickers — owner read/write
+    match /user_stickers/{stickerId} {
+      allow read: if signedIn() && ownsUserField('user_id');
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow delete: if signedIn() && ownsUserField('user_id');
+      allow update: if false;
+    }
+
+    // ---------- catch-all: deny by default ----------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    // Existing private birthday repair. Only the protected canonical owner can
+    // read or save; a raw UID alias, stale index or contradictory row cannot grant access.
+    function privateBirthdayOwner(profileId) {
+      let binding = get(/databases/$(database)/documents/_account_profile_bindings/$(request.auth.uid));
+      let profile = get(/databases/$(database)/documents/profiles/$(profileId));
+      let direct = get(/databases/$(database)/documents/profiles/$(request.auth.uid));
+      return binding != null && binding.data.get('version', 0) == 1
+        && binding.data.get('status', '') == 'active'
+        && binding.data.get('owner_uid', '') == request.auth.uid
+        && binding.data.get('profile_id', '') == profileId
+        && binding.data.get('auth_created_at_ms', 0) is int
+        && binding.data.get('auth_created_at_ms', 0) > 0
+        && binding.data.get('revision', '') is string
+        && binding.data.get('revision', '').matches('^[a-f0-9]{48}$')
+        && profile != null && profile.data.get('user_id', '') == request.auth.uid
+        && profile.data.get('is_deleted', false) == false
+        && profile.data.get('deleted_at', null) == null
+        && profile.data.get('is_banned', false) == false
+        && profile.data.get('deletion_requested_at', null) == null
+        && profile.data.get('scheduled_purge_at', null) == null
+        && (direct == null || direct.data.get('user_id', '') == request.auth.uid);
+    }
+    function privateBirthdayRowOwned(row, profileId) {
+      return row.get('id', profileId) == profileId
+        && row.get('profile_id', profileId) == profileId
+        && (row.get('user_id', null) == null || row.get('user_id', null) == request.auth.uid);
+    }
+    match /profile_private/{profileId} {
+      allow get: if request.auth != null && privateBirthdayOwner(profileId)
+        && (resource == null || privateBirthdayRowOwned(resource.data, profileId));
+      allow create, update: if request.auth != null && privateBirthdayOwner(profileId)
+        && (resource == null || privateBirthdayRowOwned(resource.data, profileId))
+        && request.resource.data.keys().hasOnly(['id', 'profile_id', 'user_id', 'date_of_birth', 'created_at', 'updated_at'])
+        && request.resource.data.id == profileId
+        && request.resource.data.profile_id == profileId
+        && request.resource.data.user_id == request.auth.uid
+        && request.resource.data.date_of_birth is string
+        && request.resource.data.date_of_birth.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && (resource == null || request.resource.data.get('created_at', null) == resource.data.get('created_at', null));
+      allow list, delete: if false;
+    }
+
+  }
+}
