@@ -1,8 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { db } from '@/lib/firebase';
 import { useUserRole } from '@/hooks/useModeration';
 import { useAuth } from '@/lib/auth';
-import { getPendingReportCount, reportAccountGuard } from '@/lib/reportModerationService';
+import { reportAccountGuard } from '@/lib/reportModerationService';
 import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 
 /**
@@ -22,17 +21,9 @@ export function usePendingModerationCount() {
     queryKey: ['pending-moderation-count', user?.id, session.epoch, userRole],
     queryFn: async () => {
       guard();
-      const [reports, flags, appeals, bugs] = await Promise.all([
-        getPendingReportCount(guard),
-        db.from('content_flags').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-        db.from('content_appeals').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-        db.from('bug_reports').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-      ]);
-
+      const { getPendingModerationCount } = await import('@/lib/moderationSummaryService');
+      const total = await getPendingModerationCount(guard);
       guard();
-      if (flags.error || appeals.error || bugs.error) throw new Error('The moderation count is unavailable.');
-      const total =
-        reports + (flags.count || 0) + (appeals.count || 0) + (bugs.count || 0);
       return total;
     },
     enabled: isStaff && !!user?.id && session.uid === user.id,

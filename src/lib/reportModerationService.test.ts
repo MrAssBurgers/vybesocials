@@ -1,3 +1,4 @@
+import { getPendingModerationCount, getPostDeletionHistory } from './moderationSummaryService';
 import { webcrypto } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,6 +16,28 @@ const source = { title: 'Example', description: 'Inspect me', category: 'tool', 
 function switchTo(uid: string | null) { state.uid = uid; state.listeners.forEach(listener => listener(uid ? { uid } : null)); }
 beforeEach(() => { vi.stubGlobal('crypto', webcrypto); sessionStorage.clear(); state.invoke.mockReset(); state.directWrite.mockReset(); switchTo('alice'); reportAccountSnapshot(); });
 afterEach(() => vi.unstubAllGlobals());
+
+describe('server-owned moderation summaries', () => {
+  it('requires an acknowledged, valid total instead of treating missing queues as zero', async () => {
+    for (const data of [{}, { pendingCount: -1, includesLegacy: true }, { pendingCount: 4, includesLegacy: false }]) {
+      state.invoke.mockResolvedValue({ data });
+      await expect(getPendingModerationCount()).rejects.toThrow('unavailable');
+    }
+    state.invoke.mockResolvedValue({ data: { pendingCount: 4, includesLegacy: true } });
+    expect(await getPendingModerationCount()).toBe(4);
+    expect(state.directWrite).not.toHaveBeenCalled();
+  });
+  it('accepts bounded deletion history and drops extra fields', async () => {
+    state.invoke.mockResolvedValue({ data: { entries: [{ id: 'entry', caption: 'Post', reason: 'Removed', created_at: '2026-10-01T00:00:00Z', private_token: 'hidden' }] } });
+    expect(JSON.stringify(await getPostDeletionHistory())).not.toContain('hidden');
+    state.invoke.mockResolvedValue({ data: { entries: Array.from({ length: 101 }, () => ({ id: 'entry' })) } });
+    await expect(getPostDeletionHistory()).rejects.toThrow('verified');
+  });
+  it('discards history returned after the active account changes', async () => {
+    state.invoke.mockImplementation(async () => { switchTo('bob'); return { data: { entries: [] } }; });
+    await expect(getPostDeletionHistory()).rejects.toMatchObject({ code: 'account-changed' });
+  });
+});
 
 describe('authenticated reporting request and retry boundary', () => {
   it('sends only target and reason fields; identity and review status never come from the caller', async () => {

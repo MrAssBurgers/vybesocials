@@ -290,5 +290,35 @@ try {
     assert.deepEqual((await db.doc(`_report_audit/${key}`).get()).data(), { version: 0, preserved: true });
   });
 
+  await check('moderation totals include every pending queue and deny nonstaff or revoked staff', async () => {
+    const reviewer = await staff('aggregate-reader');
+    for (const table of ['content_flags', 'content_appeals', 'bug_reports']) {
+      await db.doc(`${table}/pending-fixture`).set({ status: 'pending' });
+      await db.doc(`${table}/closed-fixture`).set({ status: 'dismissed' });
+    }
+    const reports = await call(reviewer.uid, { action: 'count' });
+    assert.deepEqual(await call(reviewer.uid, { action: 'moderationCount' }), { pendingCount: reports.pendingCount + 3, includesLegacy: true });
+    await assert.rejects(call(alice.uid, { action: 'moderationCount' }), { code: 'permission-denied' });
+    await assert.rejects(call(reviewer.uid, { action: 'moderationCount', userId: alice.uid }), { code: 'invalid-argument' });
+    await reviewer.grant.update({ enabled: false });
+    await assert.rejects(call(reviewer.uid, { action: 'moderationCount' }, { admin: true }), { code: 'permission-denied' });
+  });
+  await check('deletion history is bounded, newest first, strips private fields and requires current staff', async () => {
+    const reviewer = await staff('history-reader');
+    const batch = db.batch();
+    for (let i = 0; i < 105; i++) batch.set(db.doc(`post_deletion_log/history-${i}`), {
+      caption: 'Synthetic deleted post', reason: 'Synthetic fixture', created_at: new Date(i * 1000).toISOString(), private_token: 'must-not-leak', media_url: 'private-fixture',
+    });
+    await batch.commit();
+    const result = await call(reviewer.uid, { action: 'deletionHistory' });
+    assert.equal(result.entries.length, 100);
+    assert.equal(result.entries[0].id, 'history-104');
+    assert.equal(result.entries.at(-1).id, 'history-5');
+    assert.deepEqual(Object.keys(result.entries[0]).sort(), ['caption', 'created_at', 'id', 'reason']);
+    await assert.rejects(call(alice.uid, { action: 'deletionHistory' }), { code: 'permission-denied' });
+    await assert.rejects(call(reviewer.uid, { action: 'deletionHistory', limit: 1000 }), { code: 'invalid-argument' });
+    await reviewer.grant.update({ enabled: false });
+    await assert.rejects(call(reviewer.uid, { action: 'deletionHistory' }), { code: 'permission-denied' });
+  });
   console.log(`Report authority backend emulator: ${checks} checks passed (real Firestore transactions; no production or provider calls)`);
 } finally { await db.terminate(); }

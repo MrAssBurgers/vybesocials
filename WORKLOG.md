@@ -1,3 +1,19 @@
+## ACTIVE (2026-10-06) — Reports, challenge loading, reactive auth and existing hub recovery
+
+- User priority remains existing-feature stability and restored retained content before new features. Latest error attachment identified missing Reports callable and missing challenge activity index. The logs also contain historical development hot-reload errors; no current conditional-hook or myServers response-shape crash was reproduced in the reviewed source.
+- Deployed reportModeration; real account Reports queue now opens and shows the actual empty pending queue. Added verified server totals and bounded deletion-history read to replace incompatible raw browser paths. Private report source/evidence remains closed to all browser clients. Report slice ruleset d0745aa2-22ce-43e1-a88d-e867e0c3697e / SHA18f965…; source/resources and validation recorded in releases/content-recovery-20261006.
+- Added only missing indexes: 42 exact requirements READY, retained all existing indexes/TTLs. Independently exercised all seven live challenge source queries; no fabricated activity/rewards. Existing 15 posts, 5 hubs, 59 conversations and 984 messages remain stored in Firebase; counts alone do not certify read authority or restoration. Six designated legacy post images still respond from their legacy public host; Firebase migration remains outstanding.
+- Auth now emits soft bounded waves from focused/typed/tapped fields and while requests run; loads login code earlier. No fixed animation delay, credential inspection, OTP bypass or provider changes. Desktop and 390px signup checked; input stays usable and there is no horizontal overflow. Reduced-motion CSS disables wave effects. Screenshots saved in workspace outputs.
+- Restoring exact five missing community services with matched owner/admission Rules. Scoped community Rules passed 84 checks; seven real transaction backend groups passed, preserving legacy hub IDs/room history without adopting mutable old roles. Current community slice Rules are active (5eec6076-4d4e-470c-abb1-1cb01c8b6e75 / SHAe24d91…). All five community services were successfully deployed; live sidebar now lists the original owned hub. Verify detail/history reads before handoff.
+- Verification: full app suite 460 files/4,373 tests passed, six skipped; focused Reports client 69 passed; report Rules242/backend23 passed. Build budget passed after deferring moderation summary code; typecheck/lint passed (five existing warnings). functions build passed. Retained preview8082/emulators untouched; separate8387 QA remains isolated.
+
+Next 3 tasks:
+1. Complete this client checkpoint push/actual Lovable Publish; independently verify manifests on both production domains and real Reports/count/history and hub reads.
+2. Continue original DM access and guarded public-media Firebase restoration. Do not bulk grant private legacy membership or auto-publish older posts. Preserve original 3D map and existing account.
+3. Verify original phone cold launch/session persistence and auth email/provider timing; no all-features/perfection/readiness claim. SDK/mini-app expansion remains deferred.
+
+---
+
 # WORKLOG
 
 Use this file as the Lovable -> Cursor handoff each session.
@@ -9364,6 +9380,7 @@ All eight migration phases complete. See `.lovable/plan.md` for per-phase detail
 1. Run the iOS manual checklist above on an iPhone build and collect screenshots/recording for each auth flow.
 2. If iOS deep-link takeover is still flaky on QR camera scans, verify associated domains/Universal Link entitlement for `vybehub.app` in the native shell.
 3. Push to `origin/main`, then run Lovable Publish and production smoke test on `vybehub.app`.
+
 
 
 

@@ -110,7 +110,7 @@ export async function reportModerationRequest<T>(request: Record<string, unknown
     // a browser-written flag or report.
     throw Object.assign(new Error(result.error.message || 'Reporting is unavailable. Please try again.'), { code: result.error.code || result.error.name });
   }
-  if (!isRow(result.data) || (!['list', 'count', 'inspect'].includes(String(request.action)) && result.data.success !== true)) throw new Error('The report action was not confirmed. Please try again.');
+  if (!isRow(result.data) || (!['list', 'count', 'inspect', 'moderationCount', 'deletionHistory'].includes(String(request.action)) && result.data.success !== true)) throw new Error('The report action was not confirmed. Please try again.');
   return result.data as T;
 }
 

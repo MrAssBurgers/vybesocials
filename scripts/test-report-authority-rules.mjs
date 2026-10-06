@@ -15,7 +15,7 @@ const require = createRequire(path.resolve(process.env.FIREBASE_TEST_TOOLS_ROOT 
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@firebase/rules-unit-testing');
 const { doc, collection, setDoc, getDoc, getDocs, updateDoc, deleteDoc, query, where, serverTimestamp, Timestamp, writeBatch, setLogLevel } = require('firebase/firestore');
 setLogLevel('silent');
-const env = await initializeTestEnvironment({ projectId, firestore: { host, port, rules: await readFile(new URL('../firestore.rules', import.meta.url), 'utf8') } });
+const env = await initializeTestEnvironment({ projectId, firestore: { host, port, rules: await readFile(process.env.FIRESTORE_RULES_FILE || new URL('../firestore.rules', import.meta.url), 'utf8') } });
 const aliceUid = 'report-alice', bobUid = 'report-bob';
 const alice = env.authenticatedContext(aliceUid, { admin: false }).firestore();
 const bob = env.authenticatedContext(bobUid, { admin: false }).firestore();
@@ -64,6 +64,9 @@ try {
     }
   }
 
+  // A scoped Reports release does not include the separate creator-platform rules.
+  // Keep the full platform checks as the default; opt in explicitly for that slice.
+  if (!process.argv.includes('--report-slice-only')) {
   const id = 'held-app'; const draft = doc(alice, 'mini_app_drafts', id); const published = doc(alice, 'mini_apps', id);
   await denied('owner must create private drafts through checked admission', () => setDoc(draft, app()));
   await seed('mini_app_drafts', id, { ...app(), created_at: Timestamp.fromMillis(1), updated_at: Timestamp.fromMillis(1) });
@@ -123,6 +126,7 @@ try {
     await setDoc(doc(bob, 'mini_app_drafts', 'unrelated'), app(bobUid));
 
   });
+  }
   await allowed('ordinary profile editing remains available', () => updateDoc(doc(alice, 'profiles', 'report-alice-profile'), { bio: 'Unaffected profile edit' }));
   await denied('another account still cannot edit that profile', () => updateDoc(doc(bob, 'profiles', 'report-alice-profile'), { bio: 'Not owner' }));
   console.log(`Report authority rules: ${checks} checks passed`);

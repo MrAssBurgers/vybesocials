@@ -41,6 +41,31 @@ function mutationInput(input: Input) {
 /** All actor, target, receipt, hold and quota reads precede all writes. */
 export async function runReportModeration(database: Firestore, uid: string, input: Input, now = Date.now()): Promise<unknown> {
   const action = input.action;
+  if (action === 'moderationCount' || action === 'deletionHistory') {
+    assertReportFields(input, []);
+    await database.runTransaction(async tx => {
+      await reportStaff(tx, database, uid);
+      const writeQuota = await reportQuota(tx, database, uid, 'read', now);
+      writeQuota();
+    });
+    let result: unknown;
+    if (action === 'moderationCount') {
+      const counts = await Promise.all(['reports', 'content_flags', 'content_appeals', 'bug_reports'].map(async table =>
+        (await database.collection(table).where('status', '==', 'pending').count().get()).data().count));
+      result = { pendingCount: counts.reduce((total, count) => total + count, 0), includesLegacy: true };
+    } else {
+      const rows = await database.collection('post_deletion_log').orderBy('created_at', 'desc').limit(100).get();
+      result = { entries: rows.docs.map(doc => {
+        const row = doc.data();
+        return { id: doc.id, caption: typeof row.caption === 'string' ? row.caption.slice(0, 1000) : '',
+          reason: typeof row.reason === 'string' ? row.reason.slice(0, 1000) : '',
+          created_at: typeof row.created_at === 'string' ? row.created_at : null };
+      }) };
+    }
+    // A role revoked during the aggregate/history read must not expose the response.
+    await database.runTransaction(tx => reportStaff(tx, database, uid));
+    return result;
+  }
   if (action === 'list' || action === 'inspect' || action === 'count') {
     assertReportFields(input, action === 'list' ? ['cursor', 'limit', 'status'] : action === 'inspect' ? ['reportId'] : []);
     if (action === 'count') {

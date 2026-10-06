@@ -1,3 +1,4 @@
+import { AuthWaveSurface } from './AuthAtmosphere';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -421,6 +422,7 @@ export function LoginGateModal({
         onPointerDownOutside={(e) => { if (lockDismiss) e.preventDefault(); }}
         onInteractOutside={(e) => { if (lockDismiss) e.preventDefault(); }}
       >
+        <AuthWaveSurface busy={busy} className="auth-gate-wave">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {currentMode === 'code' && <Mail className="w-5 h-5 text-primary" />}
@@ -569,6 +571,7 @@ export function LoginGateModal({
 
           </div>
         )}
+        </AuthWaveSurface>
       </DialogContent>
     </Dialog>
   );

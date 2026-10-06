@@ -35,8 +35,31 @@
 .auth-submit-spark { width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: auth-spark-turn .9s linear infinite; }
 .auth-card-busy { box-shadow: 0 16px 48px -20px #0008, 0 0 32px -14px #36bfe866; }
 .auth-success-glow { background: radial-gradient(ellipse at 20% 50%, #8554f72b, transparent 65%), radial-gradient(ellipse at 90% 30%, #32cce02b, transparent 65%); }
+.auth-wave-surface { position: relative; isolation: isolate; width: 100%; }
+.auth-wave-field { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.auth-wave {
+  position: absolute; left: 50%; top: 52%; width: 150px; aspect-ratio: 1;
+  border-radius: 50%; border: 1px solid #71ddff70;
+  background: radial-gradient(circle, transparent 54%, #629fff12 66%, #81ddff35 69%, transparent 73%);
+  box-shadow: 0 0 24px #71c9ff12, inset 0 0 18px #a38aff16;
+  opacity: 0; transform: translate(-50%, -50%) scale(.2);
+  animation: auth-wave-out 1.65s cubic-bezier(.16,.55,.3,1) both;
+}
+.auth-wave-working { width: min(65vw, 270px); animation-duration: 2.4s; animation-iteration-count: infinite; }
+.auth-wave-surface[data-signup="true"] .auth-wave { border-color: #b19aff70; }
+.auth-wave-surface[data-busy="true"] { --auth-form-light: #69cfff; }
+.auth-wave-surface input:focus-visible { box-shadow: 0 0 20px -9px #6bd9ff80; transition: box-shadow .2s ease; }
+@keyframes auth-wave-out {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.25); }
+  15% { opacity: .75; }
+  65% { opacity: .22; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(3.6); }
+}
 @keyframes auth-light-drift { from { transform: translate3d(-4%, -6%, 0) scale(.94); } to { transform: translate3d(8%, 6%, 0) scale(1.08); } }
 @keyframes auth-spark-turn { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
-  .auth-light, .auth-submit-spark { animation: none; transition: none; }
+  .auth-light, .auth-submit-spark, .auth-wave { animation: none; transition: none; }
+  .auth-wave-field { display: none; }
 }
+
+.auth-gate-wave { display: grid; gap: 1rem; }

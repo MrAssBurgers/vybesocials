@@ -39,7 +39,7 @@ import { normalizeLoginEmail } from '@/lib/loginEmail';
 import { getLoginCredentialErrorMessage, isInvalidLoginCredentialError } from '@/lib/loginErrors';
 import { clearObsoleteAuthStorage, hasStoredAuthSession } from '@/lib/legacyAuthStorage';
 import { SessionRestoringScreen } from '@/components/auth/SessionRestoringScreen';
-import { AuthAtmosphere } from '@/components/auth/AuthAtmosphere';
+import { AuthAtmosphere, AuthWaveSurface } from '@/components/auth/AuthAtmosphere';
 import { VybeLiquidTouchOverlay } from '@/components/effects/VybeLiquidTouchOverlay';
 import { VybeLiquidText } from '@/components/ui/VybeLiquidText';
 import { useEmailVerificationPoll } from '@/hooks/useEmailVerificationPoll';
@@ -897,15 +897,19 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
   if (completingSignIn) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-background px-6" role="status" aria-live="polite">
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-background px-6 overflow-hidden" role="status" aria-live="polite">
+        <AuthAtmosphere busy signup={!isLogin} />
+        <div className="relative z-10 flex flex-col items-center gap-4">
         <div className="h-8 w-8 rounded-full border-[3px] border-primary/25 border-t-primary animate-spin" aria-hidden="true" />
-        <p className="text-sm text-muted-foreground text-center">Signing you in…</p>
+        <p className="text-sm text-muted-foreground text-center">Opening your Vybe…</p>
+        </div>
       </div>
     );
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     if (!isLogin && !agreedToTerms) {
       toast.error('Please agree to the Terms of Use and Privacy Policy to create an account.');
       return;
@@ -1114,6 +1118,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           The Social Platform for Real Connection
         </p>
 
+        <AuthWaveSurface busy={loading} signup={!isLogin}>
         <motion.div
           initial={{ opacity: 0, y: reducedAuthMotion ? 0 : 14 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1483,6 +1488,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
             </div>
           </div>
         </motion.div>
+        </AuthWaveSurface>
 
         <footer className="shrink-0 space-y-0.5 pt-0.5">
           <nav

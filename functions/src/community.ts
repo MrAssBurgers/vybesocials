@@ -6,7 +6,7 @@ import { admissionRef, channelAccess, communityAccess, communityActor, community
   communityRoles, ownsCommunity, permissionFields, rosterRef, validAdmission, writeAdmission, type CommunityActor, type Row } from './_shared/communityPolicy.js';
 import { conversationIdentity } from './_shared/conversationMembership.js';
 
-const options = { region: 'us-central1' as const, maxInstances: 10, concurrency: 20 };
+const options = { region: 'us-central1' as const, invoker: 'public' as const, maxInstances: 10, concurrency: 20 };
 const nowIso = () => new Date().toISOString();
 const textField = (value: unknown, max: number, required = false): string => {
   if (value == null && !required) return '';

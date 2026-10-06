@@ -1,8 +1,8 @@
+import { getPostDeletionHistory } from '@/lib/moderationSummaryService';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useReports } from '@/hooks/useModeration';
 import { useAuth } from '@/lib/auth';
-import { db } from '@/lib/firebase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -44,9 +44,9 @@ function ReportsForSession({ uid, epoch }: { uid?: string; epoch: number }) {
     queryKey: ['post-deletion-log', uid, epoch], enabled: !!uid, gcTime: 0, retry: false,
     queryFn: async () => {
       guard();
-      const { data, error } = await db.from('post_deletion_log').select('*').order('created_at', { ascending: false }).limit(100);
-      guard(); if (error) throw error;
-      return Array.isArray(data) ? data.filter(row => row && typeof row === 'object').slice(0, 100) : [];
+      const entries = await getPostDeletionHistory(guard);
+      guard();
+      return entries;
     },
   });
   const inspected = inspection.data;

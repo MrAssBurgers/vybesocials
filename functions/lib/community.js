@@ -3,7 +3,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db, enforceRateLimit, rateLimit, requireAuth } from './_shared/admin.js';
 import { admissionRef, channelAccess, communityAccess, communityActor, communityId, communityRoles, ownsCommunity, permissionFields, rosterRef, validAdmission, writeAdmission } from './_shared/communityPolicy.js';
 import { conversationIdentity } from './_shared/conversationMembership.js';
-const options = { region: 'us-central1', maxInstances: 10, concurrency: 20 };
+const options = { region: 'us-central1', invoker: 'public', maxInstances: 10, concurrency: 20 };
 const nowIso = () => new Date().toISOString();
 const textField = (value, max, required = false) => {
     if (value == null && !required)

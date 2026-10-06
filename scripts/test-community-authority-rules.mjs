@@ -10,7 +10,9 @@ const require = createRequire(path.resolve(process.env.FIREBASE_TEST_TOOLS_ROOT 
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@firebase/rules-unit-testing');
 const { doc, setDoc, getDoc, getDocs, collection, query, where, updateDoc, deleteDoc } = require('firebase/firestore');
 const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
-const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile('firestore.rules', 'utf8') } });
+assert.notEqual(Number(port), 8280, 'Do not use the retained interactive preview');
+assert.notEqual(projectId, 'demo-vybe-preview', 'Use an isolated QA project');
+const env = await initializeTestEnvironment({ projectId, firestore: { host, port: Number(port), rules: await readFile(process.env.FIRESTORE_RULES_FILE || 'firestore.rules', 'utf8') } });
 let checks = 0;
 const yes = async (label, action) => { await assertSucceeds(action()); checks++; console.log(`PASS ${label}`); };
 const no = async (label, action) => { await assertFails(action()); checks++; console.log(`PASS ${label}`); };
