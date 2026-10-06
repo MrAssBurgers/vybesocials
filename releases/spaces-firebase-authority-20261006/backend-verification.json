@@ -1,0 +1,120 @@
+{
+  "testedMain": "2fa2b2a19dcb3f9836536763530842ec1fd98a1d",
+  "deploymentId": "b2afcaa2-1181-4b4a-acc2-1edfd02b541a",
+  "services": [
+    {
+      "name": "manageSpaces",
+      "state": "ACTIVE",
+      "updated": "2026-10-06T13:52:39.230107162Z",
+      "runtime": "nodejs20",
+      "revision": "managespaces-00001-bor"
+    },
+    {
+      "name": "spacesToken",
+      "state": "ACTIVE",
+      "updated": "2026-10-06T13:52:41.953724742Z",
+      "runtime": "nodejs20",
+      "revision": "spacestoken-00003-yig"
+    },
+    {
+      "name": "processSpaceAudioEffect",
+      "state": "ACTIVE",
+      "updated": "2026-10-06T13:52:52.978687901Z",
+      "runtime": "nodejs20",
+      "revision": "processspaceaudioeffect-00001-daq",
+      "retry": "RETRY_POLICY_RETRY",
+      "document": "_space_audio_effects/{effectId}"
+    }
+  ],
+  "guestChecks": [
+    {
+      "name": "manageSpaces",
+      "status": 401,
+      "code": "UNAUTHENTICATED"
+    },
+    {
+      "name": "spacesToken",
+      "status": 401,
+      "code": "UNAUTHENTICATED"
+    }
+  ],
+  "invocationPolicy": [
+    {
+      "name": "manageSpaces",
+      "publicInvoker": true,
+      "invokerCount": 1
+    },
+    {
+      "name": "spacesToken",
+      "publicInvoker": true,
+      "invokerCount": 1
+    },
+    {
+      "name": "processSpaceAudioEffect",
+      "publicInvoker": false,
+      "invokerCount": 0
+    }
+  ],
+  "eventSmoke": {
+    "project": "vybe-daaab",
+    "spaceId": "d9c50e9f7f61308638f7613d669e28411782d94da82cf446b0d4a0e520226628",
+    "effectId": "9705a8677218e3ed76f5ecb4132d37906d857267dfbfe130b6319f523ce18c16",
+    "revision": "processspaceaudioeffect-00001-daq",
+    "productionUserWrites": false,
+    "systemTest": true,
+    "eventDelivered": true,
+    "providerAbsent": true,
+    "authorityRemoved": true,
+    "completedReceiptRetained": true
+  },
+  "publicSource": [
+    {
+      "host": "https://vybehub.app",
+      "resolvedOrigin": "https://vybehub.app",
+      "redirected": false,
+      "routes": [
+        "/",
+        "/home",
+        "/map",
+        "/clips",
+        "/onboarding",
+        "/spaces",
+        "/space/qa-route-check"
+      ],
+      "sourceSha": "9a5d9b2757e9cca5f7e47005a02914c78835d3a24f559c90d19557de0ebf30c0",
+      "schema": "vybe-client-source-v2",
+      "files": 2578,
+      "built": "2026-10-06T13:51:27.452Z",
+      "entry": "/assets/app-C2tlHsol.js",
+      "entrySha": "ab6577f994839e661f813024e2735d88aa741c2a3b61dc04166ee988d4ccf8c7"
+    },
+    {
+      "host": "https://vybesocials.lovable.app",
+      "resolvedOrigin": "https://vybehub.app",
+      "redirected": true,
+      "routes": [
+        "/",
+        "/home",
+        "/map",
+        "/clips",
+        "/onboarding",
+        "/spaces",
+        "/space/qa-route-check"
+      ],
+      "sourceSha": "9a5d9b2757e9cca5f7e47005a02914c78835d3a24f559c90d19557de0ebf30c0",
+      "schema": "vybe-client-source-v2",
+      "files": 2578,
+      "built": "2026-10-06T13:51:27.452Z",
+      "entry": "/assets/app-C2tlHsol.js",
+      "entrySha": "ab6577f994839e661f813024e2735d88aa741c2a3b61dc04166ee988d4ccf8c7"
+    }
+  ],
+  "publisherProof": "outputs/vybe-spaces-published.png",
+  "publisherObserved": "Published; Your website is up to date",
+  "limits": [
+    "No physical-phone GPS, Clips FPS or codec validation",
+    "No real user microphone delivery or old JWT reconnect verification",
+    "Historical content ownership restoration remains incomplete",
+    "Node 20 runtime upgrade remains required before the deployment deadline"
+  ]
+}

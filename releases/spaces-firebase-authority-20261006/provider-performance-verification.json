@@ -36,7 +36,7 @@
   },
   "limits": [
     "No production latency or Firestore read-cost certification",
-    "No real microphone/media delivery or old JWT reconnect check",
-    "Deployed Eventarc delivery not yet tested"
-  ]
+    "No real microphone/media delivery or old JWT reconnect check"
+  ],
+  "deployedEventDelivery": "backend-verification.json"
 }
