@@ -1,0 +1,151 @@
+{
+  "target": "projects/vybe-daaab/locations/us-central1/functions/manageLocationSharing",
+  "source": {
+    "target": "projects/vybe-daaab/locations/us-central1/functions/manageLocationSharing",
+    "state": "ACTIVE",
+    "publishedSourceSha256": "613868922fccbf8e37a8b1f5cae5aa585748979d029fa7c291f6b3cc7aba4a29",
+    "files": 483,
+    "onlyChangedFile": "package-lock.json",
+    "onlyDependencyChange": "proxy-addr 2.0.7 to 2.0.8",
+    "otherArchiveFilesByteIdentical": 482
+  },
+  "metadata": {
+    "target": "projects/vybe-daaab/locations/us-central1/functions/manageLocationSharing",
+    "state": "ACTIVE",
+    "updated": "2026-10-06T19:51:25.286121557Z",
+    "runtime": "nodejs20",
+    "entryPoint": "manageLocationSharing",
+    "build": "projects/728651793473/locations/us-central1/builds/d03bcf2e-4b31-44bc-9c39-bd95e86ab3d4",
+    "source": {
+      "bucket": "gcf-v2-sources-728651793473-us-central1",
+      "object": "manageLocationSharing/function-source.zip",
+      "generation": "1791316220392235"
+    },
+    "sourceBytes": 1325847,
+    "sourceSha256": "613868922fccbf8e37a8b1f5cae5aa585748979d029fa7c291f6b3cc7aba4a29",
+    "readOnly": true
+  },
+  "revision": {
+    "name": "projects/vybe-daaab/locations/us-central1/functions/manageLocationSharing",
+    "state": "ACTIVE",
+    "updated": "2026-10-06T19:51:25.286121557Z",
+    "beforeRevision": "managelocationsharing-00001-bos",
+    "afterRevision": "managelocationsharing-00005-xaf",
+    "runtime": "nodejs20",
+    "entryPoint": "manageLocationSharing",
+    "oldRevisionConfigurationHash": "805ffe09874cedf36fdfc4fc435269a7ae2a64af1ef1f5db76276000a0b33482",
+    "newRevisionConfigurationHash": "805ffe09874cedf36fdfc4fc435269a7ae2a64af1ef1f5db76276000a0b33482",
+    "configurationDifferences": [],
+    "buildEnvironmentUnchanged": true,
+    "secretBindingsUnchanged": true,
+    "serviceConfigKeys": [
+      "service",
+      "timeoutSeconds",
+      "environmentVariables",
+      "maxInstanceCount",
+      "ingressSettings",
+      "uri",
+      "serviceAccountEmail",
+      "availableMemory",
+      "allTrafficOnLatestRevision",
+      "revision",
+      "maxInstanceRequestConcurrency",
+      "availableCpu"
+    ],
+    "imageChanged": true,
+    "currentResources": {
+      "memory": "256Mi",
+      "cpu": "1",
+      "maxInstances": 100,
+      "concurrency": 80,
+      "timeoutSeconds": 60,
+      "ingress": "ALLOW_ALL"
+    },
+    "scalingAfter": {
+      "maxInstanceCount": 100
+    },
+    "scalingNormalization": {
+      "unsetRevisionMaximum": 100,
+      "unsetRevisionMinimum": 0,
+      "source": "https://docs.cloud.google.com/run/docs/configuring/max-instances"
+    },
+    "excludedBuildMetadata": [
+      "container.image",
+      "container.buildInfo"
+    ],
+    "containerDifferences": [
+      {
+        "keys": [
+          "buildInfo"
+        ],
+        "envChanges": []
+      }
+    ]
+  },
+  "boundaryBefore": {
+    "checkedAt": "2026-10-06T19:37:15.661Z",
+    "httpStatus": 401,
+    "callableStatus": "UNAUTHENTICATED",
+    "authenticated": false,
+    "emptyPayload": true,
+    "locationDataSubmitted": false
+  },
+  "boundaryAfter": {
+    "checkedAt": "2026-10-06T19:52:05.111Z",
+    "httpStatus": 401,
+    "callableStatus": "UNAUTHENTICATED",
+    "authenticated": false,
+    "emptyPayload": true,
+    "locationDataSubmitted": false
+  },
+  "installedStageRegression": {
+    "version": "2.0.8",
+    "assertions": 8,
+    "malformedMappedSubnetSpoofRejected": true,
+    "correctMappedAndPlainSubnetsPreserved": true
+  },
+  "advisory": "https://github.com/jshttp/proxy-addr/security/advisories/GHSA-jqcg-44mw-7w3h",
+  "scaling": {
+    "previousUnsetMaximumEffectiveDefault": 100,
+    "cliIntroducedMaximum": 20,
+    "clearWithOmittedOrZeroFieldDidNotRemoveMaximum": true,
+    "finalExplicitMaximum": 100,
+    "finalOperation": "projects/vybe-daaab/locations/us-central1/operations/operation-1791316219572-65d314ef2b0ef-3b7f9a3d-493de89f",
+    "operationDone": true,
+    "reference": "https://docs.cloud.google.com/run/docs/configuring/max-instances"
+  },
+  "deployment": {
+    "namedTargetOnly": true,
+    "successful": true,
+    "initialTerminalAttempts": 3,
+    "initialFailure": "Firestore metadata ETIMEDOUT before upload",
+    "successfulAttemptUsedProcessDnsOrder": "ipv4first",
+    "systemOrAppNetworkSettingChanged": false
+  },
+  "backendInventory": {
+    "checkedAt": "2026-10-06T19:52:23.092Z",
+    "functions": 233,
+    "runtimes": {
+      "nodejs20": 233
+    },
+    "states": {
+      "ACTIVE": 233
+    },
+    "allPagesRead": true,
+    "otherFunctionsUnchanged": 232
+  },
+  "runtimeReadiness": {
+    "node20Decommission": "2026-10-30",
+    "node22Decommission": "2027-10-31",
+    "migrationDone": false,
+    "reference": "https://docs.cloud.google.com/functions/docs/runtime-support"
+  },
+  "limits": [
+    "Only manageLocationSharing dependency lock patched; other functions and dependency advisories remain open",
+    "Raw GCF configuration fingerprint differs because prior default scaling is now represented explicitly; compared Run runtime settings match after documented default normalization",
+    "New image and generated container buildInfo are excluded from runtime policy comparison; exact source archive is independently checked",
+    "No actual production exploitation or matching vulnerable trust-subnet configuration demonstrated",
+    "No user location/account/content mutation or phone GPS/codec/performance proof",
+    "No Rules/client/provider/OS permission/native binary/runtime upgrade"
+  ]
+}
