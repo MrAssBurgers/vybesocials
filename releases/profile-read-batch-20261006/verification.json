@@ -1,0 +1,79 @@
+{
+  "sourceCommit": "313df1ef3010c30e3229ae1e297ef9cf376b73ff",
+  "target": "ensureAccountProfile",
+  "project": "vybe-daaab",
+  "deploySucceeded": true,
+  "original": {
+    "target": "projects/vybe-daaab/locations/us-central1/functions/ensureAccountProfile",
+    "state": "ACTIVE",
+    "updated": "2026-10-05T19:41:42.984863209Z",
+    "runtime": "nodejs20",
+    "entryPoint": "ensureAccountProfile",
+    "build": "projects/728651793473/locations/us-central1/builds/28869ca6-3919-4f5c-bb14-31ef2d821802",
+    "source": {
+      "bucket": "gcf-v2-sources-728651793473-us-central1",
+      "object": "ensureAccountProfile/function-source.zip",
+      "generation": "1791229208528148"
+    },
+    "sourceBytes": 1324249,
+    "sourceSha256": "7f928a882f9108dfe5dea827a67a2da5160b583dfaba6038cff7511dc601bbef",
+    "readOnly": true
+  },
+  "published": {
+    "target": "projects/vybe-daaab/locations/us-central1/functions/ensureAccountProfile",
+    "state": "ACTIVE",
+    "updated": "2026-10-06T18:29:43.549536339Z",
+    "runtime": "nodejs20",
+    "entryPoint": "ensureAccountProfile",
+    "build": "projects/728651793473/locations/us-central1/builds/27bc6193-86e1-4e16-8d8d-fad1b2c7b509",
+    "source": {
+      "bucket": "gcf-v2-sources-728651793473-us-central1",
+      "object": "ensureAccountProfile/function-source.zip",
+      "generation": "1791311307937165"
+    },
+    "sourceBytes": 1324394,
+    "sourceSha256": "6a59b87aab3e9877ce729f18c11a921d9094a2895ea33e2e18b04492b6fba71b",
+    "readOnly": true
+  },
+  "stage": {
+    "target": "ensureAccountProfile",
+    "originalSourceSha256": "7f928a882f9108dfe5dea827a67a2da5160b583dfaba6038cff7511dc601bbef",
+    "originalFiles": 483,
+    "changedFiles": [
+      "lib/_shared/accountProfileAuthority.js",
+      "lib/_shared/accountProfileAuthority.js.map",
+      "src/_shared/accountProfileAuthority.ts"
+    ],
+    "changedSha256": {
+      "lib/_shared/accountProfileAuthority.js": "3290a8d39e1c45dc1b42369e01baecc4561487c58ac68695c0aaf496f578f538",
+      "lib/_shared/accountProfileAuthority.js.map": "e944311cb9efd6eb3118814e0cd4711c0d14c56cc11db9bb8c72542019e19695",
+      "src/_shared/accountProfileAuthority.ts": "16e1dd939c7b90ab0c6ed93c80c7bfaaa2a4ff993f094f7e0c55b7de16de9d04"
+    },
+    "otherOriginalFilesIdentical": true,
+    "dependenciesUnchanged": true
+  },
+  "actualUploadedFilesMatchStage": true,
+  "onlyIntendedThreeFilesChanged": true,
+  "authorityChecks": 18,
+  "rulesChecks": 34,
+  "newPerformanceChecks": 2,
+  "initialDocumentRequestsBefore": 5,
+  "initialDocumentRequestsAfter": 1,
+  "initialDocumentsRead": 5,
+  "authChecksRetained": 2,
+  "clientTestsPassed": 4798,
+  "clientTestsSkipped": 6,
+  "liveSignedInReload": {
+    "route": "/profile",
+    "profileControlsDisplayed": true,
+    "profileAlert": false,
+    "postRefreshError": false,
+    "imagesLoadedAtFirstCheck": 2,
+    "recentConsoleErrors": 0,
+    "entryStillOlder": true
+  },
+  "physicalPhoneVerified": false,
+  "instantLoadingClaim": false,
+  "otherServicesDeployed": false,
+  "dependenciesChanged": false
+}
