@@ -1,28 +1,37 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useInfiniteQuery, type InfiniteData } from '@tanstack/react-query';
 import { readSocialPostList, type SocialPostSelection } from '@/lib/socialPostListService';
 import { usePostReadView } from './usePostReadView';
 import type { Post } from './useInfinitePosts';
 import { usePostReadWindow } from './usePostReadWindow';
 import { usePostReadRecovery } from './usePostReadRecovery';
 import { withPostReadDeadline } from '@/lib/postReadDeadline';
+import { readAdmittedPage, writeAdmittedPage } from '@/lib/admittedReadCache';
 
 export function useSocialPostList(selection: SocialPostSelection, enabled = true, options?: { includeCommentCounts?: boolean }) {
   const view = usePostReadView(enabled), { account } = view;
   const window = usePostReadWindow(JSON.stringify([selection, ...view.key]));
   const recovery = usePostReadRecovery(JSON.stringify([selection, ...view.key, window.cursor]), view.guard);
+  const cacheKey = JSON.stringify(['social-post-list', account.session.uid, account.session.epoch, account.profile?.id, selection, window.cursor]);
+  const admitted = view.active ? readAdmittedPage<InfiniteData<Awaited<ReturnType<typeof readSocialPostList>>>>(cacheKey) : undefined;
   const query = useInfiniteQuery({
     placeholderData: undefined,
     queryKey: ['social-post-list', selection, ...view.key, window.cursor], enabled: view.active,
-    initialPageParam: window.cursor, gcTime: 0, staleTime: 0, retry: recovery.retry, retryDelay: recovery.retryDelay,
-    refetchInterval: 20000, refetchOnMount: 'always', refetchOnWindowFocus: 'always',
+    initialPageParam: window.cursor, initialData: admitted?.data, initialDataUpdatedAt: admitted?.savedAt,
+    gcTime: 0, staleTime: 12_000, retry: recovery.retry, retryDelay: recovery.retryDelay,
+    refetchInterval: 20000, refetchOnMount: 'always', refetchOnWindowFocus: false,
     queryFn: ({ pageParam, signal }) => {
       recovery.beforeRead(signal);
       return withPostReadDeadline(current => readSocialPostList({ ...selection, expectedOwnerUid: account.user!.id, expectedProfileId: account.profile!.id,
-        ...(pageParam ? { cursor: pageParam } : {}) }, current, options?.includeCommentCounts !== false), () => recovery.guard(signal), signal);
+        ...(typeof pageParam === 'string' ? { cursor: pageParam } : {}) }, current, options?.includeCommentCounts === true), () => recovery.guard(signal), signal);
     },
     getNextPageParam: (last, pages, _param, params) => pages.length < 4 && last.nextCursor && !params.includes(last.nextCursor) ? last.nextCursor : undefined,
   });
   view.observeLeases(query.data?.pages.map(page => page.leaseUntil) ?? []);
+  useEffect(() => {
+    const leaseUntil = query.data?.pages.reduce((soonest, page) => Math.min(soonest, page.leaseUntil), Number.POSITIVE_INFINITY);
+    if (query.isSuccess && leaseUntil && Number.isFinite(leaseUntil)) writeAdmittedPage(cacheKey, query.data, leaseUntil);
+  }, [cacheKey, query.data, query.isSuccess]);
   const expired = view.leaseExpired;
   const available = view.active && !query.isPlaceholderData && !query.isError && !expired;
   const posts = new Map<string, Post>(), unavailable = new Set<string>();

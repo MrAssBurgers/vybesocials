@@ -38,6 +38,13 @@ export function checkedEmailChallenge(value: unknown, expectedId?: string, expec
   return { challengeId: row.challengeId, expiresAt: row.expiresAt };
 }
 
+/** A real issued code still gates sign-in. `{ok:true}` with no challengeId is the
+ * deployed acknowledgement that no code was sent, so password sign-in continues. */
+export function emailChallengeWasNotIssued(value: unknown): boolean {
+  const row = value as Record<string, unknown> | null;
+  return !!row && row.ok === true && row.challengeId == null;
+}
+
 /** Never continue an enabled email check after a failed or incomplete receipt. */
 export async function beginEmailConfirmation(uid: string, guard = tokenAccountGuard(uid)) {
   guard();
@@ -48,5 +55,6 @@ export async function beginEmailConfirmation(uid: string, guard = tokenAccountGu
   const result = await invokeFunction('auth-2fa-request', { expectedOwnerUid: uid });
   guard();
   if (result.error) throw new Error('Email confirmation is unavailable. Please try signing in again.');
+  if (emailChallengeWasNotIssued(result.data)) return null;
   return checkedEmailChallenge(result.data, undefined, uid);
 }

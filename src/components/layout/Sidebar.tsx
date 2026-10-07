@@ -1,4 +1,4 @@
-import { Home, Film, PlusCircle, Compass, Bell, Settings, LogOut, MessageCircle, Shield, Crown, Wallet, ShoppingBag, Dna, Radio } from 'lucide-react';
+import { Home, Film, PlusCircle, Compass, Bell, Settings, LogOut, MessageCircle, Shield, Crown, Wallet, ShoppingBag, Dna, Radio, Blocks } from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -105,6 +105,7 @@ export function Sidebar() {
             { icon: ShoppingBag, label: 'Shop', path: '/marketplace' },
             { icon: Dna, label: 'VYBE DNA', path: '/vybe-dna' },
             { icon: Radio, label: 'Communities', path: '/community' },
+            { icon: Blocks, label: 'Apps', path: '/mini-apps' },
           ].map(item => {
             const isActive = location.pathname === item.path;
             return (

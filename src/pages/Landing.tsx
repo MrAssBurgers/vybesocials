@@ -942,6 +942,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
   const footerLinks = [
     { href: '/features', label: 'Features' },
+    { href: '/mini-apps', label: 'Apps' },
     { href: '/safety', label: 'Safety' },
     { href: '/faq', label: 'FAQ' },
     { href: '/blog', label: 'Blog' },

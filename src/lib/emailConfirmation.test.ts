@@ -15,7 +15,13 @@ it('does not bypass a settings read or provider failure', async () => {
   mock.invoke.mockResolvedValue({ data: null, error: { code: 'unavailable' } });
   await expect(beginEmailConfirmation('alice')).rejects.toThrow('unavailable');
 });
-it.each([{ ok: true }, {}, { ok: false }, { ok: true, challengeId: 'alice', expiresAt: 'bad' }, { ok: true, challengeId: 'alice', expiresAt: new Date(0).toISOString() }])('rejects an incomplete/expired challenge: %j', async data => {
+it('continues when the deployed check acknowledges the account without issuing a code', async () => {
+  mock.invoke.mockResolvedValue({ data: { ok: true }, error: null });
+  expect(await beginEmailConfirmation('alice')).toBeNull();
+  mock.invoke.mockResolvedValue({ data: { ok: true, ownerUid: 'alice' }, error: null });
+  expect(await beginEmailConfirmation('alice')).toBeNull();
+});
+it.each([{}, { ok: false }, { ok: true, challengeId: 'alice', expiresAt: 'bad' }, { ok: true, challengeId: 'alice', expiresAt: new Date(0).toISOString() }])('rejects an incomplete/expired challenge: %j', async data => {
   mock.invoke.mockResolvedValue({ data, error: null });
   await expect(beginEmailConfirmation('alice')).rejects.toMatchObject({ code: 'auth/confirmation-unavailable', message: expect.stringContaining('still requires a code') });
 });

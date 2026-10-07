@@ -26,5 +26,7 @@ describe('mini app persistence boundary', () => {
     expect(miniAppError(denied, 'publish')).toContain('keep saving and previewing your private draft');
     expect(miniAppError(denied)).toContain('not available for your account');
     expect(miniAppError(new Error('Connection lost'), 'publish')).toBe('Connection lost');
+    expect(miniAppError({ code: 'internal', message: 'INTERNAL' }, 'publish')).toContain('not available right now');
+    expect(miniAppError({ code: 'not-found', message: 'NOT_FOUND' }, 'publish')).toContain('private draft is still saved');
   });
 });

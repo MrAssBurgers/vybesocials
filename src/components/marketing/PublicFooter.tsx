@@ -17,6 +17,7 @@ export function PublicFooter() {
           <h3 className="font-semibold text-foreground mb-3">Product</h3>
           <ul className="space-y-2">
             <li><Link to="/features" className="hover:text-primary">Features</Link></li>
+            <li><Link to="/mini-apps" className="hover:text-primary">Community apps</Link></li>
             <li><Link to="/developers" className="hover:text-primary">Build with VYBE</Link></li>
             <li><Link to="/safety" className="hover:text-primary">Safety</Link></li>
             <li><Link to="/faq" className="hover:text-primary">FAQ</Link></li>

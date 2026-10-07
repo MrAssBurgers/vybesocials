@@ -552,12 +552,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           current();
           // The modal owns clearing its pending gate after this entire guarded
           // completion. Clearing it here would unmount a switched-to-email view.
-          const result = await notifyFreshLogin(method, current, confirmation?.emailChallengeId, true);
-          current();
-          if (result.requiresApproval) {
+          // Device registration's guard must outlive this deadline: password
+          // sign-in hydrates as soon as the profile is confirmed, and a slow
+          // authLoginNotify (geo lookup, often several seconds) must not hold
+          // the Fold on "Opening your Vybe" or trip the 20s sign-out.
+          const deviceGuard = () => { attempt.guard(); };
+          const notifyTask = notifyFreshLogin(method, deviceGuard, confirmation?.emailChallengeId, true);
+          const approvalGate = (result: Awaited<ReturnType<typeof notifyFreshLogin>>): ApplySessionResult | null => {
+            if (!result.requiresApproval || !result.challengeId) return null;
             if (!needsConfirmation) throw new Error('This sign-in has not been confirmed. Please sign in again.');
             return { requiresApproval: true, challengeId: result.challengeId, expiresAt: result.expiresAt, deviceLabel: result.deviceLabel, geo: result.geo };
+          };
+          if (!needsConfirmation) {
+            const result = await notifyTask;
+            current();
+            return approvalGate(result);
           }
+          void notifyTask.then(result => {
+            if (!attempt.isCurrent()) return;
+            if (result?.requiresApproval && result.challengeId) void softSignOutForLoginApproval(attempt);
+          }).catch(() => { /* Session tracking retries registration. A real challenge still signs out above. */ });
           return null;
         });
       },

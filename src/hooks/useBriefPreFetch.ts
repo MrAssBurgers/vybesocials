@@ -95,8 +95,9 @@ export function useBriefPreFetch(userId?: string) {
     if (!userId || started.current) return;
     started.current = true;
 
-    // Kick off IMMEDIATELY so the Daily Brief is warm by the time the user taps it.
-    prefetchBrief(userId);
+    // The brief is secondary. Starting it during password sign-in competed with
+    // device registration and the first feed read on a phone connection.
+    const kickoff = window.setTimeout(() => { void prefetchBrief(userId); }, 8000);
 
     // Schedule regeneration at the next slot boundary (6 AM / 12 PM / 6 PM local).
     // When a slot fires, force a fresh generation and alert the user.
@@ -115,6 +116,6 @@ export function useBriefPreFetch(userId?: string) {
     };
     scheduleNext();
 
-    return () => { clearTimeout(timeoutId); };
+    return () => { clearTimeout(kickoff); clearTimeout(timeoutId); };
   }, [userId]);
 }

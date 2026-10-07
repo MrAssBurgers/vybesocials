@@ -1,3 +1,26 @@
+## ACTIVE (2026-10-07) - Phone sign-in, first paint, community apps
+
+### What changed
+- Password sign-in reached the account, then waited on `authLoginNotify` before leaving the login screen. On this network that call took about 8 seconds. The whole check has a 20 second deadline, so a slower phone can be signed back out. Profile confirmation still finishes first. Password and OAuth sign-in now open the app when the profile is confirmed, and device registration finishes in the background. A real `challengeId` still opens the gate and signs out. Email-code completion still waits for its receipt. If production `auth2faRequest` returns `{ok:true}` without a `challengeId`, sign-in continues. A real issued code still blocks.
+- In-flight `ensureAccountProfile` calls for the same account share one request. The daily brief waits 8 seconds so it does not compete with sign-in. Home and post lists keep the last admitted page while its lease is valid, and a window focus no longer refetches them. Profile, saved, and search lists paint from the admitted list without a second comment-count round trip. Avatars no longer sign the same picture twice.
+- Publishing a mini app counted live apps with `owner_id` plus `status`. That pair has no composite index, so the callable threw and the studio showed an internal error. The count now uses the automatic `owner_id` index. A bare internal or not-found publish failure tells the member the private draft is still saved. `publishMiniApp` was not deployed.
+- The community app directory (`/mini-apps`) is linked from the website header, the marketing footer, the login footer, and the signed-in sidebar.
+
+### Verification
+- `npm run test`: 514 files passed, 1 skipped; 5097 passed, 6 skipped.
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. ESLint on the edited files passed. `npm run build` passed. Generated `public/version.json` and `public/despia/local.json` restored.
+- Chrome 475×751 with a Fold user agent. Password sign-in left `/login` in 1.2s and opened Home. No “Enter your code”. The feed request started at 2.1s. Before this change the device-registration call alone took about 8s and the shell waited on it. This was desktop Chrome, not a physical phone. No posts, messages, follows, or settings writes. Crash-consent buttons were not clicked.
+
+### Blockers
+- `authLoginNotify` is still slow on the server. Do not deploy `auth2faRequest`.
+- The `publishMiniApp` fix is local until a later targeted deploy of that function only.
+- `vybehub.app` needs Lovable → Share → Publish.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then force-close VYBE on the phone.
+2. Deploy `publishMiniApp` only, after review. Do not deploy `auth2faRequest`.
+3. Recheck sign-in and the Apps link on the physical Fold.
+
 ## ACTIVE (2026-10-07) - Profile grid paint and phone home scroll
 
 ### What changed

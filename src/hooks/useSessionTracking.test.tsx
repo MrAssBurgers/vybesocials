@@ -61,7 +61,13 @@ describe('checked device sign-in and current revocation', () => {
     pending.resolve({ data: response({ confirmedEmailChallengeId: 'email-challenge' }), error: null }); await rejected;
     expect(state.clearGate).not.toHaveBeenCalled(); expect(localStorage.getItem('vybe-app-session-id-alice-device-one')).toBeNull();
   });
-  it.each([{ ownerUid: 'bob' }, { authTime: 1 }, { accountCreatedAt: 1 }, { profileId: null }, { requiresApproval: true }, { trackingDeferred: true }])('rejects an incomplete or mismatched receipt %j', async patch => {
+  it('continues when device registration acknowledges approval without issuing a challenge', async () => {
+    state.invoke.mockResolvedValue({ data: response({ requiresApproval: true }), error: null });
+    const signIn = await captureDeviceSignIn('alice');
+    await expect(registerCurrentDevice(signIn, 'device-one', 'password')).resolves.toMatchObject({ requiresApproval: false, challengeId: undefined, sessionId: 'fresh-device-generation' });
+    expect(state.setGate).not.toHaveBeenCalled();
+  });
+  it.each([{ ownerUid: 'bob' }, { authTime: 1 }, { accountCreatedAt: 1 }, { profileId: null }, { requiresApproval: true, challengeId: 'challenge-one' }, { trackingDeferred: true }])('rejects an incomplete or mismatched receipt %j', async patch => {
     state.invoke.mockResolvedValue({ data: response(patch), error: null });
     const signIn = await captureDeviceSignIn('alice');
     await expect(registerCurrentDevice(signIn, 'device-one', 'password')).rejects.toThrow('not confirmed');

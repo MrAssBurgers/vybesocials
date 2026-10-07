@@ -64,9 +64,9 @@ export async function notifyFreshLogin(method: string, guard: () => void = () =>
   const payload = await registerCurrentDevice(signIn, device, method, undefined, expectedEmailChallengeId);
   signIn.guard(); rememberCurrentSessionHash(signIn.uid, device);
   if (payload.sessionId) rememberId(signIn.uid, device, payload.sessionId);
-  if (payload.requiresApproval) {
-    rememberSelfLoginChallenge(signIn.uid, payload.challengeId!);
-    setPendingLoginApproval({ challengeId: payload.challengeId!, expiresAt: payload.expiresAt, email: signIn.user.email || undefined,
+  if (payload.requiresApproval && payload.challengeId) {
+    rememberSelfLoginChallenge(signIn.uid, payload.challengeId);
+    setPendingLoginApproval({ challengeId: payload.challengeId, expiresAt: payload.expiresAt, email: signIn.user.email || undefined,
       deviceLabel: payload.deviceLabel, location: payload.geo, userId: signIn.uid, method });
   } else if (!deferGateClear) clearPendingLoginApproval();
   return { requiresApproval: payload.requiresApproval, sessionId: payload.sessionId ?? undefined, challengeId: payload.challengeId,

@@ -106,8 +106,15 @@ export async function runMiniAppPublish(database, uid, input) {
             // ID-only projection avoids downloading every existing app's source.
             // Updating the shared owner row serializes concurrent creates, including
             // accounts with legacy publications but no existing quota record.
-            const active = await tx.get(database.collection('mini_apps').where('owner_id', '==', uid).where('status', '==', 'published').select().limit(MINI_APP_PUBLISH_LIMIT));
-            if (active.size >= MINI_APP_PUBLISH_LIMIT)
+            // owner_id alone uses the automatic single-field index. Pairing it with
+            // status needs a composite index; without one this read throws and the
+            // callable surfaces as an internal error.
+            const owned = await tx.get(database.collection('mini_apps').where('owner_id', '==', uid).select('status').limit(MINI_APP_PUBLISH_LIMIT));
+            const live = owned.docs.filter(row => row.get('status') === 'published').length;
+            if (owned.size >= MINI_APP_PUBLISH_LIMIT && live < MINI_APP_PUBLISH_LIMIT) {
+                throw new HttpsError('failed-precondition', 'Your live mini apps need review before another one can be published. Your private draft is still saved.');
+            }
+            if (live >= MINI_APP_PUBLISH_LIMIT)
                 throw new HttpsError('resource-exhausted', 'You already have 100 live mini apps. Unpublish one before sharing another.');
         }
         const time = FieldValue.serverTimestamp();

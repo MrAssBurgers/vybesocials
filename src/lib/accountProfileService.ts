@@ -10,6 +10,7 @@ type Request = { action: AccountProfileAction; expectedOwnerUid: string; expecte
 export type AccountProfileReceipt = { ok: true; ownerUid: string; accountCreatedAt: number; requestId: string; action: AccountProfileAction; status: 'ready'; profileId: string; profile: UserProfile; bindingRevision: string; created: boolean; recovered: boolean };
 const STORAGE = 'vybe:profile-setup-attempts:v1';
 const attempts = new Map<string, Request>();
+const inflightProfiles = new Map<string, Promise<AccountProfileReceipt>>();
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const id = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 128 && !value.includes('/');
 
@@ -48,6 +49,24 @@ export async function provisionAccountProfile(uid: string, options: { action?: A
   if (action === 'syncIndex' && !id(options.expectedProfileId)) throw new Error('A confirmed profile is required.');
   const request = retainedRequest({ action, expectedOwnerUid: uid, expectedAccountCreatedAt: createdAt, ...(options.expectedProfileId ? { expectedProfileId: options.expectedProfileId } : {}), ...(action === 'ensure' && options.defaults ? { defaults: options.defaults } : {}) });
   guard();
+  const flightKey = attemptKey(request);
+  const existing = inflightProfiles.get(flightKey);
+  if (existing) {
+    const shared = await existing;
+    guard();
+    return shared;
+  }
+  let resolveShared!: (value: AccountProfileReceipt) => void;
+  let rejectShared!: (error: unknown) => void;
+  const shared = new Promise<AccountProfileReceipt>((resolve, reject) => { resolveShared = resolve; rejectShared = reject; });
+  void shared.catch(() => {});
+  inflightProfiles.set(flightKey, shared);
+  const finish = (error?: unknown, receipt?: AccountProfileReceipt) => {
+    if (inflightProfiles.get(flightKey) === shared) inflightProfiles.delete(flightKey);
+    if (error) rejectShared(error);
+    else resolveShared(receipt!);
+  };
+  try {
   const { data, error } = await withProfileSetupDeadline(async current => {
     current();
     // Functions' SDK suppresses token transport errors and sends the call
@@ -70,5 +89,11 @@ export async function provisionAccountProfile(uid: string, options: { action?: A
   const row = data as Partial<AccountProfileReceipt> | null;
   if (!row || row.ok !== true || row.ownerUid !== uid || row.accountCreatedAt !== createdAt || row.requestId !== request.requestId || row.action !== action || row.status !== 'ready' || !id(row.profileId) || !/^[a-f0-9]{48}$/.test(row.bindingRevision || '') || typeof row.created !== 'boolean' || typeof row.recovered !== 'boolean' || !row.profile || row.profile.id !== row.profileId || row.profile.user_id !== uid || (row.profile.username != null && typeof row.profile.username !== 'string') || (options.expectedProfileId && row.profileId !== options.expectedProfileId)) throw Object.assign(new Error('Profile setup returned an invalid confirmation. Try again.'), { code: 'profile-service-invalid-response' });
   attempts.delete(attemptKey(request)); persist();
-  return { ...row, profile: { ...row.profile, username: row.profile.username ?? '' } } as AccountProfileReceipt;
+  const receipt = { ...row, profile: { ...row.profile, username: row.profile.username ?? '' } } as AccountProfileReceipt;
+  finish(undefined, receipt);
+  return receipt;
+  } catch (error) {
+    finish(error);
+    throw error;
+  }
 }

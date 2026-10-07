@@ -45,8 +45,11 @@ export async function registerCurrentDevice(signIn: DeviceSignIn, deviceFingerpr
   if (data.ownerUid !== signIn.uid || data.authTime !== signIn.authTime || data.accountCreatedAt !== signIn.created
     || (method === 'email_2fa' && (data.confirmedEmailChallengeId !== expectedEmailChallengeId || data.requiresApproval || data.trackingDeferred || !data.sessionId))
     || (profileId && data.profileId !== profileId)
-    || (data.trackingDeferred ? data.profileId !== null || data.sessionId !== null || data.requiresApproval || data.reason !== 'profile_setup_pending' : !data.profileId || !data.sessionId)
-    || (data.requiresApproval && (!data.challengeId || !data.expiresAt || Date.parse(data.expiresAt) <= Date.now() || Date.parse(data.expiresAt) > Date.now() + 11 * 60_000))) throw new Error('This device sign-in was not confirmed. Please retry.');
+    || (data.trackingDeferred ? data.profileId !== null || data.sessionId !== null || data.requiresApproval || data.reason !== 'profile_setup_pending' : !data.profileId || !data.sessionId)) throw new Error('This device sign-in was not confirmed. Please retry.');
+  // A real challenge still gates. `{requiresApproval:true}` without a challengeId
+  // is an acknowledgement, not a code, and must not sign the device out.
+  if (!data.requiresApproval || !data.challengeId) return { ...data, requiresApproval: false, challengeId: undefined, expiresAt: undefined };
+  if (!data.expiresAt || Date.parse(data.expiresAt) <= Date.now() || Date.parse(data.expiresAt) > Date.now() + 11 * 60_000) throw new Error('This device sign-in was not confirmed. Please retry.');
   return data;
 }
 

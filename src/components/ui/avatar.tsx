@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { transformedImage } from "@/lib/imageTransform";
 import { resolveProfileAvatarUrl } from "@/lib/profileAvatarCache";
 import { useFastSignedUrl } from "@/hooks/useFastSignedUrl";
-import { batchSignUrls, getCachedSignedUrl, needsSigning } from "@/lib/signedUrlCache";
+import { getCachedSignedUrl, needsSigning } from "@/lib/signedUrlCache";
 import { normalizeMediaUrl } from "@/lib/mediaUrl";
 
 // Avatar with properly sized ring that matches the avatar container
@@ -81,10 +81,6 @@ const ProfileAvatarImage = React.forwardRef<
         : undefined,
     [displayRaw, transformSize],
   );
-
-  React.useEffect(() => {
-    if (resolved) batchSignUrls([resolved]).catch(() => {});
-  }, [resolved]);
 
   const imgRef = React.useRef<React.ElementRef<typeof AvatarPrimitive.Image>>(null);
   React.useEffect(() => {

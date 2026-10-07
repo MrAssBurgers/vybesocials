@@ -764,10 +764,12 @@ const VybeHome = memo(function VybeHome() {
           <nav className="hidden md:flex items-center gap-7 text-sm text-white/70">
             <a href="#features" className="hover:text-white transition">Features</a>
             <a href="#why" className="hover:text-white transition">Why VYBE</a>
+            <Link to="/mini-apps" className="hover:text-white transition">Apps</Link>
             <Link to="/safety" className="hover:text-white transition">Safety</Link>
             <Link to="/developers" className="hover:text-white transition">Build with VYBE</Link>
           </nav>
           <div className="flex items-center gap-2">
+            <Link to="/mini-apps" className="md:hidden px-3 py-2 text-sm text-white/80 hover:text-white transition">Apps</Link>
             <Link to="/login" className="hidden sm:block px-4 py-2 text-sm text-white/80 hover:text-white transition">Sign in</Link>
             <Link to="/signup" className="px-4 py-2 rounded-full text-sm font-semibold bg-white text-[#0B0B10] hover:scale-105 transition">
               Get VYBE
@@ -1033,6 +1035,7 @@ const VybeHome = memo(function VybeHome() {
           </div>
           <div className="flex flex-wrap gap-5">
             <Link to="/about" className="hover:text-white">About</Link>
+            <Link to="/mini-apps" className="hover:text-white">Apps</Link>
             <Link to="/features" className="hover:text-white">Features</Link>
             <Link to="/developers" className="hover:text-white">Developers</Link>
             <Link to="/safety" className="hover:text-white">Safety</Link>

@@ -50,17 +50,16 @@ describe.each(['feed', 'profile', 'count'] as const)('%s whole post read deadlin
     await act(async () => { pending.resolve(receipt(oldCall[0], oldCall[1], 'retired-post')); await vi.advanceTimersByTimeAsync(5); });
     expect('data' in hook.result.current ? hook.result.current.data : hook.result.current.count).toEqual(before);
     expect(state.invoke).toHaveBeenCalledTimes(2);
-    expect(state.counts).toHaveBeenCalledTimes(surface === 'profile' ? 1 : 0);
+    expect(state.counts).not.toHaveBeenCalled();
   });
 });
-it('profile comment admission shares the initial transport deadline and late counts do not replace retry', async () => {
-  const transport = deferred<unknown>(), counts = deferred<Record<string, number>>();
-  state.invoke.mockImplementationOnce(() => transport.promise); state.counts.mockImplementationOnce(() => counts.promise);
-  const hook = renderHook(() => useSocialPostList({ scope: 'profile', targetId: 'bob' }), { wrapper: wrapper() }); await tick(14000);
+it('paints a profile list from the admitted page without a second comment-count request', async () => {
+  const transport = deferred<unknown>();
+  state.invoke.mockImplementationOnce(() => transport.promise);
+  const hook = renderHook(() => useSocialPostList({ scope: 'profile', targetId: 'bob' }), { wrapper: wrapper() });
   await act(async () => { transport.resolve(receipt('readSocialPostList', {})); await vi.advanceTimersByTimeAsync(5); });
-  expect(state.counts).toHaveBeenCalledOnce(); await tick(1001);
-  expect(hook.result.current.isError).toBe(true); expect(hook.result.current.isFetching).toBe(false);
-  act(() => { void hook.result.current.refetch(); }); await tick(); expect(hook.result.current.data?.[0].comment_count).toBe(0);
-  await act(async () => { counts.resolve({ 'current-post': 99 }); await vi.advanceTimersByTimeAsync(5); });
+  expect(state.counts).not.toHaveBeenCalled();
+  expect(hook.result.current.isError).toBe(false);
+  expect(hook.result.current.data?.[0].id).toBe('current-post');
   expect(hook.result.current.data?.[0].comment_count).toBe(0);
 });

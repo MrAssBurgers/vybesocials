@@ -31,7 +31,7 @@ export function ProfileContentTabs({
   const [activeTab, setActiveTab] = useState<ContentTab>('posts');
   const allowed = { posts: canViewPosts, clips: canViewClips, tagged: canViewTagged };
   const content = useSocialPostList({ scope: activeTab === 'tagged' ? 'tagged' : 'profile', targetId: profileId,
-    ...(activeTab === 'clips' ? { contentType: 'short' as const } : {}) }, !!profileId && allowed[activeTab]);
+    ...(activeTab === 'clips' ? { contentType: 'short' as const } : {}) }, !!profileId && allowed[activeTab], { includeCommentCounts: false });
   const allPosts = useMemo(() => (content.data || []).filter(row => activeTab !== 'posts' || row.type !== 'short').map(row => ({ ...row, post_id: row.id })), [content.data, activeTab]);
   const posts = canViewPosts && activeTab === 'posts' ? allPosts : [];
   const clips = canViewClips && activeTab === 'clips' ? allPosts : [];
