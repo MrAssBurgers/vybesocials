@@ -1,3 +1,22 @@
+## ACTIVE (2026-10-07) - Friend requests after the sign-in merge
+
+### What changed
+- Merged `origin/main` at `5cbd4503` (“Show the password form immediately instead of Restoring your account”). A saved session stays on a silent spinner. `/?mode=login` and `/?signup=true` still skip the mobile intro.
+- The Requests tab still loads pending friend requests when the status filter is rejected, and it tries the Auth uid when the profile id is denied. Incoming requests still show if the outgoing query fails. The error banner no longer sits on top of “No requests”.
+
+### Verification
+- `npm run test`: 522 files passed, 1 skipped; 5129 passed, 6 skipped. Map renderer stderr is the existing noise.
+- App `tsc` and Functions `tsc` passed. ESLint on `useFriends.ts`, `useFriendRequests.read.test.tsx`, and `RootGate.tsx` passed. `npm run build` passed. Entry `app-DNmRcDjr.js` is 858.3 KB raw / 261.2 KB gzip. Generated `public/version.json` and `public/despia/local.json` restored.
+
+### Blockers
+- `vybehub.app` needs Lovable → Share → Publish before the profile, share-link, and friend-request fixes are on the phone.
+- Older cloudfunctions.net share links keep the old card until `npx -y firebase-tools@latest deploy --only functions:sharePreview --project vybe-daaab`. Do not deploy `auth2faRequest`.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then open Notifications → Requests and another member’s profile.
+2. After `npx -y firebase-tools@latest login`, deploy only `functions:sharePreview` if old shared links should show the new card.
+3. Leave `auth2faRequest` undeployed.
+
 ## ACTIVE (2026-10-07) - Sign-in does not say Restoring your account
 
 ### What changed
