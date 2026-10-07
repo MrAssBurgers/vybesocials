@@ -31,7 +31,7 @@ import { getDmConversationSortTime } from '@/lib/dmConversationSort';
 import { resolveOtherMemberFromConversation, isViewerMember } from '@/lib/dmMemberResolve';
 import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 import { reportAccountGuard, type ReportAccountSession } from '@/lib/reportModerationService';
-import { conversationDetailQueryKey, dmListQueryKey, ownedDmProfileId, isOwnedDmActor, isDmConversationForViewer } from '@/lib/dmAccountScope';
+import { conversationDetailQueryKey, dmListQueryKey, ownedDmProfileId, isOwnedDmActor, isDmConversationForViewer, viewerDmMembership } from '@/lib/dmAccountScope';
 
 type DMConversation = LoadedDMConversation;
 const EMPTY_CONVERSATIONS: DMConversation[] = [];
@@ -267,11 +267,7 @@ export function useDMConversations(searchQuery: string = '') {
     const unpinned: DMConversation[] = [];
 
     filteredConversations.forEach(conv => {
-      // Prefer the canonical profile row; older chats may store the auth UID.
-      // A member tuple from another chat must never supply this chat's pin.
-      const members = safeDmMembers(conv.members).filter(m => m.conversation_id === conv.id);
-      const viewer = members.find(m => profileId && m.user_id === profileId)
-        ?? members.find(m => user?.id && m.user_id === user.id);
+      const viewer = viewerDmMembership(conv, profileId, user?.id);
       const isPinned = viewer?.is_pinned;
       if (isPinned) {
         pinned.push(conv);

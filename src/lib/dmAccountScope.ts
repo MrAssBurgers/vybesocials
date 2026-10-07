@@ -1,5 +1,6 @@
 import { getCachedCurrentProfile, getCachedProfile } from '@/lib/profileCache';
 import { reportAccountSnapshot, type ReportAccountSession } from '@/lib/reportModerationService';
+import { safeDmMembers } from '@/lib/persistedCollections';
 
 type OwnedProfile = { id?: string; user_id?: string } | null | undefined;
 
@@ -35,4 +36,12 @@ export function isDmConversationForViewer(value: unknown, profileId?: string | n
   if (!Array.isArray(row.members)) return false;
   return row.members.some(member => member && typeof member === 'object'
     && member.conversation_id === row.id && aliases.has(member.user_id));
+}
+
+/** Display membership must belong to this chat and an admitted viewer alias. */
+export function viewerDmMembership(conversation: { id: string; members?: unknown }, profileId?: string, uid?: string) {
+  if (!isDmConversationForViewer(conversation, profileId, uid)) return undefined;
+  const members = safeDmMembers(conversation.members).filter(member => member.conversation_id === conversation.id);
+  return members.find(member => profileId && member.user_id === profileId)
+    ?? members.find(member => uid && member.user_id === uid);
 }
