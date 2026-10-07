@@ -136,7 +136,11 @@ body.welcome-back-visible [data-app-shell] {
   pointer-events: none;
 }
 
-/* The signed-in picture stays invisible until the flying welcome photo lands on it. */
+/* The signed-in picture stays invisible until the flying welcome photo lands on it.
+   Transition is off for the whole splash so a sidebar `transition-all` cannot fade the picture in late. */
+body.welcome-back-splash [data-account-avatar] {
+  transition: none !important;
+}
 body.welcome-account-pending [data-account-avatar] {
   opacity: 0 !important;
 }
