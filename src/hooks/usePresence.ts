@@ -1,10 +1,17 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
+import { collectionRef, onSnapshot, query, where } from '@/lib/firebase/firestoreDb';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { isPermissionDeniedError, warnOnce } from '@/lib/logOnce';
 import { presenceHeartbeatMs } from '@/lib/nativePerfMode';
+import {
+  chunkIds,
+  presenceIdsKey,
+  presenceIsOnline,
+  shouldMirrorLastActive,
+} from '@/lib/signedInListenScope';
 
 // Debug flag - set to true for dev debugging
 const DEBUG_PRESENCE = false;
@@ -14,6 +21,8 @@ function logPresence(...args: any[]) {
     console.log('[Presence]', ...args);
   }
 }
+
+let lastActiveMirroredAt = 0;
 
 function isTransientPresenceError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error ?? '');
@@ -59,16 +68,19 @@ export function usePresence() {
         console.error('[Presence] Failed to update presence:', error.message, error.details);
       } else {
         logPresence('Presence updated successfully');
-        // Mirror last-active on profile for Firestore-backed queries.
-        void db
-          .from('profiles')
-          .update({ last_active_at: new Date().toISOString() })
-          .eq('id', profile.id)
-          .then(({ error: profileErr }) => {
-            if (profileErr && import.meta.env.DEV) {
-              console.warn('[Presence] profile last_active_at:', profileErr.message);
-            }
-          });
+        const mirroredAt = Date.now();
+        if (shouldMirrorLastActive(mirroredAt, lastActiveMirroredAt)) {
+          lastActiveMirroredAt = mirroredAt;
+          void db
+            .from('profiles')
+            .update({ last_active_at: new Date(mirroredAt).toISOString() })
+            .eq('id', profile.id)
+            .then(({ error: profileErr }) => {
+              if (profileErr && import.meta.env.DEV) {
+                console.warn('[Presence] profile last_active_at:', profileErr.message);
+              }
+            });
+        }
       }
     } catch (error: any) {
       if (isTransientPresenceError(error)) {
@@ -247,11 +259,81 @@ export function useUserOnlineStatus(userId: string | undefined) {
   return query;
 }
 
+function applyPresenceSnapshot(
+  queryClient: ReturnType<typeof useQueryClient>,
+  idsKey: string,
+  snap: { docChanges: () => Iterable<{ type: string; doc: { data: () => Record<string, unknown> } }> },
+) {
+  const patches: { userId: string; removed: boolean; online: boolean; lastSeenAt: string | null }[] = [];
+  for (const change of snap.docChanges()) {
+    const data = change.doc.data();
+    const userId = typeof data.user_id === 'string' ? data.user_id : '';
+    if (!userId) continue;
+    if (change.type === 'removed') {
+      patches.push({ userId, removed: true, online: false, lastSeenAt: null });
+      continue;
+    }
+    const lastSeenAt = typeof data.last_seen_at === 'string' ? data.last_seen_at : null;
+    patches.push({
+      userId,
+      removed: false,
+      online: presenceIsOnline(data.is_online, lastSeenAt),
+      lastSeenAt,
+    });
+  }
+  if (!patches.length) return;
+  queryClient.setQueryData<Record<string, boolean>>(['users-presence', idsKey], (old) => {
+    const next = { ...(old ?? {}) };
+    let changed = !old;
+    for (const patch of patches) {
+      if (patch.removed) {
+        if (patch.userId in next) {
+          delete next[patch.userId];
+          changed = true;
+        }
+        continue;
+      }
+      if (next[patch.userId] !== patch.online) {
+        next[patch.userId] = patch.online;
+        changed = true;
+      }
+    }
+    return changed ? next : old;
+  });
+  for (const patch of patches) {
+    if (patch.removed) continue;
+    queryClient.setQueryData(['user-presence', patch.userId], {
+      is_online: patch.online,
+      last_seen_at: patch.lastSeenAt,
+    });
+  }
+}
+
 // Hook to get multiple users' online status
 export function useUsersOnlineStatus(userIds: string[]) {
+  const queryClient = useQueryClient();
+  const idsKey = presenceIdsKey(userIds);
+
+  useEffect(() => {
+    if (!idsKey) return;
+    const ids = idsKey.split(',');
+    const unsubs = chunkIds(ids).map((chunk) => onSnapshot(
+      query(collectionRef('user_presence'), where('user_id', 'in', chunk)),
+      (snap) => applyPresenceSnapshot(queryClient, idsKey, snap),
+      (error) => {
+        if (isPermissionDeniedError(error)) return;
+        warnOnce('users-presence-listen', '[Presence] Scoped presence listener failed:', error.message);
+      },
+    ));
+    return () => {
+      unsubs.forEach((unsubscribe) => unsubscribe());
+    };
+  }, [idsKey, queryClient]);
+
   return useQuery({
-    queryKey: ['users-presence', userIds.sort().join(',')],
+    queryKey: ['users-presence', idsKey],
     queryFn: async () => {
+      const userIds = idsKey ? idsKey.split(',') : [];
       if (!userIds.length) {
         logPresence('No user IDs to check for presence');
         return {};
@@ -295,10 +377,8 @@ export function useUsersOnlineStatus(userIds: string[]) {
 
       return statusMap;
     },
-    enabled: userIds.length > 0,
+    enabled: idsKey.length > 0,
     staleTime: 30_000,
-    // Realtime patches via useGlobalRealtimeMessages presence channel keep this
-    // cache fresh — no polling needed.
     refetchInterval: false,
   });
 }

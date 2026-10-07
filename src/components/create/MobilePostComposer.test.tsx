@@ -17,7 +17,7 @@ import { MobilePostComposer } from './MobilePostComposer';
 function mount() { const close = vi.fn(); render(<MobilePostComposer files={[]} previews={[]} contentType="text" initialCaption="My draft" onBack={() => {}} onClose={close} />); return close; }
 beforeEach(() => { vi.clearAllMocks(); state.enqueue.mockReset(); }); afterEach(cleanup);
 describe('mobile publisher audience and queue confirmation', () => {
-  it.each([['Only me', 'only_me'], ['Followers', 'followers']])('carries the selected %s audience to the retained publication', (label, visibility) => {
+  it.each([['Private', 'only_me'], ['Followers', 'followers']])('carries the selected %s audience to the retained publication', (label, visibility) => {
     mount(); fireEvent.click(screen.getByRole('button', { name: /Everyone/ })); fireEvent.click(screen.getByRole('button', { name: label }));
     fireEvent.click(screen.getByRole('button', { name: 'Post' }));
     expect(state.enqueue).toHaveBeenCalledWith(expect.objectContaining({ visibility, profile: { id: 'profile-a', user_id: 'alice' }, caption: 'My draft' }), 'My draft');

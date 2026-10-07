@@ -1,3 +1,65 @@
+## ACTIVE (2026-10-07) - Merged main after PR #4
+
+### What changed
+- Merged `origin/main` at `b2f4c86f` (PR #4). The only conflict was `WORKLOG.md`. Both the signed-in listener, private-post, and toast notes and main’s later sections stayed.
+
+### Verification
+- `npm run test`: 524 files passed, 1 skipped; 5133 passed, 6 skipped. Map renderer stderr is the existing noise.
+- App `tsc` and Functions `tsc` passed. `npm run build` passed. Entry `app-B9KIx8mU.js` is 857.1 KB raw / 261.3 KB gzip. Generated `public/version.json` and `public/despia/local.json` restored.
+
+### Next 3 tasks
+1. Lovable → Share → Publish after this pull request merges, then deploy the post-read functions so the private tag appears.
+2. Delete the `vybe_qa_test` Auth user, its post, and its comment when QA is done.
+3. Leave `auth2faRequest` undeployed.
+
+## ACTIVE (2026-10-07) - Signed-in walk inventory
+
+Local Vite at `http://127.0.0.1:8080` against live Firebase `vybe-daaab`. [Walk signed-in Vybe flows](bc-040726f2-9690-580f-8389-213c99afd316) created one labeled account and stayed on that account's own content.
+
+### Production items to remove later
+- Auth user `vybe_qa_test`, email `vybeqaf59e5ab1@maxxspace.com`, display name `QA Test Account – do not interact`, birthday 1995-01-15. Mail.tm id `6ac5ffd03f45b4f47e018453`. Password stays in `/tmp/vybe-qa-account.json` and is not in git. UID was not captured.
+- Text post caption `QA test post – do not interact`. The walk reported one self-like and the comment `QA test comment – do not interact`. No second account. No follows, messages, or likes on anyone else's content.
+
+### What the screens show
+- Onboarding birthday screen, settings, empty messages, VybeMap, and a signed-in home with that post are on disk under `/opt/cursor/artifacts/`.
+- The mobile home still shows `Updating feed…`, which is the refresh banner while a feed query is in flight. Mini App Studio was not opened. VybeMap was.
+- The file named as the desktop home is the logged-out marketing page, so that shot does not prove the desktop feed.
+
+### Console lines that are not a client fix
+- Reported hosts use project id `vybe-daab`. This project is `vybe-daaab`.
+- `checkStreamSubscription` and `tokenMarketplace2` are not in this repo. `tokenMarketplace` is a real callable and already sets `cors: true`. It is used from the wallet, locker, and post-earn paths, not as a home-load requirement.
+- `[DesignUI: token-refresh] linking` is the OneSignal link step in `DespiaOneSignalSync.tsx`.
+
+### Verification
+- `npm run test`: 519 files passed, 1 skipped; 5118 passed, 6 skipped.
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` and `functions/tsconfig.json` passed. `npm run build` passed. Bundle budget: `app-*.js` 1097.3 KB raw / 333.1 KB gzip (limits 1125 / 335). Generated `public/version.json` and `public/despia/local.json` restored.
+
+### Next 3 tasks
+1. Lovable → Share → Publish the client, then deploy the post-read functions so the private tag appears.
+2. Delete the `vybe_qa_test` Auth user, its post, and its comment when QA is done.
+3. Leave `auth2faRequest` and `listMiniApps` undeployed until each is reviewed on its own.
+
+## ACTIVE (2026-10-07) - Private posts and centered mobile toasts
+
+### What changed
+- Desktop create and the phone composer can publish a post as Private. That stores audience `only_me`, which the feed already hides from everyone except the author.
+- The author's profile grid and clips show a small "private" tag on those posts. The read functions add `ownerPrivate` only for the author, so other people do not receive the flag or the post.
+- Phone toasts stay a centered pill. Sonner's mobile stylesheet had stretched them to the left edge. The older toast viewport is centered on small screens and stays bottom-right from the `sm` breakpoint up.
+
+### Verification
+- Focused vitest: desktop studio, mobile composer, social feed, and post list tests passed (69). ESLint on the edited files passed.
+- Full `npm run test`: 519 files passed, 1 skipped; 5118 passed, 6 skipped. App and Functions typecheck passed. `npm run build` passed. Bundle budget: `app-*.js` 1097.3 KB raw / 333.1 KB gzip (limits 1125 / 335). Generated `public/version.json` and `public/despia/local.json` restored.
+
+### Blockers
+- Publish this client before deploying the read functions. An older client rejects unknown post fields, so deploying `ownerPrivate` first would fail the author's feed page whenever a private post is in that page.
+- After the client is on `main` and published, deploy the functions that return posts (`readSocialFeed`, `readSocialPostList`, `readSocialPostPreviews`, and any other caller of `projectPost`). Do not deploy `auth2faRequest`.
+- Until that deploy, Private still hides the post from other people, and the profile tag does not appear yet.
+
+### Next 3 tasks
+1. Lovable → Share → Publish this client.
+2. Deploy the post-read functions only, then confirm a private post is absent from another account and tagged on the author's profile.
+3. Leave `auth2faRequest` undeployed.
+
 ## ACTIVE (2026-10-07) - Friend requests after the sign-in merge
 
 ### What changed

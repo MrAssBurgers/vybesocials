@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useMemo, useEffect, DragEvent } from 're
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, Send, Tag, Hash, X, Globe, ChevronDown,
+  ArrowLeft, Send, Tag, Hash, X, Globe, Lock, ChevronDown,
   Sparkles, Image as ImageIcon, Plus, Upload as UploadIcon, Camera as CameraIcon,
   Wand2, Video, Film, Type, Layers, Crop, RotateCw, Sliders, Scissors
 } from 'lucide-react';
@@ -47,6 +47,7 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
   const [activeEditor, setActiveEditor] = useState<'crop' | 'rotate' | 'filters' | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [taggedUserIds, setTaggedUserIds] = useState<string[]>([]);
+  const [visibility, setVisibility] = useState<'public' | 'only_me'>('public');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const captionRef = useRef<HTMLTextAreaElement>(null);
@@ -190,6 +191,7 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
         caption: fc,
         tags,
         type: publishType,
+        visibility,
       },
       fc.trim().slice(0, 48) || 'New post',
     );
@@ -486,8 +488,17 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
               {/* Visibility */}
               <div>
                 <p className="text-xs font-semibold text-muted-foreground mb-1.5">Audience</p>
-                <p className="flex items-center gap-2 rounded-xl border border-border/30 px-3 py-2 text-sm"><Globe className="h-4 w-4 text-primary" />Public · Everyone on VYBE</p>
-                <p className="mt-1 text-xs text-muted-foreground">Posts from this studio are public. Followers-only and private posts are not available here.</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" aria-pressed={visibility === 'public'} onClick={() => setVisibility('public')}
+                    className={cn('flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm', visibility === 'public' ? 'border-primary/40 bg-primary/10 text-foreground' : 'border-border/30 text-muted-foreground')}>
+                    <Globe className="h-4 w-4" />Public
+                  </button>
+                  <button type="button" aria-pressed={visibility === 'only_me'} onClick={() => setVisibility('only_me')}
+                    className={cn('flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm', visibility === 'only_me' ? 'border-primary/40 bg-primary/10 text-foreground' : 'border-border/30 text-muted-foreground')}>
+                    <Lock className="h-4 w-4" />Private
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">{visibility === 'only_me' ? 'Only you can see this post. Your profile shows a private tag on it.' : 'Everyone on VYBE can see this post.'}</p>
               </div>
 
               {/* Person tags + hashtags */}

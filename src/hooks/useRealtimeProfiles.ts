@@ -1,22 +1,35 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import {
   patchAuthorOnPostCaches,
   patchEmbeddedProfileInCaches,
 } from '@/lib/invalidateConversationCaches';
+import { ownProfileRealtimeFilter } from '@/lib/signedInListenScope';
+
+type DisplayFields = {
+  username?: string | null;
+  display_name?: string | null;
+  avatar_url?: string | null;
+};
+
+function displayFields(profile: DisplayFields | undefined) {
+  return {
+    username: profile?.username ?? null,
+    display_name: profile?.display_name ?? null,
+    avatar_url: profile?.avatar_url ?? null,
+  };
+}
 
 /**
- * Subscribes to real-time profile changes and updates cached profile data.
- * Debounces broad invalidations to prevent cascade refetching when multiple
- * profile updates arrive in quick succession (e.g. batch imports, migrations).
+ * Subscribes to the signed-in member's profile and patches cached display
+ * fields when the username, name, or photo changes.
  *
- * The subscription is intentionally gated behind a resolved authenticated
- * session. Public/marketing routes must not open Firestore listeners for a
- * signed-out visitor, which previously produced aborted Listen/channel traffic
- * during first paint and wasted mobile startup work.
+ * Do not listen to the profiles collection. Rules allow any signed-in member
+ * to read it, and a presence heartbeat writes `last_active_at` on each profile.
+ * A collection listener downloads every profile and then treats each heartbeat
+ * as a display change because the realtime payload's `old` row is empty.
  */
 export function useRealtimeProfiles() {
   const queryClient = useQueryClient();
@@ -25,46 +38,41 @@ export function useRealtimeProfiles() {
 
   useEffect(() => {
     if (!authReady || !user?.id) return;
+    const userId = user.id;
 
     const channel = subscribePostgresChannel('profiles-realtime', [
       {
         event: 'UPDATE',
         table: 'profiles',
+        filter: ownProfileRealtimeFilter(userId),
         callback: (payload) => {
-          const updatedProfile = payload.new as any;
-          const oldProfile = payload.old as any;
+          const updatedProfile = payload.new as DisplayFields & { id?: string; username?: string };
           const updatedProfileId = updatedProfile?.id;
-          
           if (!updatedProfileId) return;
 
-          queryClient.setQueryData(['profile', updatedProfileId], (old: any) => 
-            old ? { ...old, ...updatedProfile } : old
-          );
-          queryClient.setQueryData(['user-profile', updatedProfileId], (old: any) => 
-            old ? { ...old, ...updatedProfile } : old
-          );
+          const cached = (queryClient.getQueryData(['profile', updatedProfileId])
+            ?? queryClient.getQueryData(['user-profile', updatedProfileId])) as DisplayFields | undefined;
+          if (!cached) return;
 
-          const usernameChanged = oldProfile?.username !== updatedProfile?.username;
-          const displayNameChanged = oldProfile?.display_name !== updatedProfile?.display_name;
-          const avatarChanged = oldProfile?.avatar_url !== updatedProfile?.avatar_url;
+          const previous = displayFields(cached);
+          const next = displayFields(updatedProfile);
+          const usernameChanged = previous.username !== next.username;
+          const displayNameChanged = previous.display_name !== next.display_name;
+          const avatarChanged = previous.avatar_url !== next.avatar_url;
+          if (!usernameChanged && !displayNameChanged && !avatarChanged) return;
 
-          if (usernameChanged || displayNameChanged || avatarChanged) {
-            const patch = {
-              id: updatedProfileId,
-              username: updatedProfile.username,
-              display_name: updatedProfile.display_name,
-              avatar_url: updatedProfile.avatar_url,
-            };
-            patchEmbeddedProfileInCaches(queryClient, updatedProfileId, patch);
-            if (avatarChanged || displayNameChanged || usernameChanged) {
-              patchAuthorOnPostCaches(queryClient, updatedProfileId, patch);
-            }
-            if (usernameChanged) {
-              if (debounceRef.current) clearTimeout(debounceRef.current);
-              debounceRef.current = setTimeout(() => {
-                queryClient.invalidateQueries({ queryKey: ['profile', updatedProfile.username] });
-              }, 500);
-            }
+          const merge = (old: DisplayFields | undefined) => (old ? { ...old, ...updatedProfile } : old);
+          queryClient.setQueryData(['profile', updatedProfileId], merge);
+          queryClient.setQueryData(['user-profile', updatedProfileId], merge);
+
+          const patch = { id: updatedProfileId, ...next };
+          patchEmbeddedProfileInCaches(queryClient, updatedProfileId, patch);
+          patchAuthorOnPostCaches(queryClient, updatedProfileId, patch);
+          if (usernameChanged && next.username) {
+            if (debounceRef.current) clearTimeout(debounceRef.current);
+            debounceRef.current = setTimeout(() => {
+              queryClient.invalidateQueries({ queryKey: ['profile', next.username] });
+            }, 500);
           }
         },
       },

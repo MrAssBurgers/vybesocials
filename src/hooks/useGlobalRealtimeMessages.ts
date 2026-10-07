@@ -10,13 +10,11 @@
 
 import { useEffect, useRef, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { conversationDetailQueryKey, dmListQueryKey, isDmConversationForViewer, ownedDmProfileId } from '@/lib/dmAccountScope';
 import { readQueryArray } from '@/lib/persistedCollections';
 import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 import { reportAccountSnapshot, type ReportAccountSession } from '@/lib/reportModerationService';
-import { removeChannelByTopic, removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
 import { subscribeDmBroadcastMessages } from '@/lib/dmBroadcast';
 import {
   applyBroadcastMessage,
@@ -109,31 +107,6 @@ function isCurrentSession(session: ReportAccountSession) {
   return !!session.uid && session.uid === current.uid && session.epoch === current.epoch;
 }
 
-function isPresenceOnline(isOnline: boolean | undefined, lastSeenAt: string | undefined): boolean {
-  if (!isOnline) return false;
-  if (!lastSeenAt) return true;
-  return Date.now() - new Date(lastSeenAt).getTime() <= 90_000;
-}
-
-/** Patch batch presence maps in-place — never invalidate (that refetched the whole DM list). */
-function patchUsersPresenceCache(
-  qc: ReturnType<typeof useQueryClient>,
-  userId: string,
-  isOnline: boolean,
-  lastSeenAt: string,
-) {
-  const nextOnline = isPresenceOnline(isOnline, lastSeenAt);
-  qc.setQueriesData<Record<string, boolean>>(
-    { queryKey: ['users-presence'] },
-    (old) => {
-      if (!old || typeof old !== 'object') return old;
-      if (!(userId in old)) return old;
-      if (old[userId] === nextOnline) return old;
-      return { ...old, [userId]: nextOnline };
-    },
-  );
-}
-
 export function useGlobalRealtimeMessages() {
   const { profile, user } = useAuth();
   const session = useReportAccountSession();
@@ -153,47 +126,9 @@ export function useGlobalRealtimeMessages() {
     scheduleUnknownConvoRefetch: (pid: string) => scheduleUnknownConvoRefetch(queryClient, pid, session),
   }), [profileId, authUid, queryClient, session]);
 
-  // Global presence channel — patches ['user-presence', id] and
-  // ['users-presence', ...] caches as soon as anyone toggles online/offline,
-  // so the DM list reflects status in near-realtime instead of waiting 20s.
-  const presenceChannelRef = useRef<ReturnType<typeof db.channel> | null>(null);
-  useEffect(() => {
-    if (!profileId || !isCurrentSession(session)) return;
-    let active = true;
-    removeRealtimeChannel(presenceChannelRef.current);
-    presenceChannelRef.current = null;
-    removeChannelByTopic(`global-presence:${profileId}`);
-
-    const ch = subscribePostgresChannel(`global-presence:${profileId}`, [
-      {
-        event: '*',
-        table: 'user_presence',
-        callback: (payload: any) => {
-          if (!active || !isCurrentSession(session)) return;
-          const row = payload.new || payload.old;
-          if (!row?.user_id) return;
-          queryClient.setQueryData(['user-presence', row.user_id], {
-            is_online: row.is_online,
-            last_seen_at: row.last_seen_at,
-          });
-          patchUsersPresenceCache(
-            queryClient,
-            row.user_id,
-            row.is_online,
-            row.last_seen_at,
-          );
-        },
-      },
-    ]);
-    presenceChannelRef.current = ch;
-    return () => {
-      active = false;
-      try {
-        removeRealtimeChannel(presenceChannelRef.current);
-        presenceChannelRef.current = null;
-      } catch { /* never throw from cleanup */ }
-    };
-  }, [profileId, queryClient, session]);
+  // Presence for people already on screen is scoped in useUsersOnlineStatus.
+  // Do not listen to the user_presence collection: rules allow every signed-in
+  // member to read it, so a collection listener downloads every presence row.
 
   // Broadcast listener for instant delivery on the currently viewed conversation
   const [activeConvoId, setActiveConvoId] = useState<string | null>(currentConversationId);

@@ -64,6 +64,9 @@ describe('current account social feed transport', () => {
     expect(guard).toHaveBeenCalledTimes(2);
     expect(state.invoke).toHaveBeenCalledExactlyOnceWith('readSocialFeed', input, { expectedOwnerUid: input.expectedOwnerUid, guard });
     expect(result.posts[0]).toMatchObject({ id: 'post-one', like_count: 7, comment_count: 2, is_liked: true, reaction_type: 'love', is_bookmarked: true, age_rating: 'unrated' });
+    expect(result.posts[0].owner_private).toBeUndefined();
+    state.invoke.mockResolvedValue({ data: { ...response(), posts: [{ ...post, ownerPrivate: true }] } });
+    expect((await readSocialFeed(input, () => {})).posts[0].owner_private).toBe(true);
   });
   it.each([
     (page: ReturnType<typeof response>) => { page.ownerUid = 'bob'; },

@@ -21,7 +21,7 @@ import { canPublishCreatePost, resolvePublishContentType } from '@/lib/createPub
 const visibilityOptions = [
   { id: 'public' as const, label: 'Everyone', icon: Globe },
   { id: 'followers' as const, label: 'Followers', icon: Users },
-  { id: 'only_me' as const, label: 'Only me', icon: Lock },
+  { id: 'only_me' as const, label: 'Private', icon: Lock },
 ];
 
 interface MobilePostComposerProps {

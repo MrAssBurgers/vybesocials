@@ -7594,6 +7594,23 @@ img, video {
   }
 }
 
+/* Phone toasts stay a centered pill. Sonner's mobile stylesheet stretches them to the left edge. */
+@media (max-width: 600px) {
+  [data-sonner-toaster][data-x-position='center'] {
+    left: 50% !important;
+    right: auto !important;
+    width: max-content !important;
+    max-width: calc(100vw - 1.5rem) !important;
+    transform: translateX(-50%) !important;
+  }
+  [data-sonner-toaster][data-x-position='center'] [data-sonner-toast] {
+    left: auto !important;
+    right: auto !important;
+    width: max-content !important;
+    max-width: min(340px, calc(100vw - 1.5rem)) !important;
+  }
+}
+
 /* ── Base toast ── */
 .toast-pill {
   position: relative;

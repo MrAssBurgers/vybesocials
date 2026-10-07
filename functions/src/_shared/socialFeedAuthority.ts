@@ -107,7 +107,14 @@ export function projectPost(id: string, row: AudienceRow, admission: NonNullable
     isAiGenerated: row.is_ai_generated === true, aiConfidence: typeof row.ai_confidence === 'number' && Number.isFinite(row.ai_confidence) && row.ai_confidence >= 0 && row.ai_confidence <= 1 ? row.ai_confidence : null,
     aiOverride: typeof row.ai_override === 'boolean' ? row.ai_override : null,
     author: { id: author.profileId, username, displayName: text(author.row.display_name, 200), avatarUrl: httpsUrl(author.row.avatar_url) },
+    // Only the author receives this flag. Other viewers never get the post.
+    ...(author.uid === viewerUid && isOwnerPrivatePost(row) ? { ownerPrivate: true as const } : {}),
   };
+}
+
+function isOwnerPrivatePost(row: AudienceRow): boolean {
+  const level = row.visibility ?? row.audience;
+  return level === 'only_me' || level === 'private' || row.is_private === true;
 }
 
 /** Anonymous metadata never inherits an authenticated viewer's relationships.
