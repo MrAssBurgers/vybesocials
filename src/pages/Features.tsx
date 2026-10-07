@@ -115,7 +115,7 @@ export default function FeaturesPage() {
           <h2 className="text-2xl font-bold mb-2">Ready to find your tribe?</h2>
           <p className="text-muted-foreground mb-4">Create your profile and start exploring.</p>
           <Button asChild size="lg">
-            <Link to="/?signup=true">Create your free account</Link>
+            <Link to="/signup">Create your free account</Link>
           </Button>
         </section>
 

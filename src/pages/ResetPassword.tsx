@@ -164,7 +164,7 @@ export default function ResetPassword() {
 
       setSuccess(true);
       toast.success('Password updated successfully!');
-      setTimeout(() => navigate('/?mode=login'), 2000);
+      setTimeout(() => navigate('/login'), 2000);
     } catch (err: unknown) {
       const message = getUserFriendlyError(err);
       setError(message);
@@ -218,7 +218,7 @@ export default function ResetPassword() {
           </div>
           <h1 className="text-xl font-bold mb-2">Link Expired</h1>
           <p className="text-muted-foreground text-sm mb-4">{error}</p>
-          <Button onClick={() => navigate('/?mode=login')} className="w-full">
+          <Button onClick={() => navigate('/login')} className="w-full">
             Back to Login
           </Button>
         </motion.div>
@@ -303,7 +303,7 @@ export default function ResetPassword() {
 
         <p className="text-center text-sm text-muted-foreground mt-6">
           Remember your password?{' '}
-          <button onClick={() => navigate('/?mode=login')} className="text-primary hover:underline">
+          <button onClick={() => navigate('/login')} className="text-primary hover:underline">
             Log in
           </button>
         </p>

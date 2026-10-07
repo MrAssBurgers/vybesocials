@@ -107,7 +107,7 @@ export default function LocalCityPage() {
           <h2 className="text-2xl font-bold mb-2">Join {city.name} on VYBE</h2>
           <p className="text-muted-foreground mb-4">Create a free account and start vibing with local creators today.</p>
           <Button asChild size="lg">
-            <Link to="/?signup=true">Create your free account</Link>
+            <Link to="/signup">Create your free account</Link>
           </Button>
         </section>
 

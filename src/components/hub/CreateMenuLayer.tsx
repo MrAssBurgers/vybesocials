@@ -102,7 +102,7 @@ export function CreateMenuLayer({ open, onOpenChange, initialView = 'create', id
     triggerHaptic('medium'); playSound('pop');
     onOpenChange(false);
     if (!session.uid || user?.id !== session.uid) {
-      navigate('/?mode=login'); return;
+      navigate('/login'); return;
     }
     if (path === '/admin' && !isStaff) return;
     if (camera && openCamera) {

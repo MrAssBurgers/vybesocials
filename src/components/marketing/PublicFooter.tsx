@@ -45,8 +45,8 @@ export function PublicFooter() {
         <div>
           <h3 className="font-semibold text-foreground mb-3">Account</h3>
           <ul className="space-y-2">
-            <li><Link to="/?signup=true" className="hover:text-primary">Sign up</Link></li>
-            <li><Link to="/?mode=login" className="hover:text-primary">Log in</Link></li>
+            <li><Link to="/signup" className="hover:text-primary">Sign up</Link></li>
+            <li><Link to="/login" className="hover:text-primary">Log in</Link></li>
             <li><Link to="/delete-account" className="hover:text-primary">Delete account</Link></li>
           </ul>
         </div>

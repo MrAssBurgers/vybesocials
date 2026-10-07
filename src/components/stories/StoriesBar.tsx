@@ -102,7 +102,7 @@ export const StoriesBar = memo(function StoriesBar({
 
   const promptStorySignIn = () => {
     toast.error('Sign in to post stories');
-    navigate('/?mode=login');
+    navigate('/login');
   };
 
   return (
