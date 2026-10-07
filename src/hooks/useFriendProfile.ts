@@ -3,10 +3,14 @@ import { useEffect } from 'react';
 import { useProfileAccount } from './useProfileAccount';
 import { resolveProfileVisibility } from '@/lib/friendProfileClient';
 import { getDocumentFromServer, getDocumentsFromServer, where, firestoreLimit } from '@/lib/firebase/firestoreDb';
+import { profileUsernameCandidates } from '@/lib/profileUsername';
 import type { ProfileViewProfile } from '@/features/profile/types';
 import type { FriendshipUiStatus } from './useFriends';
 
 function profileRow(row: Record<string, unknown>): ProfileViewProfile {
+  if ((typeof row.user_id !== 'string' || !row.user_id) && typeof row.id === 'string' && row.id && !row.id.includes('/')) {
+    row = { ...row, user_id: row.id };
+  }
   if (typeof row.id !== 'string' || !row.id || row.id.includes('/') || typeof row.user_id !== 'string' || !row.user_id
     || typeof row.username !== 'string' || !row.username) throw new Error('This profile could not be identified.');
   const text = (key: string) => typeof row[key] === 'string' ? row[key] as string : null;
@@ -26,7 +30,7 @@ export function useFriendProfile(username: string | undefined) {
       actor.guard();
       const name = username?.trim();
       if (!name || name.includes('/')) return null;
-      for (const candidate of [...new Set([name, name.toLowerCase()])]) {
+      for (const candidate of profileUsernameCandidates(name)) {
         const rows = await getDocumentsFromServer('profiles', [where('username', '==', candidate), firestoreLimit(2)]);
         actor.guard();
         if (rows.length > 1) throw new Error('This profile could not be identified.');

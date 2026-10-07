@@ -1,3 +1,23 @@
+## ACTIVE (2026-10-07) - Profile open, share link, and friend requests
+
+### What changed
+- Opening another member’s profile no longer fails when the profile document has a username and document id but no separate `user_id`. The lookup also accepts `@handle`, the lowercase handle, and a capital first letter.
+- Sharing a profile copies `https://vybehub.app/u/{username}`. Sharing a post copies `https://vybehub.app/p/{postId}`. Older `sharePreview?type=profile&username=` links render a card and send the browser to that same address. That card ships when `sharePreview` is deployed.
+- The Requests tab reads pending friend requests with one party filter when the status filter is rejected, and it checks both the profile id and the Auth uid. An error no longer sits on top of “No requests”.
+
+### Verification
+- `npm run test`: 521 files passed, 1 skipped; 5127 passed, 6 skipped.
+- App `tsc` and Functions `tsc` passed. ESLint on the edited app files passed. `npm run build` passed. Entry `app-2DBV81Vt.js` is 857.1 KB raw / 261.2 KB gzip. Generated `public/version.json` and `public/despia/local.json` restored.
+
+### Blockers
+- `vybehub.app` needs Lovable → Share → Publish before the new share address and the profile/request fixes are on the phone.
+- Older cloudfunctions.net share links keep the old card until `npx -y firebase-tools@latest deploy --only functions:sharePreview --project vybe-daaab`. Do not deploy `auth2faRequest`.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then open another member’s profile and copy their share link.
+2. After `npx -y firebase-tools@latest login`, deploy only `functions:sharePreview` if old shared links should show the new card.
+3. Leave `auth2faRequest` undeployed.
+
 ## ACTIVE (2026-10-07) - Phone login leaves the restore screen
 
 ### What changed
