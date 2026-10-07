@@ -17,8 +17,34 @@ function pending<T>(){let resolve!:(value:T)=>void;const promise=new Promise<T>(
 const wrapper=(client:QueryClient)=>({children}:{children:ReactNode})=><QueryClientProvider client={client}>{children}</QueryClientProvider>;
 function countReply(request:any){return request.count?{count:3,data:null,error:null}:{data:request.filters.some((filter:any)=>filter.field==='follower_id'&&filter.value==='alice-profile')?{id:'follow'}:null,error:null};}
 beforeEach(()=>{vi.clearAllMocks();state.uid='alice';state.epoch++;state.ready=true;state.authReady=true;Object.defineProperty(navigator,'onLine',{configurable:true,value:true});window.dispatchEvent(new Event('app-resumed'));state.docs.mockResolvedValue([bob]);state.direct.mockResolvedValue(bob);state.disk.mockReturnValue(null);state.read.mockImplementation(async request=>request.table==='profiles'?{data:request.single?bob:[bob],error:null}:countReply(request));});
-afterEach(()=>{cleanup();Object.defineProperty(navigator,'onLine',{configurable:true,value:true});window.dispatchEvent(new Event('app-resumed'));});
+afterEach(()=>{cleanup();vi.useRealTimers();Object.defineProperty(navigator,'onLine',{configurable:true,value:true});window.dispatchEvent(new Event('app-resumed'));});
 describe('actual profile read lifetime and auxiliary loading',()=>{
+  it('retires a stalled header at the deadline and ignores its reply after a successful explicit retry',async()=>{
+    vi.useFakeTimers();const gate=pending<any>();state.docs.mockReturnValueOnce(gate.promise);
+    const hook=renderHook(()=>useProfileByUsername('bob'),{wrapper:wrapper(new QueryClient())});
+    await act(async()=>{await vi.advanceTimersByTimeAsync(15001)});
+    expect(hook.result.current.isError).toBe(true);expect(hook.result.current.isLoading).toBe(false);
+    expect(state.cache).not.toHaveBeenCalled();
+    await act(async()=>{await hook.result.current.refetch();await vi.advanceTimersByTimeAsync(1)});
+    expect(hook.result.current.data?.id).toBe('bob-profile');const cacheCalls=state.cache.mock.calls.length;
+    await act(async()=>{gate.resolve([{...bob,id:'late-profile'}]);await vi.advanceTimersByTimeAsync(1)});
+    expect(hook.result.current.data?.id).toBe('bob-profile');expect(state.cache).toHaveBeenCalledTimes(cacheCalls);
+  });
+  it('bounds the whole username fallback sequence instead of restarting its deadline for each read',async()=>{
+    vi.useFakeTimers();const gate=pending<any>();state.docs.mockReturnValueOnce(gate.promise);state.direct.mockReturnValue(new Promise(()=>{}));
+    const hook=renderHook(()=>useProfileByUsername('bob'),{wrapper:wrapper(new QueryClient())});
+    await act(async()=>{await vi.advanceTimersByTimeAsync(14000);gate.resolve([]);await vi.advanceTimersByTimeAsync(1)});
+    expect(state.direct).toHaveBeenCalledOnce();expect(hook.result.current.isLoading).toBe(true);
+    await act(async()=>{await vi.advanceTimersByTimeAsync(1001)});expect(hook.result.current.isError).toBe(true);
+  });
+  it('settles slow counts without replacing an available header when their deadline expires',async()=>{
+    vi.useFakeTimers();const gate=pending<void>();state.read.mockImplementation(request=>gate.promise.then(()=>countReply(request)));
+    const hook=renderHook(()=>useProfileByUsername('bob'),{wrapper:wrapper(new QueryClient())});
+    await act(async()=>{await vi.advanceTimersByTimeAsync(5)});expect(hook.result.current.data?.id).toBe('bob-profile');
+    await act(async()=>{await vi.advanceTimersByTimeAsync(15001)});expect(hook.result.current.statsError).toBe(true);expect(hook.result.current.statsPending).toBe(false);
+    await act(async()=>{gate.resolve();await vi.advanceTimersByTimeAsync(1)});
+    expect(hook.result.current.data?.following_count_label).toBe('—');expect(hook.result.current.isError).toBe(false);
+  });
   it('paints an ID profile before slow follow counts complete',async()=>{const gate=pending<void>();state.read.mockImplementation(request=>request.table==='profiles'?Promise.resolve({data:bob,error:null}):gate.promise.then(()=>countReply(request)));const hook=renderHook(()=>useProfileById('bob-profile'),{wrapper:wrapper(new QueryClient())});await waitFor(()=>expect(hook.result.current.data?.id).toBe('bob-profile'));expect(hook.result.current.isLoading).toBe(false);expect(hook.result.current.data?.following_count_label).toBe('—');await act(async()=>{gate.resolve()});await waitFor(()=>expect(hook.result.current.data?.following_count).toBe(3));});
   it('uses the already checked current owner profile without another profile lookup',async()=>{const hook=renderHook(()=>useProfileByUsername('alice'),{wrapper:wrapper(new QueryClient())});await waitFor(()=>expect(hook.result.current.data?.id).toBe('alice-profile'));expect(state.docs).not.toHaveBeenCalled();expect(state.direct).not.toHaveBeenCalled();expect(state.read.mock.calls.some(([request])=>request.table==='profiles')).toBe(false);});
   it('cannot reuse another viewer’s follow status after an account switch',async()=>{const hook=renderHook(()=>useProfileByUsername('bob'),{wrapper:wrapper(new QueryClient())});await waitFor(()=>expect(hook.result.current.data?.is_following).toBe(true));await act(async()=>{state.uid='charlie';state.epoch++;hook.rerender()});expect(hook.result.current.data?.is_following).not.toBe(true);await waitFor(()=>expect(hook.result.current.data?.id).toBe('bob-profile'));await waitFor(()=>expect(hook.result.current.data?.is_following).toBe(false));});
