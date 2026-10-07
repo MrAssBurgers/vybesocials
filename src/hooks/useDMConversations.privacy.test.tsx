@@ -50,6 +50,46 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('DM views stay with the authenticated account', () => {
+  it('keeps a chat pinned when the viewer membership uses the sign-in ID', async () => {
+    const { client, wrapper } = setup();
+    state.load.mockResolvedValue({ data: [{ ...conv, members: [{ conversation_id: conv.id, user_id: 'alice', is_pinned: true }] }], error: null, profileId: 'profile-alice' });
+    const hook = renderHook(() => useDMConversations(), { wrapper });
+    await waitFor(() => expect(hook.result.current.isFetched).toBe(true));
+    expect(hook.result.current.pinnedConversations.map(row => row.id)).toEqual([conv.id]);
+    expect(hook.result.current.unpinnedConversations).toEqual([]);
+    // A realtime/cache update must move it back without reopening Messages.
+    act(() => client.setQueryData(dmListQueryKey('profile-alice'), [{ ...conv, members: [{ conversation_id: conv.id, user_id: 'alice', is_pinned: false }] }]));
+    await waitFor(() => expect(hook.result.current.pinnedConversations).toEqual([]));
+    expect(hook.result.current.unpinnedConversations.map(row => row.id)).toEqual([conv.id]);
+    client.clear();
+  });
+
+  it('ignores a pin row belonging to a different conversation or participant', async () => {
+    const { client, wrapper } = setup();
+    state.load.mockResolvedValue({ data: [{ ...conv, members: [
+      { conversation_id: 'another-thread', user_id: 'profile-alice', is_pinned: true },
+      { conversation_id: conv.id, user_id: 'profile-bob', is_pinned: true },
+      { conversation_id: conv.id, user_id: 'alice', is_pinned: false },
+    ] }], error: null, profileId: 'profile-alice' });
+    const hook = renderHook(() => useDMConversations(), { wrapper });
+    await waitFor(() => expect(hook.result.current.isFetched).toBe(true));
+    expect(hook.result.current.pinnedConversations).toEqual([]);
+    expect(hook.result.current.unpinnedConversations.map(row => row.id)).toEqual([conv.id]);
+    client.clear();
+  });
+
+  it('prefers the current profile membership over a historical sign-in alias', async () => {
+    const { client, wrapper } = setup();
+    state.load.mockResolvedValue({ data: [{ ...conv, members: [
+      { conversation_id: conv.id, user_id: 'alice', is_pinned: true },
+      { conversation_id: conv.id, user_id: 'profile-alice', is_pinned: false },
+    ] }], error: null, profileId: 'profile-alice' });
+    const hook = renderHook(() => useDMConversations(), { wrapper });
+    await waitFor(() => expect(hook.result.current.isFetched).toBe(true));
+    expect(hook.result.current.pinnedConversations).toEqual([]);
+    client.clear();
+  });
+
   it('keeps empty and filtered list references stable across unrelated mounted renders', async () => {
     const { client, wrapper } = setup();
     const hook = renderHook(() => useDMConversations(), { wrapper });

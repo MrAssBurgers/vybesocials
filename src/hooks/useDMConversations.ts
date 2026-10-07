@@ -267,7 +267,12 @@ export function useDMConversations(searchQuery: string = '') {
     const unpinned: DMConversation[] = [];
 
     filteredConversations.forEach(conv => {
-      const isPinned = safeDmMembers(conv.members).find(m => m.user_id === profileId)?.is_pinned;
+      // Prefer the canonical profile row; older chats may store the auth UID.
+      // A member tuple from another chat must never supply this chat's pin.
+      const members = safeDmMembers(conv.members).filter(m => m.conversation_id === conv.id);
+      const viewer = members.find(m => profileId && m.user_id === profileId)
+        ?? members.find(m => user?.id && m.user_id === user.id);
+      const isPinned = viewer?.is_pinned;
       if (isPinned) {
         pinned.push(conv);
       } else {
@@ -276,7 +281,7 @@ export function useDMConversations(searchQuery: string = '') {
     });
 
     return { pinnedConversations: pinned, unpinnedConversations: unpinned };
-  }, [filteredConversations, profileId]);
+  }, [filteredConversations, profileId, user?.id]);
 
   // Calculate total unread count
   const totalUnreadCount = useMemo(() => {
