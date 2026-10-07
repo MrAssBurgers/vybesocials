@@ -7,14 +7,13 @@ import { toast } from 'sonner';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import {
   patchDmConversationInCache,
-  patchDmMemberInCache,
   patchLockedChatsCache,
   removeDmConversationFromCache,
 } from '@/lib/dmInboxCachePatch';
 import { useHideConversation } from '@/hooks/useHiddenConversations';
 import { useLockConversation, useUnlockConversation } from '@/hooks/useLockedChats';
 import { useMarkConversationRead } from '@/hooks/useDMConversations';
-import { safeDmMembers } from '@/lib/persistedCollections';
+import { useDmMemberPreference } from '@/hooks/useDmMemberPreference';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 
 export function useDmInboxActions(conversation: LoadedDMConversation) {
@@ -28,49 +27,8 @@ export function useDmInboxActions(conversation: LoadedDMConversation) {
 
   const memberDocId = profileId ? `${conversation.id}_${profileId}` : null;
 
-  const togglePin = useMutation({
-    mutationFn: async (pin: boolean) => {
-      if (!memberDocId) throw new Error('Not signed in');
-      const { error } = await db
-        .from('conversation_members')
-        .update({ is_pinned: pin })
-        .eq('id', memberDocId);
-      if (error) throw error;
-    },
-    onMutate: async (pin) => {
-      if (!profileId) return;
-      patchDmMemberInCache(qc, profileId, conversation.id, { is_pinned: pin });
-    },
-    onSuccess: (_, pin) => {
-      toast.success(pin ? 'Pinned' : 'Unpinned');
-    },
-    onError: () => {
-      if (profileId) invalidateConversationCaches(qc, profileId);
-      toast.error('Could not update pin');
-    },
-  });
-
-  const toggleMute = useMutation({
-    mutationFn: async (mute: boolean) => {
-      if (!memberDocId) throw new Error('Not signed in');
-      const { error } = await db
-        .from('conversation_members')
-        .update({ is_muted: mute })
-        .eq('id', memberDocId);
-      if (error) throw error;
-    },
-    onMutate: async (mute) => {
-      if (!profileId) return;
-      patchDmMemberInCache(qc, profileId, conversation.id, { is_muted: mute });
-    },
-    onSuccess: (_, mute) => {
-      toast.success(mute ? 'Muted' : 'Unmuted');
-    },
-    onError: () => {
-      if (profileId) invalidateConversationCaches(qc, profileId);
-      toast.error('Could not update mute');
-    },
-  });
+  const togglePin = useDmMemberPreference(conversation, 'is_pinned');
+  const toggleMute = useDmMemberPreference(conversation, 'is_muted');
 
   const markUnread = useMutation({
     mutationFn: async () => {
@@ -161,9 +119,8 @@ export function useDmInboxActions(conversation: LoadedDMConversation) {
     [markRead, markUnread],
   );
 
-  const myMembership = safeDmMembers(conversation.members).find((m) => m.user_id === profileId);
-  const isPinned = Boolean(myMembership?.is_pinned);
-  const isMuted = Boolean(myMembership?.is_muted);
+  const isPinned = togglePin.value;
+  const isMuted = toggleMute.value;
 
   return {
     isPinned,

@@ -9,3 +9,9 @@ The exact 23 client/source/test changes are visible in the Git diff against the 
 Verify this exact branch with app typecheck, full tests, lint, production/native entry build and scoped browser checks before publishing. Lovable's existing GitHub connection exposes a branch selector; switch only the existing repository connection to this reviewed branch for publication, then verify its selected source commit and delivered web/native manifest. Preserve main and never force-push. A GitHub push alone does not deploy the production website. No actual phone shell rebuild or installed adoption claim follows from a web publication.
 
 Keep the full user-ready/Firebase restoration/performance/security goal active. Next: verify and publish this exact compatible source, confirm actual Play Store profile/post/location/Clips adoption, and complete remaining account/backend/content restoration prerequisites and every existing user flow.
+
+## Inbox repair release candidate (2026-10-06)
+
+Built on the published 2a56bf63 source. Copies only six source/test files from development 023a5623298542cf21c2158b55178094c30deade: existing inbox pin classification, shared viewer-membership selection, and pin/mute controls with acknowledged existing-membership writes, immediate scoped cache feedback, rollback, pending-click exclusion and account/session guards. Explicit actions survive row movement. No membership creation, content restoration or backend protocol changes. Other account/backend candidates remain outside this branch.
+
+Verify this exact source before publication. Physical Play Store adoption, real signed-in/private data behavior, archive/lock/read-state actions and stalled connectivity still require their own evidence. Preserve main and restore development sync after publishing this branch.

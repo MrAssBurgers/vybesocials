@@ -31,7 +31,7 @@ import { getDmConversationSortTime } from '@/lib/dmConversationSort';
 import { resolveOtherMemberFromConversation, isViewerMember } from '@/lib/dmMemberResolve';
 import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 import { reportAccountGuard, type ReportAccountSession } from '@/lib/reportModerationService';
-import { conversationDetailQueryKey, dmListQueryKey, ownedDmProfileId, isOwnedDmActor, isDmConversationForViewer } from '@/lib/dmAccountScope';
+import { conversationDetailQueryKey, dmListQueryKey, ownedDmProfileId, isOwnedDmActor, isDmConversationForViewer, viewerDmMembership } from '@/lib/dmAccountScope';
 
 type DMConversation = LoadedDMConversation;
 const EMPTY_CONVERSATIONS: DMConversation[] = [];
@@ -267,7 +267,8 @@ export function useDMConversations(searchQuery: string = '') {
     const unpinned: DMConversation[] = [];
 
     filteredConversations.forEach(conv => {
-      const isPinned = safeDmMembers(conv.members).find(m => m.user_id === profileId)?.is_pinned;
+      const viewer = viewerDmMembership(conv, profileId, user?.id);
+      const isPinned = viewer?.is_pinned;
       if (isPinned) {
         pinned.push(conv);
       } else {
@@ -276,7 +277,7 @@ export function useDMConversations(searchQuery: string = '') {
     });
 
     return { pinnedConversations: pinned, unpinnedConversations: unpinned };
-  }, [filteredConversations, profileId]);
+  }, [filteredConversations, profileId, user?.id]);
 
   // Calculate total unread count
   const totalUnreadCount = useMemo(() => {
