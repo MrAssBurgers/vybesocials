@@ -11,7 +11,7 @@ export type SocialPostSelection = { scope: z.infer<typeof selection>['scope']; t
 export type SocialPostListInput = SocialPostSelection & { expectedOwnerUid: string; expectedProfileId: string; cursor?: string };
 export async function readSocialPostList(input: SocialPostListInput, guard: () => void, includeCommentCounts = true) {
   const started = Date.now(); guard();
-  const response = await invokeFunction<unknown>('readSocialPostList', input); guard();
+  const response = await invokeFunction<unknown>('readSocialPostList', input, { expectedOwnerUid: input.expectedOwnerUid, guard }); guard();
   if (response.error) throw Object.assign(new Error(response.error.message || 'These posts could not be loaded. Retry.'), { code: response.error.code || response.error.name });
   const parsed = page.safeParse(response.data);
   if (!parsed.success) throw new Error('Post access could not be verified. Retry.');

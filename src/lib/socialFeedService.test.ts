@@ -62,7 +62,7 @@ describe('current account social feed transport', () => {
   it('preserves approved presentation, reaction and bookmark controls without a raw-post fallback', async () => {
     const guard = vi.fn(); const result = await readSocialFeed(input, guard);
     expect(guard).toHaveBeenCalledTimes(2);
-    expect(state.invoke).toHaveBeenCalledExactlyOnceWith('readSocialFeed', input);
+    expect(state.invoke).toHaveBeenCalledExactlyOnceWith('readSocialFeed', input, { expectedOwnerUid: input.expectedOwnerUid, guard });
     expect(result.posts[0]).toMatchObject({ id: 'post-one', like_count: 7, comment_count: 2, is_liked: true, reaction_type: 'love', is_bookmarked: true, age_rating: 'unrated' });
   });
   it.each([

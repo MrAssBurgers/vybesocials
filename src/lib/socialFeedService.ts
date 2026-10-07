@@ -36,7 +36,7 @@ export async function readSocialPostPreviews(input: SocialPostPreviewsInput, gua
   if (!previewInput.safeParse(input).success || new Set(input.postIds).size !== input.postIds.length) throw new Error('Choose between one and twenty distinct posts.');
   const response = await invokeFunction<unknown>('readSocialPostPreviews', input);
   guard();
-  if (response.error) throw Object.assign(new Error(response.error.message || 'Shared posts could not be refreshed.'), { code: response.error.code });
+  if (response.error) throw Object.assign(new Error(response.error.message || 'Shared posts could not be refreshed.'), { code: response.error.code || response.error.name });
   const parsed = previewPage.safeParse(response.data);
   if (!parsed.success) throw new Error('Shared post access could not be verified.');
   const result = parsed.data;
@@ -55,7 +55,7 @@ export async function readSocialFeed(input: SocialFeedInput, guard: () => void):
   const started = Date.now();
   guard();
   if (input.feed === 'local' ? !validLocalArea(input.area) : input.area !== undefined) throw new Error('Choose an approximate area for Local.');
-  const response = await invokeFunction<unknown>('readSocialFeed', input);
+  const response = await invokeFunction<unknown>('readSocialFeed', input, { expectedOwnerUid: input.expectedOwnerUid, guard });
   guard();
   if (response.error) {
     throw Object.assign(new Error(response.error.message || 'Your feed could not be refreshed.'), { code: response.error.code || response.error.name });

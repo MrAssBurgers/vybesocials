@@ -1,7 +1,7 @@
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getFirebaseApp } from './app';
 import { getFirebaseConfig } from './config';
-import { firebaseAuth } from './authService';
+import { firebaseAuth, getFirebaseAuth, getAuthSessionGeneration } from './authService';
 import { isLocalPreview } from './localPreview';
 import { installLocalPreviewFetchDiagnostics } from './localPreviewFetchDiagnostics';
 import type { FunctionInvokeResult, VybeAuthError } from './types';
@@ -108,6 +108,9 @@ export function isNotYetPortedPayload(data: unknown): boolean {
 export function invokeFunction<T = any>(
   name: string,
   body?: Record<string, unknown>,
+  /** Owned reads supply their existing deadline/view guard. Public calls and
+   * mutation receipt handling keep their existing contracts. */
+  ownedRead?: { expectedOwnerUid: string; guard: () => void },
 ): Promise<FunctionInvokeResult<T>> & {
   single: () => Promise<FunctionInvokeResult<T>>;
   maybeSingle: () => Promise<FunctionInvokeResult<T>>;
@@ -116,6 +119,22 @@ export function invokeFunction<T = any>(
   const payload = normalizeInvokePayload(body);
   const promise = (async () => {
     try {
+      if (ownedRead) {
+        const user = getFirebaseAuth()?.currentUser;
+        const generation = getAuthSessionGeneration();
+        const current = () => {
+          ownedRead.guard();
+          if (!user || !ownedRead.expectedOwnerUid || user.uid !== ownedRead.expectedOwnerUid
+            || getFirebaseAuth()?.currentUser !== user || getAuthSessionGeneration() !== generation) {
+            throw Object.assign(new Error('Your account changed. Reopen this view.'), { code: 'account-changed' });
+          }
+        };
+        current();
+        // The Functions SDK suppresses token transport errors and can then send
+        // an unauthenticated call. Preserve the real failure for bounded retry.
+        await user!.getIdToken();
+        current();
+      }
       logLocalCallable('start', callableName);
       const fn = httpsCallable<Record<string, unknown> | undefined, T>(
         getFunctionsInstance(),
