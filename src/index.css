@@ -136,6 +136,21 @@ body.welcome-back-visible [data-app-shell] {
   pointer-events: none;
 }
 
+/* The signed-in picture stays invisible until the flying welcome photo lands on it. */
+body.welcome-account-pending [data-account-avatar] {
+  opacity: 0 !important;
+}
+
+/* Return toasts stay off this overlay. Their copy is shown under the photo. */
+body.welcome-back-splash [data-sonner-toaster] {
+  visibility: hidden !important;
+}
+
+[data-welcome-avatar][data-welcome-landed] {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
 /* Splash screen animations — pure CSS, GPU-composited */
 .vybe-logo-path {
   stroke-dasharray: 100;
