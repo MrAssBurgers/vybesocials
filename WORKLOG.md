@@ -1,3 +1,25 @@
+## ACTIVE (2026-10-07) - Welcome close, then swirl and confetti
+
+### What changed
+- The welcome photo no longer swirls on its own. It holds large in the center with "Welcome back" underneath and a Close control at the bottom of the overlay. Existing return toasts (for example a daily brief) are listed under that line. A plain "Welcome back" toast is not repeated. If there are none, the line is only "Welcome back".
+- Close starts the swirl. The photo orbits, then flies to the signed-in account picture (`data-account-avatar` on the bottom-nav profile picture and the desktop sidebar avatar). A short navy and accent burst plays on that avatar. The account picture stays hidden until the flying photo arrives, then it appears and the flying photo is gone.
+- Reduced motion skips the swirl and the burst. Close dismisses the overlay and the account picture appears immediately. The overlay still waits until `[data-auth-shell]` is gone. It does not use `useLocation`. Sign-in is not blocked. There is no floating @handle chip and no letter fallback on the welcome photo.
+- Story plus hit target and login-wave gating from `1814734d` are unchanged. iOS splash timing is unchanged.
+
+### Verification
+- `npm run test`: 515 files passed, 1 skipped; 5108 passed, 6 skipped.
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. ESLint on the edited welcome files passed. `npm run build` passed. Generated `public/version.json` and `public/despia/local.json` restored.
+- Chrome 475×751, password sign-in, no email-code screen. The photo was 168px at (154, 231). "Welcome back" sat under it. Close was at the bottom (44px tall). The bottom-nav account picture stayed at opacity 0 until the flight landed on it (28px at 384, 682), then a burst played at that picture and the account picture was opacity 1. Desktop 1280×800 held the same way. The sidebar picture (40px at 25, 76) was opacity 0 until the burst, then opacity 1, with the burst centered on it. No posts, messages, follows, or settings writes. Crash-consent and cookie buttons were not clicked.
+
+### Blockers
+- `vybehub.app` needs Lovable → Share → Publish.
+- Do not deploy `auth2faRequest`.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then force-close VYBE on the phone.
+2. Confirm the hold, Close, swirl, and avatar burst on a physical Fold.
+3. Leave `auth2faRequest` undeployed.
+
 ## ACTIVE (2026-10-07) - Mini app library load
 
 ### What changed
