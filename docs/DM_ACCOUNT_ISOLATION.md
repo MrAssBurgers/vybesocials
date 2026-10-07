@@ -12,7 +12,7 @@ The isolated browser walkthrough exposed a client cache leak: the inbox selected
 
 ## Sending and offline work
 
-### Existing pin and mute controls (2026-10-06 candidate)
+### Existing pin and mute controls (2026-10-06 release)
 
 The inbox and its actions use the same viewer-membership selector: require this conversation's membership tuple, prefer the owned profile ID, and otherwise accept the live Firebase UID. Pin/mute verify the selected existing document with a server read and await the Firestore update acknowledgment. A missing, denied or mismatched membership fails; this path never creates or repairs a membership.
 
@@ -20,7 +20,7 @@ Immediate feedback updates only populated inbox keys for the captured UID/epoch 
 
 Account guards run before dispatch and after each await. Retained controls cannot start work in a later session, including A→B→A. An explicit action survives its row moving between pinned/ordinary sections; its acknowledgment or failure remains visible for the original current account. A submitted request cannot be retracted from Firebase by these client guards. Server reads and write acknowledgment still depend on connectivity; this candidate does not implement durable preference receipts, a write timeout, historical membership reconciliation, or proof of physical-device behavior. Other archive/lock/read-state actions still need their separate scoped cache/mutation audit.
 
-Thirteen actual action-hook regressions plus the existing list/gesture/cache suite cover these boundaries. Final matching full suite: 5,072 tests passed/six skipped, 513 files passed/one skipped. Browser QA renders actual inbox/action hooks and caches with synthetic account/server boundaries; it checks row replacement, rejected-write rollback and accepted retry. Production pin/mute writes and full ConversationList rendering were not exercised. This candidate is on main pending compatible publication; no backend or Rules deployment accompanies it.
+Thirteen actual action-hook regressions plus the existing list/gesture/cache suite cover these boundaries. Development full suite: 5,072 tests passed/six skipped, 513 files passed/one skipped. The exact compatible release separately passes 4,901 tests/six skipped, 503 files/one skipped. Browser QA renders actual inbox/action hooks and caches with synthetic account/server boundaries; it checks row replacement, rejected-write rollback and accepted retry. Production pin/mute writes and full ConversationList rendering were not exercised. Published compatible source 95c5a75b is live on vybehub.app; see releases/inbox-readiness-20261006/verification.json for exact delivery evidence. No backend or Rules deployment accompanies it; actual signed-in and physical phone behavior remain unverified.
 
 Ordinary sends require the rendered user/profile to agree with the live Firebase session before optimistic insertion, broadcast or dispatch. The callable receives `expectedSenderUid`; when present, it must match the request's authenticated UID before rate limiting or database work. Existing callers that omit the field remain compatible. The server still derives the actual sender and verifies conversation access.
 

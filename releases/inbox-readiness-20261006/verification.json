@@ -1,0 +1,22 @@
+{
+  "checkedAt": "2026-10-07T01:35:32.199Z",
+  "sourceCommit": "95c5a75b8ee88fd16c06ec9ed28da86c355901f2",
+  "sourceSha256": "698dc0f923d208c49a9e6c87a5f8b5713868982b576ce7ebc4513eb161d9861d",
+  "entry": "/assets/app-BbA9sqif.js",
+  "entrySha256": "422362d3a920255b801cb687898d5ebd2155f2a8a6dd8c2853745d8d07f0fbb5",
+  "builtAt": "2026-10-07T01:32:53.114Z",
+  "routes": [
+    "/login",
+    "/signup",
+    "/home",
+    "/profile",
+    "/messages",
+    "/map",
+    "/explore",
+    "/clips",
+    "/settings"
+  ],
+  "assets": 628,
+  "nativeDeployedAt": "1791336771905",
+  "scope": "HTTP source identity, entry integrity, route shells and native asset availability; not signed-in flows, physical phone adoption or native binary verification"
+}
