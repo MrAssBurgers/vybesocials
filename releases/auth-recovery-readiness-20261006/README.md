@@ -1,0 +1,11 @@
+# Auth recovery and mobile login release
+
+Published source **285f18a55ff6307db10504de63511b7faea94fc9**, based on previously verified public95c5a75b. Exactly six source/test paths match main77de51e7; no backend/Rules/IAM/provider/package/account-content/unfinished protocol changes.
+
+Profile authority now waits for the same restored Firebase user's token inside the existing15-second total deadline. Firebase Functions otherwise suppresses token transport failure and may dispatch without authentication. The original network error is retained for bounded startup recovery; account retirement/late token cannot dispatch. Existing durable receipt and ownership checks preserved.
+
+Native/touch login and signup use natural scrolling instead of forced synchronous unscale/measure/resize fitting. Reduced mobile glass blur/noise/hover work and paused ambient drift during touch typing; reactive and working waves retained. Desktop fitting retained. Main5079 tests; exact release4908 tests (504 files passed/one skipped,6 tests skipped). Types/lint passed with5 existing warnings; build/native/entry/budget1095.6KB raw/332.3KB gzip.
+
+Lovable publication4ee2f690-f222-4ce5-a248-a38dbb766377 completed with Your website was updated. Source fingerprint814af27c... confirmed exact source parts/runtime; entry/assets/app-DQ-UamJJ.js SHA124d1012..., built2026-10-07T01:52:12.084Z. Whole verifier49994 exit0:9 route shells/current entry and all628 actual manifest assets HTTP200/no typed HTML fallback. Full metadata in verification.json. Existing Git synchronization restored to main77de51e7.
+
+Actual Chrome live account profile/posts survived one refresh before this publication; this does not establish exact startup time or physical-device persistence. Actual release login/signup at390x700 accepted field typing with no horizontal overflow or focused transform; no login/account submission or terms acceptance. Minimal actual hook/wave consumer with synthetic native bridge at390x700/390x460 confirmed natural scrolling/no blur/working waves. Physical Play Store keyboard/refresh/adoption/FPS and the reported login loop remain unverified. No claim that every refresh failure is fixed or whole Vybe is public-ready.

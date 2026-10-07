@@ -1,0 +1,22 @@
+{
+  "checkedAt": "2026-10-07T01:54:29.965Z",
+  "sourceCommit": "285f18a55ff6307db10504de63511b7faea94fc9",
+  "sourceSha256": "814af27ca60b32311f3a59bcb1d23bb75ec3020b6392aa5d95f4b01199b93371",
+  "entry": "/assets/app-DQ-UamJJ.js",
+  "entrySha256": "124d101282827135d561ad450612198f45a8c5861659b2528e6249253a00fb6e",
+  "builtAt": "2026-10-07T01:52:12.084Z",
+  "routes": [
+    "/login",
+    "/signup",
+    "/home",
+    "/profile",
+    "/messages",
+    "/map",
+    "/explore",
+    "/clips",
+    "/settings"
+  ],
+  "assets": 628,
+  "nativeDeployedAt": "1791337931422",
+  "scope": "HTTP source identity, entry integrity, route shells and native asset availability; not signed-in flows, physical phone adoption or native binary verification"
+}
