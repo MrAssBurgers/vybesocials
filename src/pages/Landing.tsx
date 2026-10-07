@@ -22,6 +22,7 @@ import { VYBELogo } from '@/components/ui/VYBELogo';
 
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { isInviteEntryMode } from '@/lib/referral';
+import { isValidUsernameFormat, normalizeUsername } from '@/lib/username';
 import { ForgotPasswordDialog } from '@/components/auth/ForgotPasswordDialog';
 import { LoginGateModal } from '@/components/auth/LoginGateModal';
 import {
@@ -134,6 +135,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     return hasHashTokens || isOAuthRedirectInFlight() || isLikelyFirebaseOAuthReturnUrl();
   });
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [usernameError, setUsernameError] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [loginGate, setLoginGate] = useState<null | {
@@ -304,15 +306,14 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           return;
         }
         const cached = getCachedCurrentProfile();
-        const dest = resolvePostLoginDestination(
-          profile ??
-            (cached
-              ? { onboarding_completed: cached.onboarding_completed, username: cached.username }
-              : null),
-        );
+        const destinationProfile = profile ??
+          (cached
+            ? { onboarding_completed: cached.onboarding_completed, username: cached.username }
+            : null);
+        const dest = resolvePostLoginDestination(destinationProfile);
         // Navigate + clear overlay immediately; claim/refresh warm home in background.
         navigate(dest, { replace: true });
-        toast.success('Welcome back! ✨');
+        toast.success(destinationProfile?.onboarding_completed === false ? 'Welcome to VYBE!' : 'Welcome back! ✨');
         void (async () => {
           try {
             await claimProfileAfterOAuth();
@@ -502,6 +503,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   );
 
   const runOAuthSignIn = useCallback(async (provider: 'google' | 'apple') => {
+    if (!isLogin && !agreedToTerms) {
+      toast.error('Please agree to the Terms of Use and Privacy Policy to create an account.');
+      return;
+    }
     // Stuck Google sheet (invalid address / Done) leaves overlay+pending true and
     // blocks Apple. Abandon prior pending when starting a different provider.
     const pendingProvider = getDespiaOAuthPendingProvider();
@@ -565,14 +570,13 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           return;
         }
         await claimProfileAfterOAuth();
-        toast.success('Welcome back! ✨');
         const cached = getCachedCurrentProfile();
+        const destinationProfile = cached
+          ? { onboarding_completed: cached.onboarding_completed, username: cached.username }
+          : profile;
+        toast.success(destinationProfile?.onboarding_completed === false ? 'Welcome to VYBE!' : 'Welcome back! ✨');
         navigate(
-          resolvePostLoginDestination(
-            cached
-              ? { onboarding_completed: cached.onboarding_completed, username: cached.username }
-              : profile,
-          ),
+          resolvePostLoginDestination(destinationProfile),
           { replace: true },
         );
         setOauthOverlay(null);
@@ -591,14 +595,13 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         clearOAuthAttempt(attemptId);
         if (!openGateFromSessionResult(gate, sessionCheck.data.session.user.email)) {
           await claimProfileAfterOAuth();
-          toast.success('Welcome back! ✨');
           const cached = getCachedCurrentProfile();
+          const destinationProfile = cached
+            ? { onboarding_completed: cached.onboarding_completed, username: cached.username }
+            : profile;
+          toast.success(destinationProfile?.onboarding_completed === false ? 'Welcome to VYBE!' : 'Welcome back! ✨');
           navigate(
-            resolvePostLoginDestination(
-              cached
-                ? { onboarding_completed: cached.onboarding_completed, username: cached.username }
-                : profile,
-            ),
+            resolvePostLoginDestination(destinationProfile),
             { replace: true },
           );
         }
@@ -648,7 +651,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         clearOAuthBusy();
       }
     }
-  }, [navigate, profile, applyOAuthSession, loading, openLoginApprovalGate, appleCompactSheet]);
+  }, [navigate, profile, applyOAuthSession, loading, openLoginApprovalGate, appleCompactSheet, isLogin, agreedToTerms]);
 
   // Firebase OAuth redirect — navigate as soon as session exists.
   useEffect(() => {
@@ -862,9 +865,13 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           { replace: true },
         );
       } else {
-        if (!formData.username.trim()) {
-          throw new Error('Username is required');
+        const cleanUsername = normalizeUsername(formData.username);
+        if (!isValidUsernameFormat(cleanUsername)) {
+          const message = 'Use 3 or more letters, numbers, or underscores.';
+          setUsernameError(message);
+          throw new Error(message);
         }
+        setUsernameError('');
         if (formData.password.length < 6) {
           throw new Error('Password must be at least 6 characters.');
         }
@@ -874,7 +881,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         const { error, needsEmailConfirmation, verificationEmailSent } = await signUp(
           normalizeLoginEmail(formData.email),
           formData.password,
-          formData.username,
+          cleanUsername,
         );
         if (error) {
           throw error;
@@ -1093,9 +1100,17 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                       disabled={loading}
                       placeholder="Choose a username"
                       value={formData.username}
-                      onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                      onChange={(e) => {
+                        setUsernameError('');
+                        setFormData({ ...formData, username: e.target.value });
+                      }}
+                      aria-invalid={usernameError ? true : undefined}
+                      aria-describedby={usernameError ? 'username-error' : undefined}
                       className="h-9 bg-secondary/40 border-white/10 text-sm py-1"
                     />
+                    {usernameError && (
+                      <p id="username-error" role="alert" className="text-[11px] text-destructive">{usernameError}</p>
+                    )}
                   </div>
                 )}
 
@@ -1296,7 +1311,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   variant="outline"
                   className="w-full h-8 bg-secondary/20 border-white/10 hover:bg-secondary/35 text-[11px] font-normal px-2"
                   onClick={() => void runOAuthSignIn('google')}
-                  disabled={oauthProviderLoading === 'google' || oauthOverlay === 'google' || (loading && !oauthProviderLoading && !oauthOverlay)}
+                  disabled={!isLogin && !agreedToTerms || oauthProviderLoading === 'google' || oauthOverlay === 'google' || (loading && !oauthProviderLoading && !oauthOverlay)}
                 >
                   <svg className="w-3.5 h-3.5 mr-1 shrink-0" viewBox="0 0 24 24" aria-hidden>
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -1312,7 +1327,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   variant="outline"
                   className="w-full h-8 bg-secondary/20 border-white/10 hover:bg-secondary/35 text-[11px] font-normal px-2"
                   onClick={() => void runOAuthSignIn('apple')}
-                  disabled={oauthProviderLoading === 'apple' || oauthOverlay === 'apple' || (loading && !oauthProviderLoading && !oauthOverlay)}
+                  disabled={!isLogin && !agreedToTerms || oauthProviderLoading === 'apple' || oauthOverlay === 'apple' || (loading && !oauthProviderLoading && !oauthOverlay)}
                 >
                   {oauthProviderLoading === 'apple' ? (
                     <Loader2 className="w-3.5 h-3.5 mr-1 shrink-0 animate-spin" aria-hidden />
@@ -1332,7 +1347,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   disabled={loading}
                   className="hover:text-foreground transition-colors"
                 >
-                  Browse as guest
+                  Preview VYBE
                 </button>
                 {isLogin && (
                   <>
