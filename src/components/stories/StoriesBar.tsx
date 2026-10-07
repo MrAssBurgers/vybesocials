@@ -289,11 +289,19 @@ const StoryTile = memo(function StoryTile({
         </motion.button>
 
         {showAddButton && !isUploading && (
-          <button type="button" aria-label="Add a story"
+          <button
+            type="button"
+            aria-label="Add a story"
+            data-story-add=""
             onClick={handleAddClick}
-            className="absolute -bottom-1 -right-1 z-20 bg-accent rounded-full p-1 border-2 border-background cursor-pointer active:scale-95 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 shadow-[0_1px_4px_rgba(0,0,0,0.3)]"
+            className="absolute -bottom-1 -right-1 z-20 flex h-11 w-11 items-end justify-end rounded-full border-0 bg-transparent p-0 touch-manipulation active:scale-95 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
-            <Plus className="h-4 w-4 text-accent-foreground" strokeWidth={3} />
+            <span
+              aria-hidden
+              className="flex h-[26px] w-[26px] items-center justify-center rounded-full border border-white/40 bg-[#10182a] text-white shadow-[0_4px_12px_rgba(2,6,16,0.5),inset_0_0_0_1px_rgba(125,211,252,0.4)]"
+            >
+              <Plus className="h-3.5 w-3.5" strokeWidth={2.25} />
+            </span>
           </button>
         )}
       </div>

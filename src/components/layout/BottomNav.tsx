@@ -122,16 +122,25 @@ const DraggableNavItem = memo(({
                 <GripVertical className="h-3 w-3 text-primary" />
               </motion.div>
             )}
-            {profile?.avatar_url ? <Avatar className={cn(
-              "h-7 w-7 relative z-10 transition-[box-shadow,transform]",
-              isActive && "ring-2 ring-primary/40",
-              isEditMode && "animate-pulse"
-            )}>
-              <ProfileAvatarImage profileId={profile?.id} src={profile?.avatar_url || undefined} />
-              <AvatarFallback className="text-[10px] bg-muted">
-                <User className="h-4 w-4" />
-              </AvatarFallback>
-            </Avatar> : <User className="h-6 w-6 text-current" strokeWidth={1.8} />}
+            {profile?.avatar_url ? (
+              <Avatar
+                data-account-avatar=""
+                className={cn(
+                  'h-7 w-7 relative z-10 transition-[box-shadow,transform]',
+                  isActive && 'ring-2 ring-primary/40',
+                  isEditMode && 'animate-pulse',
+                )}
+              >
+                <ProfileAvatarImage profileId={profile?.id} src={profile?.avatar_url || undefined} />
+                <AvatarFallback className="text-[10px] bg-muted">
+                  <User className="h-4 w-4" />
+                </AvatarFallback>
+              </Avatar>
+            ) : (
+              <span data-account-avatar="" className="relative z-10 flex h-7 w-7 items-center justify-center">
+                <User className="h-6 w-6 text-current" strokeWidth={1.8} />
+              </span>
+            )}
           </motion.div>
         </Link>
       </Reorder.Item>

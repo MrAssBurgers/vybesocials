@@ -23,6 +23,8 @@ export function AuthWaveSurface({ children, busy = false, signup = false, classN
       warmed.current = true;
       void import('@/lib/loginEmail').catch(() => {});
     }
+    // Response waves follow an in-flight sign-in or sign-up only.
+    if (!busy) return;
     if (Date.now() - lastWave.current < 450) return;
     lastWave.current = Date.now();
     const surface = event.currentTarget.getBoundingClientRect();
