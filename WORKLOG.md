@@ -6,7 +6,9 @@
 - A profile click keeps a loading skeleton until the signed-in profile is ready, instead of saying the other account does not exist.
 
 ### Verification
-- Pending in this handoff until tests, typecheck, and build finish.
+- `npm run test`: 524 files passed, 1 skipped; 5140 passed, 6 skipped. Map renderer stderr is the existing noise.
+- App `tsc` and Functions `tsc` passed. `npm run build` passed. Entry `app-BDJjagfP.js` is 857.1 KB raw / 261.4 KB gzip. Generated `public/version.json` and `public/despia/local.json` restored.
+- Local app at `http://127.0.0.1:8080` against live Firebase. Signed in as `vybe_qa_test`. Explore → @blaze opened `http://127.0.0.1:8080/u/blaze?p=HHmmIllK6zb3dUhoFA52y9R66Hx1` and showed “literally just blaze”, one post, and Message. A direct `/u/blaze` open on a phone-width viewport showed the same profile. No follow, like, comment, or message was sent.
 
 ### Next 3 tasks
 1. Lovable → Share → Publish, then open @blaze from Explore.
