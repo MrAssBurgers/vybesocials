@@ -281,7 +281,7 @@ export function ProfileHeroCard({
             onClick={() => setFollowListMode('followers')}
           />
           <StatCapsule
-            value={profile.following_count}
+            value={profile.following_count_label ?? profile.following_count ?? '—'}
             label="Following"
             onClick={() => setFollowListMode('following')}
           />

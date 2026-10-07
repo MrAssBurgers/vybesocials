@@ -62,6 +62,7 @@ export default function ProfilePage() {
           ...currentProfile,
           follower_count: 0,
           following_count: 0,
+          following_count_label: '—',
           post_count: 0,
           is_following: false,
         } as NonNullable<typeof profileData>)
