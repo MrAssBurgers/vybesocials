@@ -1,3 +1,24 @@
+## ACTIVE (2026-10-07) - Private posts and centered mobile toasts
+
+### What changed
+- Desktop create and the phone composer can publish a post as Private. That stores audience `only_me`, which the feed already hides from everyone except the author.
+- The author's profile grid and clips show a small "private" tag on those posts. The read functions add `ownerPrivate` only for the author, so other people do not receive the flag or the post.
+- Phone toasts stay a centered pill. Sonner's mobile stylesheet had stretched them to the left edge. The older toast viewport is centered on small screens and stays bottom-right from the `sm` breakpoint up.
+
+### Verification
+- Focused vitest: desktop studio, mobile composer, social feed, and post list tests passed (69). ESLint on the edited files passed.
+- Full `npm run test`, typecheck, and `npm run build` are still owed before this is called finished.
+
+### Blockers
+- Publish this client before deploying the read functions. An older client rejects unknown post fields, so deploying `ownerPrivate` first would fail the author's feed page whenever a private post is in that page.
+- After the client is on `main` and published, deploy the functions that return posts (`readSocialFeed`, `readSocialPostList`, `readSocialPostPreviews`, and any other caller of `projectPost`). Do not deploy `auth2faRequest`.
+- Until that deploy, Private still hides the post from other people, and the profile tag does not appear yet.
+
+### Next 3 tasks
+1. Lovable → Share → Publish this client.
+2. Deploy the post-read functions only, then confirm a private post is absent from another account and tagged on the author's profile.
+3. Leave `auth2faRequest` undeployed.
+
 ## ACTIVE (2026-10-07) - New-user first visit
 
 ### What changed
