@@ -38,6 +38,8 @@ export function gateVerifyErrorMessage(code?: string): string {
     case 'unavailable':
     case 'deadline-exceeded':
     case 'internal':
+    case 'network-request-failed':
+    case 'auth/network-request-failed':
       return 'Verification is unavailable — check your connection and try again';
     case 'resource-exhausted':
       return 'Too many attempts — please try again later';

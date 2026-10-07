@@ -21,6 +21,59 @@ import { LoginGateModal } from './LoginGateModal';
 const props = () => ({ open: true, mode: 'code' as const, email: 'a***@example.test', challengeId: 'challenge-one', expiresAt: new Date(Date.now() + 600_000).toISOString(), onSuccess: vi.fn(), onCancel: vi.fn() });
 beforeEach(() => { vi.clearAllMocks(); mock.invoke.mockResolvedValue({ data: { ok: true }, error: null }); });
 afterEach(cleanup);
+it('retries completion after an accepted code without verifying the one-use code again', async () => {
+  mock.invoke.mockResolvedValue({ data: { ok: true, customToken: 'synthetic-token' }, error: null });
+  const p = props(); p.onSuccess.mockRejectedValueOnce(new Error('Profile unavailable')).mockResolvedValue(undefined);
+  render(<LoginGateModal {...p} />);
+  fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } });
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Finish signing in' })).toBeEnabled());
+  expect(screen.getByText(/Code accepted/)).toBeInTheDocument();
+  expect(p.onSuccess).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole('button', { name: 'Finish signing in' }));
+  await waitFor(() => expect(p.onSuccess).toHaveBeenCalledTimes(2));
+  expect(mock.invoke).toHaveBeenCalledTimes(1);
+  expect(p.onSuccess.mock.calls[1][1]).toBe('synthetic-token');
+});
+it('drops an accepted receipt when the sign-in view changes', async () => {
+  mock.invoke.mockResolvedValue({ data: { ok: true, customToken: 'synthetic-token' }, error: null });
+  const p = props(); p.onSuccess.mockRejectedValue(new Error('Profile unavailable'));
+  const ui = render(<LoginGateModal {...p} />);
+  fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } });
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Finish signing in' })).toBeEnabled());
+  ui.rerender(<LoginGateModal {...p} challengeId="challenge-two" />);
+  expect(screen.queryByRole('button', { name: 'Finish signing in' })).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Code')).toHaveValue('');
+  expect(p.onSuccess).toHaveBeenCalledTimes(1);
+});
+it('does not reuse an expired accepted receipt', async () => {
+  const now = Date.now(); const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
+  try {
+    mock.invoke.mockResolvedValue({ data: { ok: true, customToken: 'synthetic-token' }, error: null });
+    const p = props(); p.onSuccess.mockRejectedValue(new Error('Profile unavailable'));
+    render(<LoginGateModal {...p} />);
+    fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Finish signing in' })).toBeEnabled());
+    clock.mockReturnValue(now + 600_001);
+    fireEvent.click(screen.getByRole('button', { name: 'Finish signing in' }));
+    await waitFor(() => expect(mock.error).toHaveBeenCalledWith(expect.stringContaining('expired')));
+    expect(p.onSuccess).toHaveBeenCalledTimes(1); expect(mock.invoke).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText('Code')).toHaveValue('');
+  } finally { clock.mockRestore(); }
+});
+it('keeps a completion retry single-flight and retires its guard on close', async () => {
+  mock.invoke.mockResolvedValue({ data: { ok: true, customToken: 'synthetic-token' }, error: null });
+  let finish!: () => void;
+  const p = props(); p.onSuccess.mockRejectedValueOnce(new Error('Profile unavailable')).mockImplementation(() => new Promise<void>(resolve => { finish = resolve; }));
+  const ui = render(<LoginGateModal {...p} />);
+  fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } });
+  const button = await screen.findByRole('button', { name: 'Finish signing in' });
+  await waitFor(() => expect(button).toBeEnabled());
+  act(() => { fireEvent.click(button); fireEvent.click(button); });
+  expect(p.onSuccess).toHaveBeenCalledTimes(2); expect(mock.invoke).toHaveBeenCalledTimes(1);
+  const guard = p.onSuccess.mock.calls[1][3]; expect(guard).not.toThrow();
+  ui.rerender(<LoginGateModal {...p} open={false} />); expect(guard).toThrow('view changed');
+  mock.error.mockClear(); await act(async () => finish()); expect(mock.error).not.toHaveBeenCalled();
+});
 it('never completes sign-in from an empty success acknowledgement or loops auto-submit', async () => {
   const p = props(); render(<LoginGateModal {...p} />);
   fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } });
@@ -76,6 +129,13 @@ it('provider failure is a service error and can retry without an automatic reque
   render(<LoginGateModal {...props()} />);
   fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } });
   await waitFor(() => expect(mock.error).toHaveBeenCalledWith(expect.stringContaining('unavailable')));
+  expect(mock.invoke).toHaveBeenCalledTimes(1);
+});
+it('does not label a Firebase network failure as an invalid code', async () => {
+  mock.invoke.mockResolvedValue({ data: null, error: { code: 'auth/network-request-failed' } });
+  render(<LoginGateModal {...props()} />);
+  fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } });
+  await waitFor(() => expect(mock.error).toHaveBeenCalledWith('Verification is unavailable — check your connection and try again'));
   expect(mock.invoke).toHaveBeenCalledTimes(1);
 });
 it('a failed deny does not dismiss the gate or report success', async () => {

@@ -58,16 +58,23 @@ export function LoginGateModal({
   const [phoneMasked, setPhoneMasked] = useState<string | null>(null);
   const [optionBusy, setOptionBusy] = useState<null | 'email' | 'sms'>(null);
   const [approvalChallengeId, setApprovalChallengeId] = useState(challengeId);
+  const [codeAccepted, setCodeAccepted] = useState(false);
+  // Keep the accepted receipt only in this mounted challenge, never in storage.
+  const acceptedRef = useRef<{ context: object; token: string | null; session: SessionTokens | null; confirmation?: { emailChallengeId: string }; expires: number } | null>(null);
 
   const pollTimerRef = useRef<number | null>(null);
   const cancelledRef = useRef(false);
   const submittedRef = useRef(false);
-  const context = useMemo(() => ({}), [open, challengeId, mode, email]);
+  const verificationRunningRef = useRef(false);
+  const context = useMemo(() => ({}), [open, challengeId, mode, email, expiresAt]);
   const contextRef = useRef<object | null>(context);
   contextRef.current = context;
   useEffect(() => {
     contextRef.current = context;
-    return () => { if (contextRef.current === context) contextRef.current = null; };
+    return () => {
+      if (contextRef.current === context) contextRef.current = null;
+      if (acceptedRef.current?.context === context) acceptedRef.current = null;
+    };
   }, [context]);
   const current = useCallback((captured: object) => open && contextRef.current === captured, [open]);
 
@@ -84,6 +91,9 @@ export function LoginGateModal({
     setOptionBusy(null);
     setResendCooldown(0);
     submittedRef.current = false;
+    verificationRunningRef.current = false;
+    acceptedRef.current = null;
+    setCodeAccepted(false);
   }, [open, challengeId, mode, email, expiresAt]);
 
 
@@ -212,13 +222,29 @@ export function LoginGateModal({
 
   // ── Verify code (email or sms) ───────────────────────────
   const verifyCode = useCallback(async (codeStr: string) => {
-    if (busy || optionBusy || submittedRef.current) return;
-    if (!/^\d{6}$/.test(codeStr)) return;
+    if (busy || optionBusy || verificationRunningRef.current || (submittedRef.current && !acceptedRef.current)) return;
+    if (!acceptedRef.current && !/^\d{6}$/.test(codeStr)) return;
     const captured = context;
     const guard = () => { if (!current(captured)) throw new Error('This sign-in view changed.'); };
     submittedRef.current = true;
+    verificationRunningRef.current = true;
     setBusy(true);
     try {
+      const accepted = acceptedRef.current;
+      if (accepted) {
+        guard();
+        if (accepted.context !== captured || !Number.isFinite(accepted.expires) || accepted.expires <= Date.now()) {
+          acceptedRef.current = null;
+          setCodeAccepted(false);
+          setCode('');
+          submittedRef.current = false;
+          toast.error('This sign-in request expired. Please sign in again.');
+          return;
+        }
+        await onSuccess(accepted.session, accepted.token, accepted.confirmation, guard);
+        if (current(captured)) acceptedRef.current = null;
+        return;
+      }
       const fn = currentMode === 'sms' ? 'auth-2fa-verify-phone' : 'auth-2fa-verify';
       const result = await db.functions.invoke(fn, {
         body: { challengeId: activeChallengeId, code: codeStr },
@@ -238,14 +264,16 @@ export function LoginGateModal({
         typeof (payload as { customToken?: unknown }).customToken === 'string'
           ? (payload as { customToken: string }).customToken
           : null;
-      if (customToken) {
-        await onSuccess(null, customToken, currentMode === 'code' ? { emailChallengeId: activeChallengeId } : undefined, guard);
-        return;
-      }
-
       const session = (payload as { session?: SessionTokens | null }).session ?? null;
-      if (session?.access_token && session?.refresh_token) {
-        await onSuccess(session, undefined, currentMode === 'code' ? { emailChallengeId: activeChallengeId } : undefined, guard);
+      if (customToken || (session?.access_token && session?.refresh_token)) {
+        const confirmation = currentMode === 'code' ? { emailChallengeId: activeChallengeId } : undefined;
+        const receiptSession = customToken ? null : session;
+        const expiry = activeExpiresAt ? new Date(activeExpiresAt).getTime() : Date.now() + 600_000;
+        acceptedRef.current = { context: captured, token: customToken, session: receiptSession, confirmation, expires: Math.min(expiry, Date.now() + 600_000) };
+        setCodeAccepted(true);
+        setCode('');
+        await onSuccess(receiptSession, customToken, confirmation, guard);
+        if (current(captured)) acceptedRef.current = null;
         return;
       }
 
@@ -254,13 +282,17 @@ export function LoginGateModal({
       submittedRef.current = false;
     } catch {
       if (!current(captured)) return;
+      if (acceptedRef.current?.context === captured) {
+        toast.error('Code accepted, but sign-in could not finish. Check your connection and tap Finish signing in.');
+        return;
+      }
       toast.error('Verification failed — check your connection and try again.');
       setCode('');
       submittedRef.current = false;
     } finally {
-      if (current(captured)) setBusy(false);
+      if (current(captured)) { verificationRunningRef.current = false; setBusy(false); }
     }
-  }, [busy, activeChallengeId, onSuccess, onCancel, currentMode, context, current, optionBusy]);
+  }, [busy, activeChallengeId, activeExpiresAt, onSuccess, currentMode, context, current, optionBusy]);
 
   // Auto-submit when all 6 digits are filled
   useEffect(() => {
@@ -429,16 +461,17 @@ export function LoginGateModal({
             {currentMode === 'sms' && <Smartphone className="w-5 h-5 text-primary" />}
             {currentMode === 'approval' && <Smartphone className="w-5 h-5 text-primary" />}
             {currentMode === 'options' && <ShieldCheck className="w-5 h-5 text-primary" />}
-            {currentMode === 'code' && 'Enter your code'}
-            {currentMode === 'sms' && 'Enter the SMS code'}
+            {currentMode === 'code' && (codeAccepted ? 'Finish signing in' : 'Enter your code')}
+            {currentMode === 'sms' && (codeAccepted ? 'Finish signing in' : 'Enter the SMS code')}
             {currentMode === 'approval' && 'Waiting for confirmation'}
             {currentMode === 'options' && 'More sign-in options'}
           </DialogTitle>
           <DialogDescription>
-            {currentMode === 'code' && (
+            {codeAccepted && <>Code accepted. We’re finishing your secure sign-in.</>}
+            {currentMode === 'code' && !codeAccepted && (
               <>We sent a 6-digit code to <span className="font-medium text-foreground">{currentEmail}</span>. It expires {expiryLabel ? <>in <span className="font-mono">{expiryLabel}</span></> : 'soon'}.</>
             )}
-            {currentMode === 'sms' && (
+            {currentMode === 'sms' && !codeAccepted && (
               <>We texted a 6-digit code to <span className="font-medium text-foreground">{phoneMasked || 'your phone'}</span>. It expires {expiryLabel ? <>in <span className="font-mono">{expiryLabel}</span></> : 'soon'}.</>
             )}
             {currentMode === 'approval' && (
@@ -452,7 +485,7 @@ export function LoginGateModal({
 
         {(currentMode === 'code' || currentMode === 'sms') ? (
           <div className="space-y-4">
-            <div className="flex justify-center pt-2">
+            {!codeAccepted && <div className="flex justify-center pt-2">
               <InputOTP
                 maxLength={6}
                 pattern={REGEXP_ONLY_DIGITS}
@@ -471,17 +504,17 @@ export function LoginGateModal({
                   ))}
                 </InputOTPGroup>
               </InputOTP>
-            </div>
+            </div>}
 
             {busy && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Verifying…
+                {codeAccepted ? 'Loading your account…' : 'Checking your code…'}
               </motion.div>
             )}
 
             <div className="flex items-center justify-between gap-2 pt-1">
-              {(currentMode === 'code' || currentMode === 'sms') ? (
+              {!codeAccepted ? (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -496,12 +529,12 @@ export function LoginGateModal({
                   Use a different account
                 </Button>
                 <Button
-                  disabled={busy || optionBusy !== null || code.length !== 6}
+                  disabled={busy || optionBusy !== null || (!codeAccepted && code.length !== 6)}
                   onClick={() => verifyCode(code)}
                 >
                   {busy
                     ? <Loader2 className="w-4 h-4 animate-spin" />
-                    : <><ShieldCheck className="w-4 h-4 mr-1.5" /> Verify</>}
+                    : <><ShieldCheck className="w-4 h-4 mr-1.5" /> {codeAccepted ? 'Finish signing in' : 'Verify'}</>}
                 </Button>
               </div>
             </div>
