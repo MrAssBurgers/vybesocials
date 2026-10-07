@@ -951,8 +951,12 @@ async function rpcGetUserPrimaryBadge(params: Record<string, unknown>) {
 }
 
 async function rpcGetPublicUserCount(): Promise<number> {
-  const rows = await getDocuments('profiles');
-  return rows.length;
+  // Profiles are signed-in reads. Listing the collection to count members
+  // downloads every profile and is denied on the public marketing page.
+  throw Object.assign(
+    new Error('A public member count is not available from profile documents.'),
+    { code: 'unavailable' },
+  );
 }
 
 const CLIENT_RPC: Record<string, (params: Record<string, unknown>) => Promise<unknown>> = {

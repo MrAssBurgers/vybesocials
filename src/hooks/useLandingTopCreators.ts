@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import { db } from '@/lib/firebase';
 
 export interface LandingCreator {
   id: string;
@@ -10,23 +9,15 @@ export interface LandingCreator {
 }
 
 /**
- * Top public + opted-in creators by 24h engagement (views + likes + comments).
- * Powers the avatar stack on the public /vybe-home landing page.
- * Refreshes hourly so new traction surfaces throughout the day.
+ * Featured creators on the public marketing page.
+ * `get_landing_top_creators` is not a deployed reader, and profile documents
+ * are not public, so the avatar stack stays empty instead of calling it.
  */
 export function useLandingTopCreators(limit = 4) {
   return useQuery<LandingCreator[]>({
     queryKey: ['landing-top-creators', limit],
-    queryFn: async () => {
-      const { data, error } = await db.rpc('get_landing_top_creators', { _limit: limit });
-      if (error) {
-        console.warn('[landing-top-creators] rpc failed', error);
-        return [];
-      }
-      return (data ?? []) as LandingCreator[];
-    },
-    staleTime: 60 * 60 * 1000, // 1 hour
-    refetchInterval: 60 * 60 * 1000,
+    queryFn: async () => [],
+    staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
 }
