@@ -63,3 +63,24 @@
 }
 
 .auth-gate-wave { display: grid; gap: 1rem; }
+
+/* Keep the phone's typing and authentication work ahead of decorative paint. */
+@media (pointer: coarse) {
+  [data-auth-shell] .liquid-glass-card {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  [data-auth-shell] .liquid-glass-card::after { display: none; }
+  [data-auth-shell] .liquid-glass-card:hover { transform: none; }
+  [data-auth-shell] .auth-light-rose { display: none; }
+  [data-auth-shell]:focus-within .auth-light { animation-play-state: paused; }
+  [data-auth-shell] .auth-wave { box-shadow: none; }
+}
+/* Native shells can report a fine pointer when a mouse is attached. */
+.platform-android [data-auth-shell] .liquid-glass-card,
+.platform-ios [data-auth-shell] .liquid-glass-card {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.platform-android [data-auth-shell] .liquid-glass-card::after,
+.platform-ios [data-auth-shell] .liquid-glass-card::after { display: none; }
