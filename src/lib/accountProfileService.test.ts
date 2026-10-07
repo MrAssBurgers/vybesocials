@@ -7,11 +7,46 @@ const createdAt = Date.parse('2026-01-01T00:00:00Z');
 const profile = (uid = 'alice') => ({ id: `legacy-${uid}`, user_id: uid, username: uid, onboarding_completed: true });
 function receipt(request: any) { return { data: { ok: true, ownerUid: request.expectedOwnerUid, accountCreatedAt: request.expectedAccountCreatedAt, requestId: request.requestId, action: request.action, status: 'ready', profileId: `legacy-${request.expectedOwnerUid}`, profile: profile(request.expectedOwnerUid), bindingRevision: 'a'.repeat(48), created: false, recovered: false }, error: null }; }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; }
-function switchTo(uid = 'alice') { mock.session = { uid, epoch: mock.session.epoch + 1 }; mock.user = { uid, metadata: { creationTime: new Date(createdAt).toUTCString() } }; }
+function switchTo(uid = 'alice') { mock.session = { uid, epoch: mock.session.epoch + 1 }; mock.user = { uid, metadata: { creationTime: new Date(createdAt).toUTCString() }, getIdToken: vi.fn().mockResolvedValue('test-token') }; }
 beforeEach(() => { vi.resetModules(); vi.clearAllMocks(); sessionStorage.clear(); switchTo(); mock.invoke.mockImplementation(async (_name, request) => receipt(request)); });
 afterEach(() => vi.useRealTimers());
 
 describe('checked account profile setup', () => {
+  it('preserves a token network failure without dispatching an anonymous profile request or discarding the session', async () => {
+    const failure = Object.assign(new Error('Network unavailable'), { code: 'auth/network-request-failed' });
+    mock.user.getIdToken.mockRejectedValueOnce(failure);
+    const { provisionAccountProfile } = await import('./accountProfileService');
+    const user = mock.user;
+    await expect(provisionAccountProfile('alice')).rejects.toBe(failure);
+    expect(mock.invoke).not.toHaveBeenCalled(); expect(mock.user).toBe(user);
+    const request = JSON.parse(sessionStorage.getItem('vybe:profile-setup-attempts:v1')!)[0];
+    await provisionAccountProfile('alice'); expect(mock.invoke.mock.calls[0][1]).toEqual(request);
+  });
+  it('bounds a stalled token and never dispatches its late result', async () => {
+    vi.useFakeTimers(); const token = deferred<string>(); mock.user.getIdToken.mockReturnValueOnce(token.promise);
+    const { provisionAccountProfile } = await import('./accountProfileService');
+    const pending = provisionAccountProfile('alice');
+    const rejected = expect(pending).rejects.toMatchObject({ code: 'deadline-exceeded' });
+    await vi.advanceTimersByTimeAsync(15_000); await rejected;
+    token.resolve('late-token'); await vi.advanceTimersByTimeAsync(0);
+    expect(mock.invoke).not.toHaveBeenCalled(); expect(mock.session.uid).toBe('alice');
+  });
+  it('waits for the restored account token before invoking profile authority', async () => {
+    const token = deferred<string>(); mock.user.getIdToken.mockReturnValueOnce(token.promise);
+    const { provisionAccountProfile } = await import('./accountProfileService');
+    const pending = provisionAccountProfile('alice');
+    expect(mock.invoke).not.toHaveBeenCalled(); token.resolve('test-token'); await pending;
+    expect(mock.invoke).toHaveBeenCalledOnce();
+  });
+  it('retires a pending token after account ABA before any profile dispatch', async () => {
+    const token = deferred<string>(); mock.user.getIdToken.mockReturnValueOnce(token.promise);
+    const { provisionAccountProfile } = await import('./accountProfileService');
+    const pending = provisionAccountProfile('alice');
+    const rejected = expect(pending).rejects.toMatchObject({ code: 'account-changed' });
+    switchTo('bob'); switchTo('alice'); token.resolve('retired-token'); await rejected;
+    expect(mock.invoke).not.toHaveBeenCalled();
+  });
+
   it('binds the live Auth incarnation and accepts a preserved legacy profile ID', async () => {
     const { provisionAccountProfile } = await import('./accountProfileService');
     expect((await provisionAccountProfile('alice', { defaults: { username: 'alice', onboardingCompleted: false } })).profileId).toBe('legacy-alice');
@@ -56,7 +91,7 @@ describe('checked account profile setup', () => {
   it('rejects late replies after A→B→A and leaves the receipt available for current-account retry', async () => {
     const held = deferred<any>(); mock.invoke.mockReturnValueOnce(held.promise);
     const { provisionAccountProfile } = await import('./accountProfileService');
-    const pending = provisionAccountProfile('alice'); const request = mock.invoke.mock.calls[0][1];
+    const pending = provisionAccountProfile('alice'); await vi.waitFor(() => expect(mock.invoke).toHaveBeenCalledOnce()); const request = mock.invoke.mock.calls[0][1];
     switchTo('bob'); switchTo('alice'); held.resolve(receipt(request));
     await expect(pending).rejects.toMatchObject({ code: 'account-changed' });
     await provisionAccountProfile('alice'); expect(mock.invoke.mock.calls[1][1]).toEqual(request);
@@ -90,6 +125,7 @@ describe('checked account profile setup', () => {
     const { provisionAccountProfile } = await import('./accountProfileService');
     const pending = provisionAccountProfile('alice');
     const rejected = expect(pending).rejects.toMatchObject({ code: 'deadline-exceeded' });
+    await vi.advanceTimersByTimeAsync(0);
     const original = mock.invoke.mock.calls[0][1];
     await vi.advanceTimersByTimeAsync(15_000); await rejected;
     await provisionAccountProfile('alice');

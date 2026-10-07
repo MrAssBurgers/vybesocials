@@ -50,6 +50,12 @@ export async function provisionAccountProfile(uid: string, options: { action?: A
   guard();
   const { data, error } = await withProfileSetupDeadline(async current => {
     current();
+    // Functions' SDK suppresses token transport errors and sends the call
+    // without Auth. Preserve that failure so startup can recover connectivity
+    // rather than mistake a restored account for an unauthenticated caller.
+    await firebaseUser.getIdToken();
+    current();
+    if (getFirebaseAuth()?.currentUser !== firebaseUser) throw Object.assign(new Error('Your account changed.'), { code: 'account-changed' });
     const result = await invokeFunction<unknown>('ensureAccountProfile', request);
     current();
     return result;
