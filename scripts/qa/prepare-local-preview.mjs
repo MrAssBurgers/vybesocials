@@ -19,7 +19,15 @@ const entry = `
 import './guard.mjs';
 import { onCall } from 'firebase-functions/v2/https';
 import { premiumStatusForRequest } from ${JSON.stringify(moduleUrl('_shared/premiumAuthority.js'))};
+import { ensureAccountProfileForUid } from ${JSON.stringify(moduleUrl('_shared/accountProfileAuthority.js'))};
+import { db as adminDb, auth as adminAuth, requireAuth, rateLimit, enforceRateLimit } from ${JSON.stringify(moduleUrl('_shared/admin.js'))};
 export const checkPremiumSubscription = onCall(premiumStatusForRequest);
+// Profile setup only. Do not import functions/src/auth.ts: that module also registers auth2faRequest.
+export const ensureAccountProfile = onCall({ cors: true, timeoutSeconds: 60 }, async (request) => {
+  const uid = requireAuth(request);
+  enforceRateLimit(await rateLimit('account-profile:' + uid, 30, 60));
+  return ensureAccountProfileForUid(adminDb, adminAuth, uid, request.data);
+});
 export { tokenMarketplace } from ${JSON.stringify(moduleUrl('tokenMarketplace.js'))};
 export { reportModeration } from ${JSON.stringify(moduleUrl('reportModeration.js'))};
 export { sendDmMessage } from ${JSON.stringify(moduleUrl('dmSend.js'))};
@@ -36,7 +44,11 @@ export { manageFollow } from ${JSON.stringify(moduleUrl('follow.js'))};
 export { managePostLocalArea } from ${JSON.stringify(moduleUrl('postLocalArea.js'))};
 export { publishMiniApp } from ${JSON.stringify(moduleUrl('miniAppPublish.js'))};
 export { saveMiniAppDraft, deleteMiniAppDraft } from ${JSON.stringify(moduleUrl('miniAppDrafts.js'))};
-export { readSocialFeed, readSocialPostPreviews } from ${JSON.stringify(moduleUrl('socialFeed.js'))};
+export { readSocialFeed, readSocialPostPreviews, readSocialPostList } from ${JSON.stringify(moduleUrl('socialFeed.js'))};
+export { startVybeCheck } from ${JSON.stringify(moduleUrl('vybeCheck.js'))};
+export { listMiniApps } from ${JSON.stringify(moduleUrl('miniAppList.js'))};
+export { managePost } from ${JSON.stringify(moduleUrl('postPublication.js'))};
+export { readPostComments, readPostCommentCounts, readCommentContext, managePostComment } from ${JSON.stringify(moduleUrl('comments.js'))};
 `;
 await writeFile(path.join(source, 'guard.mjs'), "if (process.env.GCLOUD_PROJECT !== 'demo-vybe-preview' || process.env.FIRESTORE_EMULATOR_HOST !== '127.0.0.1:8280' || process.env.FIREBASE_AUTH_EMULATOR_HOST !== '127.0.0.1:9199' || process.env.FIREBASE_STORAGE_EMULATOR_HOST !== '127.0.0.1:9399') throw new Error('Local preview requires all demo emulators');\n");
 await writeFile(path.join(source, 'index.mjs'), entry);

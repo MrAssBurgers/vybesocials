@@ -1,3 +1,30 @@
+## ACTIVE (2026-10-07) - Signed-in local walk and smaller entry
+
+### What changed
+- Merged `origin/main` at `965968f6` (“Publish a mini app when the direct snapshot read is denied”). That merge was clean. The earlier merge’s only conflict was `WORKLOG.md`, and both the Firebase config audit and the auto welcome stayed above the new-user section.
+- The camera and the bottom nav now load when they are needed. `entryFileNames` is still `assets/app-[hash].js`. The Despia plugin and the Lovable tagger are unchanged.
+- Sign-in starts the member’s own profile grid and stores the admitted page the profile screen already reads, so the first open can paint from that lease.
+- `readSocialPostList` now overlaps the viewer and target identity reads, the candidate and pin queries, and the like and bookmark reads. The callable requests `512MiB`. That setting does nothing until the function is deployed by name.
+- A publish exception keeps its own sentence. An account change still says to sign back in and retry the same draft.
+- The local preview entry can run `ensureAccountProfile` without importing `functions/src/auth.ts`, and it can run `startVybeCheck`, `listMiniApps`, posts, comments, follows, and DMs. `auth2faRequest` is not in that entry and was not deployed.
+
+### Verification
+- `npm run test`: 519 files passed, 1 skipped; 5122 passed, 6 skipped. Map renderer stderr is the existing noise.
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. `./node_modules/.bin/tsc --noEmit -p functions/tsconfig.json` passed. ESLint on the edited files passed. `npm run build` passed. Generated `public/version.json` and `public/despia/local.json` restored.
+- Entry chunk `dist/assets/app-CnuAeFmI.js`: 856.7 KB raw / 260.1 KB gzip. The previous number on this tree was 1098.4 KB raw / 333.3 KB gzip. The earlier handoff was 1096.2 KB raw / 332.6 KB gzip. Limits remain 1125 / 335.
+- Chrome on `http://127.0.0.1:8082` as `alice@vybe.test` (emulator only, email 2FA off). No email-code screen. Desktop 1280×800 and mobile 390×844: Home showed the text post, the profile grid showed it about 209ms after opening the profile from Home, the like stored a like, the comment stored “Local preview comment”, Follow on Bob became Following, and the Alice–Bob thread showed “Local preview hello Bob” as Delivered. Notifications said “You’re all caught up”. Settings opened. Mini Apps listed “Preview Hello”. No production Auth user was created. Crash-consent was not enabled.
+
+### Blockers
+- Production `listMiniApps`, `readSocialPostList`, and `auth2faRequest` answer unauthenticated calls with HTTP 401, so those functions exist. This session did not deploy any of them. Firebase CLI is not logged in.
+- The parallel profile-list reads and the `512MiB` setting are only in source. Production still runs the previous function. After `npx -y firebase-tools@latest login`, deploy only `npx -y firebase-tools@latest deploy --only functions:readSocialPostList --project vybe-daaab`. Do not deploy `auth2faRequest`.
+- `vybehub.app` needs Lovable → Share → Publish for the smaller entry and the profile warm.
+- The messages notes row in the local preview still says it could not be refreshed. The thread send itself succeeded.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then force-close VYBE on the phone.
+2. After `npx -y firebase-tools@latest login`, deploy only `functions:readSocialPostList`.
+3. Leave `auth2faRequest` undeployed.
+
 ## ACTIVE (2026-10-07) - Mini-app publish no longer looks like a moderation hold
 
 ### What changed
