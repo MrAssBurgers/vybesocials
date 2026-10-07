@@ -6,7 +6,7 @@ import { usePostReadWindow } from './usePostReadWindow';
 import { usePostReadRecovery } from './usePostReadRecovery';
 import { withPostReadDeadline } from '@/lib/postReadDeadline';
 
-export function useSocialPostList(selection: SocialPostSelection, enabled = true) {
+export function useSocialPostList(selection: SocialPostSelection, enabled = true, options?: { includeCommentCounts?: boolean }) {
   const view = usePostReadView(enabled), { account } = view;
   const window = usePostReadWindow(JSON.stringify([selection, ...view.key]));
   const recovery = usePostReadRecovery(JSON.stringify([selection, ...view.key, window.cursor]), view.guard);
@@ -18,7 +18,7 @@ export function useSocialPostList(selection: SocialPostSelection, enabled = true
     queryFn: ({ pageParam, signal }) => {
       recovery.beforeRead(signal);
       return withPostReadDeadline(current => readSocialPostList({ ...selection, expectedOwnerUid: account.user!.id, expectedProfileId: account.profile!.id,
-        ...(pageParam ? { cursor: pageParam } : {}) }, current), () => recovery.guard(signal), signal);
+        ...(pageParam ? { cursor: pageParam } : {}) }, current, options?.includeCommentCounts !== false), () => recovery.guard(signal), signal);
     },
     getNextPageParam: (last, pages, _param, params) => pages.length < 4 && last.nextCursor && !params.includes(last.nextCursor) ? last.nextCursor : undefined,
   });

@@ -14,12 +14,12 @@ describe('legacy feed hooks preserve checked reader boundaries', () => {
   it('retains profile paging controls while flattening only admitted data', () => {
     const fetchNextPage = vi.fn(); state.list.mockReturnValue({ data: [{ id: 'visible' }], hasNextPage: true, fetchNextPage });
     const result = renderHook(() => useInfinitePosts('post', 'profile-bob')).result.current;
-    expect(state.list).toHaveBeenLastCalledWith({ scope: 'profile', targetId: 'profile-bob', contentType: 'post' }, true);
+    expect(state.list).toHaveBeenLastCalledWith({ scope: 'profile', targetId: 'profile-bob', contentType: 'post' }, true, { includeCommentCounts: false });
     expect(state.feed).toHaveBeenLastCalledWith('post', false);
     expect(result.data?.pages[0].posts).toEqual([{ id: 'visible' }]); expect(result.fetchNextPage).toBe(fetchNextPage);
   });
   it('preserves explicit inactive gating and no stale profile result', () => {
     const result = renderHook(() => useInfinitePosts(undefined, 'profile-bob', { enabled: false })).result.current;
-    expect(state.list).toHaveBeenLastCalledWith({ scope: 'profile', targetId: 'profile-bob' }, false); expect(result.data).toBeUndefined();
+    expect(state.list).toHaveBeenLastCalledWith({ scope: 'profile', targetId: 'profile-bob' }, false, { includeCommentCounts: false }); expect(result.data).toBeUndefined();
   });
 });

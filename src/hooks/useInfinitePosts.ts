@@ -32,7 +32,7 @@ export interface Post {
 }
 
 export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: string, options?: { enabled?: boolean }) {
-  const profile = useSocialPostList({ scope: 'profile', targetId: authorId, ...(type ? { contentType: type } : {}) }, !!authorId && options?.enabled !== false);
+  const profile = useSocialPostList({ scope: 'profile', targetId: authorId, ...(type ? { contentType: type } : {}) }, !!authorId && options?.enabled !== false, { includeCommentCounts: false });
   const feed = useSocialFeed(type, !authorId && options?.enabled !== false);
   return authorId ? { ...profile, data: profile.data ? { pages: [{ posts: profile.data, nextCursor: null }], pageParams: [undefined] } : undefined } : feed;
 }

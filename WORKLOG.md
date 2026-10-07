@@ -1,3 +1,24 @@
+## ACTIVE (2026-10-07) - Profile grid paint and phone home scroll
+
+### What changed
+- Profile grids waited on a second `readPostCommentCounts` call after `readSocialPostList` had already admitted the posts. On the owner profile that extra round trip held “Loading posts…” until about 5.2s. Profile lists now paint from the admitted list (the server comment count on each post) and saved/search lists still wait for count admission. If a list is still loading after 2 seconds, the status says it will stop and offer a retry.
+- Phone and tablet home scroll was still compositing a full-screen bloom (`filter: blur(72px)`, `mix-blend-mode: screen`) and a drifting mesh, plus a masked aurora outline on each card. Those are static and unfiltered on `device-mobile` / `device-tablet`. Cards keep a hairline border. Desktop effects stay. iOS splash timing is unchanged. `content-visibility: auto` was not added to feed cards.
+
+### Verification
+- `npm run test`: 514 files passed, 1 skipped; 5096 passed, 6 skipped.
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. ESLint on the edited files passed. `npm run build` passed. Generated `public/version.json` and `public/despia/local.json` restored.
+- Chrome 475×751 after password sign-in. Profile grid showed 2 posts at 3.1s (was 5.2s) with no comment-count request. Home scroll over 1.2s: before, 14 of 15 frames were over 50ms; after, average frame 20ms, 2 of 62 frames over 50ms, max still 117ms. Card backdrop-filter stayed `none`. No posts, messages, follows, or settings writes.
+
+### Blockers
+- The profile list callable itself still takes about 2.7s before the first tiles. That is the remaining wait; it was not deployed.
+- One home frame still spiked to 117ms in this VM.
+- `vybehub.app` still needs Lovable → Share → Publish. Do not deploy `auth2faRequest`.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then force-close VYBE on the phone.
+2. If profile grids should be faster than one list round trip, profile the `readSocialPostList` callable without deploying `auth2faRequest`.
+3. Recheck home scroll on a physical phone; this VM still has a single long frame.
+
 ## ACTIVE (2026-10-07) - Signed-in load pass after the email code was removed
 
 ### What changed

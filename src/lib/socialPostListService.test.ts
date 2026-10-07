@@ -18,6 +18,17 @@ describe('checked post list transport', () => {
     expect(result).toMatchObject({ unavailableSavedPostIds: ['gone'], leaseUntil: 31000, posts: [{ id: 'one', caption: 'Visible caption', comment_count: 9 }] });
     expect(state.counts).toHaveBeenCalledWith(['one'], 'profile-alice', undefined, expect.any(Function));
   });
+  it('paints a profile list without waiting for comment admission', async () => {
+    const data = receipt();
+    data.selection = { ...data.selection, scope: 'profile', targetId: 'profile-bob' };
+    data.unavailableSavedPostIds = [];
+    state.invoke.mockResolvedValue({ data });
+    state.counts.mockImplementation(() => new Promise(() => {}));
+    const result = await readSocialPostList({ ...input, scope: 'profile', targetId: 'profile-bob' }, () => {}, false);
+    expect(state.counts).not.toHaveBeenCalled();
+    expect(result.posts.map(post => post.id)).toEqual(['one']);
+    expect(result.posts[0].comment_count).toBe(0);
+  });
   it('newer parent denial from count admission suppresses post content and keeps saved recovery', async () => {
     state.counts.mockResolvedValue({});
     expect(await readSocialPostList(input, () => {})).toMatchObject({ posts: [], unavailableSavedPostIds: ['gone', 'one'] });

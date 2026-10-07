@@ -5380,8 +5380,31 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
   html.device-mobile .vybe-liquid-bg .vybe-liquid-blob,
   html.device-tablet .vybe-liquid-bg .vybe-liquid-blob,
   html.device-mobile .vybe-liquid-bg .vybe-liquid-bloom,
-  html.device-tablet .vybe-liquid-bg .vybe-liquid-bloom {
+  html.device-tablet .vybe-liquid-bg .vybe-liquid-bloom,
+  html.device-mobile .vybe-liquid-bg .vybe-liquid-mesh,
+  html.device-tablet .vybe-liquid-bg .vybe-liquid-mesh,
+  html.device-mobile .vybe-liquid-bg .vybe-liquid-mesh::after,
+  html.device-tablet .vybe-liquid-bg .vybe-liquid-mesh::after {
     animation: none;
+    filter: none;
+    mix-blend-mode: normal;
+  }
+
+  html.device-mobile .vybe-liquid-grain,
+  html.device-tablet .vybe-liquid-grain,
+  html.device-mobile .vybe-liquid-touch-layer,
+  html.device-tablet .vybe-liquid-touch-layer {
+    display: none;
+  }
+
+  html.device-mobile .post-aurora-outline,
+  html.device-tablet .post-aurora-outline {
+    display: none;
+  }
+
+  html.device-mobile .feed-post-card,
+  html.device-tablet .feed-post-card {
+    border: 1px solid hsl(var(--foreground) / 0.1);
   }
 
   /* The home shell paints a stronger blur than the card utility. It wins

@@ -20,7 +20,7 @@ const POST_ACTOR_GUARD = Symbol('postActorGuard');
 
 export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string, options?: { enabled?: boolean }) {
   const enabled = options?.enabled !== false && (authorId === undefined || !!authorId);
-  const profile = useSocialPostList({ scope: 'profile', targetId: authorId, ...(type ? { contentType: type } : {}) }, enabled && !!authorId);
+  const profile = useSocialPostList({ scope: 'profile', targetId: authorId, ...(type ? { contentType: type } : {}) }, enabled && !!authorId, { includeCommentCounts: false });
   const feed = useSocialFeed(type, enabled && !authorId);
   return useFeedMuteFilter(authorId ? profile : { ...feed, data: feed.data?.pages.flatMap(page => page.posts) }, !!authorId);
 }
