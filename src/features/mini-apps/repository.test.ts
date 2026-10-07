@@ -109,6 +109,14 @@ describe('mini app private drafts and public snapshots', () => {
     });
     await expect(getPublishedMiniApp('direct', 'alice')).rejects.toMatchObject({ code: 'account-changed' });
   });
+  it('publishes a new app when the snapshot read is denied', async () => {
+    const draft = await saveMiniAppDraft('alice', source);
+    vi.mocked(getDoc).mockRejectedValueOnce(Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' }));
+    vi.mocked(invokeFunction).mockResolvedValueOnce({ data: { apps: [], nextCursor: null }, error: null });
+    await publishMiniApp('alice', draft);
+    expect(invokeFunction).toHaveBeenCalledWith('listMiniApps', { expectedOwnerUid: 'alice', view: 'published', appId: draft.id }, expect.anything());
+    expect(invokeFunction).toHaveBeenLastCalledWith('publishMiniApp', expect.objectContaining({ appId: draft.id, expectedVersion: null, source }));
+  });
   it('a timed-out publication preflight cannot publish when its late read completes', async () => {
     const draft = await saveMiniAppDraft('alice', source);
     const intent = { requestId: 'preflight-retry-request' };
