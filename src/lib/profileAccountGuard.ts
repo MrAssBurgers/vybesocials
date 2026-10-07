@@ -50,6 +50,7 @@ export function profileSetupFailure(error: unknown): ProfileSetupError {
     'You’re still signed in, but we can’t load your profile right now. Please try again later.',
   );
   if (code === 'deadline-exceeded') return failure('Profile loading timed out', 'This is taking longer than expected. You’re still signed in. Try again.');
+  if (code === 'resource-exhausted') return failure('Profile loading is busy', 'Too many profile checks landed at once. You’re still signed in. Try again in a moment.');
   if (code === 'network-request-failed' || (error instanceof TypeError && /fetch|network/i.test(error.message))) return failure(
     'Couldn’t connect to your profile', 'Check your connection and try again. You’re still signed in.',
   );

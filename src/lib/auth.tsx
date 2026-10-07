@@ -431,7 +431,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try { guard(); } catch { return null; }
       const failure = error as { code?: string; name?: string; message?: string };
       const failureCode = String(failure?.code || failure?.name || '').replace(/^(?:functions|auth)\//, '');
-      const transient = ['unavailable', 'deadline-exceeded', 'network-request-failed'].includes(failureCode) || (error instanceof TypeError && /fetch|network/i.test(error.message));
+      // resource-exhausted is a rate limit (HTTP 429), not a rejected profile.
+      const transient = ['unavailable', 'deadline-exceeded', 'network-request-failed', 'resource-exhausted'].includes(failureCode) || (error instanceof TypeError && /fetch|network/i.test(error.message));
       // A failed network bootstrap must not suppress the next successful
       // same-account token event. The attempt/lifetime guards above prevent
       // retired work from releasing another account's bootstrap latch.
@@ -458,7 +459,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }, _retryCount === 0 ? 1000 : 3000);
         }
       }
-      const preserve = transient && preserveConfirmedOnFailure && profileScopeRef.current?.uid === userId && profileScopeRef.current.epoch === captured.epoch;
+      const confirmedHere = profileScopeRef.current?.uid === userId && profileScopeRef.current.epoch === captured.epoch;
+      // A rate limit or dropped connection must not forget a profile this session already confirmed.
+      const preserve = transient && confirmedHere;
       if (!preserve) { profileScopeRef.current = null; setProfile(null); }
       // Keep brief network recovery continuous, but a full deadline must
       // expose recovery controls immediately instead of extending the spinner.

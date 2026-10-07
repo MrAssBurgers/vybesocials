@@ -5361,6 +5361,42 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
     opacity: 0.62;
   }
 
+  html.device-mobile .liquid-glass,
+  html.device-tablet .liquid-glass,
+  html.device-mobile .liquid-glass-card,
+  html.device-tablet .liquid-glass-card,
+  html.device-mobile .bottom-nav,
+  html.device-tablet .bottom-nav,
+  html.device-mobile .backdrop-blur-lg,
+  html.device-tablet .backdrop-blur-lg,
+  html.device-mobile .backdrop-blur-xl,
+  html.device-tablet .backdrop-blur-xl,
+  html.device-mobile .backdrop-blur-2xl,
+  html.device-tablet .backdrop-blur-2xl {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  html.device-mobile .vybe-liquid-bg .vybe-liquid-blob,
+  html.device-tablet .vybe-liquid-bg .vybe-liquid-blob,
+  html.device-mobile .vybe-liquid-bg .vybe-liquid-bloom,
+  html.device-tablet .vybe-liquid-bg .vybe-liquid-bloom {
+    animation: none;
+  }
+
+  /* The home shell paints a stronger blur than the card utility. It wins
+     over .feed-post-card and keeps every post filtering while you scroll. */
+  html.device-mobile body.has-liquid-bg .home-shell .feed-post-card,
+  html.device-tablet body.has-liquid-bg .home-shell .feed-post-card,
+  html.device-mobile body.has-liquid-bg .home-hero,
+  html.device-tablet body.has-liquid-bg .home-hero,
+  html.device-mobile body.has-liquid-bg .home-widget-card,
+  html.device-tablet body.has-liquid-bg .home-widget-card {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: hsl(var(--card) / 0.94);
+  }
+
   html.device-fold .vybe-liquid-touch-layer,
   html.device-fold .vybe-liquid-grain {
     display: none !important;

@@ -1,3 +1,26 @@
+## ACTIVE (2026-10-07) - Signed-in load pass after the email code was removed
+
+### What changed
+- Stayed on `cursor/beta-ready-pass-1b49`. `origin/main` was still `09d8c67c`.
+- A rate-limited `ensureAccountProfile` (HTTP 429, `resource-exhausted`) was treated as a rejected profile. That cleared a profile this session had already confirmed and replaced Settings, notifications, and challenges with “Your profile couldn’t be loaded.” A later check now keeps that confirmed profile, retries the transient failure, and says “Profile loading is busy” only when there is no confirmed profile yet.
+- The DM notes row re-rendered every second to watch 30-second leases. It still expires a note when the lease ends, and it no longer repaints the inbox on every tick.
+- Phone and tablet home cards were still blurring: `body.has-liquid-bg .home-shell .feed-post-card` paints `blur(18px)` and beat the earlier utility override. That rule is now off on `device-mobile` / `device-tablet`, along with widget-card blur and the full-screen liquid drift. Desktop keeps both. iOS splash timing is unchanged.
+
+### Verification
+- `npm run test`: 514 files passed, 1 skipped; 5095 passed, 6 skipped.
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. ESLint on the edited files passed. `npm run build` passed. Generated `public/version.json` and `public/despia/local.json` restored.
+- Chrome 475×751, password sign-in, no email-code screen. Opened Home (feed and stories paint, card backdrop-filter `none`), Global (a post paints), Clips (video readyState 4, playing, 704px wide), profile header, DMs list, notifications (“You’re all caught up”), challenges (level 54), settings (account rows), and the create menu. No posts, messages, follows, or settings writes. Crash-consent buttons were not clicked.
+
+### Blockers
+- Profile posts still showed “Loading posts…” for the first few seconds. The list has a bounded read deadline; this pass did not prove the grid itself painted.
+- Home scroll in this VM was still above 50ms per frame after the blur came off. The measured blur on feed cards is gone.
+- `vybehub.app` still needs Lovable → Share → Publish. Do not deploy `auth2faRequest`.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then force-close VYBE on the phone so the Play Store web view loads this bundle.
+2. On a phone, confirm profile posts finish loading and Clips stays in sync with sound after the first second.
+3. Leave `auth2faRequest` undeployed.
+
 ## ACTIVE (2026-10-07) - Beta pass: quieter feed clock, lighter phone cards
 
 ### What changed

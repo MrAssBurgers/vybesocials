@@ -343,6 +343,7 @@ describe('AuthProvider checked profile setup', () => {
     { code: 'functions/unavailable', message: 'offline' },
     { code: 'auth/network-request-failed', message: 'offline' },
     { code: 'functions/deadline-exceeded', message: 'offline' },
+    { code: 'functions/resource-exhausted', message: 'slow down' },
   ])('retains only the same-session confirmed profile on transient refresh failure %#', async error => {
     state.ensure.mockResolvedValueOnce(profile('alice', 'confirmed-alice')).mockRejectedValueOnce(error);
     mount(); await switchAccount('alice', 'INITIAL_SESSION');
@@ -368,6 +369,16 @@ describe('AuthProvider checked profile setup', () => {
     expect(result).toBeNull(); expect(current.profile).toBeNull(); expect(current.profileSetupError).not.toBeNull();
     expect(current.user?.id).toBe('alice'); expect(current.profileSetupLoading).toBe(false);
     expect(state.currentCache).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a confirmed profile when a later setup retry is rate limited', async () => {
+    state.ensure.mockResolvedValueOnce(profile('alice', 'confirmed-alice')).mockRejectedValue({ code: 'functions/resource-exhausted', message: 'slow down' });
+    mount(); await switchAccount('alice', 'INITIAL_SESSION');
+    await waitFor(() => expect(current.profile?.username).toBe('confirmed-alice'));
+    await act(async () => { await current.retryProfileSetup(); });
+    expect(current.profile?.username).toBe('confirmed-alice');
+    expect(current.profileSetupError).toBeNull();
+    expect(current.user?.id).toBe('alice');
   });
 
   it('does not let a replaced same-account refresh overwrite the latest confirmed profile', async () => {

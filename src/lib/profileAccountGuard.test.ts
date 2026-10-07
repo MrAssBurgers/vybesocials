@@ -41,6 +41,7 @@ describe('truthful profile loading failures', () => {
 
   it.each([
     [{ code: 'deadline-exceeded' }, 'Profile loading timed out'],
+    [{ code: 'functions/resource-exhausted' }, 'Profile loading is busy'],
     [{ name: 'auth/network-request-failed' }, 'Couldn’t connect to your profile'],
     [new TypeError('Failed to fetch'), 'Couldn’t connect to your profile'],
     [{ name: 'unauthenticated' }, 'Please check your sign-in'],
