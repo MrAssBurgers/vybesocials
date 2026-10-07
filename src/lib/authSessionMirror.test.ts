@@ -49,11 +49,12 @@ describe('durable native Firebase session mirror', () => {
     retireAuthRestore(); reply.resolve(session()); await vi.advanceTimersByTimeAsync(0);
     expect(getAuthRestoreState()).toBe('ready');
   });
-  it('reports timeout and permits a new restore generation; old replies cannot win', async () => {
+  it('opens sign-in after a vault timeout and still lets a later retry win', async () => {
     vi.useFakeTimers(); const old = deferred<string | null>(); let reads = 0;
     setAuthVaultTransportForTests({ read: () => ++reads === 1 ? old.promise : Promise.resolve(session('bob')), write: vi.fn() });
     const boot = ensureAuthStorageReady('test-key', 'Android'); await vi.advanceTimersByTimeAsync(10000); await boot;
-    expect(getAuthRestoreState()).toBe('error');
+    expect(getAuthRestoreState()).toBe('ready');
+    expect(localStorage.getItem(AUTH_BACKUP_KEY)).toBeNull();
     await retryAuthStorage('test-key', 'Android'); old.resolve(session()); await vi.advanceTimersByTimeAsync(0);
     expect(localStorage.getItem(AUTH_BACKUP_KEY)).toBe(session('bob')); expect(getAuthRestoreState()).toBe('ready');
   });
@@ -88,7 +89,7 @@ describe('durable native Firebase session mirror', () => {
       if (++commands === 2) (window as any)[AUTH_VAULT_KEY] = encodeURIComponent(session('bob'));
     } });
     const boot = ensureAuthStorageReady('test-key', 'Android'); await vi.advanceTimersByTimeAsync(10000); await boot;
-    expect(getAuthRestoreState()).toBe('error');
+    expect(getAuthRestoreState()).toBe('ready');
     const retry = retryAuthStorage('test-key', 'Android'); await vi.advanceTimersByTimeAsync(100);
     expect(commands).toBe(1);
     (window as any)[AUTH_VAULT_KEY] = encodeURIComponent(session('alice'));
@@ -96,11 +97,11 @@ describe('durable native Firebase session mirror', () => {
     expect(commands).toBe(2); expect(localStorage.getItem(AUTH_BACKUP_KEY)).toBe(session('bob'));
     delete (window as any).despia; delete (window as any)[AUTH_VAULT_KEY];
   });
-  it('native n/a is an unknown first-use result, while confirmed empty permits sign-in', async () => {
+  it('treats native n/a as first use and opens sign-in, same as a confirmed empty vault', async () => {
     vi.useFakeTimers(); vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Despia Android');
     Object.defineProperty(window, 'despia', { configurable: true, set: () => { (window as any)[AUTH_VAULT_KEY] = 'n/a'; } });
     const boot = ensureAuthStorageReady('test-key', 'Android'); await vi.advanceTimersByTimeAsync(10000); await boot;
-    expect(getAuthRestoreState()).toBe('error'); expect(localStorage.getItem(AUTH_BACKUP_KEY)).toBeNull();
+    expect(getAuthRestoreState()).toBe('ready'); expect(localStorage.getItem(AUTH_BACKUP_KEY)).toBeNull();
     resetAuthStoragePrepareForTests();
     Object.defineProperty(window, 'despia', { configurable: true, set: () => { (window as any)[AUTH_VAULT_KEY] = ''; } });
     await ensureAuthStorageReady('test-key', 'Android'); expect(getAuthRestoreState()).toBe('ready');

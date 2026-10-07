@@ -256,6 +256,9 @@ export function ensureAuthStorageReady(apiKey: string, ua = ''): Promise<void> {
   const guard = () => { if (attempt !== generation) throw new Error('Retired saved-session recovery.'); };
   state('pending'); prepareDone = false;
   const work = (async () => {
+    // True only after a complete saved account was recovered. A vault that
+    // never answers, or an empty/unreadable backup, is not that account.
+    let preservedSession = false;
     try {
       let json: string | null = null;
       if (native) {
@@ -266,6 +269,7 @@ export function ensureAuthStorageReady(apiKey: string, ua = ''): Promise<void> {
       if (!json) json = await readIndexedDbAuth(apiKey, 350);
       guard();
       if (json) {
+        preservedSession = true;
         if (storage) mirrorAuthUserJson(storage, apiKey, json);
         if (get(storage, key) !== json) {
           const fallback = sessionStore();
@@ -274,7 +278,7 @@ export function ensureAuthStorageReady(apiKey: string, ua = ''): Promise<void> {
         }
       }
       state('ready');
-    } catch { if (attempt === generation) state('error'); }
+    } catch { if (attempt === generation) state(preservedSession ? 'error' : 'ready'); }
   })();
   preparePromise = work.finally(() => { if (attempt === generation) prepareDone = restoreState === 'ready'; listeners.forEach(listener => listener()); });
   return preparePromise;

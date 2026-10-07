@@ -89,7 +89,14 @@ function waitForSdk(auth: Auth): Promise<void> {
     }
     if (auth !== authInstance) return;
     sdkReady = true; sdkError = false; notifyRestore();
-  } catch { if (auth === authInstance) { sdkError = true; notifyRestore(); } }
+  } catch {
+    if (auth !== authInstance) return;
+    // No account came back. A timed-out hydration must not leave the phone
+    // on "Restoring your account…" with no way to type a password.
+    if (!auth.currentUser) { sdkReady = true; sdkError = false; }
+    else sdkError = true;
+    notifyRestore();
+  }
   })().finally(() => { if (sdkWait === flight) sdkWait = null; });
   sdkWait = flight;
   return flight.promise;
@@ -97,11 +104,29 @@ function waitForSdk(auth: Auth): Promise<void> {
 function retireSavedSession() { authIntent++; retireAuthRestore(); }
 function beginExplicitSignIn() { retireSavedSession(); allowExplicitAuthSignIn(); }
 export async function abandonAuthRestore() {
-  const result = await firebaseAuth.signOut();
-  // Abandonment itself is an explicit signed-out decision; failed native
-  // confirmation must not trap a first-use device that has no vault value.
-  if (authInstance && !authInstance.currentUser) { sdkReady = true; sdkError = false; notifyRestore(); }
+  // Release the sign-in form even when the SDK was never created, sign-out
+  // hangs on the native vault, or a recovered user could not be cleared.
+  retireAuthRestore();
+  sdkError = false;
+  let result: { error: VybeAuthError | null } = { error: null };
+  try {
+    result = await withAuthTimeout(firebaseAuth.signOut(), 4000, 'Sign-in recovery timed out.');
+  } catch (err) {
+    result = { error: toAuthError(err) };
+  }
+  if (!authInstance && isFirebaseConfigured()) {
+    try { resolveAuth(); } catch { /* The form still has to open. */ }
+  }
+  sdkReady = true;
+  sdkError = false;
+  notifyRestore();
   return result;
+}
+
+/** Wait out a saved-session read, then return Auth. Null means Firebase itself is missing. */
+export async function ensureFirebaseAuth(): Promise<Auth | null> {
+  await settleAuthStorage();
+  return resolveAuth();
 }
 
 const NOT_CONFIGURED: VybeAuthError = {

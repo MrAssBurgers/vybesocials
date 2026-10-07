@@ -56,19 +56,19 @@ it.skipIf(!enabled)('real browser SDK hydrates delayed native credentials withou
   await vi.waitFor(() => expect(events.some(([event, session]) => event === 'INITIAL_SESSION' && session?.user.id === uid)).toBe(true));
   expect(events.some(([, session]) => session === null)).toBe(false);
 }, 15000);
-it.skipIf(!enabled)('retry attaches the existing subscriber after restore error and releases authoritative empty state', async () => {
-  let fail = true;
-  mirror.setAuthVaultTransportForTests({ read: async () => { if (fail) throw Error('No native reply'); return null; }, write: vi.fn() });
-  const { service, events } = await observe(); await vi.waitFor(() => expect(service.getAuthRestoreState()).toBe('error'));
-  expect(service.getFirebaseAuth()).toBeNull(); expect(events).toEqual([]);
-  fail = false; await service.retryAuthRestore();
-  await vi.waitFor(() => expect(events).toContainEqual(['INITIAL_SESSION', null])); expect(service.getAuthRestoreState()).toBe('ready');
+it.skipIf(!enabled)('a vault that never answers opens sign-in instead of staying on the restore screen', async () => {
+  mirror.setAuthVaultTransportForTests({ read: async () => { throw Error('No native reply'); }, write: vi.fn() });
+  const { service, events } = await observe();
+  await vi.waitFor(() => expect(service.getAuthRestoreState()).toBe('ready'));
+  await vi.waitFor(() => expect(events).toContainEqual(['INITIAL_SESSION', null]));
+  expect(service.getFirebaseAuth()?.currentUser).toBeNull();
 });
-it.skipIf(!enabled)('deliberate Sign in again works from first-use missing vault with no initialized SDK', async () => {
+it.skipIf(!enabled)('Sign in again from a missing vault still leaves a signed-out shell', async () => {
   let saved: string | null = null;
   mirror.setAuthVaultTransportForTests({ read: async () => { if (!saved) throw Error('Unknown first-use vault'); return saved; }, write: (_key, value) => { saved = value; } });
-  const { service, events } = await observe(); await vi.waitFor(() => expect(service.getAuthRestoreState()).toBe('error'));
-  expect(service.getFirebaseAuth()).toBeNull(); await service.abandonAuthRestore();
+  const { service, events } = await observe();
+  await vi.waitFor(() => expect(service.getAuthRestoreState()).toBe('ready'));
+  await service.abandonAuthRestore();
   await vi.waitFor(() => expect(events).toContainEqual(['INITIAL_SESSION', null]));
   expect(service.getAuthRestoreState()).toBe('ready'); expect(service.getFirebaseAuth()?.currentUser).toBeNull(); expect(saved).toContain('signed-out');
 });

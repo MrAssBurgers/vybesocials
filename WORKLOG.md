@@ -1,6 +1,28 @@
+## ACTIVE (2026-10-07) - Phone login leaves the restore screen
+
+### What changed
+- A Play Store shell whose native session vault never answers used to stay on “Restoring your account…” with “Sign in again”, and sign-in code reported that missing Auth instance as “Firebase is not configured”.
+- An empty, unreadable, or timed-out vault is now treated as no saved account. The password form opens. A recovered account that cannot be stored still stays on the restore screen so it is not discarded silently.
+- “Sign in again” always releases the form, including when Auth was never created or the vault write does not finish.
+- Google and Apple completion wait for that restore instead of toasting “Firebase is not configured” while Firebase is already set.
+
+### Verification
+- `npm run test`: 516 files passed, 1 skipped; 5111 passed, 6 skipped.
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. ESLint on the edited auth files passed.
+- Chrome 475×751, Fold user agent, Despia bridge present, vault read never answered. At 3.9s the screen was only “Restoring your account…”. At 11.0s the email and password form was up. No “Firebase is not configured” banner. No posts, messages, follows, or settings writes.
+
+### Blockers
+- `vybehub.app` needs Lovable → Share → Publish, then force-close VYBE and open it again. Do not deploy `auth2faRequest`.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then force-close VYBE on the phone and sign in with email and password.
+2. If a real saved account still will not store, use “Sign in again” once. That now opens the form.
+3. Leave `auth2faRequest` undeployed.
+
 ## ACTIVE (2026-10-07) - Signed-in local walk and smaller entry
 
 ### What changed
+- Merged `origin/main` at `e3acf855` (“Open the login form when the phone vault never answers”). The only conflict was `WORKLOG.md`. Main’s phone-login section stays above this one, and the auth files merged cleanly.
 - Merged `origin/main` at `965968f6` (“Publish a mini app when the direct snapshot read is denied”). That merge was clean. The earlier merge’s only conflict was `WORKLOG.md`, and both the Firebase config audit and the auto welcome stayed above the new-user section.
 - The camera and the bottom nav now load when they are needed. `entryFileNames` is still `assets/app-[hash].js`. The Despia plugin and the Lovable tagger are unchanged.
 - Sign-in starts the member’s own profile grid and stores the admitted page the profile screen already reads, so the first open can paint from that lease.
@@ -9,9 +31,8 @@
 - The local preview entry can run `ensureAccountProfile` without importing `functions/src/auth.ts`, and it can run `startVybeCheck`, `listMiniApps`, posts, comments, follows, and DMs. `auth2faRequest` is not in that entry and was not deployed.
 
 ### Verification
-- `npm run test`: 519 files passed, 1 skipped; 5122 passed, 6 skipped. Map renderer stderr is the existing noise.
-- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. `./node_modules/.bin/tsc --noEmit -p functions/tsconfig.json` passed. ESLint on the edited files passed. `npm run build` passed. Generated `public/version.json` and `public/despia/local.json` restored.
-- Entry chunk `dist/assets/app-CnuAeFmI.js`: 856.7 KB raw / 260.1 KB gzip. The previous number on this tree was 1098.4 KB raw / 333.3 KB gzip. The earlier handoff was 1096.2 KB raw / 332.6 KB gzip. Limits remain 1125 / 335.
+- After the `e3acf855` merge: `npm run test` 519 files passed, 1 skipped; 5122 passed, 6 skipped. Map renderer stderr is the existing noise. `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` and `functions/tsconfig.json` passed. `npm run build` passed. Generated `public/version.json` and `public/despia/local.json` restored.
+- Entry chunk after that merge: `dist/assets/app-DW1fC3f_.js` 857.2 KB raw / 261.2 KB gzip. Before the phone-login merge it was `app-CnuAeFmI.js` at 856.7 KB raw / 260.1 KB gzip. The earlier handoff was 1096.2 KB raw / 332.6 KB gzip. Limits remain 1125 / 335.
 - Chrome on `http://127.0.0.1:8082` as `alice@vybe.test` (emulator only, email 2FA off). No email-code screen. Desktop 1280×800 and mobile 390×844: Home showed the text post, the profile grid showed it about 209ms after opening the profile from Home, the like stored a like, the comment stored “Local preview comment”, Follow on Bob became Following, and the Alice–Bob thread showed “Local preview hello Bob” as Delivered. Notifications said “You’re all caught up”. Settings opened. Mini Apps listed “Preview Hello”. No production Auth user was created. Crash-consent was not enabled.
 
 ### Blockers
