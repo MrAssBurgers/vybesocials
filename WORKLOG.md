@@ -16,7 +16,9 @@
 - No Supabase client is initialized (`src/integrations/supabase/client.ts` exports null). Emulator ports and welcome-animation files were not edited.
 
 ### Verification
-- Pending in this section until `npm run test`, app `tsc`, ESLint, and `npm run build` finish.
+- `npm run test`: 516 files passed, 1 skipped; 5110 passed, 6 skipped. Includes `src/lib/firebase/config.test.ts` (omitted bucket resolves to `vybe-daaab.firebasestorage.app`; an explicit bucket is kept).
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. ESLint on `src/lib/firebase/config.ts` and `src/lib/firebase/config.test.ts` passed. `npm run build` passed. Generated `public/version.json` and `public/despia/local.json` restored.
+- Built `dist/assets/app-SzWvibed.js` contains `vybe-daaab.firebasestorage.app` and does not contain `vybe-daaab.appspot.com`. Messaging worker placeholders were injected. No posts, messages, follows, or settings writes.
 
 ### Blockers
 - Firebase CLI / MCP is not authenticated, so no Functions, Rules, or index deploy ran.
