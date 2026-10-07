@@ -1,3 +1,26 @@
+## ACTIVE (2026-10-07) - Mini app library load
+
+### What changed
+- Discover and My drafts queried `mini_apps` (`status == published`) and `mini_app_drafts` (`owner_id ==` the signed-in member) directly. Production Firestore answered both with permission denied, including a direct get of a missing mini-app document. The same account can read its profile. The client labeled that denial “Mini apps are not available for your account right now.”
+- `saveMiniAppDraft`, `deleteMiniAppDraft`, and `publishMiniApp` are not deployed. A studio save or publish that hits that HTTP 404 is `not-found`, which the studio toasted as “Mini apps could not be reached. Try again in a moment.”
+- The library now asks `listMiniApps` when the direct read is denied or needs an index. The callable returns published snapshots to any signed-in member and drafts only to their owner. It does not order drafts by document id, so it does not need the missing composite index. An empty result stays an empty library. A rules or missing-function failure says “Mini apps could not be loaded. Try again in a moment.” Search says it starts after the library loads until that read succeeds. A failed save says the code is still in the editor.
+
+### Verification
+- `npm run test`: 515 files passed, 1 skipped; 5104 passed, 6 skipped.
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. `./node_modules/.bin/tsc --noEmit -p functions/tsconfig.json` passed. ESLint on the edited files passed. `npm run build` passed. Generated `public/version.json` and `public/despia/local.json` restored.
+- `node scripts/test-mini-app-list.mjs` passed.
+- Chrome 475×751, password sign-in, no email-code screen. Discover and My drafts no longer say the account is ineligible. Both show “Mini apps could not be loaded. Try again in a moment.” Search says “Search starts after the library loads.” Firestore Listen for `mini_apps` and `mini_app_drafts` returned permission denied. `listMiniApps` returned HTTP 404. No posts, messages, follows, settings writes, or draft saves. Crash-consent buttons were not clicked.
+
+### Blockers
+- `listMiniApps` is not deployed. `npx firebase` is not logged in for `vybe-daaab`, so this session did not deploy it. Until it is deployed, Discover and My drafts cannot list this account’s apps.
+- `saveMiniAppDraft`, `deleteMiniAppDraft`, and `publishMiniApp` are also not deployed. Do not deploy `auth2faRequest`.
+- `vybehub.app` needs Lovable → Share → Publish for the client change.
+
+### Next 3 tasks
+1. Deploy only `listMiniApps`: `npx firebase deploy --only functions:listMiniApps --project vybe-daaab`. Do not deploy `auth2faRequest`.
+2. Lovable → Share → Publish, then reopen Mini App Studio and confirm Discover and My drafts.
+3. After review, deploy `saveMiniAppDraft`, `deleteMiniAppDraft`, and `publishMiniApp` only, still excluding `auth2faRequest`.
+
 ## ACTIVE (2026-10-07) - Story plus, welcome photo, login waves
 
 ### What changed

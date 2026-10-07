@@ -24,7 +24,10 @@ describe('mini app persistence boundary', () => {
     const denied = { code: 'permission-denied' };
     expect(miniAppError(denied, 'publish')).toContain('Publishing is blocked for this app');
     expect(miniAppError(denied, 'publish')).toContain('keep saving and previewing your private draft');
-    expect(miniAppError(denied)).toContain('not available for your account');
+    expect(miniAppError(denied, 'list')).toBe('Mini apps could not be loaded. Try again in a moment.');
+    expect(miniAppError(denied, 'list')).not.toContain('not available for your account');
+    expect(miniAppError({ code: 'not-found' }, 'list')).toBe('Mini apps could not be loaded. Try again in a moment.');
+    expect(miniAppError({ code: 'not-found' }, 'save')).toContain('still in this editor');
     expect(miniAppError(new Error('Connection lost'), 'publish')).toBe('Connection lost');
     expect(miniAppError({ code: 'internal', message: 'INTERNAL' }, 'publish')).toContain('not available right now');
     expect(miniAppError({ code: 'not-found', message: 'NOT_FOUND' }, 'publish')).toContain('private draft is still saved');

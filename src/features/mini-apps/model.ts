@@ -40,15 +40,18 @@ export function validateMiniApp(input: unknown): MiniAppSource {
   return { title, description, category: value.category as MiniAppCategory, html, css, javascript };
 }
 
-export function miniAppError(error: unknown, operation?: 'publish'): string {
+export function miniAppError(error: unknown, operation?: 'publish' | 'list' | 'save'): string {
   const code = error && typeof error === 'object' && 'code' in error ? String(error.code).replace(/^functions\//, '') : '';
   const message = error instanceof Error ? error.message.replace(/\s\[\d{3}\]$/, '') : '';
   const bareInternal = code === 'internal' || /^internal$/i.test(message.trim());
   const missing = code === 'not-found' || code === 'unimplemented' || code === 'not_yet_ported';
+  const libraryBlocked = bareInternal || missing || code.includes('permission-denied') || code.includes('failed-precondition');
+  if (operation === 'list' && libraryBlocked) return 'Mini apps could not be loaded. Try again in a moment.';
+  if (operation === 'save' && (bareInternal || missing)) return 'Saving is not available right now. Your code is still in this editor.';
   if (operation === 'publish' && (bareInternal || missing)) return 'Publishing is not available right now. Your private draft is still saved. Try again in a moment.';
   if (bareInternal || missing) return 'Mini apps could not be reached. Try again in a moment.';
   if (operation === 'publish' && code.includes('permission-denied')) return 'Publishing is blocked for this app. A moderation hold or account permissions may need review. You can keep saving and previewing your private draft.';
-  if (code.includes('permission-denied')) return 'Mini apps are not available for your account right now. You can still edit and preview your code locally.';
+  if (code.includes('permission-denied')) return 'Mini apps could not be loaded. Try again in a moment.';
   if (code.includes('unavailable')) return 'You appear to be offline. Keep this page open and try again when connected.';
   return message || 'Something went wrong. Please try again.';
 }

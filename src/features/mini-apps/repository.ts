@@ -9,14 +9,50 @@ export const MINI_APP_PAGE_SIZE = 24;
 export const MINI_APP_READ_TIMEOUT_MS = 15_000;
 const readMiniApp = <T>(request: Promise<T>) => withTimeout(request, MINI_APP_READ_TIMEOUT_MS, 'Mini apps are taking too long to load. Check your connection and try again.');
 export type MiniAppPage = { apps: MiniAppRecord[]; nextCursor: string | null };
-export async function listMiniAppsPage(ownerId: string, view: 'published' | 'drafts', cursor?: string): Promise<MiniAppPage> {
-  const guard = miniAppAccountGuard(ownerId); guard();
-  if (!['published', 'drafts'].includes(view) || (cursor !== undefined && (typeof cursor !== 'string' || !cursor || cursor.length > 1500 || cursor.includes('/')))) throw new Error('Refresh the mini-app library to continue.');
+const rulesBlocked = (error: unknown) => {
+  const code = error && typeof error === 'object' && 'code' in error ? String((error as { code: unknown }).code).replace(/^firestore\//, '') : '';
+  return code === 'permission-denied' || code === 'failed-precondition';
+};
+const callableFailure = (result: { error: { code?: string; name?: string; message?: string } | null }) => {
+  if (!result.error) return;
+  const code = (result.error.code || result.error.name || 'unknown').replace(/^functions\//, '');
+  throw Object.assign(new Error((result.error.message || 'Mini apps could not be loaded.').replace(/\s\[\d{3}\]$/, '')), { code });
+};
+const exactKeys = (value: unknown, keys: string[]): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
+  && Object.keys(value).length === keys.length && keys.every(key => Object.prototype.hasOwnProperty.call(value, key));
+function listedApp(ownerId: string, view: 'published' | 'drafts', value: unknown): MiniAppRecord | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  const allowed = ['id', 'owner_id', 'schema_version', 'title', 'description', 'category', 'html', 'css', 'javascript', 'status', 'publication_revision', 'created_at', 'updated_at'];
+  if (Object.keys(row).some(key => !allowed.includes(key)) || row.schema_version !== 1 || typeof row.id !== 'string' || !/^[\w-]{1,128}$/.test(row.id)
+    || typeof row.owner_id !== 'string' || !/^[\w-]{1,128}$/.test(row.owner_id)) return null;
+  if (view === 'drafts' ? row.owner_id !== ownerId : row.status !== 'published') return null;
+  if (row.publication_revision !== undefined && (typeof row.publication_revision !== 'string' || !/^[a-f0-9]{32}$/.test(row.publication_revision))) return null;
+  try {
+    return { ...validateMiniApp(row), id: row.id, owner_id: row.owner_id, schema_version: 1,
+      ...(view === 'drafts' ? {} : { status: 'published' as const, publication_revision: row.publication_revision as string | undefined }),
+      created_at: row.created_at, updated_at: row.updated_at };
+  } catch { return null; }
+}
+async function listMiniAppsFromAuthority(ownerId: string, view: 'published' | 'drafts', cursor: string | undefined, guard: () => void, appId?: string): Promise<MiniAppPage> {
+  const result = await invokeFunction<unknown>('listMiniApps', {
+    expectedOwnerUid: ownerId, view, ...(appId ? { appId } : { cursor: cursor ?? null }),
+  }, { expectedOwnerUid: ownerId, guard });
+  guard();
+  callableFailure(result);
+  const receipt = result.data;
+  const rawCursor = receipt && typeof receipt === 'object' && !Array.isArray(receipt) ? (receipt as { nextCursor?: unknown }).nextCursor : undefined;
+  const nextCursor = rawCursor === null ? null : typeof rawCursor === 'string' && rawCursor.length > 0 && rawCursor.length <= 1500 && !rawCursor.includes('/') ? rawCursor : undefined;
+  if (!exactKeys(receipt, ['apps', 'nextCursor']) || !Array.isArray(receipt.apps) || nextCursor === undefined) {
+    throw new Error('The mini-app library response could not be confirmed. Try again.');
+  }
+  return { apps: receipt.apps.flatMap(row => { const app = listedApp(ownerId, view, row); return app ? [app] : []; }), nextCursor };
+}
+async function listMiniAppsFromFirestore(ownerId: string, view: 'published' | 'drafts', cursor: string | undefined): Promise<MiniAppPage> {
   const privateView = view === 'drafts';
   const reference = collection(getFirestoreDb(), privateView ? 'mini_app_drafts' : 'mini_apps');
-  const rows = await readMiniApp(getDocs(query(reference, where(privateView ? 'owner_id' : 'status', '==', privateView ? ownerId : 'published'),
-    orderBy(documentId()), ...(cursor ? [startAfter(cursor)] : []), limit(MINI_APP_PAGE_SIZE + 1))));
-  guard();
+  const rows = await getDocs(query(reference, where(privateView ? 'owner_id' : 'status', '==', privateView ? ownerId : 'published'),
+    orderBy(documentId()), ...(cursor ? [startAfter(cursor)] : []), limit(MINI_APP_PAGE_SIZE + 1)));
   const candidates = rows.docs.slice(0, MINI_APP_PAGE_SIZE);
   const apps: MiniAppRecord[] = [];
   for (const row of candidates) {
@@ -30,11 +66,31 @@ export async function listMiniAppsPage(ownerId: string, view: 'published' | 'dra
   const last = candidates.at(-1);
   return { apps, nextCursor: rows.docs.length > MINI_APP_PAGE_SIZE && last ? last.id : null };
 }
+export async function listMiniAppsPage(ownerId: string, view: 'published' | 'drafts', cursor?: string): Promise<MiniAppPage> {
+  const guard = miniAppAccountGuard(ownerId); guard();
+  if (!['published', 'drafts'].includes(view) || (cursor !== undefined && (typeof cursor !== 'string' || !cursor || cursor.length > 1500 || cursor.includes('/')))) throw new Error('Refresh the mini-app library to continue.');
+  // Deployed rules deny these collection queries for every signed-in member.
+  // The checked callable applies the same published/owner boundary with the admin SDK.
+  const page = await readMiniApp((async () => {
+    try { return await listMiniAppsFromFirestore(ownerId, view, cursor); }
+    catch (error) { if (!rulesBlocked(error)) throw error; return listMiniAppsFromAuthority(ownerId, view, cursor, guard); }
+  })());
+  guard();
+  return page;
+}
 
 export async function getPublishedMiniApp(id: string, viewerId: string): Promise<MiniAppRecord | null> {
   const guard = miniAppAccountGuard(viewerId); guard();
   if (!/^[\w-]{1,128}$/.test(id)) return null;
-  const row = await readMiniApp(getDoc(doc(getFirestoreDb(), 'mini_apps', id)));
+  let row;
+  try { row = await readMiniApp(getDoc(doc(getFirestoreDb(), 'mini_apps', id))); }
+  catch (error) {
+    guard();
+    if (!rulesBlocked(error)) throw error;
+    const page = await readMiniApp(listMiniAppsFromAuthority(viewerId, 'published', undefined, guard, id));
+    guard();
+    return page.apps.find(app => app.id === id) ?? null;
+  }
   guard();
   if (!row.exists()) return null;
   const data = row.data();

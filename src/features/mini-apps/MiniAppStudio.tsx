@@ -104,7 +104,7 @@ export function MiniAppStudio({ ownerId, draft, onClose, onSaved }: {
       } else toast.success('Private draft saved.');
     } catch (error) {
       if (mounted.current) {
-        const message = draftSaved && publish ? `Your private draft was saved, but publishing failed. ${miniAppError(error, 'publish')}` : miniAppError(error);
+        const message = draftSaved && publish ? `Your private draft was saved, but publishing failed. ${miniAppError(error, 'publish')}` : miniAppError(error, publish ? 'publish' : 'save');
         setFailure({ message, publish, copyId, intent, conflict: !!error && typeof error === 'object' && 'code' in error && error.code === 'mini-app-conflict' }); toast.error(message);
       }
     } finally {

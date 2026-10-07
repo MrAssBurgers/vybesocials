@@ -354,5 +354,37 @@ describe('mini app private drafts and public snapshots', () => {
     vi.mocked(getDocs).mockImplementationOnce(async () => { switchAccount('bob'); return { docs: [] } as any; });
     await expect(listMiniAppsPage('alice', 'published', page.nextCursor!)).rejects.toMatchObject({ code: 'account-changed' });
   });
+  it('loads Discover through the checked callable when rules deny the gallery query', async () => {
+    vi.mocked(getDocs).mockRejectedValueOnce(Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' }));
+    vi.mocked(invokeFunction).mockResolvedValueOnce({ data: { apps: [{ ...source, id: 'app-1', owner_id: 'bob', schema_version: 1, status: 'published' }], nextCursor: null }, error: null } as any);
+    const page = await listMiniAppsPage('alice', 'published');
+    expect(page.apps).toEqual([expect.objectContaining({ id: 'app-1', owner_id: 'bob', title: source.title, status: 'published' })]);
+    expect(invokeFunction).toHaveBeenCalledWith('listMiniApps', { expectedOwnerUid: 'alice', view: 'published', cursor: null }, expect.objectContaining({ expectedOwnerUid: 'alice' }));
+  });
+  it('shows an empty draft library when the owner has no saved drafts', async () => {
+    vi.mocked(getDocs).mockRejectedValueOnce(Object.assign(new Error('Missing or insufficient permissions.'), { code: 'failed-precondition' }));
+    vi.mocked(invokeFunction).mockResolvedValueOnce({ data: { apps: [], nextCursor: null }, error: null } as any);
+    await expect(listMiniAppsPage('alice', 'drafts')).resolves.toEqual({ apps: [], nextCursor: null });
+  });
+  it('does not treat a missing list function as an empty library', async () => {
+    vi.mocked(getDocs).mockRejectedValueOnce(Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' }));
+    vi.mocked(invokeFunction).mockResolvedValueOnce({ data: null, error: { name: 'not-found', message: 'NOT_FOUND' } } as any);
+    await expect(listMiniAppsPage('alice', 'drafts')).rejects.toMatchObject({ code: 'not-found' });
+  });
+  it('drops another account draft and a poisoned published row from the checked response', async () => {
+    vi.mocked(getDocs).mockRejectedValueOnce(Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' }));
+    vi.mocked(invokeFunction).mockResolvedValueOnce({ data: { apps: [
+      { ...source, id: 'secret', owner_id: 'bob', schema_version: 1 },
+      { ...source, id: 'app-1', owner_id: 'bob', schema_version: 1, status: 'published', private_notes: 'nope' },
+    ], nextCursor: null }, error: null } as any);
+    const page = await listMiniAppsPage('alice', 'drafts');
+    expect(page.apps).toEqual([]);
+  });
+  it('opens a published app through the checked callable when the direct read is denied', async () => {
+    vi.mocked(getDoc).mockRejectedValueOnce(Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' }));
+    vi.mocked(invokeFunction).mockResolvedValueOnce({ data: { apps: [{ ...source, id: 'app-1', owner_id: 'bob', schema_version: 1, status: 'published' }], nextCursor: null }, error: null } as any);
+    await expect(getPublishedMiniApp('app-1', 'alice')).resolves.toMatchObject({ id: 'app-1', owner_id: 'bob' });
+    expect(invokeFunction).toHaveBeenCalledWith('listMiniApps', { expectedOwnerUid: 'alice', view: 'published', appId: 'app-1' }, expect.anything());
+  });
 
 });

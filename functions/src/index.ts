@@ -105,6 +105,7 @@ export { managePost } from './postPublication.js';
 export { recordPostView } from './postViews.js';
 export { publishMiniApp } from './miniAppPublish.js';
 export { saveMiniAppDraft, deleteMiniAppDraft } from './miniAppDrafts.js';
+export { listMiniApps } from './miniAppList.js';
 export { clearDnaAdaptationData } from './dnaAdaptation.js';
 
 export { getFriendsNotes, manageUserNote } from './userNotes.js';
