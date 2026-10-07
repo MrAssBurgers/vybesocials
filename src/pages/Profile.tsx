@@ -19,7 +19,6 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ClipsGrid } from '@/components/posts/ClipsGrid';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { useMarkConversationReadByUser } from '@/hooks/useMessages';
 import { useUserRoleById } from '@/hooks/useUserRoleById';
 import { GuestJoinBanner } from '@/components/growth/GuestJoinBanner';
 import { useIsModOrAdmin, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
@@ -74,7 +73,6 @@ export default function ProfilePage() {
   const { data: savedPosts } = savedQuery;
   const removeSavedPost = useRemoveSavedPost();
   const updateAvatar = useUpdateAvatar();
-  const markConversationReadByUser = useMarkConversationReadByUser();
   const { data: profileRole } = useUserRoleById(profile?.id);
   const isModOrAdmin = useIsModOrAdmin();
   const [warnDialogOpen, setWarnDialogOpen] = useState(false);
@@ -148,12 +146,6 @@ export default function ProfilePage() {
     effect: equippedBadge.badge.effect,
     is_animated: equippedBadge.badge.is_animated,
   }] : [];
-
-  useEffect(() => {
-    if (profile?.id && currentProfile?.id && profile.id !== currentProfile.id) {
-      markConversationReadByUser.mutate(profile.id);
-    }
-  }, [profile?.id, currentProfile?.id]);
 
   const nameColor = lockerData?.equippedNameColor ? NAME_COLOR_MAP[lockerData.equippedNameColor] : undefined;
   const effectClass = lockerData?.equippedEffect ? EFFECT_CLASS_MAP[lockerData.equippedEffect] : undefined;
