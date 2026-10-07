@@ -29,6 +29,8 @@ export interface Post {
   is_bookmarked: boolean;
   reaction_type?: string | null;
   view_count?: number;
+  /** Set only for the author when the post is visible to them alone. */
+  owner_private?: boolean;
 }
 
 export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: string, options?: { enabled?: boolean }) {

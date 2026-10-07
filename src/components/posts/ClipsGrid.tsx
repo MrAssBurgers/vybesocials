@@ -4,6 +4,7 @@ import { X, Eye } from 'lucide-react';
 import { ShortCard } from './ShortCard';
 import { Button } from '@/components/ui/button';
 import { VideoThumbnail } from '@/components/ui/VideoThumbnail';
+import { PrivatePostTag } from '@/components/posts/PrivatePostTag';
 
 interface ClipPost {
   id: string;
@@ -21,6 +22,7 @@ interface ClipPost {
   is_liked: boolean;
   is_bookmarked: boolean;
   view_count?: number;
+  owner_private?: boolean;
 }
 
 interface ClipsGridProps {
@@ -53,6 +55,7 @@ function ClipThumbnail({ clip, onClick }: { clip: ClipPost; onClick: () => void 
       <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />
 
       {/* View count at bottom */}
+      {clip.owner_private && <PrivatePostTag className="top-2 bottom-auto" />}
       <div className="absolute bottom-2 left-2 flex items-center gap-1 text-white text-xs font-medium drop-shadow-lg">
         <Eye className="h-3.5 w-3.5" />
         <span>{formatViewCount(clip.view_count || 0)}</span>

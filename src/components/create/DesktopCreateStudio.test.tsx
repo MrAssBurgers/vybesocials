@@ -27,11 +27,13 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 function mount(onClose = vi.fn()) { return render(<MemoryRouter><DesktopCreateStudio onClose={onClose} /></MemoryRouter>); }
 
 describe('desktop upload truthfulness and media lifecycle', () => {
-  it('clearly states the enforced public audience without false private options', () => {
+  it('publishes a private post for the author only', async () => {
+    const user = userEvent.setup();
     mount();
-    expect(screen.getByText('Public · Everyone on VYBE')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Only me' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Followers' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Private' }));
+    await user.type(screen.getByPlaceholderText('Write a caption...'), 'Just for me');
+    await user.click(screen.getByRole('button', { name: 'Post' }));
+    expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'only_me', caption: 'Just for me' }), 'Just for me');
   });
   it('keeps the visible video URL alive after reading duration and cleans it on unmount', () => {
     const videos: HTMLVideoElement[] = [];

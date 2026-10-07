@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ClipsGrid } from '@/components/posts/ClipsGrid';
+import { PrivatePostTag } from '@/components/posts/PrivatePostTag';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useUserRoleById } from '@/hooks/useUserRoleById';
@@ -180,6 +181,7 @@ export default function ProfilePage() {
     is_liked: post.is_liked,
     is_bookmarked: post.is_bookmarked,
     view_count: post.view_count || 0,
+    owner_private: isOwnProfile && post.owner_private === true,
   }));
 
   if ((!authReady || (user && !resolvedUsername && !currentProfile)) && !profile) {
@@ -382,6 +384,7 @@ export default function ProfilePage() {
                             <Pin className="h-3 w-3 text-foreground" fill="currentColor" />
                           </div>
                         )}
+                        {isOwnProfile && post.owner_private && <PrivatePostTag />}
                       </motion.div>
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 rounded-2xl">
                         <span className="font-semibold text-foreground text-sm">❤️ {post.like_count}</span>

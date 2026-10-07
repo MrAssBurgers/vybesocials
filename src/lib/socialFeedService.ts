@@ -19,6 +19,7 @@ export const socialPostSchema = z.object({
   isAiGenerated: z.boolean().optional(), aiConfidence: z.number().min(0).max(1).nullable().optional(), aiOverride: z.boolean().nullable().optional(),
   reactionType: z.enum(['like', 'love', 'care', 'haha', 'wow', 'sad', 'angry']).nullable(),
   author: z.object({ id, username: z.string().min(1).max(100).refine(value => !!value.trim()), displayName: z.string().max(200).nullable(), avatarUrl: url.nullable() }).strict(),
+  ownerPrivate: z.literal(true).optional(),
 }).strict();
 const page = z.object({ ownerUid: id, viewerProfileId: id, contentType: type.nullable(), feed, area: z.custom<LocalArea>(validLocalArea).optional(), posts: z.array(socialPostSchema).max(20), nextCursor: cursor.nullable() }).strict();
 export type SocialFeedInput = { expectedOwnerUid: string; expectedProfileId: string; contentType?: z.infer<typeof type>; cursor?: string; feed?: z.infer<typeof feed>; area?: LocalArea };
@@ -84,5 +85,6 @@ export function socialPostToPost(row: z.infer<typeof socialPostSchema>): Post {
     is_ai_generated: row.isAiGenerated, ai_confidence: row.aiConfidence ?? undefined, ai_override: row.aiOverride,
     is_liked: row.reactionType !== null, reaction_type: row.reactionType, is_bookmarked: row.isBookmarked,
     author: { id: row.author.id, username: row.author.username, display_name: row.author.displayName, avatar_url: row.author.avatarUrl },
+    ...(row.ownerPrivate ? { owner_private: true as const } : {}),
   };
 }
