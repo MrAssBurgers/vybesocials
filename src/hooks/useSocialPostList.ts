@@ -4,6 +4,7 @@ import { usePostReadView } from './usePostReadView';
 import type { Post } from './useInfinitePosts';
 import { usePostReadWindow } from './usePostReadWindow';
 import { usePostReadRecovery } from './usePostReadRecovery';
+import { withPostReadDeadline } from '@/lib/postReadDeadline';
 
 export function useSocialPostList(selection: SocialPostSelection, enabled = true) {
   const view = usePostReadView(enabled), { account } = view;
@@ -16,8 +17,8 @@ export function useSocialPostList(selection: SocialPostSelection, enabled = true
     refetchInterval: 20000, refetchOnMount: 'always', refetchOnWindowFocus: 'always',
     queryFn: ({ pageParam, signal }) => {
       recovery.beforeRead(signal);
-      return readSocialPostList({ ...selection, expectedOwnerUid: account.user!.id, expectedProfileId: account.profile!.id,
-        ...(pageParam ? { cursor: pageParam } : {}) }, () => recovery.guard(signal));
+      return withPostReadDeadline(current => readSocialPostList({ ...selection, expectedOwnerUid: account.user!.id, expectedProfileId: account.profile!.id,
+        ...(pageParam ? { cursor: pageParam } : {}) }, current), () => recovery.guard(signal), signal);
     },
     getNextPageParam: (last, pages, _param, params) => pages.length < 4 && last.nextCursor && !params.includes(last.nextCursor) ? last.nextCursor : undefined,
   });

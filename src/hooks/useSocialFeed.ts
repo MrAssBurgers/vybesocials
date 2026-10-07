@@ -5,6 +5,7 @@ import { usePostReadView } from './usePostReadView';
 import type { LocalArea } from '@/lib/localArea';
 import { readSocialFeed } from '@/lib/socialFeedService';
 import { usePostReadWindow } from './usePostReadWindow';
+import { withPostReadDeadline } from '@/lib/postReadDeadline';
 
 /** Feed payloads require a current account, visible surface, and unexpired read. */
 export function useSocialFeed(contentType?: 'post' | 'short' | 'video', enabled = true, feed: 'discover' | 'personalized' | 'following' | 'local' = 'discover', area?: LocalArea) {
@@ -18,8 +19,8 @@ export function useSocialFeed(contentType?: 'post' | 'short' | 'video', enabled 
     enabled: view.active, initialPageParam: window.cursor,
     queryFn: ({ pageParam, signal }) => {
       recovery.beforeRead(signal);
-      return readSocialFeed({ expectedOwnerUid: account.user!.id, expectedProfileId: account.profile!.id,
-        feed, ...(feed === 'local' && area ? { area } : {}), ...(contentType ? { contentType } : {}), ...(pageParam ? { cursor: pageParam } : {}) }, () => recovery.guard(signal));
+      return withPostReadDeadline(current => readSocialFeed({ expectedOwnerUid: account.user!.id, expectedProfileId: account.profile!.id,
+        feed, ...(feed === 'local' && area ? { area } : {}), ...(contentType ? { contentType } : {}), ...(pageParam ? { cursor: pageParam } : {}) }, current), () => recovery.guard(signal), signal);
     },
     getNextPageParam: (last, pages, _lastParam, pageParams) => pages.length < 4 && last.nextCursor && !pageParams.includes(last.nextCursor) ? last.nextCursor : undefined,
     staleTime: 0, gcTime: 0, refetchOnMount: 'always', refetchOnWindowFocus: 'always', refetchOnReconnect: true, refetchInterval: 20000,
