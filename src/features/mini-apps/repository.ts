@@ -153,6 +153,37 @@ export async function deleteMiniAppDraft(ownerId: string, draft: MiniAppRecord):
 
 export type MiniAppPublishIntent = { requestId: string; expectedVersion?: string | null; sourceKey?: string };
 const publicationVersionPattern = /^(?:[a-f0-9]{32}|legacy:-?\d{1,12}:\d{1,9})$/;
+function publicationVersionOf(row: { publication_revision?: unknown; updated_at?: unknown } | undefined): string {
+  if (!row) return '';
+  if (typeof row.publication_revision === 'string' && publicationVersionPattern.test(row.publication_revision)) return row.publication_revision;
+  const time = row.updated_at as { seconds?: number; nanoseconds?: number } | undefined;
+  if (row.publication_revision === undefined && Number.isInteger(time?.seconds) && Number.isInteger(time?.nanoseconds)) return `legacy:${time.seconds}:${time.nanoseconds}`;
+  return '';
+}
+
+/** Direct snapshot reads are denied by the deployed rules. The checked list is the same boundary. */
+async function currentPublicationVersion(ownerId: string, appId: string, guard: () => void): Promise<string | null> {
+  try {
+    const published = await readMiniApp(getDoc(doc(getFirestoreDb(), 'mini_apps', appId)));
+    guard();
+    if (!published.exists()) return null;
+    const version = publicationVersionOf(published.data());
+    if (!version) throw new Error('This publication needs review before it can be replaced.');
+    return version;
+  } catch (error) {
+    guard();
+    if (error instanceof Error && error.message === 'This publication needs review before it can be replaced.') throw error;
+    if (!rulesBlocked(error)) throw error;
+    const page = await readMiniApp(listMiniAppsFromAuthority(ownerId, 'published', undefined, guard, appId));
+    guard();
+    const app = page.apps.find(item => item.id === appId);
+    if (!app) return null;
+    const version = publicationVersionOf(app);
+    if (!version) throw new Error('This publication needs review before it can be replaced.');
+    return version;
+  }
+}
+
 export async function publishMiniApp(ownerId: string, draft: MiniAppRecord, intent: MiniAppPublishIntent = { requestId: crypto.randomUUID() }): Promise<void> {
   const guard = miniAppAccountGuard(ownerId); guard();
   if (draft.owner_id !== ownerId || !draft.created_at || !/^[\w-]{1,128}$/.test(draft.id)) throw new Error('Save your own draft before publishing.');
@@ -160,17 +191,7 @@ export async function publishMiniApp(ownerId: string, draft: MiniAppRecord, inte
   const sourceKey = JSON.stringify({ ownerId, id: draft.id, source });
   if (intent.sourceKey !== undefined && intent.sourceKey !== sourceKey) throw new Error('Your code changed. Choose Publish to Hub again to publish the new version.');
   intent.sourceKey = sourceKey;
-  if (intent.expectedVersion === undefined) {
-    const published = await readMiniApp(getDoc(doc(getFirestoreDb(), 'mini_apps', draft.id)));
-    guard();
-    if (!published.exists()) intent.expectedVersion = null;
-    else {
-      const row = published.data();
-      const version = row.publication_revision ?? (Number.isInteger(row.updated_at?.seconds) && Number.isInteger(row.updated_at?.nanoseconds) ? `legacy:${row.updated_at.seconds}:${row.updated_at.nanoseconds}` : '');
-      if (typeof version !== 'string' || !publicationVersionPattern.test(version)) throw new Error('This publication needs review before it can be replaced.');
-      intent.expectedVersion = version;
-    }
-  }
+  if (intent.expectedVersion === undefined) intent.expectedVersion = await currentPublicationVersion(ownerId, draft.id, guard);
   guard();
   const result = await invokeFunction<unknown>('publishMiniApp', { expectedOwnerUid: ownerId, appId: draft.id, requestId: intent.requestId, expectedVersion: intent.expectedVersion, source });
   guard();

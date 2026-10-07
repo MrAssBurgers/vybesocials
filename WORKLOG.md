@@ -1,3 +1,22 @@
+## ACTIVE (2026-10-07) - Mini-app publish no longer looks like a moderation hold
+
+### What changed
+- Publishing a saved draft read `mini_apps/{id}` in the browser before calling `publishMiniApp`. Deployed rules deny that direct read, and the studio mapped every `permission-denied` to “Publishing is blocked for this app. A moderation hold or account permissions may need review.” The draft save had already succeeded, so the owner saw a moderation message for a rules denial.
+- That preflight now uses `listMiniApps` when the direct read is denied, the same checked path Discover already uses. A missing public snapshot publishes with `expectedVersion: null`. A real callable hold or ownership message is shown as written.
+
+### Verification
+- `npm run test`: 516 files passed, 1 skipped; 5111 passed, 6 skipped. Includes the mini-app publish preflight test.
+- App `tsc` and ESLint on the edited mini-app files passed.
+
+### Blockers
+- `vybehub.app` still needs Lovable → Share → Publish before the phone uses this client. `publishMiniApp` is already answering unauthenticated requests in production. Do not deploy `auth2faRequest`.
+- A real moderation hold still blocks that one app. This change does not release holds.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then force-close VYBE and publish the mini app again.
+2. If the studio then shows the callable’s own hold sentence, review `_mini_app_moderation` for that app id.
+3. Leave `auth2faRequest` undeployed.
+
 ## ACTIVE (2026-10-07) - Firebase config audit
 
 ### What changed
