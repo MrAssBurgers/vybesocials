@@ -1,3 +1,29 @@
+## ACTIVE (2026-10-07) - New-user first visit
+
+### What changed
+- The backend is Firebase (Auth, Firestore, Functions, Storage). There is no Supabase client.
+- Desktop `/` ignored `?signup=true` and `?mode=login`, so footer and article Sign up links stayed on the marketing page. Those links now go to `/signup` and `/login`, and `/` still opens the auth screen when an old query link is used.
+- Logged-out `/mini-apps` explains Mini App Studio and offers account creation. The studio itself stays behind an account.
+- The marketing member count listed every `profiles` document, which signed-out visitors cannot read. The creator stack called `get_landing_top_creators`, which is not deployed. Neither request runs now. The founder-spot counter and the reconnect heartbeat wait until someone is signed in.
+- Google and Apple signup stay off until the terms box is checked. Usernames are checked on the form before the account request. A first OAuth account sees "Welcome to VYBE". The login footer says "Preview VYBE".
+- Onboarding Skip no longer marks setup complete without a birthday and the terms. A birthday under 13 cannot continue. A valid skip stores the birthday and the terms record, then completes.
+- Search suggestions that fail show a retry. An empty list says to search for a name.
+
+### Verification
+- `npm run test`: 517 files passed, 1 skipped; 5114 passed, 6 skipped.
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. ESLint on the edited files passed. `npm run build` passed. Bundle budget: `app-*.js` 1098.4 KB raw / 333.3 KB gzip (limits 1125 / 335). Previous handoff on this tree was 1096.2 KB raw / 332.6 KB gzip. Generated `public/version.json` and `public/despia/local.json` restored.
+- Chrome at 1280×800 and 390×844 on `http://127.0.0.1:8081`. Marketing home, `/signup`, `/?signup=true`, features footer Sign up, and logged-out `/mini-apps` all opened the expected screen. Google and Apple were disabled until terms were checked. Username `ab` stayed on the form with "Use 3 or more letters, numbers, or underscores." No `get_landing_top_creators` request. No account was created. No posts, messages, follows, or settings writes. Crash-consent buttons were not clicked.
+
+### Blockers
+- `vybehub.app` needs Lovable → Share → Publish before these screens are on production.
+- Signed-in feed, posting, DMs, and follows were not walked. Creating a production test account would write a real Auth user. Do not deploy `auth2faRequest`.
+- `listMiniApps` is still not deployed, so a signed-in studio list still cannot load until that function is deployed on its own.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then force-close VYBE on the phone.
+2. Walk a new account through onboarding, an empty Home, and a first follow without using the owner email-code account.
+3. Deploy only `listMiniApps` after review. Leave `auth2faRequest` undeployed.
+
 ## ACTIVE (2026-10-07) - Welcome close, then swirl and confetti
 
 ### What changed
