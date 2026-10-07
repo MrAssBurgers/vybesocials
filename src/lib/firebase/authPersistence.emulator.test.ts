@@ -45,16 +45,16 @@ async function observe() {
   subscriptions.push(service.firebaseAuth.onAuthStateChange((event, session) => events.push([event, session])).data.subscription.unsubscribe);
   return { service, events };
 }
-it.skipIf(!enabled)('real browser SDK hydrates delayed native credentials without initializing auth early', async () => {
+it.skipIf(!enabled)('real browser SDK opens sign-in immediately and hydrates a delayed native credential in place', async () => {
   let release!: (json: string) => void; const vault = new Promise<string>(resolve => { release = resolve; }); let saved: string | null = null;
   mirror.setAuthVaultTransportForTests({ read: () => saved ? Promise.resolve(saved) : vault, write: (_key, json) => { saved = json; } });
-  const { service, events } = await observe(); await new Promise(resolve => setTimeout(resolve, 800));
-  expect(service.getAuthRestoreState()).toBe('pending'); expect(service.getFirebaseAuth()).toBeNull(); expect(events).toEqual([]);
+  const { service, events } = await observe();
+  await vi.waitFor(() => expect(service.getAuthRestoreState()).toBe('ready'));
+  expect(service.getFirebaseAuth()).not.toBeNull();
   release(serialized);
   await vi.waitFor(() => expect(service.getFirebaseAuth()?.currentUser?.uid).toBe(uid), { timeout: 10000 });
   expect(service.getAuthRestoreState()).toBe('ready');
-  await vi.waitFor(() => expect(events.some(([event, session]) => event === 'INITIAL_SESSION' && session?.user.id === uid)).toBe(true));
-  expect(events.some(([, session]) => session === null)).toBe(false);
+  await vi.waitFor(() => expect(events.some(([, session]) => session?.user.id === uid)).toBe(true));
 }, 15000);
 it.skipIf(!enabled)('a vault that never answers opens sign-in instead of staying on the restore screen', async () => {
   mirror.setAuthVaultTransportForTests({ read: async () => { throw Error('No native reply'); }, write: vi.fn() });

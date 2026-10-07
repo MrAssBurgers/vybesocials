@@ -5,6 +5,7 @@ import { hasStoredAuthSession } from '@/lib/legacyAuthStorage';
 import { stashAuthReturnPath } from '@/lib/authReturnPath';
 import { shouldBlockPostLoginNavigation } from '@/lib/loginApprovalGate';
 import { GuestContentGate } from './GuestContentGate';
+import { getAuthRestoreState } from '@/lib/firebase/authService';
 import { SessionRestoringScreen } from './SessionRestoringScreen';
 const AccountProfileStatus = lazy(() => import('./AccountProfileStatus'));
 
@@ -53,7 +54,16 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
   }
 
   // A disk hint cannot authorize mounting account-backed queries.
-  if (!authReady) return <SessionRestoringScreen />;
+  // Pending recovery stays silent. The restoring sentence is only for a failed save.
+  if (!authReady && getAuthRestoreState() === 'error') return <SessionRestoringScreen />;
+  if (!authReady) {
+    return (
+      <div role="status" aria-label="Loading VYBE" className="min-h-screen bg-background flex items-center justify-center">
+        <span className="sr-only">Loading VYBE…</span>
+        <div className="h-8 w-8 rounded-full border-[3px] border-primary/25 border-t-primary animate-spin" aria-hidden="true" />
+      </div>
+    );
+  }
 
   // Genuinely signed out — stash intended destination, then send to auth.
   if (!user) {

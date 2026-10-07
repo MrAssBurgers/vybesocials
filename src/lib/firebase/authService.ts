@@ -22,9 +22,11 @@ import {
   signInWithRedirect,
   signInWithCredential,
   signInWithCustomToken,
+  updateCurrentUser,
   type Auth,
   type User as FirebaseUser,
 } from 'firebase/auth';
+import { UserImpl, type AuthInternal } from '@firebase/auth/internal';
 import { getFirebaseApp } from './app';
 import { connectLocalPreviewAuth } from './emulators';
 import { isLocalPreview } from './localPreview';
@@ -46,6 +48,8 @@ import {
   retireAuthRestore,
   hasAuthLogoutTombstone,
   allowExplicitAuthSignIn,
+  subscribeLateAuthSeed,
+  usableAuthJson,
   type AuthRestoreState,
 } from '@/lib/authSessionMirror';
 import type { VybeSession, VybeUser, VybeAuthError } from './types';
@@ -59,6 +63,20 @@ let sdkWait: { auth: Auth; promise: Promise<void> } | null = null;
 const restoreListeners = new Set<() => void>();
 const notifyRestore = () => restoreListeners.forEach(listener => listener());
 subscribeStorageRestore(notifyRestore);
+function adoptLateAuthSeed(json: string) {
+  if (isLocalPreview() || hasAuthLogoutTombstone()) return;
+  const auth = authInstance;
+  if (!auth || auth.currentUser) return;
+  const intent = authIntent;
+  const usable = usableAuthJson(json, currentApiKey() || undefined);
+  if (!usable) return;
+  let user: FirebaseUser;
+  try { user = UserImpl._fromJSON(auth as unknown as AuthInternal, JSON.parse(usable)); }
+  catch { return; }
+  if (intent !== authIntent || auth !== authInstance || auth.currentUser || hasAuthLogoutTombstone()) return;
+  void updateCurrentUser(auth, user).catch(() => { /* The password form stays usable. */ });
+}
+subscribeLateAuthSeed(adoptLateAuthSeed);
 export function getAuthRestoreState(): AuthRestoreState {
   if (sdkError || (!isLocalPreview() && storageRestoreState() === 'error')) return 'error';
   return sdkReady && (isLocalPreview() || storageRestoreState() === 'ready') ? 'ready' : 'pending';

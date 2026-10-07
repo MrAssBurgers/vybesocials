@@ -1,3 +1,24 @@
+## ACTIVE (2026-10-07) - Sign-in does not say Restoring your account
+
+### What changed
+- The password form was still waiting on “Restoring your account…” for about 10 seconds whenever the phone vault stayed silent. That sentence is no longer the login screen.
+- A saved session that is already on the device starts Auth immediately, and the app opens. A vault reply that is already in hand is stored before Auth starts, so a saved account does not flash the password form.
+- When nothing is saved yet, the email and password fields are on the first screen. A vault reply that arrives later signs that account in without a reload and without the restoring sentence.
+- A private screen that is still settling uses a silent spinner. The old sentence remains only if a recovered account could not be stored.
+
+### Verification
+- `npm run test`: 516 files passed, 1 skipped; 5110 passed, 6 skipped.
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. ESLint on the edited auth files passed. `npm run build` passed. Generated `public/version.json` and `public/despia/local.json` restored.
+- Chrome 475×751, Fold user agent, Despia bridge present, vault read never answered. Body text never included “Restoring your account”. About 1.2s after the document loaded, the email and password form was up (Android splash cap stays 800ms; iOS splash is unchanged). An email was typed locally and not submitted. No “Firebase is not configured” banner. No posts, messages, follows, or settings writes.
+
+### Blockers
+- `vybehub.app` needs Lovable → Share → Publish, then force-close VYBE and open it again. Do not deploy `auth2faRequest`.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then force-close VYBE. A saved sign-in should open the app. With no saved sign-in, the password form should be there immediately.
+2. Leave `auth2faRequest` undeployed.
+3. If a saved account still does not appear, sign in with email and password once so this device stores it.
+
 ## ACTIVE (2026-10-07) - Profile open, share link, and friend requests
 
 ### What changed
