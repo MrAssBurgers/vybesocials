@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -6,12 +8,16 @@ import {
   type ReactNode,
 } from 'react';
 import { CameraMountBoundary } from '@/components/camera/CameraMountBoundary';
-import { UnifiedVybeCamera } from '@/components/camera/UnifiedVybeCamera';
-import { SnapSendProgress } from '@/components/camera/SnapSendProgress';
 import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
 import { stopCameraStream } from '@/hooks/useCameraPreload';
 import type { OpenCameraOptions } from '@/contexts/cameraOverlayTypes';
 import { CameraOverlayContext } from '@/contexts/cameraOverlayState';
+
+// The camera and its upload progress stay out of the first-paint entry.
+// They load on the gesture that opens the camera, then progress stays mounted
+// so a send can finish after the camera closes.
+const UnifiedVybeCamera = lazy(() => import('@/components/camera/UnifiedVybeCamera').then(m => ({ default: m.UnifiedVybeCamera })));
+const SnapSendProgress = lazy(() => import('@/components/camera/SnapSendProgress').then(m => ({ default: m.SnapSendProgress })));
 
 // Re-exports kept for compatibility — prefer importing hooks from
 // `@/contexts/cameraOverlayState` and helpers from `@/contexts/cameraOverlayActions`.
@@ -28,6 +34,7 @@ export { useOpenSnapCamera } from '@/contexts/cameraOverlayHooks';
 
 export function CameraOverlayProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<OpenCameraOptions | null>(null);
+  const [sendProgressArmed, setSendProgressArmed] = useState(false);
 
   const closeCamera = useCallback(() => {
     setState((prev) => {
@@ -38,6 +45,7 @@ export function CameraOverlayProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const openCamera = useCallback((options: OpenCameraOptions) => {
+    setSendProgressArmed(true);
     setState(options);
   }, []);
 
@@ -70,21 +78,27 @@ export function CameraOverlayProvider({ children }: { children: ReactNode }) {
       {state && (
         <FullscreenPortal>
           <CameraMountBoundary onError={closeCamera} surface="camera-overlay">
-            <UnifiedVybeCamera
-              captureTarget={state.captureTarget}
-              initialStream={state.initialStream}
-              streamPromise={state.streamPromise}
-              onClose={closeCamera}
-              onSend={state.onSend}
-              onCapture={state.onCapture}
-              showBackArrow={state.showBackArrow}
-              defaultMode={state.defaultMode}
-              launchContext={state.launchContext}
-            />
+            <Suspense fallback={null}>
+              <UnifiedVybeCamera
+                captureTarget={state.captureTarget}
+                initialStream={state.initialStream}
+                streamPromise={state.streamPromise}
+                onClose={closeCamera}
+                onSend={state.onSend}
+                onCapture={state.onCapture}
+                showBackArrow={state.showBackArrow}
+                defaultMode={state.defaultMode}
+                launchContext={state.launchContext}
+              />
+            </Suspense>
           </CameraMountBoundary>
         </FullscreenPortal>
       )}
-      <SnapSendProgress />
+      {sendProgressArmed && (
+        <Suspense fallback={null}>
+          <SnapSendProgress />
+        </Suspense>
+      )}
     </CameraOverlayContext.Provider>
   );
 }
