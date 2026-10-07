@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, useAnimation } from 'framer-motion';
 import { toast, useSonner } from 'sonner';
@@ -17,18 +17,20 @@ export const WELCOME_ACCOUNT_PENDING = 'welcome-account-pending';
 export const WELCOME_BACK_SPLASH = 'welcome-back-splash';
 
 /** Punchy pop, then the photo is already moving. A few hundred milliseconds. */
-export const WELCOME_POP_MS = 420;
+export const WELCOME_POP_MS = 380;
 /** One continuous swirl-and-fly after the pop. Kept inside 900–1400ms. */
 export const WELCOME_FLIGHT_MS = 1080;
 /** Confetti on the account picture. Brief, then the overlay is gone. */
-export const WELCOME_BURST_MS = 420;
+export const WELCOME_BURST_MS = 480;
 /** Reduced motion shows the greeting, then reveals the account picture. No click. */
 export const WELCOME_REDUCED_MS = 420;
+/** How long to wait for the real picture before the pop. The circle stays invisible until then. */
+export const WELCOME_PHOTO_WAIT_MS = 900;
 
 type AvatarBox = { left: number; top: number; width: number; height: number };
 type WelcomePhase = 'pop' | 'flight' | 'done';
 
-const CONFETTI_COLORS = ['#10182a', '#7dd3fc', '#d6e6f5', 'hsl(var(--accent))', '#8eb4d4'];
+const CONFETTI_COLORS = ['#ffffff', '#7dd3fc', '#fbbf24', '#f472b6', '#d6e6f5'];
 
 export type WelcomeNoticeSource = {
   title?: unknown;
@@ -170,6 +172,17 @@ function nextFrame() {
   });
 }
 
+/** Radix only inserts the img once it has decoded, so its presence means the real photo is ready. */
+async function waitForWelcomeImage(timeoutMs: number) {
+  const start = performance.now();
+  while (performance.now() - start < timeoutMs) {
+    const img = document.querySelector('[data-welcome-avatar] img');
+    if (img instanceof HTMLImageElement && img.naturalWidth > 0) return true;
+    await sleep(32);
+  }
+  return false;
+}
+
 export function welcomeNoticeText(value: unknown): string {
   if (typeof value === 'string' || typeof value === 'number') return String(value).trim();
   if (Array.isArray(value)) return value.map(welcomeNoticeText).filter(Boolean).join(' ').trim();
@@ -206,23 +219,22 @@ function prefersReducedMotion() {
 }
 
 function AvatarConfetti({ x, y }: { x: number; y: number }) {
-  const pieces = Array.from({ length: 14 }, (_, index) => {
-    const angle = (Math.PI * 2 * index) / 14 + (index % 2 === 0 ? 0.1 : -0.06);
-    const dist = 18 + (index % 5) * 7;
+  const pieces = Array.from({ length: 16 }, (_, index) => {
+    const angle = (Math.PI * 2 * index) / 16 + (index % 2 === 0 ? 0.08 : -0.05);
+    const dist = 28 + (index % 5) * 10;
     const wide = index % 3 === 0;
     return {
       id: index,
       dx: Math.cos(angle) * dist,
-      dy: Math.sin(angle) * dist - 8,
+      dy: Math.sin(angle) * dist - 12,
       color: CONFETTI_COLORS[index % CONFETTI_COLORS.length],
-      delay: (index % 4) * 0.012,
-      rotate: (index % 2 === 0 ? 1 : -1) * (80 + index * 12),
-      width: wide ? 7 : 5,
-      height: wide ? 4 : 7,
+      delay: (index % 4) * 16,
+      rotate: (index % 2 === 0 ? 1 : -1) * (100 + index * 16),
+      width: wide ? 11 : 8,
+      height: wide ? 6 : 11,
       round: index % 4 === 0,
     };
   });
-  const burst = WELCOME_BURST_MS / 1000;
 
   return (
     <div
@@ -231,42 +243,24 @@ function AvatarConfetti({ x, y }: { x: number; y: number }) {
       className="pointer-events-none"
       style={{ position: 'fixed', left: x, top: y, width: 0, height: 0, zIndex: 10060 }}
     >
-      {[0, 1].map((ring) => (
-        <motion.span
-          key={`ring-${ring}`}
-          initial={{ scale: 0.35, opacity: 0.95 }}
-          animate={{ scale: 2.15 + ring * 0.45, opacity: 0 }}
-          transition={{ duration: burst * 0.85, delay: ring * 0.05, ease: [0.16, 0.84, 0.28, 1] }}
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            width: 26,
-            height: 26,
-            marginLeft: -13,
-            marginTop: -13,
-            borderRadius: 999,
-            border: ring === 0 ? '2px solid #7dd3fc' : '2px solid rgba(255,255,255,0.85)',
-          }}
-        />
-      ))}
+      <span className="welcome-burst-ring" />
+      <span className="welcome-burst-ring welcome-burst-ring--late" />
       {pieces.map((piece) => (
-        <motion.span
+        <span
           key={piece.id}
-          initial={{ x: 0, y: 0, opacity: 1, scale: 0.45, rotate: 0 }}
-          animate={{ x: piece.dx, y: piece.dy, opacity: 0, scale: 1, rotate: piece.rotate }}
-          transition={{ duration: burst * 0.9, delay: piece.delay, ease: [0.16, 0.84, 0.32, 1] }}
+          className="welcome-burst-piece"
           style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
             width: piece.width,
             height: piece.height,
             marginLeft: -piece.width / 2,
             marginTop: -piece.height / 2,
-            borderRadius: piece.round ? 999 : 1.5,
+            borderRadius: piece.round ? 999 : 2,
             background: piece.color,
-          }}
+            animationDelay: `${piece.delay}ms`,
+            '--dx': `${piece.dx}px`,
+            '--dy': `${piece.dy}px`,
+            '--rot': `${piece.rotate}deg`,
+          } as CSSProperties}
         />
       ))}
     </div>
@@ -300,6 +294,7 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
   const [phase, setPhase] = useState<WelcomePhase>('pop');
   const [fly, setFly] = useState<{ x: number; y: number; fallback: boolean } | null>(null);
   const [confetti, setConfetti] = useState<{ x: number; y: number } | null>(null);
+  const [armed, setArmed] = useState(false);
   const [origin] = useState(() =>
     typeof window === 'undefined'
       ? { x: 0, y: 0 }
@@ -351,6 +346,18 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
     const run = async () => {
       const center = welcomeCenter(viewport());
       try {
+        await controls.set({
+          x: center.x,
+          y: center.y,
+          scale: reduced ? 1 : 0.62,
+          opacity: 0,
+          rotate: 0,
+        });
+        if (cancelled || !aliveRef.current) return;
+        await waitForWelcomeImage(WELCOME_PHOTO_WAIT_MS);
+        if (cancelled || !aliveRef.current) return;
+        setArmed(true);
+
         if (reduced) {
           await controls.set({ x: center.x, y: center.y, scale: 1, opacity: 1, rotate: 0 });
           if (cancelled || !aliveRef.current) return;
@@ -360,8 +367,6 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
           return;
         }
 
-        await controls.set({ x: center.x, y: center.y, scale: 0.62, opacity: 0, rotate: 0 });
-        if (cancelled || !aliveRef.current) return;
         await controls.start({
           x: center.x,
           y: center.y,
@@ -437,6 +442,7 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
       data-welcome-phase={phase}
       data-welcome-auto=""
       data-welcome-pop-ms={String(WELCOME_POP_MS)}
+      data-welcome-photo={armed ? 'ready' : 'wait'}
       data-welcome-flight-ms={String(WELCOME_FLIGHT_MS)}
       data-fly-x={fly ? String(Math.round(fly.x)) : undefined}
       data-fly-y={fly ? String(Math.round(fly.y)) : undefined}
@@ -448,7 +454,7 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
         className="pointer-events-none fixed inset-0"
         style={{
           zIndex: 10000,
-          opacity: greeting ? 1 : 0,
+          opacity: greeting && armed ? 1 : 0,
           transition: 'opacity 160ms linear',
           background:
             'radial-gradient(ellipse at 50% 42%, rgba(7,11,20,0.78) 0%, rgba(7,11,20,0.34) 38%, rgba(7,11,20,0) 70%)',
@@ -457,9 +463,9 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
       {greeting && (
         <div
           className="pointer-events-none fixed inset-x-0 z-[10002] mx-auto flex w-[min(92vw,380px)] flex-col items-center gap-2 px-6 text-center"
-          style={{ top: origin.y + WELCOME_AVATAR_SIZE + 18 }}
+          style={{ top: origin.y + WELCOME_AVATAR_SIZE + 16, opacity: armed ? 1 : 0 }}
         >
-          <h1 id="welcome-back-title" className="text-[1.65rem] font-bold tracking-tight text-white">
+          <h1 id="welcome-back-title" className="rounded-full bg-[#070b14]/80 px-5 py-1 text-[1.65rem] font-bold tracking-tight text-white shadow-[0_10px_28px_rgba(2,6,16,0.45)]">
             Welcome back
           </h1>
           {notices.length > 0 && (
@@ -478,7 +484,7 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
           x: origin.x,
           y: origin.y,
           scale: reducedRef.current ? 1 : 0.62,
-          opacity: reducedRef.current ? 1 : 0,
+          opacity: 0,
           rotate: 0,
         }}
         animate={controls}
@@ -499,7 +505,6 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
             profileId={profileId}
             src={avatarUrl || undefined}
             priority
-            transformSize={336}
             alt=""
           />
         </Avatar>

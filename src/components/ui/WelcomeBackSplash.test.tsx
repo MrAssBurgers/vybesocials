@@ -147,7 +147,7 @@ describe('WelcomeBackSplash', () => {
       expect(root().getAttribute('data-fly-y')).toBe(String(Math.round(expected.y)));
       expect(root().getAttribute('data-fly-fallback')).toBe('false');
       expect(root()).toHaveAttribute('data-welcome-phase', 'flight');
-    }, { timeout: 2500 });
+    }, { timeout: 3500 });
 
     await waitFor(() => {
       expect(document.querySelector('[data-welcome-confetti]')).toBeTruthy();
@@ -174,7 +174,7 @@ describe('WelcomeBackSplash', () => {
     expect(root().hasAttribute('data-fly-x')).toBe(false);
     expect(document.querySelector('[data-welcome-confetti]')).toBeNull();
 
-    await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1), { timeout: 2000 });
+    await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1), { timeout: 3000 });
     expect(document.body).not.toHaveClass(WELCOME_ACCOUNT_PENDING);
     expect(document.querySelector('[data-welcome-confetti]')).toBeNull();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();

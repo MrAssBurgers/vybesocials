@@ -1,3 +1,26 @@
+## ACTIVE (2026-10-07) - Welcome plays itself
+
+### What changed
+- The welcome no longer waits on a Close button. As soon as the login sheet is gone (`[data-auth-shell]` absent), the signed-in profile photo pops in the center with "Welcome back" under it, plus any return notice that is already waiting. Nothing has to be tapped.
+- The circle stays invisible until that photo has decoded, up to 900ms, so the first thing on screen is the real picture. The pop is 380ms. One continuous swirl then carries the photo to the account avatar (bottom-nav on a phone, sidebar on desktop) in 1080ms, using transform and opacity only. A short burst, about 460ms, plays on that avatar. The account picture stays hidden until the flying photo lands, then the real one appears and the flying one is gone.
+- Reduced motion skips the swirl and the burst. "Welcome back" shows for about 420ms, then the account picture appears. No click.
+- There is no Close button, no `useLocation`, no floating @handle chip, and no letter fallback. Sign-in is not blocked and the overlay does not cover the login sheet. The story plus and the login-wave gating are unchanged.
+
+### Verification
+- `npm run test`: 515 files passed, 1 skipped; 5108 passed, 6 skipped.
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. ESLint on the welcome component and its test passed. `npm run build` passed. Generated `public/version.json` and `public/despia/local.json` restored.
+- Chrome 475×751, password sign-in, no email-code screen. No Close button. The photo and "Welcome back" appeared on their own (pop about 400ms), then flew for about 1080ms. The bottom-nav account picture stayed at opacity 0 (28px at 384, 678) until the flight landed, then a burst played and that picture was opacity 1. The story plus stayed 44px with a 26px disc. A focus before submit left response and working waves at 0. Working waves showed while the button said "Signing in…".
+- Desktop 1280×800 played the same sequence onto the sidebar picture (40px at 25, 76). It stayed hidden until the burst, then the photo was there. No posts, messages, follows, or settings writes. Crash-consent buttons were not clicked.
+
+### Blockers
+- `vybehub.app` needs Lovable → Share → Publish.
+- Do not deploy `auth2faRequest`.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then force-close VYBE on the phone.
+2. Confirm the auto welcome, swirl, and avatar burst on a physical Fold.
+3. Leave `auth2faRequest` undeployed.
+
 ## ACTIVE (2026-10-07) - Welcome close, then swirl and confetti
 
 ### What changed
