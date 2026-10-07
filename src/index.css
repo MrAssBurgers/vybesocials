@@ -5337,6 +5337,30 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
     filter: none;
   }
 
+  /* Phones and tablets: a live blur and drop-shadow on every card hitch the
+     finger scroll. Keep the hairline, without the filter or the drift. */
+  html.device-mobile .feed-post-card,
+  html.device-tablet .feed-post-card,
+  html.device-mobile .backdrop-blur-md,
+  html.device-tablet .backdrop-blur-md,
+  html.device-mobile .backdrop-blur-sm,
+  html.device-tablet .backdrop-blur-sm {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  html.device-mobile .feed-post-card,
+  html.device-tablet .feed-post-card {
+    background-color: hsl(var(--card) / 0.96);
+  }
+
+  html.device-mobile .post-aurora-outline,
+  html.device-tablet .post-aurora-outline {
+    animation: none;
+    filter: none;
+    opacity: 0.62;
+  }
+
   html.device-fold .vybe-liquid-touch-layer,
   html.device-fold .vybe-liquid-grain {
     display: none !important;

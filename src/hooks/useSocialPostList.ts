@@ -22,7 +22,8 @@ export function useSocialPostList(selection: SocialPostSelection, enabled = true
     },
     getNextPageParam: (last, pages, _param, params) => pages.length < 4 && last.nextCursor && !params.includes(last.nextCursor) ? last.nextCursor : undefined,
   });
-  const expired = !!query.data?.pages.some(page => !Number.isFinite(page.leaseUntil) || page.leaseUntil <= view.now);
+  view.observeLeases(query.data?.pages.map(page => page.leaseUntil) ?? []);
+  const expired = view.leaseExpired;
   const available = view.active && !query.isPlaceholderData && !query.isError && !expired;
   const posts = new Map<string, Post>(), unavailable = new Set<string>();
   if (available) for (const page of query.data?.pages ?? []) {

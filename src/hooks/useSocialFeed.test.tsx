@@ -24,6 +24,16 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); clients.splice(0).forEach(client => client.clear()); });
 describe('visible current-account Global feed', () => {
+  it('does not repaint the feed every second while its lease is still valid', async () => {
+    let renders = 0;
+    const hook = renderHook(() => { renders += 1; return useSocialFeed('post'); }, setup());
+    await waitFor(() => expect(hook.result.current.data?.pages[0].posts).toEqual([{ id: 'alice-post' }]));
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 1100)); });
+    const settled = renders;
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 1100)); });
+    expect(hook.result.current.data?.pages[0].posts).toEqual([{ id: 'alice-post' }]);
+    expect(renders).toBe(settled);
+  });
   it('can complete a checked feed after Strict Mode effect replay', async () => {
     const { wrapper: Wrapper } = setup();
     const hook = renderHook(() => useSocialFeed('post'), { wrapper: ({ children }) => <StrictMode><Wrapper>{children}</Wrapper></StrictMode> });

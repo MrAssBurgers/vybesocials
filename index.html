@@ -219,6 +219,16 @@
         } catch (e) { /* keep the default viewport */ }
       })();
     </script>
+    <script>
+      (function () {
+        try {
+          var width = window.innerWidth || document.documentElement.clientWidth || 0;
+          var root = document.documentElement;
+          if (width > 0 && width < 768) root.classList.add('device-mobile');
+          else if (width > 0 && width < 1024) root.classList.add('device-tablet');
+        } catch (e) { /* PlatformProvider classifies after hydration */ }
+      })();
+    </script>
     <meta name="format-detection" content="telephone=no" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="theme-color" content="#0B0B10" />

@@ -220,16 +220,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const localFeedLoading = shouldShowFeedSkeleton(localPosts.length, localPending);
   const localFeedRefreshing = shouldShowFeedRefreshing(localPosts.length, localFetching, localPending);
 
-  // If feed queries stall (empty cache / slow network), force a refetch once on mount.
-  const feedKickRef = useRef(false);
-  useEffect(() => {
-    if (!isForYouTab || feedKickRef.current || forYouPosts.length > 0) return;
-    feedKickRef.current = true;
-    void refetchForYou();
-    if (profileId) void refetchFollowing();
-  }, [isForYouTab, forYouPosts.length, profileId, refetchForYou, refetchFollowing]);
-
   // Escape hatch: stop infinite skeleton if fetch hangs >8s.
+  // Do not refetch on the first paint — that restarts the request already in flight.
   useEffect(() => {
     if (!isForYouTab || forYouPosts.length > 0) return;
     if (!forYouPending && !followingPending) return;

@@ -178,8 +178,10 @@ export function useRhythmData() {
 
 function useRecentPostSummary(window: 'today' | 'five-minutes') {
   const view = usePostReadView(true), { account } = view;
-  const since = window === 'today' ? new Date(new Date(view.now).setHours(0, 0, 0, 0)).toISOString() : new Date(Math.floor(view.now / 60000) * 60000 - 300000).toISOString();
+  const now = view.now;
+  const since = window === 'today' ? new Date(new Date(now).setHours(0, 0, 0, 0)).toISOString() : new Date(Math.floor(now / 60000) * 60000 - 300000).toISOString();
   const query = useQuery({ placeholderData: undefined, queryKey: ['post-activity-summary', window, since, ...view.key], enabled: view.active, staleTime: 0, gcTime: 0, retry: false,
     refetchInterval: 20000, refetchOnMount: 'always', refetchOnWindowFocus: 'always', queryFn: ({ signal }) => readSocialPostSummary({ expectedOwnerUid: account.user!.id, expectedProfileId: account.profile!.id, scope: 'recent', since }, () => view.guard(signal)) });
-  return { ...query, data: view.active && !query.isPlaceholderData && !query.isError && query.data && query.data.leaseUntil > view.now ? query.data : undefined };
+  view.observeLeases(query.data ? [query.data.leaseUntil] : []);
+  return { ...query, data: view.active && !query.isPlaceholderData && !query.isError && query.data && !view.leaseExpired ? query.data : undefined };
 }

@@ -26,7 +26,8 @@ export function useSocialFeed(contentType?: 'post' | 'short' | 'video', enabled 
     staleTime: 0, gcTime: 0, refetchOnMount: 'always', refetchOnWindowFocus: 'always', refetchOnReconnect: true, refetchInterval: 20000,
     retry: recovery.retry, retryDelay: recovery.retryDelay,
   });
-  const expired = !!query.data?.pages.some(page => !Number.isFinite(page.leaseUntil) || page.leaseUntil <= view.now);
+  view.observeLeases(query.data?.pages.map(page => page.leaseUntil) ?? []);
+  const expired = view.leaseExpired;
   const full = (query.data?.pages.length ?? 0) >= 4, nextCursor = query.data?.pages.at(-1)?.nextCursor;
   const available = view.active && !query.isPlaceholderData && !query.isError && !expired;
   return useFeedMuteFilter({ ...query, data: view.active && !query.isPlaceholderData && !query.isError && !expired ? query.data : undefined,

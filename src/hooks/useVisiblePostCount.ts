@@ -11,7 +11,8 @@ export function useVisiblePostCount(profileId: string | undefined, enabled = tru
     queryFn: ({ signal }) => withPostReadDeadline(current => readSocialPostSummary({ expectedOwnerUid: view.account.session.uid!, expectedProfileId: view.account.profile!.id, scope: 'profile', targetId: profileId! }, current), () => view.guard(signal), signal),
     staleTime: 0, gcTime: 0, retry: false, refetchOnMount: 'always', refetchInterval: 20000, refetchOnWindowFocus: true, placeholderData: undefined,
   });
-  const current = view.active && query.isSuccess && !query.isPlaceholderData && query.data.leaseUntil > view.now && !query.isError;
+  view.observeLeases(query.data ? [query.data.leaseUntil] : []);
+  const current = view.active && query.isSuccess && !query.isPlaceholderData && !view.leaseExpired && !query.isError;
   return { count: current ? query.data.count : null, exact: current && !query.data.hasMore,
     label: current ? `${query.data.count}${query.data.hasMore ? '+' : ''}` : '—', isError: query.isError, retry: query.refetch };
 }

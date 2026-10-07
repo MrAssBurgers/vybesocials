@@ -1,3 +1,47 @@
+## ACTIVE (2026-10-07) - Beta pass: quieter feed clock, lighter phone cards
+
+### What changed
+- Pulled `origin/main` at `d1213236` (200 commits after `a5510143`, including token-transport recovery). Branched `cursor/beta-ready-pass-1b49`.
+- Home, For You, Following, profile posts, and the activity summary were re-rendering every second to watch 30-second read leases. The clock still runs, and a lease still hides the page when it expires, but a valid lease no longer repaints the feed every tick. Opening For You no longer immediately refetches the request that is already in flight. An 8-second stall still retries.
+- Phones and tablets drop per-card backdrop blur and the animated aurora drop-shadow. The hairline stays. Desktop keeps the live outline. `index.html` stamps `device-mobile` / `device-tablet` before React so the first paint is already the lighter card. iOS splash timing is unchanged (`splashAbsoluteMaxMs` iOS 1400).
+- Production `readSocialFeed` and `reportModeration` now answer HTTP 401 unauthenticated, so the old 404 client fallbacks stay unwired. Raw post reads remain denied. `auth2faRequest` was not deployed.
+
+### Verification
+- `npm run test`: 514 files passed, 1 skipped; 5092 passed, 6 skipped.
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. ESLint on the edited files passed. `npm run build` passed. Generated `public/version.json` and `public/despia/local.json` restored.
+- Chrome at 475×751 on `http://127.0.0.1:8080`: password sign-in for the owner account reaches the email-code gate (“Enter your code”, about a 10 minute countdown). Signed-in feed, clips, profile, DMs, settings, and challenges were not exercised because that code was not available. No posts, messages, RSVPs, follows, or settings writes. Crash-consent buttons were not clicked.
+
+### Blockers
+- This owner account has `user_2fa_settings.email_2fa_enabled`. Production `auth2faRequest` issues a real challenge. Password-only sign-in cannot finish until the email code is entered. Do not deploy `auth2faRequest`.
+- `vybehub.app` still needs Lovable → Share → Publish after this client is on `main`. Firebase hosting is staging only.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then force-close VYBE on the phone so the Play Store web view loads this bundle.
+2. Enter the email code on the owner account (or use a beta account with email confirmation off) and re-check For You, Global, clips sound, DMs, and profile on a phone.
+3. Leave `auth2faRequest` undeployed. Accounts with email confirmation off stay on password sign-in; accounts with it on keep the code gate.
+
+## ACTIVE (2026-10-07) - Beta pass: quieter feed clock, lighter phone cards
+
+### What changed
+- Pulled `origin/main` at `d1213236` (200 commits after `a5510143`, including token-transport recovery). Branched `cursor/beta-ready-pass-1b49`.
+- Home, For You, Following, profile posts, and the activity summary were re-rendering every second to watch 30-second read leases. The clock still runs, and a lease still hides the page when it expires, but a valid lease no longer repaints the feed every tick. Opening For You no longer immediately refetches the request that is already in flight. An 8-second stall still retries.
+- Phones and tablets drop per-card backdrop blur and the animated aurora drop-shadow. The hairline stays. Desktop keeps the live outline. `index.html` stamps `device-mobile` / `device-tablet` before React so the first paint is already the lighter card. iOS splash timing is unchanged (`splashAbsoluteMaxMs` iOS 1400).
+- Production `readSocialFeed` and `reportModeration` now answer HTTP 401 unauthenticated, so the old 404 client fallbacks stay unwired. Raw post reads remain denied. `auth2faRequest` was not deployed.
+
+### Verification
+- `npm run test`: 514 files passed, 1 skipped; 5092 passed, 6 skipped.
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. ESLint on the edited files passed. `npm run build` passed. Generated `public/version.json` and `public/despia/local.json` restored.
+- Chrome at 475×751 on `http://127.0.0.1:8080`: password sign-in for the owner account reaches the email-code gate (“Enter your code”, about a 10 minute countdown). Signed-in feed, clips, profile, DMs, settings, and challenges were not exercised because that code was not available. No posts, messages, RSVPs, follows, or settings writes. Crash-consent buttons were not clicked.
+
+### Blockers
+- This owner account has `user_2fa_settings.email_2fa_enabled`. Production `auth2faRequest` issues a real challenge. Password-only sign-in cannot finish until the email code is entered. Do not deploy `auth2faRequest`.
+- `vybehub.app` still needs Lovable → Share → Publish after this client is on `main`. Firebase hosting is staging only.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then force-close VYBE on the phone so the Play Store web view loads this bundle.
+2. Enter the email code on the owner account (or use a beta account with email confirmation off) and re-check For You, Global, clips sound, DMs, and profile on a phone.
+3. Leave `auth2faRequest` undeployed. Accounts with email confirmation off stay on password sign-in; accounts with it on keep the code gate.
+
 ## ACTIVE (2026-10-06) - Post read token transport recovery
 
 - Previous turn made authoritative source progress: accepted-code repair df5521ed/main docs f453122b; matching compatible679f1164 tested but release selector disabled. Fresh recheck now naturally enabled, selected existing release branch; exact679f and ready/agentFinished confirmed before one Lovable publish57850299-bdd2-4fbb-ad35-235af26f2766. Actual UI currently Updating, not yet completion evidence. No provider/account/workspace/preference/IAM/config change or bypass. Whole existing public-readiness scope retained.
