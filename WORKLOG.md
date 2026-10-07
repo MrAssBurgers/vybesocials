@@ -1,3 +1,24 @@
+## ACTIVE (2026-10-07) - Phone login leaves the restore screen
+
+### What changed
+- A Play Store shell whose native session vault never answers used to stay on “Restoring your account…” with “Sign in again”, and sign-in code reported that missing Auth instance as “Firebase is not configured”.
+- An empty, unreadable, or timed-out vault is now treated as no saved account. The password form opens. A recovered account that cannot be stored still stays on the restore screen so it is not discarded silently.
+- “Sign in again” always releases the form, including when Auth was never created or the vault write does not finish.
+- Google and Apple completion wait for that restore instead of toasting “Firebase is not configured” while Firebase is already set.
+
+### Verification
+- `npm run test`: 516 files passed, 1 skipped; 5111 passed, 6 skipped.
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. ESLint on the edited auth files passed.
+- Chrome 475×751, Fold user agent, Despia bridge present, vault read never answered. At 3.9s the screen was only “Restoring your account…”. At 11.0s the email and password form was up. No “Firebase is not configured” banner. No posts, messages, follows, or settings writes.
+
+### Blockers
+- `vybehub.app` needs Lovable → Share → Publish, then force-close VYBE and open it again. Do not deploy `auth2faRequest`.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then force-close VYBE on the phone and sign in with email and password.
+2. If a real saved account still will not store, use “Sign in again” once. That now opens the form.
+3. Leave `auth2faRequest` undeployed.
+
 ## ACTIVE (2026-10-07) - Mini-app publish no longer looks like a moderation hold
 
 ### What changed
