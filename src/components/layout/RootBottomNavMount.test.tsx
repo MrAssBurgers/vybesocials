@@ -13,9 +13,9 @@ describe('root bottom navigation', () => {
     render(<RootBottomNavMount />);
     expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
   });
-  it('retains navigation for an authenticated tab', () => {
+  it('retains navigation for an authenticated tab', async () => {
     state.user = { id: 'test-user' }; render(<RootBottomNavMount />);
-    expect(screen.getByRole('navigation', { name: 'Bottom navigation' })).toBeInTheDocument();
+    expect(await screen.findByRole('navigation', { name: 'Bottom navigation' })).toBeInTheDocument();
   });
   it('respects immersive and non-tab route hiding for authenticated users', () => {
     state.user = { id: 'test-user' }; state.show = false; render(<RootBottomNavMount />);

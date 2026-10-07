@@ -48,8 +48,10 @@ function dateText(value: unknown): string | null {
   return typeof value === 'string' && value.length <= 32 && /^\d{4}-\d\d-\d\dT/.test(value) && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : null;
 }
 
-export async function authorAdmission(db: Firestore, tx: Transaction, viewer: AudienceIdentity, alias: string) {
-  const author = await resolveIdentity(db, tx, alias);
+export async function authorAdmission(db: Firestore, tx: Transaction, viewer: AudienceIdentity, alias: string, known?: AudienceIdentity) {
+  // Same transaction already resolved this profile. Reusing it skips a second
+  // identity read on the viewer's own grid, which is the common profile open.
+  const author = known && known.aliases.includes(alias) ? known : await resolveIdentity(db, tx, alias);
   if (!author) return null;
   const settings = normalizedProfileSettings((await tx.get(db.collection('profile_visibility').doc(author.profileId))).data(), author.profileId);
   const self = author.uid === viewer.uid;

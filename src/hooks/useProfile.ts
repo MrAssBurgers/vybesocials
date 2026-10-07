@@ -6,6 +6,7 @@ import { getDocumentFromServer, getDocumentsFromServer, where, firestoreLimit } 
 import { useVisiblePostCount } from './useVisiblePostCount';
 import { useProfileReadView } from './useProfileReadView';
 import { withProfileReadDeadline } from '@/lib/profileReadDeadline';
+import { profileUsernameCandidates } from '@/lib/profileUsername';
 
 interface Profile {
   id: string; user_id: string; username: string; display_name?: string | null;
@@ -17,13 +18,16 @@ interface Profile {
 const selectedFields = 'id user_id username avatar_url bio created_at display_name link_url location is_private is_verified interests language timezone coins_balance onboarding_completed tutorial_completed tutorial_skipped intro_completed badge_settings feature_on_landing'.split(' ');
 const validId=(value:unknown):value is string=>typeof value==='string'&&value.length>0&&value.length<=128&&!value.includes('/');
 function checkedProfile(row:Record<string,unknown>):Profile {
-  if(!validId(row.id)||!validId(row.user_id)||typeof row.username!=='string'||!row.username.trim())throw new Error('This profile needs an identity review.');
-  return {...Object.fromEntries(selectedFields.filter(field=>Object.prototype.hasOwnProperty.call(row,field)).map(field=>[field,row[field]])),
-    follower_count:0,following_count:0,post_count:0,is_following:false} as unknown as Profile;
+  const id = validId(row.id) ? row.id : '';
+  const userId = validId(row.user_id) ? row.user_id : id;
+  if(!id||!userId||typeof row.username!=='string'||!row.username.trim())throw new Error('This profile needs an identity review.');
+  const picked = Object.fromEntries(selectedFields.filter(field=>Object.prototype.hasOwnProperty.call(row,field)).map(field=>[field,row[field]]));
+  return {...picked, id, user_id: userId, follower_count:0,following_count:0,post_count:0,is_following:false} as unknown as Profile;
 }
 
 function useProfileRead(kind:'id'|'username',target:string|undefined) {
-  const name=(target||'').trim(),normalized=kind==='username'?name.toLowerCase():name;
+  const raw=(target||'').trim();
+  const name=kind==='username'?raw.replace(/^@+/,''):raw,normalized=kind==='username'?name.toLowerCase():name;
   const view=useProfileReadView(!!name);
   const root=kind==='id'?'profile-by-id':'profile';
   const query=useQuery({
@@ -35,8 +39,9 @@ function useProfileRead(kind:'id'|'username',target:string|undefined) {
       // The AuthProvider has already checked this exact current owner's profile.
       // Do not read it again or wait for auxiliary statistics before painting it.
       let row:Record<string,unknown>|null=null;
-      if(view.profile && (kind==='id'?[view.profile.id,view.profile.user_id].includes(name):view.profile.username.toLowerCase()===normalized))row=view.profile as unknown as Record<string,unknown>;
-      if(!row&&kind==='username')for(const candidate of [...new Set([name,name.toLowerCase()])]){
+      const ownName = typeof view.profile?.username === 'string' ? view.profile.username.toLowerCase() : '';
+      if(view.profile && (kind==='id'?[view.profile.id,view.profile.user_id].includes(name):ownName===normalized))row=view.profile as unknown as Record<string,unknown>;
+      if(!row&&kind==='username')for(const candidate of profileUsernameCandidates(name)){
         guard();const rows=await getDocumentsFromServer<Record<string,unknown>>('profiles',[where('username','==',candidate),firestoreLimit(2)]);guard();
         if(rows.length>1)throw new Error('This username needs an identity review.');if(rows[0]){row=rows[0];break;}
       }

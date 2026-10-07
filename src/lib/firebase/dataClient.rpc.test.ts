@@ -27,6 +27,12 @@ describe('RPC errors reach callers instead of reporting false success', () => {
     mocks.social.mockRejectedValue(new Error('Message was removed'));
     expect(await db.rpc('edit_message')).toEqual({ data: null, error: { message: 'Message was removed' } });
   });
+  it('does not list every profile when a public member count is requested', async () => {
+    const result = await db.rpc('get_public_user_count');
+    expect(result.data).toBeNull();
+    expect(result.error).toMatchObject({ code: 'unavailable' });
+    expect(mocks.invoke).not.toHaveBeenCalled();
+  });
   it('keeps legitimate null and data successes unchanged', async () => {
     mocks.invoke.mockResolvedValueOnce({ data: null, error: null }).mockResolvedValueOnce({ data: { id: 'theme' }, error: null });
     expect(await db.rpc('get_shared_theme_by_id')).toEqual({ data: null, error: null });

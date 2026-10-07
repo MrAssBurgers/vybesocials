@@ -61,7 +61,7 @@ export default function BlogPostPage() {
 
           <div className="mt-12 pt-6 border-t border-border flex items-center justify-between text-sm">
             <Link to="/blog" className="text-primary hover:underline">← All posts</Link>
-            <Link to="/?signup=true" className="text-primary hover:underline">Try VYBE →</Link>
+            <Link to="/signup" className="text-primary hover:underline">Try VYBE →</Link>
           </div>
         </motion.article>
 

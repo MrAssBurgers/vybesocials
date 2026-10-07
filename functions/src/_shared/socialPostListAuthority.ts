@@ -28,13 +28,16 @@ export async function readSocialPostListPage(db: Firestore, uid: string, raw: un
   const selection = { scope: input.scope, targetId: input.targetId ?? null, search: input.search ?? null, since: input.since ?? null, contentType: input.contentType ?? null };
   const cursorId = randomBytes(24).toString('hex');
   return db.runTransaction(async tx => {
-    const viewer = await resolveIdentity(db, tx, uid);
+    const [viewer, target] = await Promise.all([
+      resolveIdentity(db, tx, uid),
+      input.scope === 'profile' || input.scope === 'tagged' ? resolveIdentity(db, tx, input.targetId!) : Promise.resolve(null),
+    ]);
     if (!viewer || viewer.uid !== uid || viewer.profileId !== input.expectedProfileId) throw new HttpsError('failed-precondition', 'Your profile changed. Reopen these posts.');
-    const target = input.scope === 'profile' || input.scope === 'tagged' ? await resolveIdentity(db, tx, input.targetId!) : null;
     const empty = { ownerUid: uid, viewerProfileId: viewer.profileId, selection, posts: [], unavailableSavedPostIds: [], nextCursor: null };
     if ((input.scope === 'profile' || input.scope === 'tagged') && !target) return empty;
+    const knownAuthor = (alias: string) => target && target.aliases.includes(alias) ? target : undefined;
     if (input.scope === 'tagged') {
-      const targetAdmission = await authorAdmission(db, tx, viewer, target!.profileId);
+      const targetAdmission = await authorAdmission(db, tx, viewer, target!.profileId, knownAuthor(target!.profileId));
       if (!targetAdmission || !targetAdmission.allows(targetAdmission.settings.posts)) return empty;
     }
     const collection = input.scope === 'saved' ? 'bookmarks' : input.scope === 'tagged' ? 'post_user_tags' : 'posts';
@@ -52,12 +55,16 @@ export async function readSocialPostListPage(db: Firestore, uid: string, raw: un
         || !validPostDocumentId(cursor.document_id) || !Object.hasOwn(cursor, 'created_at')) throw new HttpsError('failed-precondition', 'This post page expired. Refresh and retry.');
       query = query.startAfter(cursor.created_at, cursor.document_id);
     }
-    const candidates = await tx.get(query.limit(input.scope === 'search' ? 101 : 21));
+    const [candidates, pinSnap] = await Promise.all([
+      tx.get(query.limit(input.scope === 'search' ? 101 : 21)),
+      input.scope === 'profile' && !input.cursor
+        ? tx.get(db.collection('posts').where('author_id', 'in', target!.aliases).where('is_pinned', '==', true).limit(3))
+        : Promise.resolve(null),
+    ]);
     const rawCandidates = candidates.docs.slice(0, input.scope === 'search' ? 100 : 20);
     // Existing profile pins remain first even when their posts are old. They
     // are admitted independently and deduplicated against ordinary pages.
-    const pins = input.scope === 'profile' && !input.cursor
-      ? (await tx.get(db.collection('posts').where('author_id', 'in', target!.aliases).where('is_pinned', '==', true).limit(3))).docs : [];
+    const pins = pinSnap ? pinSnap.docs : [];
     const selected = [...pins, ...rawCandidates];
     const rows = new Map<string, AudienceRow | undefined>();
     for (const candidate of selected) {
@@ -92,7 +99,7 @@ export async function readSocialPostListPage(db: Firestore, uid: string, raw: un
         const search = input.search?.toLowerCase();
         if (search && !(typeof row.caption === 'string' && row.caption.toLowerCase().includes(search))
           && !(Array.isArray(row.tags) && row.tags.some(tag => typeof tag === 'string' && tag.toLowerCase().includes(search.replace(/^#/, ''))))) continue;
-        if (!admissions.has(row.author_id)) admissions.set(row.author_id, authorAdmission(db, tx, viewer, row.author_id));
+        if (!admissions.has(row.author_id)) admissions.set(row.author_id, authorAdmission(db, tx, viewer, row.author_id, knownAuthor(row.author_id)));
         const admission = await admissions.get(row.author_id)!;
         if (admission && (row.user_id === undefined || (typeof row.user_id === 'string' && admission.author.aliases.includes(row.user_id)))) {
           // Search stops after 20 admitted matches inside a 100-candidate scan;
@@ -106,15 +113,19 @@ export async function readSocialPostListPage(db: Firestore, uid: string, raw: un
       if (input.scope === 'search' && posts.length === 20) break;
     }
     const reactions = new Map<string, string>(); const saved = new Set<string>();
-    if (posts.length) for (const alias of viewer.aliases) {
+    if (posts.length) {
       const ids = posts.map(post => post.id);
-      const [likes, bookmarks] = await Promise.all([
+      const batches = await Promise.all(viewer.aliases.flatMap(alias => [
         tx.get(db.collection('likes').where('user_id', '==', alias).where('post_id', 'in', ids).limit(101)),
         tx.get(db.collection('bookmarks').where('user_id', '==', alias).where('post_id', 'in', ids).limit(101)),
-      ]);
-      if (likes.size > 100 || bookmarks.size > 100) throw new HttpsError('resource-exhausted', 'Post interactions need repair. Please contact support.');
-      for (const like of likes.docs) reactions.set(like.data().post_id, ['like', 'love', 'care', 'haha', 'wow', 'sad', 'angry'].includes(like.data().reaction_type) ? like.data().reaction_type : 'like');
-      for (const bookmark of bookmarks.docs) saved.add(bookmark.data().post_id);
+      ]));
+      for (let index = 0; index < batches.length; index += 2) {
+        const likes = batches[index];
+        const bookmarks = batches[index + 1];
+        if (likes.size > 100 || bookmarks.size > 100) throw new HttpsError('resource-exhausted', 'Post interactions need repair. Please contact support.');
+        for (const like of likes.docs) reactions.set(like.data().post_id, ['like', 'love', 'care', 'haha', 'wow', 'sad', 'angry'].includes(like.data().reaction_type) ? like.data().reaction_type : 'like');
+        for (const bookmark of bookmarks.docs) saved.add(bookmark.data().post_id);
+      }
     }
     let nextCursor: string | null = null;
     if (last && (candidates.size > rawCandidates.length || last.id !== rawCandidates.at(-1)?.id)) {

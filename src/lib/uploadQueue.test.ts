@@ -40,4 +40,14 @@ describe('owner-bound background publishing', () => {
     const jobs = getUploadJobs(); expect(jobs).toHaveLength(1); expect(jobs[0]).toMatchObject({ stage: 'failed', input: { caption: 'Retained' } }); expect(state.run).not.toHaveBeenCalled();
   });
   it('returns a stable snapshot while nothing changes', () => { const first = getUploadJobs(); expect(getUploadJobs()).toBe(first); });
+  it('keeps a publish exception instead of describing it as an account change', async () => {
+    state.run.mockRejectedValueOnce(new Error('Vybe Check is unavailable right now.'));
+    enqueuePostUpload(input());
+    await vi.waitFor(() => expect(getUploadJobs()[0]?.error).toBe('Vybe Check is unavailable right now.'));
+  });
+  it('still names an account change when the attempt is retired', async () => {
+    state.run.mockRejectedValueOnce(Object.assign(new Error('stop'), { code: 'account-changed' }));
+    enqueuePostUpload(input());
+    await vi.waitFor(() => expect(getUploadJobs()[0]?.error).toBe('Your account changed. Retry this original publication after signing back in.'));
+  });
 });

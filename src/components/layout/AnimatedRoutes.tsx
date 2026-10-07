@@ -74,7 +74,7 @@ const FriendProfile = lazy(() => import("@/pages/FriendProfile"));
 
 // Secondary pages - lazy load but prefetch
 const Upload = lazy(() => import("@/pages/Upload"));
-const MiniApps = lazy(() => import("@/pages/MiniApps"));
+const MiniAppsEntry = lazy(() => import("@/pages/MiniAppsEntry"));
 const GameCapture = lazy(() => import("@/pages/GameCapture"));
 const ConnectGame = lazy(() => import("@/pages/ConnectGame"));
 const Developers = lazy(() => import("@/pages/Developers"));
@@ -261,8 +261,8 @@ export function AnimatedRoutes() {
             
             {/* CRITICAL ROUTES - Eagerly loaded, instant navigation */}
             <Route path="/home" element={<ProtectedRoute><RouteBoundary name="home"><Home /></RouteBoundary></ProtectedRoute>} />
-            <Route path="/mini-apps" element={<ProtectedRoute><RouteBoundary name="mini-apps"><MiniApps /></RouteBoundary></ProtectedRoute>} />
-            <Route path="/mini-apps/:appId" element={<ProtectedRoute><RouteBoundary name="mini-apps"><MiniApps /></RouteBoundary></ProtectedRoute>} />
+            <Route path="/mini-apps" element={<RouteBoundary name="mini-apps"><MiniAppsEntry /></RouteBoundary>} />
+            <Route path="/mini-apps/:appId" element={<RouteBoundary name="mini-apps"><MiniAppsEntry /></RouteBoundary>} />
             <Route path="/game-capture/:captureId" element={<ProtectedRoute><RouteBoundary name="game-capture"><GameCapture /></RouteBoundary></ProtectedRoute>} />
             <Route path="/connect/game" element={<ProtectedRoute><RouteBoundary name="connect-game"><ConnectGame /></RouteBoundary></ProtectedRoute>} />
             <Route path="/brief" element={<ProtectedRoute><BriefPage /></ProtectedRoute>} />

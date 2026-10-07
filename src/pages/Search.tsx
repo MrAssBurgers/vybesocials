@@ -75,7 +75,8 @@ export default function SearchPage() {
   const { data: posts, isPending: loadingPosts, isError: postsError, refetch: refetchPosts } = postQuery;
   const hashtagQuery = useSearchHashtags(debouncedQuery, activeTab === 'hashtags');
   const { data: hashtags, isPending: loadingHashtags, isError: hashtagsError, refetch: refetchHashtags } = hashtagQuery;
-  const { data: trendingPeople } = useTrendingPeople();
+  const { data: trendingPeople, isPending: trendingPending, isError: trendingError, refetch: refetchTrending } = useTrendingPeople();
+  const suggestions = (trendingPeople ?? []).filter((person) => person.id !== profile?.id).slice(0, 8);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -180,9 +181,20 @@ export default function SearchPage() {
                   <h2 className="text-sm font-semibold text-foreground">Suggested for you</h2>
                 </div>
                 <div className="space-y-1">
-                  {trendingPeople?.filter(p => p.id !== profile?.id).slice(0, 8).map((person, idx) => (
-                    <PersonRow key={person.id} person={person} index={idx} />
-                  ))}
+                  {trendingError ? (
+                    <div className="py-6 text-center space-y-3">
+                      <p className="text-sm text-muted-foreground">Suggestions could not be loaded.</p>
+                      <Button variant="outline" size="sm" onClick={() => { void refetchTrending(); }}>Try again</Button>
+                    </div>
+                  ) : trendingPending && !trendingPeople ? (
+                    <p className="py-4 text-sm text-muted-foreground">Loading suggestions…</p>
+                  ) : suggestions.length > 0 ? (
+                    suggestions.map((person, idx) => (
+                      <PersonRow key={person.id} person={person} index={idx} />
+                    ))
+                  ) : (
+                    <p className="py-4 text-sm text-muted-foreground">Search for a name to find people.</p>
+                  )}
                 </div>
               </div>
 

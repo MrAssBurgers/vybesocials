@@ -32,7 +32,10 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: () => 'Skip for no
 vi.mock('@/components/ui/VYBELogo', () => ({ VYBELogo: () => <span>VYBE</span> }));
 vi.mock('@/components/ui/VybeMiniIcon', () => ({ VybeMiniIcon: () => null }));
 vi.mock('@/components/onboarding/UsernameSetup', () => ({ UsernameSetup: () => <p>Choose username</p> }));
-vi.mock('@/components/onboarding/AgeSetup', () => ({ AgeSetup: ({ onChange, onAgeCalculated }: { onChange: (date: Date) => void; onAgeCalculated: (age: number) => void }) => <button onClick={() => { onChange(new Date('2000-01-02T00:00:00Z')); onAgeCalculated(26); }}>Set test birthday</button> }));
+vi.mock('@/components/onboarding/AgeSetup', () => ({ AgeSetup: ({ onChange, onAgeCalculated }: { onChange: (date: Date) => void; onAgeCalculated: (age: number) => void }) => <div>
+  <button onClick={() => { onChange(new Date('2000-01-02T00:00:00Z')); onAgeCalculated(26); }}>Set test birthday</button>
+  <button onClick={() => { onChange(new Date('2018-01-02T00:00:00Z')); onAgeCalculated(8); }}>Set underage birthday</button>
+</div> }));
 vi.mock('@/components/onboarding/InterestPicker', () => ({ InterestPicker: ({ onChange }: { onChange: (values: string[]) => void }) => <button onClick={() => onChange(['art', 'games', 'music'])}>Choose interests</button> }));
 vi.mock('@/components/onboarding/CreatorSuggestions', () => ({ CreatorSuggestions: () => null }));
 vi.mock('@/components/onboarding/ProfileSetup', () => ({ ProfileSetup: ({ data, onChange }: { data: { bio: string }; onChange: (value: unknown) => void }) => <div>
@@ -145,12 +148,37 @@ describe('account-bound onboarding persistence', () => {
     await act(async () => { pending.resolve(state.profile); });
     expect(state.legal).not.toHaveBeenCalled(); expect(state.update).not.toHaveBeenCalled();
   });
-  it('allows only one pending skip and reports failure without navigation', async () => {
-    const pending = deferred<unknown>(); state.ensure.mockReturnValueOnce(pending.promise);
-    show(); const skip = screen.getByRole('button', { name: 'Skip for now' }); fireEvent.click(skip); fireEvent.click(skip);
-    expect(state.ensure).toHaveBeenCalledOnce(); state.update.mockRejectedValueOnce(new Error('Unavailable'));
+  it('does not finish from Skip before a birthday and the terms', () => {
+    show();
+    fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }));
+    expect(state.ensure).not.toHaveBeenCalled();
+    expect(state.error).toHaveBeenCalledWith('Add your birthday before continuing. You can skip the optional steps after that.');
+    fireEvent.click(screen.getByRole('button', { name: 'Set test birthday' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }));
+    expect(state.ensure).not.toHaveBeenCalled();
+    expect(screen.getByRole('checkbox', { name: 'Accept test terms' })).toBeInTheDocument();
+  });
+  it('blocks an under-13 birthday', () => {
+    show();
+    fireEvent.click(screen.getByRole('button', { name: 'Set underage birthday' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('VYBE is for people 13 and older.');
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }));
+    expect(state.ensure).not.toHaveBeenCalled();
+  });
+  it('allows only one pending skip after birthday and terms, and records both', async () => {
+    const pending = deferred<unknown>();
+    show();
+    await completeSteps();
+    state.ensure.mockReturnValueOnce(pending.promise);
+    const skip = screen.getByRole('button', { name: 'Skip for now' });
+    fireEvent.click(skip); fireEvent.click(skip);
+    expect(state.ensure).toHaveBeenCalledOnce();
+    state.update.mockRejectedValueOnce(new Error('Unavailable'));
     await act(async () => { pending.resolve(state.profile); });
     await screen.findByRole('alert');
+    expect(state.birthday).toHaveBeenCalledOnce();
+    expect(state.legal).toHaveBeenCalledOnce();
     expect(screen.queryByText('Home destination')).not.toBeInTheDocument();
     expect(state.clearUsername).not.toHaveBeenCalled();
   });

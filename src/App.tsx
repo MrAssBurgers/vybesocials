@@ -338,11 +338,6 @@ const queryClient = new QueryClient({
 installQueryCacheWriteGuard(queryClient);
 installQueryCacheNormalizer(queryClient);
 
-// Start global reconnect manager (refreshes active queries the instant
-// connectivity is restored, polls aggressively while offline).
-startReconnectManager(queryClient);
-startOutbox();
-
 // Build-hash based cache buster so deployments invalidate persisted cache.
 const PERSIST_BUSTER = (import.meta as any).env?.VITE_BUILD_ID || 'vybe-cache-v19';
 
@@ -473,6 +468,14 @@ function AppWithPreloader() {
     if (!authReady || !user?.id || !profile?.id || !profile?.user_id) return;
     void loadDmInboxRolloutConfig();
   }, [authReady, profile?.id, profile?.user_id, user?.id]);
+
+  // Heartbeat probes and the DM outbox wait until an account exists. Logged-out
+  // marketing and signup pages do not need a 60s favicon poll or an empty flush.
+  useEffect(() => {
+    if (!authReady || !user?.id) return;
+    startReconnectManager(queryClient);
+    startOutbox();
+  }, [authReady, user?.id]);
 
   // bfcache restore (iOS Safari / some WebViews) — re-show splash if shell is empty.
   useEffect(() => {

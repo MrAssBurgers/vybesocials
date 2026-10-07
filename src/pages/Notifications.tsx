@@ -538,7 +538,7 @@ export default function NotificationsPage() {
           {/* ─── REQUESTS TAB ─── */}
           <TabsContent value="requests" className="mt-0">
             <AnimatePresence mode="wait">
-              {pendingRequests.length > 0 ? (
+              {requestsError ? null : pendingRequests.length > 0 ? (
                 <motion.div key="requests" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
                   {pendingRequests.map((request, idx) => (
                     <motion.div

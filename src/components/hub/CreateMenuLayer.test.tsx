@@ -150,7 +150,7 @@ describe('Create dialog actions stay with their opening account', () => {
     mock.user = null; mock.session = { uid: undefined, epoch: mock.session.epoch + 1 }; mock.native = mock.session;
     const { user } = await open();
     await user.click(screen.getByRole('button', { name: /^Camera$/ }));
-    expect(mock.navigate).toHaveBeenCalledWith('/?mode=login'); expect(mock.camera).not.toHaveBeenCalled();
+    expect(mock.navigate).toHaveBeenCalledWith('/login'); expect(mock.camera).not.toHaveBeenCalled();
   });
 
   it('refuses a stale click before React catches up to an account change, including ABA', async () => {

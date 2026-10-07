@@ -49,11 +49,11 @@ export const GuestAuthPrompt = React.forwardRef<HTMLDivElement, GuestAuthPromptP
   const displayMessage = message || `Sign up to ${action}`;
 
   const handleSignUp = () => {
-    navigate('/?signup=true');
+    navigate('/signup');
   };
 
   const handleLogin = () => {
-    navigate('/?mode=login');
+    navigate('/login');
   };
 
   if (variant === 'button') {

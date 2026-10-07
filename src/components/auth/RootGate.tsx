@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { isNativeAppShell } from '@/lib/despiaBridge';
 import { isMobileOrTabletDevice } from '@/lib/deviceDetection';
@@ -17,6 +17,12 @@ const EntryLoading = () => (
     <div className="h-8 w-8 rounded-full border-[3px] border-primary/25 border-t-primary animate-spin" aria-hidden="true" />
   </div>
 );
+
+/** Explicit account links must open the auth screen on desktop marketing `/`. */
+export function isAuthEntrySearch(search: string): boolean {
+  const params = new URLSearchParams(search);
+  return params.get('signup') === 'true' || params.get('mode') === 'login' || params.get('mode') === 'signup';
+}
 
 function useMobileAppEntry(): boolean {
   const [mobileApp, setMobileApp] = useState(
@@ -46,6 +52,8 @@ function useMobileAppEntry(): boolean {
  */
 export default function RootGate() {
   const { user, loading, authReady } = useAuth();
+  const location = useLocation();
+  const authRequested = isAuthEntrySearch(location.search);
   // Honor VYBE_INTRO_VERSION — bumping the constant re-shows intro after Publish.
   // (Previously only `vybe_intro_seen` was checked, so intro UX changes looked "unpublished".)
   const [introDone, setIntroDone] = useState<boolean>(() => hasCompletedCurrentIntro());
@@ -60,7 +68,7 @@ export default function RootGate() {
   // password form does not flash, and never say "Restoring your account…".
   if ((loading || !authReady) && hasStoredAuthSession()) return <EntryLoading />;
 
-  const showIntro = !introDone && isMobileApp;
+  const showIntro = !introDone && isMobileApp && !authRequested;
   if (showIntro) {
     return (
       <Suspense fallback={<EntryLoading />}>
@@ -69,7 +77,7 @@ export default function RootGate() {
     );
   }
 
-  if (isMobileApp) {
+  if (isMobileApp || authRequested) {
     return (
       <Suspense fallback={<EntryLoading />}>
         <Landing />

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
+import { useAuth } from '@/lib/auth';
 import { motion } from 'framer-motion';
 import { Shield } from 'lucide-react';
 
@@ -10,8 +11,10 @@ import { Shield } from 'lucide-react';
  * Gracefully returns null if growth_config is missing or empty.
  */
 export function FounderCounter({ compact = false }: { compact?: boolean }) {
+  const { user } = useAuth();
   const { data } = useQuery({
-    queryKey: ['founder-counter'],
+    queryKey: ['founder-counter', user?.id],
+    enabled: Boolean(user?.id),
     queryFn: async () => {
       // Use maybeSingle to avoid 406 when row doesn't exist
       const { data: config, error } = await db
