@@ -4,7 +4,8 @@ import { Zap, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AnimatedNumber } from '@/components/ui/AnimatedNumber';
 import { useVybeScore, useVybeScoreBreakdown, useVybeScorePrivacy, updateVybeScorePrivacy, formatVybeScore } from '@/hooks/useVybeScore';
-import { isVybeScoreUiEnabled } from '@/lib/relationshipFeatureFlags';
+import { useFriendshipStatus } from '@/hooks/useFriends';
+import { canShowVybeScore } from '@/lib/relationship/vybeScorePure';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
@@ -38,12 +39,18 @@ const ACTION_LABEL: Record<string, string> = {
 
 export function VybeScore({ profileId, isOwnProfile, className }: VybeScoreProps) {
   const { data: score = 0, isLoading } = useVybeScore(profileId);
+  const privacy = useVybeScorePrivacy(isOwnProfile ? undefined : profileId);
+  const friendship = useFriendshipStatus(isOwnProfile ? undefined : profileId);
   const [open, setOpen] = useState(false);
-  const scoreUi = isVybeScoreUiEnabled();
+  const visible = canShowVybeScore({
+    own: !!isOwnProfile,
+    privacy: privacy.data,
+    friend: friendship.data?.status === 'friends',
+  });
 
-  if (!scoreUi && !isOwnProfile) return null;
+  if (!isOwnProfile && privacy.isSuccess && !visible) return null;
 
-  if (isLoading && score === 0) {
+  if ((isLoading && score === 0) || (!isOwnProfile && privacy.isLoading)) {
     return (
       <div className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-foreground/5', className)}>
         <Zap className="h-3 w-3 text-muted-foreground" />

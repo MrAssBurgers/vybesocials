@@ -4,11 +4,14 @@
 - Clicking someone whose username is stored on two profile documents no longer ends on “Couldn't load this profile” or “This user doesn't exist”.
 - The Auth-owned document (its id is the Auth uid) opens. A click that already knows the profile id opens that profile. Two Auth-owned documents with the same username still stop for review.
 - A profile click keeps a loading skeleton until the signed-in profile is ready, instead of saying the other account does not exist.
+- Another person's profile shows their Vybe Score. A private score stays hidden. A friends-only score shows after the friendship is confirmed. A missing score document shows 0.
+- The visible-post count uses the posts already on the page until the summary returns, so the number matches the grid.
+- A blank VYBE DNA card is not shown when that person's DNA cannot be read.
 
 ### Verification
-- `npm run test`: 524 files passed, 1 skipped; 5140 passed, 6 skipped. Map renderer stderr is the existing noise.
-- App `tsc` and Functions `tsc` passed. `npm run build` passed. Entry `app-BDJjagfP.js` is 857.1 KB raw / 261.4 KB gzip. Generated `public/version.json` and `public/despia/local.json` restored.
-- Local app at `http://127.0.0.1:8080` against live Firebase. Signed in as `vybe_qa_test`. Explore → @blaze opened `http://127.0.0.1:8080/u/blaze?p=HHmmIllK6zb3dUhoFA52y9R66Hx1` and showed “literally just blaze”, one post, and Message. A direct `/u/blaze` open on a phone-width viewport showed the same profile. No follow, like, comment, or message was sent.
+- `npm run test`: 524 files passed, 1 skipped; 5141 passed, 6 skipped. Map renderer stderr is the existing noise.
+- App `tsc` passed. `npm run build` passed. Entry `app-Bq-GVchx.js` is 857.1 KB raw / 261.3 KB gzip. Generated `public/version.json` and `public/despia/local.json` restored.
+- Local app at `http://127.0.0.1:8080` against live Firebase, signed in as `vybe_qa_test`. `/u/blaze` showed “literally just blaze”, Vybe Score 0 (no score document), 1 visible post matching the post on the page, Follow, Message, and an enabled Add Friend button. No follow, like, comment, or friend request was sent.
 
 ### Next 3 tasks
 1. Lovable → Share → Publish, then open @blaze from Explore.

@@ -260,7 +260,15 @@ export default function ProfilePage() {
       }}>
         {/* Hero Identity Card */}
         <ProfileHeroCard
-          profile={profile}
+          profile={{
+            ...profile,
+            post_count: profile.post_count || posts?.length || 0,
+            post_count_label: profile.post_count_label && profile.post_count_label !== '—'
+              ? profile.post_count_label
+              : posts?.length
+                ? String(posts.length)
+                : profile.post_count_label,
+          }}
           isOwnProfile={isOwnProfile}
           isPremium={isPremium}
           profileRole={profileRole}

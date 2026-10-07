@@ -28,6 +28,18 @@ export function vybeScorePointsForEvent(eventType: VybeScoreEventType): number {
   return EVENT_POINTS[eventType] ?? 0;
 }
 
+/** Other people see a public score. Private scores stay with the owner. Friends-only scores need a confirmed friendship. */
+export function canShowVybeScore(input: {
+  own: boolean;
+  privacy?: 'public' | 'friends_only' | 'private';
+  friend?: boolean;
+}): boolean {
+  if (input.own) return true;
+  if (input.privacy === 'private') return false;
+  if (input.privacy === 'friends_only') return input.friend === true;
+  return true;
+}
+
 export function isUnderVybeDailyCap(
   eventType: VybeScoreEventType,
   currentCount: number,

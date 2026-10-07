@@ -89,8 +89,8 @@ export function useVybeDNA(userId?: string) {
   // Fetch the stored DNA row (works for own + other users)
   const dnaQuery = useQuery({
     queryKey: ['vybe-dna', targetId],
-    queryFn: async (): Promise<VybeDNA> => {
-      if (!targetId) return buildSeedDNA('unknown');
+    queryFn: async (): Promise<VybeDNA | null> => {
+      if (!targetId) return isOwnProfile ? buildSeedDNA('unknown') : null;
 
       const { data, error } = await db
         .from('vybe_dna' as any)
@@ -100,8 +100,9 @@ export function useVybeDNA(userId?: string) {
 
       if (error) throw error;
 
-      // No row yet → return seed DNA so the UI always renders
-      if (!data) return buildSeedDNA(targetId);
+      // Own profile gets a local seed so the card is not blank. Another person's
+      // missing row stays empty instead of showing invented colors.
+      if (!data) return isOwnProfile ? buildSeedDNA(targetId) : null;
 
       const row = data as unknown as VybeDNA;
       const pv = row.personality_vector || {};

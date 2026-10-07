@@ -42,7 +42,8 @@ export const ProfileVibeBoard = memo(function ProfileVibeBoard({
   followerCount,
   followingCount,
 }: ProfileVibeBoardProps) {
-  const { data: dna } = useVybeDNA(userId);
+  const dnaQuery = useVybeDNA(userId);
+  const dna = dnaQuery.data;
   const { data: badges } = useUserBadges(userId);
 
   return (
@@ -52,8 +53,8 @@ export const ProfileVibeBoard = memo(function ProfileVibeBoard({
       animate="show"
       className="space-y-3"
     >
-      {/* VYBE DNA Card */}
-      <motion.div variants={cardAnim}>
+      {/* VYBE DNA Card. Another person's DNA is owner-readable only, so a denied or missing row stays off this page. */}
+      {dna && <motion.div variants={cardAnim}>
         <VibeBoardCard
           title="VYBE DNA"
           icon={Dna}
@@ -90,7 +91,7 @@ export const ProfileVibeBoard = memo(function ProfileVibeBoard({
             </div>
           ) : null}
         </VibeBoardCard>
-      </motion.div>
+      </motion.div>}
 
       {/* Badges Card */}
       {badges && badges.length > 0 && (

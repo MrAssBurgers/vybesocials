@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canShowVybeScore,
   isUnderVybeDailyCap,
   shouldAwardVybeScoreEvent,
   vybeScorePointsForEvent,
@@ -15,6 +16,15 @@ describe('vybeScorePure', () => {
     expect(shouldAwardVybeScoreEvent('snap_sent')).toBe(true);
     expect(vybeScorePointsForEvent('snap_sent')).toBe(2);
     expect(vybeScorePointsForEvent('friend_accepted')).toBe(1);
+  });
+
+  it('shows another person a public score and keeps a private score with the owner', () => {
+    expect(canShowVybeScore({ own: false })).toBe(true);
+    expect(canShowVybeScore({ own: false, privacy: 'public' })).toBe(true);
+    expect(canShowVybeScore({ own: false, privacy: 'private' })).toBe(false);
+    expect(canShowVybeScore({ own: false, privacy: 'friends_only', friend: false })).toBe(false);
+    expect(canShowVybeScore({ own: false, privacy: 'friends_only', friend: true })).toBe(true);
+    expect(canShowVybeScore({ own: true, privacy: 'private' })).toBe(true);
   });
 
   it('enforces daily caps', () => {
