@@ -1,3 +1,24 @@
+## ACTIVE (2026-10-07) - Story plus, welcome photo, login waves
+
+### What changed
+- The "Your story" add control was a solid accent disc with a heavy plus. It is now a 26px navy disc with a hairline ring and a thinner plus. The hit target stays 44px. Story upload behavior is unchanged.
+- Welcome back no longer shows the floating @handle chip. The signed-in profile photo pops in the center, swirls once, then flies to the account avatar (`data-account-avatar` on the bottom-nav profile picture and the desktop sidebar avatar). It stays hidden while `[data-auth-shell]` is on screen. Reduced motion skips the swirl and moves the photo once. No photo uses the existing initial fallback. Sign-in is not blocked.
+- Auth sheet waves no longer spawn on focus, tap, or drag. Response waves and the working ripples run only while a login or signup submit is in progress.
+
+### Verification
+- `npm run test`: 515 files passed, 1 skipped; 5099 passed, 6 skipped.
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. ESLint on the edited files passed. `npm run build` passed. Generated `public/version.json` and `public/despia/local.json` restored.
+- Chrome 475×751. Password sign-in opened Home. No "Enter your code". The story plus measured 26px inside a 44px hit area on the real "Your story" card. The welcome photo used that account avatar (`fallback=false`) and landed on the bottom-nav picture (fly 352,646; avatar 384,678, 28px). Fold and desktop login taps, focus, and a drag left response and working wave counts at 0. A ripple shows while the button says "Signing in…". No posts, messages, follows, or settings writes. Crash-consent buttons were not clicked.
+
+### Blockers
+- `vybehub.app` needs Lovable → Share → Publish.
+- Do not deploy `auth2faRequest`.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then force-close VYBE on the phone.
+2. Confirm the story plus and the welcome flight on a physical Fold.
+3. Leave `auth2faRequest` undeployed.
+
 ## ACTIVE (2026-10-07) - Phone sign-in, first paint, community apps
 
 ### What changed

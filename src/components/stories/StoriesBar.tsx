@@ -294,7 +294,8 @@ const StoryTile = memo(function StoryTile({
             aria-label="Add a story"
             data-story-add=""
             onClick={handleAddClick}
-            className="absolute -bottom-1 -right-1 z-20 flex h-11 w-11 items-end justify-end rounded-full border-0 bg-transparent p-0 touch-manipulation active:scale-95 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className="absolute -bottom-1 -right-1 z-20 flex h-11 w-11 min-h-[44px] min-w-[44px] shrink-0 items-end justify-end rounded-full border-0 bg-transparent p-0 touch-manipulation active:scale-95 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            style={{ width: 44, height: 44 }}
           >
             <span
               aria-hidden
