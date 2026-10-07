@@ -1,3 +1,17 @@
+## ACTIVE (2026-10-07) - Merged main after PR #4
+
+### What changed
+- Merged `origin/main` at `b2f4c86f` (PR #4). The only conflict was `WORKLOG.md`. Both the signed-in listener, private-post, and toast notes and main’s later sections stayed.
+
+### Verification
+- `npm run test`: 524 files passed, 1 skipped; 5133 passed, 6 skipped. Map renderer stderr is the existing noise.
+- App `tsc` and Functions `tsc` passed. `npm run build` passed. Entry `app-B9KIx8mU.js` is 857.1 KB raw / 261.3 KB gzip. Generated `public/version.json` and `public/despia/local.json` restored.
+
+### Next 3 tasks
+1. Lovable → Share → Publish after this pull request merges, then deploy the post-read functions so the private tag appears.
+2. Delete the `vybe_qa_test` Auth user, its post, and its comment when QA is done.
+3. Leave `auth2faRequest` undeployed.
+
 ## ACTIVE (2026-10-07) - Signed-in walk inventory
 
 Local Vite at `http://127.0.0.1:8080` against live Firebase `vybe-daaab`. [Walk signed-in Vybe flows](bc-040726f2-9690-580f-8389-213c99afd316) created one labeled account and stayed on that account's own content.
