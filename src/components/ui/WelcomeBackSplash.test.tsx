@@ -1,16 +1,18 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { toast } from 'sonner';
 import {
   WelcomeBackSplash,
   WELCOME_ACCOUNT_PENDING,
   WELCOME_AVATAR_SIZE,
+  WELCOME_FLIGHT_MS,
+  WELCOME_POP_MS,
   knownAccountAvatarSlot,
   readAccountAvatarRect,
   welcomeCenter,
+  welcomeFlightFrames,
   welcomeFlyTarget,
   welcomeReturnNotices,
-  welcomeSwirlFrames,
 } from './WelcomeBackSplash';
 
 function mockReducedMotion(reduce: boolean) {
@@ -59,7 +61,7 @@ describe('WelcomeBackSplash', () => {
     mockReducedMotion(false);
   });
 
-  it('holds a centered photo, welcome copy, and Close without a chip or scroll lock', () => {
+  it('pops a centered photo and welcome copy with no close button', () => {
     render(
       <WelcomeBackSplash
         username="vybe_tester"
@@ -70,14 +72,15 @@ describe('WelcomeBackSplash', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
     expect(screen.queryByText('@vybe_tester')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Dismiss welcome message' })).not.toBeInTheDocument();
     expect(document.body).not.toHaveClass('welcome-back-visible');
     expect(document.body).toHaveClass(WELCOME_ACCOUNT_PENDING);
     expect(document.body.style.overflow).not.toBe('hidden');
     expect(root().className).not.toContain('-translate-x-1/2');
-    expect(screen.getByRole('button', { name: 'Close' }).className).not.toContain('-translate-x-1/2');
+    expect(root()).toHaveAttribute('data-welcome-auto', '');
     const avatar = document.querySelector('[data-welcome-avatar]');
     expect(avatar).toBeTruthy();
     expect(avatar?.textContent).not.toMatch(/V/);
@@ -86,7 +89,8 @@ describe('WelcomeBackSplash', () => {
     expect(style).toContain('top: 0');
     expect(style).toContain('translateX');
     expect(style).toContain('translateY');
-    expect(root()).toHaveAttribute('data-welcome-phase', 'hold');
+    expect(root()).toHaveAttribute('data-welcome-phase', 'pop');
+    expect(root().className).toContain('pointer-events-none');
   });
 
   it('shows existing return notices under the photo and skips a duplicate welcome line', () => {
@@ -106,32 +110,33 @@ describe('WelcomeBackSplash', () => {
     expect(screen.getAllByText('Welcome back')).toHaveLength(1);
   });
 
-  it('stays off the sign-in sheet until that screen is gone', async () => {
+  it('stays off the sign-in sheet until that screen is gone, then starts itself', async () => {
     const shell = document.createElement('div');
     shell.setAttribute('data-auth-shell', '');
     document.body.appendChild(shell);
 
     render(<WelcomeBackSplash username="vybe_tester" onComplete={() => {}} />);
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
     expect(document.body).not.toHaveClass(WELCOME_ACCOUNT_PENDING);
 
     shell.remove();
-    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Welcome back' })).toBeInTheDocument());
     expect(screen.queryByText('@vybe_tester')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
+    expect(root()).toHaveAttribute('data-welcome-phase', 'pop');
   });
 
-  it('does not swirl until Close, then lands on the account avatar with confetti', async () => {
+  it('flies to the account avatar on its own and bursts when it arrives', async () => {
     accountSlot({ left: 300, top: 620, width: 28, height: 28 });
     const onComplete = vi.fn();
     render(<WelcomeBackSplash username="vybe_tester" avatarUrl="https://example.com/a.jpg" onComplete={onComplete} />);
 
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
     await waitFor(() => expect(root()).toHaveAttribute('data-welcome-motion', 'swirl'));
-    expect(root()).toHaveAttribute('data-welcome-phase', 'hold');
+    expect(root()).toHaveAttribute('data-welcome-phase', 'pop');
     expect(document.querySelector('[data-welcome-confetti]')).toBeNull();
     expect(onComplete).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
 
     const expected = welcomeFlyTarget(
       { width: window.innerWidth, height: window.innerHeight },
@@ -141,32 +146,38 @@ describe('WelcomeBackSplash', () => {
       expect(root().getAttribute('data-fly-x')).toBe(String(Math.round(expected.x)));
       expect(root().getAttribute('data-fly-y')).toBe(String(Math.round(expected.y)));
       expect(root().getAttribute('data-fly-fallback')).toBe('false');
-    }, { timeout: 4000 });
+      expect(root()).toHaveAttribute('data-welcome-phase', 'flight');
+    }, { timeout: 3500 });
 
     await waitFor(() => {
       expect(document.querySelector('[data-welcome-confetti]')).toBeTruthy();
+      expect(document.querySelector('[data-welcome-avatar]')).toHaveAttribute('data-welcome-landed');
       expect(document.body).not.toHaveClass(WELCOME_ACCOUNT_PENDING);
     }, { timeout: 4000 });
-    expect(root().getAttribute('data-welcome-phase')).not.toBe('hold');
-  });
 
-  it('skips the swirl and confetti when motion is reduced', async () => {
+    await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1), { timeout: 2000 });
+    expect(document.querySelector('[data-welcome-confetti]')).toBeNull();
+    expect(document.body).not.toHaveClass(WELCOME_ACCOUNT_PENDING);
+  }, 8000);
+
+  it('skips the swirl and confetti when motion is reduced, without a click', async () => {
     mockReducedMotion(true);
     accountSlot({ left: 300, top: 620, width: 28, height: 28 });
     const onComplete = vi.fn();
     render(<WelcomeBackSplash username="vybe_tester" onComplete={onComplete} />);
 
     await waitFor(() => expect(root()).toHaveAttribute('data-welcome-motion', 'direct'));
-    expect(root()).toHaveAttribute('data-welcome-phase', 'hold');
+    expect(screen.getByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
+    expect(root()).toHaveAttribute('data-welcome-phase', 'pop');
     expect(document.body).toHaveClass(WELCOME_ACCOUNT_PENDING);
     expect(root().hasAttribute('data-fly-x')).toBe(false);
+    expect(document.querySelector('[data-welcome-confetti]')).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
-
-    await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1), { timeout: 3000 });
     expect(document.body).not.toHaveClass(WELCOME_ACCOUNT_PENDING);
     expect(document.querySelector('[data-welcome-confetti]')).toBeNull();
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('measures a held account avatar even while its picture is hidden', () => {
@@ -179,24 +190,58 @@ describe('WelcomeBackSplash', () => {
     expect(readAccountAvatarRect()).toBeNull();
   });
 
-  it('plans a swirl that starts and ends on center, then a fly into the account slot', () => {
+  it('plans one tight swirl that starts at center and ends on the account slot', () => {
+    expect(WELCOME_POP_MS).toBeGreaterThanOrEqual(250);
+    expect(WELCOME_POP_MS).toBeLessThanOrEqual(500);
+    expect(WELCOME_FLIGHT_MS).toBeGreaterThanOrEqual(900);
+    expect(WELCOME_FLIGHT_MS).toBeLessThanOrEqual(1400);
+
     const viewport = { width: 475, height: 751 };
     const center = welcomeCenter(viewport);
-    const frames = welcomeSwirlFrames(center, viewport);
+    const phone = knownAccountAvatarSlot(475, 751);
+    const dest = welcomeFlyTarget(viewport, phone);
+    const frames = welcomeFlightFrames(center, dest, viewport);
+
     expect(frames.x[0]).toBeCloseTo(center.x, 4);
     expect(frames.y[0]).toBeCloseTo(center.y, 4);
-    expect(frames.x.at(-1)).toBeCloseTo(center.x, 4);
-    expect(frames.y.at(-1)).toBeCloseTo(center.y, 4);
-    const mid = Math.floor(frames.x.length / 2);
-    const drift = Math.hypot(frames.x[mid] - center.x, frames.y[mid] - center.y);
-    expect(drift).toBeGreaterThan(80);
+    expect(frames.x.at(-1)).toBeCloseTo(dest.x, 4);
+    expect(frames.y.at(-1)).toBeCloseTo(dest.y, 4);
+    expect(frames.scale[0]).toBe(1);
+    expect(frames.scale.at(-1)).toBeCloseTo(dest.scale, 4);
+    expect(frames.rotate[0]).toBe(0);
+    expect(frames.rotate.at(-1)).toBe(0);
+    expect(frames.times[0]).toBe(0);
+    expect(frames.times.at(-1)).toBe(1);
+    expect(frames.x.length).toBe(frames.times.length);
 
-    const phone = knownAccountAvatarSlot(475, 751);
+    let maxOff = 0;
+    let maxStep = 0;
+    for (let i = 0; i < frames.x.length; i++) {
+      const t = i / (frames.x.length - 1);
+      const along = 1 - (1 - t) ** 1.55;
+      const lx = center.x + (dest.x - center.x) * along;
+      const ly = center.y + (dest.y - center.y) * along;
+      maxOff = Math.max(maxOff, Math.hypot(frames.x[i] - lx, frames.y[i] - ly));
+      if (i > 0) {
+        maxStep = Math.max(maxStep, Math.hypot(frames.x[i] - frames.x[i - 1], frames.y[i] - frames.y[i - 1]));
+      }
+      if (i > 0) expect(frames.scale[i]).toBeLessThanOrEqual(frames.scale[i - 1] + 1e-6);
+    }
+    expect(maxOff).toBeGreaterThan(28);
+    expect(maxOff).toBeLessThan(100);
+    expect(maxStep).toBeLessThan(48);
+
     expect(phone.top).toBeGreaterThan(600);
     expect(phone.left).toBeGreaterThan(300);
     const desktop = knownAccountAvatarSlot(1280, 800);
     expect(desktop.left).toBeLessThan(80);
     expect(desktop.top).toBeLessThan(120);
+
+    const desktopCenter = welcomeCenter({ width: 1280, height: 800 });
+    const desktopDest = welcomeFlyTarget({ width: 1280, height: 800 }, desktop);
+    const desktopFrames = welcomeFlightFrames(desktopCenter, desktopDest, { width: 1280, height: 800 });
+    expect(desktopFrames.x.at(-1)).toBeCloseTo(desktopDest.x, 4);
+    expect(desktopFrames.y.at(-1)).toBeCloseTo(desktopDest.y, 4);
 
     const landed = welcomeFlyTarget(viewport, null);
     expect(landed.usedFallback).toBe(true);

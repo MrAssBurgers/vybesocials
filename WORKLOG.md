@@ -1,8 +1,63 @@
+## ACTIVE (2026-10-07) - Firebase config audit
+
+### What changed
+- Branched `cursor/firebase-config-1b49` from `origin/main` at `2ebc6bdc`. The mini-app list/publish source fix is already on that tip (`d9b976fd`). It was not duplicated.
+- `public/robots.txt` still sent crawlers to `hprmicwhlaaqfgshucec.supabase.co/functions/v1/sitemap-dynamic`. That URL returns HTTP 404. `https://vybehub.app/sitemap.xml` returns the static sitemap (HTTP 200). The dead Supabase line is removed. `sitemapDynamic` on `us-central1-vybe-daaab` returns a gateway 403, so robots.txt does not point at it.
+- When `VITE_FIREBASE_STORAGE_BUCKET` is omitted, the client fell back to `<projectId>.appspot.com`. `vybe-daaab.appspot.com` returns HTTP 404. `vybe-daaab.firebasestorage.app` exists (HTTP 403 unauthenticated). The fallback now uses `.firebasestorage.app`, which already matches `.env.example`, Android `google-services.json`, the Apple plist, and Hosting `__/firebase/init.json`. Local preview still uses the emulator `demo-vybe-preview.appspot.com` bucket.
+
+### Checked and left unchanged
+- `.firebaserc` default project is `vybe-daaab`. Client env, Hosting init.json, Android, and iOS agree on project id, auth domain `vybe-daaab.firebaseapp.com`, sender `728651793473`, web app id `1:728651793473:web:ea126ca97899504f9e32c0`, storage bucket `vybe-daaab.firebasestorage.app`, and Functions region `us-central1`.
+- Auth handlers on `vybe-daaab.firebaseapp.com` and `vybe-daaab.web.app` are the Firebase handler. `vybehub.app/__/auth/handler` is still the SPA. `getFirebaseAuthDomain` already refuses that host.
+- Hosting rewrites for `/oauth-dismiss`, `/mcp`, `/apple-callback`, and `/google-callback` hit the deployed functions on `vybe-daaab.web.app`. Lovable `vybehub.app` still serves the SPA for those paths; Google and Apple sign-in use `native-callback.html` on purpose.
+- The local web API key and the Hosting init.json API key both answer Identity Toolkit for project number `728651793473`. They are different keys. Production `vybehub.app` and staging already embed the local/Lovable key with the matching app id and `firebasestorage.app` bucket. No key was copied into source.
+- Client callables used for sign-in, feed, and posts (`ensureAccountProfile`, `authLoginNotify`, `auth2faRequest`, `auth2faVerify`, `readSocialFeed`, `readSocialPostList`, `managePost`) are deployed. `auth2faRequest` was not deployed from this session.
+- `listMiniApps`, `saveMiniAppDraft`, `deleteMiniAppDraft`, and `publishMiniApp` are exported in source and return HTTP 404 in production. Firebase CLI and the Firebase MCP have no logged-in user, so they were not deployed.
+- Firestore rules in source still deny client writes to mini-app drafts and published snapshots. Rules were not changed and were not deployed.
+- No Supabase client is initialized (`src/integrations/supabase/client.ts` exports null). Emulator ports and welcome-animation files were not edited.
+
+### Verification
+- `npm run test`: 516 files passed, 1 skipped; 5110 passed, 6 skipped. Includes `src/lib/firebase/config.test.ts` (omitted bucket resolves to `vybe-daaab.firebasestorage.app`; an explicit bucket is kept).
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. ESLint on `src/lib/firebase/config.ts` and `src/lib/firebase/config.test.ts` passed. `npm run build` passed. Generated `public/version.json` and `public/despia/local.json` restored.
+- Built `dist/assets/app-SzWvibed.js` contains `vybe-daaab.firebasestorage.app` and does not contain `vybe-daaab.appspot.com`. Messaging worker placeholders were injected. No posts, messages, follows, or settings writes.
+
+### Blockers
+- Firebase CLI / MCP is not authenticated, so no Functions, Rules, or index deploy ran.
+- Deploy only `listMiniApps` first: `npx -y firebase-tools@latest deploy --only functions:listMiniApps --project vybe-daaab`. Do not deploy `auth2faRequest`.
+- `vybehub.app` needs Lovable → Share → Publish for the robots.txt and storage-bucket fallback.
+
+### Next 3 tasks
+1. Lovable → Share → Publish so production robots.txt drops the dead Supabase sitemap.
+2. After `npx -y firebase-tools@latest login`, deploy `listMiniApps` only. Do not deploy `auth2faRequest`.
+3. Then deploy `saveMiniAppDraft`, `deleteMiniAppDraft`, and `publishMiniApp` as separate named targets.
+
+## ACTIVE (2026-10-07) - Welcome plays itself
+
+### What changed
+- The welcome no longer waits on a Close button. As soon as the login sheet is gone (`[data-auth-shell]` absent), the signed-in profile photo pops in the center with "Welcome back" under it, plus any return notice that is already waiting. Nothing has to be tapped.
+- The circle stays invisible until that photo has decoded, up to 900ms, so the first thing on screen is the real picture. The pop is 380ms. One continuous swirl then carries the photo to the account avatar (bottom-nav on a phone, sidebar on desktop) in 1080ms, using transform and opacity only. A short burst, about 460ms, plays on that avatar. The account picture stays hidden until the flying photo lands, then the real one appears and the flying one is gone.
+- Reduced motion skips the swirl and the burst. "Welcome back" shows for about 420ms, then the account picture appears. No click.
+- There is no Close button, no `useLocation`, no floating @handle chip, and no letter fallback. Sign-in is not blocked and the overlay does not cover the login sheet. The story plus and the login-wave gating are unchanged.
+
+### Verification
+- `npm run test`: 515 files passed, 1 skipped; 5108 passed, 6 skipped.
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. ESLint on the welcome component and its test passed. `npm run build` passed. Generated `public/version.json` and `public/despia/local.json` restored.
+- Chrome 475×751, password sign-in, no email-code screen. No Close button. The photo and "Welcome back" appeared on their own (pop about 400ms), then flew for about 1080ms. The bottom-nav account picture stayed at opacity 0 (28px at 384, 678) until the flight landed, then a burst played and that picture was opacity 1. The story plus stayed 44px with a 26px disc. A focus before submit left response and working waves at 0. Working waves showed while the button said "Signing in…".
+- Desktop 1280×800 played the same sequence onto the sidebar picture (40px at 25, 76). It stayed hidden until the burst, then the photo was there. No posts, messages, follows, or settings writes. Crash-consent buttons were not clicked.
+
+### Blockers
+- `vybehub.app` needs Lovable → Share → Publish.
+- Do not deploy `auth2faRequest`.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then force-close VYBE on the phone.
+2. Confirm the auto welcome, swirl, and avatar burst on a physical Fold.
+3. Leave `auth2faRequest` undeployed.
+
 ## ACTIVE (2026-10-07) - New-user first visit
 
 ### What changed
 - The backend is Firebase (Auth, Firestore, Functions, Storage). There is no Supabase client.
-- Desktop `/` ignored `?signup=true` and `?mode=login`, so footer and article Sign up links stayed on the marketing page. Those links now go to `/signup` and `/login`, and `/` still opens the auth screen when an old query link is used.
+- Desktop `/` ignored `?signup=true` and `/?mode=login`, so footer and article Sign up links stayed on the marketing page. Those links now go to `/signup` and `/login`, and `/` still opens the auth screen when an old query link is used.
 - Logged-out `/mini-apps` explains Mini App Studio and offers account creation. The studio itself stays behind an account.
 - The marketing member count listed every `profiles` document, which signed-out visitors cannot read. The creator stack called `get_landing_top_creators`, which is not deployed. Neither request runs now. The founder-spot counter and the reconnect heartbeat wait until someone is signed in.
 - Google and Apple signup stay off until the terms box is checked. Usernames are checked on the form before the account request. A first OAuth account sees "Welcome to VYBE". The login footer says "Preview VYBE".
