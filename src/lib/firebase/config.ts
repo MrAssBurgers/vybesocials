@@ -36,9 +36,11 @@ export function getFirebaseConfig(): FirebaseEnvConfig {
   const projectId = envValue('VITE_FIREBASE_PROJECT_ID');
   const messagingSenderId = envValue('VITE_FIREBASE_MESSAGING_SENDER_ID');
   const appId = envValue('VITE_FIREBASE_APP_ID');
+  // vybe-daaab.appspot.com does not exist. The live default bucket is
+  // <projectId>.firebasestorage.app (native configs and Hosting init.json).
   const storageBucket =
     envValue('VITE_FIREBASE_STORAGE_BUCKET') ||
-    (projectId ? `${projectId}.appspot.com` : '');
+    (projectId ? `${projectId}.firebasestorage.app` : '');
 
   if (!apiKey || !projectId) {
     const missing = [

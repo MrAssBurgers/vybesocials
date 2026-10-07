@@ -1,3 +1,33 @@
+## ACTIVE (2026-10-07) - Firebase config audit
+
+### What changed
+- Branched `cursor/firebase-config-1b49` from `origin/main` at `2ebc6bdc`. The mini-app list/publish source fix is already on that tip (`d9b976fd`). It was not duplicated.
+- `public/robots.txt` still sent crawlers to `hprmicwhlaaqfgshucec.supabase.co/functions/v1/sitemap-dynamic`. That URL returns HTTP 404. `https://vybehub.app/sitemap.xml` returns the static sitemap (HTTP 200). The dead Supabase line is removed. `sitemapDynamic` on `us-central1-vybe-daaab` returns a gateway 403, so robots.txt does not point at it.
+- When `VITE_FIREBASE_STORAGE_BUCKET` is omitted, the client fell back to `<projectId>.appspot.com`. `vybe-daaab.appspot.com` returns HTTP 404. `vybe-daaab.firebasestorage.app` exists (HTTP 403 unauthenticated). The fallback now uses `.firebasestorage.app`, which already matches `.env.example`, Android `google-services.json`, the Apple plist, and Hosting `__/firebase/init.json`. Local preview still uses the emulator `demo-vybe-preview.appspot.com` bucket.
+
+### Checked and left unchanged
+- `.firebaserc` default project is `vybe-daaab`. Client env, Hosting init.json, Android, and iOS agree on project id, auth domain `vybe-daaab.firebaseapp.com`, sender `728651793473`, web app id `1:728651793473:web:ea126ca97899504f9e32c0`, storage bucket `vybe-daaab.firebasestorage.app`, and Functions region `us-central1`.
+- Auth handlers on `vybe-daaab.firebaseapp.com` and `vybe-daaab.web.app` are the Firebase handler. `vybehub.app/__/auth/handler` is still the SPA. `getFirebaseAuthDomain` already refuses that host.
+- Hosting rewrites for `/oauth-dismiss`, `/mcp`, `/apple-callback`, and `/google-callback` hit the deployed functions on `vybe-daaab.web.app`. Lovable `vybehub.app` still serves the SPA for those paths; Google and Apple sign-in use `native-callback.html` on purpose.
+- The local web API key and the Hosting init.json API key both answer Identity Toolkit for project number `728651793473`. They are different keys. Production `vybehub.app` and staging already embed the local/Lovable key with the matching app id and `firebasestorage.app` bucket. No key was copied into source.
+- Client callables used for sign-in, feed, and posts (`ensureAccountProfile`, `authLoginNotify`, `auth2faRequest`, `auth2faVerify`, `readSocialFeed`, `readSocialPostList`, `managePost`) are deployed. `auth2faRequest` was not deployed from this session.
+- `listMiniApps`, `saveMiniAppDraft`, `deleteMiniAppDraft`, and `publishMiniApp` are exported in source and return HTTP 404 in production. Firebase CLI and the Firebase MCP have no logged-in user, so they were not deployed.
+- Firestore rules in source still deny client writes to mini-app drafts and published snapshots. Rules were not changed and were not deployed.
+- No Supabase client is initialized (`src/integrations/supabase/client.ts` exports null). Emulator ports and welcome-animation files were not edited.
+
+### Verification
+- Pending in this section until `npm run test`, app `tsc`, ESLint, and `npm run build` finish.
+
+### Blockers
+- Firebase CLI / MCP is not authenticated, so no Functions, Rules, or index deploy ran.
+- Deploy only `listMiniApps` first: `npx -y firebase-tools@latest deploy --only functions:listMiniApps --project vybe-daaab`. Do not deploy `auth2faRequest`.
+- `vybehub.app` needs Lovable → Share → Publish for the robots.txt and storage-bucket fallback.
+
+### Next 3 tasks
+1. Lovable → Share → Publish so production robots.txt drops the dead Supabase sitemap.
+2. After `npx -y firebase-tools@latest login`, deploy `listMiniApps` only. Do not deploy `auth2faRequest`.
+3. Then deploy `saveMiniAppDraft`, `deleteMiniAppDraft`, and `publishMiniApp` as separate named targets.
+
 ## ACTIVE (2026-10-07) - Welcome plays itself
 
 ### What changed
