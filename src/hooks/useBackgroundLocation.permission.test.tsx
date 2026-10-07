@@ -321,6 +321,46 @@ it('reports a failed coarse fallback and the explicit Retry action restarts GPS 
   await act(async () => gps.watchPosition.mock.calls[2][0](sample()));
   expect(hook.result.current.sharingError).toBeNull();
 });
+it('settles a thrown coarse-watch fallback, retires its pending callbacks and permits explicit retry', async () => {
+  const hook=create(); await waitFor(()=>expect(hook.result.current.sharingReady).toBe(true));
+  act(()=>hook.result.current.requestLocation());
+  const oldSuccess=gps.getCurrentPosition.mock.calls[0][0];
+  gps.watchPosition.mockImplementationOnce(()=>{throw new Error('Native location unavailable')});
+  expect(()=>act(()=>gps.watchPosition.mock.calls[0][1]({code:3,message:'Timeout'}))).not.toThrow();
+  expect(hook.result.current.sharingError).toMatch(/Location is unavailable/);
+  await act(async()=>oldSuccess(sample()));expect(hook.result.current.coords).toBeNull();
+  const before=gps.watchPosition.mock.calls.length;
+  act(()=>window.dispatchEvent(new Event('app-resumed')));expect(gps.watchPosition).toHaveBeenCalledTimes(before);
+  act(()=>hook.result.current.retrySharing());await waitFor(()=>expect(gps.watchPosition).toHaveBeenCalledTimes(before+1));
+  await act(async()=>gps.watchPosition.mock.calls.at(-1)![0](sample()));
+  expect(hook.result.current.coords).toEqual([10,20]);expect(hook.result.current.sharingError).toBeNull();
+  expect(state.invoke.mock.calls.some(([,input])=>input.action==='setSharing'||input.action==='publishPosition')).toBe(false);
+});
+it('retires the initial one-shot reply when starting the watch throws', async () => {
+  gps.watchPosition.mockImplementationOnce(()=>{throw new Error('Watch unavailable')});
+  const hook=create();await waitFor(()=>expect(hook.result.current.sharingReady).toBe(true));
+  act(()=>hook.result.current.requestLocation());expect(hook.result.current.sharingError).toMatch(/Location is unavailable/);
+  await act(async()=>gps.getCurrentPosition.mock.calls[0][0](sample()));
+  expect(hook.result.current.coords).toBeNull();expect(hook.result.current.sharingError).toMatch(/Location is unavailable/);
+});
+it('a thrown watch stops approved stationary sampling in the same render', async () => {
+  state.enabled=true;gps.watchPosition.mockImplementationOnce(()=>{throw new Error('Watch unavailable')});
+  const hook=create();await waitFor(()=>expect(hook.result.current.sharingReady).toBe(true));
+  act(()=>hook.result.current.requestLocation());
+  expect(hook.result.current.sharingError).toMatch(/Location is unavailable/);
+  expect(gps.getCurrentPosition).toHaveBeenCalledOnce();
+  await act(async()=>gps.getCurrentPosition.mock.calls[0][0](sample()));
+  expect(state.invoke.mock.calls.some(([,input])=>input.action==='publishPosition')).toBe(false);
+  expect(hook.result.current.sharingEnabled).toBe(true);expect(hook.result.current.sharing).toBe(false);
+});
+it('reports a thrown native resume lookup instead of raising a window error', async () => {
+  const hook=create();await waitFor(()=>expect(hook.result.current.sharingReady).toBe(true));act(()=>hook.result.current.requestLocation());
+  act(()=>window.dispatchEvent(new Event('app-paused')));
+  gps.getCurrentPosition.mockImplementationOnce(()=>{throw new Error('Resume unavailable')});
+  const errors:unknown[]=[];const record=(event:ErrorEvent)=>{errors.push(event.error);event.preventDefault()};window.addEventListener('error',record);
+  try{act(()=>window.dispatchEvent(new Event('app-resumed')));expect(errors).toHaveLength(0);expect(hook.result.current.sharingError).toMatch(/Location is unavailable/);}
+  finally{window.removeEventListener('error',record)}
+});
 it('a local GPS success cannot clear an unconfirmed sharing publication error', async () => {
   state.enabled = true;
   state.invoke.mockImplementation(async (_, input) => input.action === 'publishPosition' ? { data: null, error: { code: 'unavailable', message: 'Share upload failed' } } : response(input));
