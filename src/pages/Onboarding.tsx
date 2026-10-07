@@ -63,6 +63,15 @@ function useOnboardingShell() {
 
 const EASE_OUT_EXPO: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
+function ignoreCalculatedAge(_age: number) {}
+
+function ageInYears(dob: Date, now = new Date()): number {
+  let age = now.getFullYear() - dob.getFullYear();
+  const month = now.getMonth() - dob.getMonth();
+  if (month < 0 || (month === 0 && now.getDate() < dob.getDate())) age -= 1;
+  return age;
+}
+
 function buildSkipUsername(
   userId: string,
   usernameValid: boolean,
@@ -87,8 +96,23 @@ async function persistOnboardingSkip(
   userId: string,
   desiredUsername: string,
   guard: () => void,
+  requirements: { dateOfBirth: string },
 ): Promise<void> {
-  await ensureUserProfile(userId, undefined, guard);
+  const ensured = await ensureUserProfile(userId, undefined, guard);
+  guard();
+  if (!ensured?.id || ensured.user_id !== userId) {
+    throw new Error('Could not load your profile. Please try again.');
+  }
+  await savePrivateProfileDateOfBirth({
+    profileId: ensured.id,
+    authUid: userId,
+    dateOfBirth: requirements.dateOfBirth,
+  }, guard);
+  guard();
+  await batchSet('legal_acceptances', ['tos', 'privacy'].map(documentType => ({
+    id: `${userId}_${documentType}_2.0`,
+    data: { user_id: userId, document_type: documentType, document_version: '2.0' },
+  })));
   guard();
   let finalUsername = desiredUsername;
   try {
@@ -183,7 +207,6 @@ function OnboardingFlow({ onInviteNavigate, isInviteMode = false }: OnboardingPr
     avatarFile: null as File | null,
   });
   const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
-  const [userAge, setUserAge] = useState<number | undefined>(undefined);
   const [legalAccepted, setLegalAccepted] = useState(false);
   const pendingDesignerRef = useRef(false);
 
@@ -249,7 +272,7 @@ function OnboardingFlow({ onInviteNavigate, isInviteMode = false }: OnboardingPr
     const s = getActualStep();
     switch (s) {
       case 1: return usernameValid; // Username
-      case 2: return dateOfBirth !== null && (userAge === undefined || userAge >= 0); // Age (all ages allowed, under-13 gets parental controls)
+      case 2: return dateOfBirth !== null && ageInYears(dateOfBirth) >= 13;
       case 3: return interests.length >= 3; // Interests
       case 4: {
         // Guideline 4 / SIWA: do not re-require name Apple already provided (or skip name when Apple auth).
@@ -271,7 +294,6 @@ function OnboardingFlow({ onInviteNavigate, isInviteMode = false }: OnboardingPr
     needsUsername,
     usernameValid,
     dateOfBirth,
-    userAge,
     interests.length,
     profileData.displayName,
     profileData.firstName.length,
@@ -432,6 +454,19 @@ function OnboardingFlow({ onInviteNavigate, isInviteMode = false }: OnboardingPr
 
   const handleSkip = async () => {
     if (!user || busyRef.current) return;
+    const age = dateOfBirth ? ageInYears(dateOfBirth) : null;
+    if (!dateOfBirth || age === null || age < 13) {
+      setStep(needsUsername ? 2 : 1);
+      toast.error(age !== null && age < 13
+        ? 'VYBE is for people 13 and older.'
+        : 'Add your birthday before continuing. You can skip the optional steps after that.');
+      return;
+    }
+    if (!legalAccepted) {
+      setStep(TOTAL_STEPS);
+      toast.error('Accept the terms to continue. Profile details can wait.');
+      return;
+    }
     let guard: () => void;
     try { guard = captureGuard(); } catch { return; }
     busyRef.current = true;
@@ -447,7 +482,9 @@ function OnboardingFlow({ onInviteNavigate, isInviteMode = false }: OnboardingPr
         profile?.username,
       );
 
-      await persistOnboardingSkip(user.id, desiredUsername, guard);
+      await persistOnboardingSkip(user.id, desiredUsername, guard, {
+        dateOfBirth: dateOfBirth.toISOString().split('T')[0],
+      });
       guard();
       clearSignupUsername();
       const fresh = await refreshProfile();
@@ -495,11 +532,18 @@ function OnboardingFlow({ onInviteNavigate, isInviteMode = false }: OnboardingPr
         );
       case 2:
         return (
-          <AgeSetup
-            value={dateOfBirth}
-            onChange={setDateOfBirth}
-            onAgeCalculated={setUserAge}
-          />
+          <div className="space-y-4">
+            <AgeSetup
+              value={dateOfBirth}
+              onChange={setDateOfBirth}
+              onAgeCalculated={ignoreCalculatedAge}
+            />
+            {dateOfBirth && ageInYears(dateOfBirth) < 13 && (
+              <p role="alert" className="text-center text-sm text-destructive">
+                VYBE is for people 13 and older.
+              </p>
+            )}
+          </div>
         );
       case 3:
         return (
