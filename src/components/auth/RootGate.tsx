@@ -5,7 +5,7 @@ import { isNativeAppShell } from '@/lib/despiaBridge';
 import { isMobileOrTabletDevice } from '@/lib/deviceDetection';
 import { shouldBlockPostLoginNavigation } from '@/lib/loginApprovalGate';
 import { hasCompletedCurrentIntro } from '@/lib/mobileIntroVersion';
-import { SessionRestoringScreen } from './SessionRestoringScreen';
+import { hasStoredAuthSession } from '@/lib/legacyAuthStorage';
 
 const VybeHome = lazy(() => import('@/pages/VybeHome'));
 const Landing = lazy(() => import('@/pages/Landing'));
@@ -51,11 +51,14 @@ export default function RootGate() {
   const [introDone, setIntroDone] = useState<boolean>(() => hasCompletedCurrentIntro());
   const isMobileApp = useMobileAppEntry();
 
-  if (loading || !authReady) return <SessionRestoringScreen />;
   // Login confirmation in progress — stay on auth surface (Landing), do not bounce to /home.
   if (user && !shouldBlockPostLoginNavigation()) {
     return <Navigate to="/home" replace />;
   }
+
+  // A saved account can still be hydrating. Stay on a silent spinner so the
+  // password form does not flash, and never say "Restoring your account…".
+  if ((loading || !authReady) && hasStoredAuthSession()) return <EntryLoading />;
 
   const showIntro = !introDone && isMobileApp;
   if (showIntro) {

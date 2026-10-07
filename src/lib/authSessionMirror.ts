@@ -62,6 +62,25 @@ let readQueue: Promise<unknown> = Promise.resolve();
 let currentRead: { restore: boolean; controller: AbortController } | null = null;
 let nativeOutstanding = false;
 let preparePromise: Promise<void> | null = null, prepareDone = true;
+let releasePrepare: (() => void) | null = null;
+const lateSeedListeners = new Set<(json: string) => void>();
+/** A vault reply that arrives after the password form is already open. */
+export function subscribeLateAuthSeed(listener: (json: string) => void) {
+  lateSeedListeners.add(listener);
+  return () => { lateSeedListeners.delete(listener); };
+}
+function publishLateSeed(json: string) {
+  lateSeedListeners.forEach(listener => { try { listener(json); } catch { /* One listener cannot block the next account. */ } });
+}
+function storeRecoveredAuth(apiKey: string, json: string): boolean {
+  const key = firebaseAuthStorageKey(apiKey);
+  const storage = localStore();
+  if (storage) mirrorAuthUserJson(storage, apiKey, json);
+  if (get(storage, key) === json) return true;
+  const fallback = sessionStore();
+  try { fallback?.setItem(key, json); } catch { /* Verify the independent SDK fallback below. */ }
+  return get(fallback, key) === json;
+}
 export function setAuthVaultTransportForTests(transport: { read: VaultRead; write: VaultWrite } | null) {
   vaultRead = transport?.read ?? null; vaultWrite = transport?.write ?? null; lastAcknowledged = ''; desired = null; latestIntent = null; writer = null; writeVersion++;
 }
@@ -177,7 +196,7 @@ export function retryAuthVaultWrite() { drainWrites(); }
 export async function flushAuthVault() { drainWrites(); await writer; return !desired || !nativeAuthVaultAvailable(); }
 export function retireAuthRestore() {
   if (currentRead?.restore) currentRead.controller.abort();
-  generation++; prepareDone = true; preparePromise = Promise.resolve(); state('ready');
+  generation++; prepareDone = true; releasePrepare?.(); preparePromise = Promise.resolve(); state('ready');
 }
 export function writeAuthVault(json: string, guard: () => void = () => {}) {
   const value = usableAuthJson(json, activeApiKey || undefined);
@@ -234,14 +253,45 @@ export function resetAuthStoragePrepareForTests() {
   nativeOutstanding = false;
   logoutIntent = false;
   clearTimeout(writeRetry); automaticRetries = 0;
-  generation++; preparePromise = null; prepareDone = true; state('ready'); activeApiKey = ''; desired = null; latestIntent = null; writer = null; lastAcknowledged = ''; writeVersion++;
+  generation++; releasePrepare?.(); preparePromise = null; prepareDone = true; state('ready'); activeApiKey = ''; desired = null; latestIntent = null; writer = null; lastAcknowledged = ''; writeVersion++;
 }
 export function retryAuthStorage(apiKey: string, ua = '') {
   if (currentRead?.restore) currentRead.controller.abort();
   generation++; preparePromise = null; prepareDone = true;
   return ensureAuthStorageReady(apiKey, ua);
 }
-/** Finish the bounded native read before starting Firebase, so only the SDK hydrates credentials. */
+function armPrepare(attempt: number): { promise: Promise<void>; finish: () => void } {
+  let settled = false;
+  let finish = () => {};
+  const promise = new Promise<void>(resolve => {
+    finish = () => {
+      if (settled) return;
+      settled = true;
+      if (releasePrepare === finish) releasePrepare = null;
+      if (attempt === generation) {
+        prepareDone = true;
+        if (restoreState !== 'ready') state('ready');
+        listeners.forEach(listener => listener());
+      }
+      resolve();
+    };
+  });
+  releasePrepare = finish;
+  prepareDone = false;
+  return { promise, finish };
+}
+async function adoptBackground(apiKey: string, json: string | null, attempt: number, guard: () => void) {
+  guard();
+  if (!json || hasAuthLogoutTombstone() || attempt !== generation) return;
+  storeRecoveredAuth(apiKey, json);
+  guard();
+  if (hasAuthLogoutTombstone() || attempt !== generation) return;
+  publishLateSeed(json);
+}
+/**
+ * Open sign-in immediately. A reply that is already in hand still seeds storage
+ * before Auth starts. A slower vault applies later without a restoring screen.
+ */
 export function ensureAuthStorageReady(apiKey: string, ua = ''): Promise<void> {
   if (preparePromise) return preparePromise;
   activeApiKey = apiKey;
@@ -254,32 +304,54 @@ export function ensureAuthStorageReady(apiKey: string, ua = ''): Promise<void> {
   if (!mobile) { state('ready'); preparePromise = Promise.resolve(); return preparePromise; }
   const attempt = ++generation;
   const guard = () => { if (attempt !== generation) throw new Error('Retired saved-session recovery.'); };
-  state('pending'); prepareDone = false;
-  const work = (async () => {
-    // True only after a complete saved account was recovered. A vault that
-    // never answers, or an empty/unreadable backup, is not that account.
-    let preservedSession = false;
-    try {
-      let json: string | null = null;
-      if (native) {
-        const value = await readNative(NATIVE_DEADLINE, true, guard); guard();
-        if (value === SIGNED_OUT) { logoutIntent = true; try { storage?.setItem(LOGOUT_KEY, '1'); } catch { /* unavailable */ } state('ready'); return; }
-        if (value) { json = usableAuthJson(value, apiKey); if (!json) throw new Error('Saved session does not match this app.'); }
-      }
-      if (!json) json = await readIndexedDbAuth(apiKey, 350);
+  const { promise, finish } = armPrepare(attempt);
+  preparePromise = promise;
+  void (async () => {
+    const remember = async (value: string | null, beforeReady: boolean) => {
       guard();
-      if (json) {
-        preservedSession = true;
-        if (storage) mirrorAuthUserJson(storage, apiKey, json);
-        if (get(storage, key) !== json) {
-          const fallback = sessionStore();
-          try { fallback?.setItem(key, json); } catch { /* Verify the independent SDK fallback below. */ }
-          if (get(fallback, key) !== json) throw new Error('Saved session storage is unavailable.');
-        }
+      if (value === SIGNED_OUT) {
+        logoutIntent = true;
+        try { storage?.setItem(LOGOUT_KEY, '1'); } catch { /* unavailable */ }
+        finish();
+        return;
       }
-      state('ready');
-    } catch { if (attempt === generation) state(preservedSession ? 'error' : 'ready'); }
+      let json = value ? usableAuthJson(value, apiKey) : null;
+      if (value && !json) { finish(); return; }
+      if (json && beforeReady) {
+        storeRecoveredAuth(apiKey, json);
+        finish();
+        return;
+      }
+      if (beforeReady) finish();
+      if (!json) json = await readIndexedDbAuth(apiKey, 350);
+      await adoptBackground(apiKey, json, attempt, guard);
+    };
+    try {
+      if (!native) {
+        finish();
+        await adoptBackground(apiKey, await readIndexedDbAuth(apiKey, 350), attempt, guard);
+        return;
+      }
+      const nativeRead = readNative(NATIVE_DEADLINE, true, guard);
+      const quick = await Promise.race([
+        nativeRead.then(
+          value => ({ done: true as const, value, failed: false }),
+          () => ({ done: true as const, value: null, failed: true }),
+        ),
+        new Promise<{ done: false; value: null; failed: false }>(resolve => { setTimeout(() => resolve({ done: false, value: null, failed: false }), 0); }),
+      ]);
+      if (!quick.done) {
+        finish();
+        try { await remember(await nativeRead, false); } catch { /* Retired or silent. The form is already open. */ }
+        return;
+      }
+      if (quick.failed) {
+        finish();
+        try { await adoptBackground(apiKey, await readIndexedDbAuth(apiKey, 350), attempt, guard); } catch { /* Retired. */ }
+        return;
+      }
+      await remember(quick.value, true);
+    } catch { finish(); }
   })();
-  preparePromise = work.finally(() => { if (attempt === generation) prepareDone = restoreState === 'ready'; listeners.forEach(listener => listener()); });
-  return preparePromise;
+  return promise;
 }

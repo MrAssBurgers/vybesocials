@@ -39,7 +39,6 @@ import { getAuthRedirectUrl } from '@/lib/authRedirect';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
 import { getLoginCredentialErrorMessage, isInvalidLoginCredentialError } from '@/lib/loginErrors';
 import { clearObsoleteAuthStorage, hasStoredAuthSession } from '@/lib/legacyAuthStorage';
-import { SessionRestoringScreen } from '@/components/auth/SessionRestoringScreen';
 import { AuthAtmosphere, AuthWaveSurface } from '@/components/auth/AuthAtmosphere';
 import { VybeLiquidTouchOverlay } from '@/components/effects/VybeLiquidTouchOverlay';
 import { VybeLiquidText } from '@/components/ui/VybeLiquidText';
@@ -731,10 +730,16 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const location = useLocation();
   const isInviteRoute = location.pathname.startsWith('/invite/');
 
-  // A vault-only native session may have no localStorage hint while restoring.
-  // Wait for checked settlement, not merely the launch animation's deadline.
-  if (!authReady && !isOAuthReturn) {
-    return <SessionRestoringScreen />;
+  // No saved account: the password form is this render. A saved local session
+  // stays on a silent spinner until it becomes the signed-in app. Never show
+  // "Restoring your account…".
+  if (!user && !authReady && !isOAuthReturn && hasStoredSession) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background" role="status" aria-live="polite" aria-label="Loading VYBE">
+        <span className="sr-only">Loading VYBE…</span>
+        <div className="h-8 w-8 rounded-full border-[3px] border-primary/25 border-t-primary animate-spin" aria-hidden="true" />
+      </div>
+    );
   }
 
   // OAuth redirect in flight — keep spinner until session hydrates (avoids login loop).
