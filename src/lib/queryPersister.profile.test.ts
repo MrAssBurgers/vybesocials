@@ -31,6 +31,16 @@ function snapshot(): PersistedClient {
 }
 
 describe('private profile sections never enter or return from shared disk query storage', () => {
+  it.each(['parental-controls', 'safety-settings'])('never saves or revives %s from a shared disk snapshot', (root) => {
+    const client = new QueryClient();
+    client.setQueryData([root, 'alice', 1], { user_id: 'alice', has_pin: true, is_active: true });
+    client.setQueryData([root, 'alice'], { user_id: 'alice', has_pin: true });
+    const value = { timestamp: Date.now(), buster: 'fixture', clientState: dehydrate(client) };
+    expect(shouldPersistQueryKey([root, 'alice', 1], { has_pin: true })).toBe(false);
+    expect(JSON.parse(state.options!.serialize(value)).clientState.queries).toHaveLength(0);
+    expect(state.options!.deserialize(JSON.stringify(value)).clientState.queries).toHaveLength(0);
+    client.clear();
+  });
   it('strips previous suggestion snapshots and excludes fresh checked discovery from disk', () => {
     const client = new QueryClient();
     const roots = ['people-discovery', 'quick-add-general', 'suggested-friends'];
@@ -40,6 +50,15 @@ describe('private profile sections never enter or return from shared disk query 
     }
     const value = { timestamp: Date.now(), buster: 'fixture', clientState: dehydrate(client) };
     expect(state.options!.serialize(value)).not.toContain('private-target');
+    expect(state.options!.deserialize(JSON.stringify(value)).clientState.queries).toHaveLength(0);
+    client.clear();
+  });
+  it('removes the retired unscoped follower count from old disk snapshots and new serialization', () => {
+    const client = new QueryClient();
+    client.setQueryData(['follower-count', 'alice-profile'], 42);
+    const value = { timestamp: Date.now(), buster: 'fixture', clientState: dehydrate(client) };
+    expect(shouldPersistQueryKey(['follower-count', 'alice-profile'], 42)).toBe(false);
+    expect(JSON.parse(state.options!.serialize(value)).clientState.queries).toHaveLength(0);
     expect(state.options!.deserialize(JSON.stringify(value)).clientState.queries).toHaveLength(0);
     client.clear();
   });

@@ -36,9 +36,9 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
   const actor = read.actor;
   const ready = actor.ready && userId === actor.profileId;
   const scope = JSON.stringify([actor.uid, actor.profileId, actor.epoch]);
-  const context = useMemo(() => ({ active: true, intent: 0, blocked: false, lastSent: 0, sending: false, failedIntent: null as boolean | null }), [scope]);
+  const context = useMemo(() => ({ active: true, intent: 0, blocked: false, gpsBlocked: false, lastSent: 0, sending: false, failedIntent: null as boolean | null }), [scope]);
   const guard = useCallback(() => { actor.guard(); if (!ready || !context.active) throw Object.assign(new Error('Your account changed. Open the map again.'), { code: 'account-changed' }); }, [actor.guard, ready, context]);
-  const [request, setRequest] = useState<{ scope: string; revision: number } | null>(null);
+  const [request, setRequest] = useState<{ scope: string; revision: number; blocked?: boolean } | null>(null);
   const [position, setPosition] = useState({ ...EMPTY_POSITION, scope });
   const currentPosition = ready && position.scope === scope ? position : EMPTY_POSITION;
   const [problem, setProblem] = useState<{ scope: string; message: string } | null>(null);
@@ -63,9 +63,10 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
   const requestLocation = useCallback(() => {
     try {
       guard();
+      context.gpsBlocked = false;
       setRequest(previous => ({ scope, revision: previous?.scope === scope ? previous.revision + 1 : 0 }));
     } catch { /* Auth not ready: no GPS request. */ }
-  }, [guard, scope]);
+  }, [guard, scope, context]);
 
   useEffect(() => {
     let active = true;
@@ -149,13 +150,13 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
   const publish = useCallback(async (pos: GeolocationPosition) => {
     const snapshot = latest.current;
     const state = snapshot.state;
-    if (!state?.enabled || !state.revision || !isAppForeground() || context.blocked || context.sending || !snapshot.watchOnMap || document.visibilityState === 'hidden') return;
+    if (!state?.enabled || !state.revision || !isAppForeground() || context.blocked || context.gpsBlocked || context.sending || !snapshot.watchOnMap || document.visibilityState === 'hidden') return;
     const sampledAt = pos.timestamp;
     if (!Number.isFinite(sampledAt) || Date.now() - sampledAt > 60_000 || sampledAt > Date.now() + 5000 || Date.now() - context.lastSent < 5000) return;
     const intent = context.intent;
     const check = () => {
       snapshot.guard();
-      if (context.intent !== intent || !isAppForeground() || context.blocked || !context.active || document.visibilityState === 'hidden' || !latest.current.watchOnMap || latest.current.scope !== snapshot.scope || latest.current.state?.revision !== state.revision || !latest.current.state?.enabled) throw new Error('Location update retired.');
+      if (context.intent !== intent || !isAppForeground() || context.blocked || context.gpsBlocked || !context.active || document.visibilityState === 'hidden' || !latest.current.watchOnMap || latest.current.scope !== snapshot.scope || latest.current.state?.revision !== state.revision || !latest.current.state?.enabled) throw new Error('Location update retired.');
     };
     context.sending = true; context.lastSent = Date.now();
     try {
@@ -173,7 +174,7 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
     } finally { context.sending = false; }
   }, [actor.uid, actor.profileId, context]);
 
-  const shouldWatch = ready && watchOnMap && request?.scope === scope;
+  const shouldWatch = ready && watchOnMap && request?.scope === scope && !request.blocked;
   useEffect(() => {
     if (!shouldWatch) return;
     if (!navigator.geolocation) {
@@ -184,6 +185,19 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
     let watchRevision = 0;
     let watchId: number | undefined;
     const current = (revision: number) => { try { latest.current.guard(); return active && isAppForeground() && revision === watchRevision && document.visibilityState !== 'hidden' && latest.current.scope === scope; } catch { return false; } };
+    const stopWatch = () => {
+      const previous = watchId; watchId = undefined;
+      if (previous !== undefined) { try { navigator.geolocation.clearWatch(previous); } catch { /* Device bridge already stopped. */ } }
+    };
+    const unavailable = (revision: number) => {
+      if (!current(revision)) return;
+      watchRevision++; context.intent++; context.gpsBlocked = true; stopWatch(); setPublished(null);
+      setPosition({ ...EMPTY_POSITION, scope });
+      setPositionProblem({ scope, message: 'Location is unavailable on this device. Check location services and retry.' });
+      // Stop periodic fresh samples and automatic native resumes as well. A
+      // deliberate Retry starts a new request without enabling sharing.
+      setRequest(previous => previous?.scope === scope ? { ...previous, blocked: true } : previous);
+    };
     const success = (pos: GeolocationPosition, revision: number) => {
       if (!current(revision)) return;
       const { latitude, longitude, accuracy, speed, heading } = pos.coords;
@@ -200,16 +214,18 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
         // them after the phone has refused access. Explicit Retry starts anew.
         watchRevision++;
         permissionDenied = true;
-        if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
-        watchId = undefined;
+        context.gpsBlocked = true;
+        stopWatch();
         context.intent++; setPublished(null);
         setPosition({ ...EMPTY_POSITION, scope, denied: true });
         setPositionProblem({ scope, message: 'Location permission is denied. New updates stopped; a previously shared position expires within two minutes. Use Ghost Mode to stop access now.' });
       } else if (!fellBack && (error.code === 2 || error.code === 3)) {
         fellBack = true;
-        if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
+        stopWatch();
         const fallbackRevision = ++watchRevision;
-        watchId = navigator.geolocation.watchPosition(pos => success(pos, fallbackRevision), error => failure(error, fallbackRevision), { enableHighAccuracy: false, maximumAge: 30_000, timeout: 30_000 });
+        try {
+          watchId = navigator.geolocation.watchPosition(pos => success(pos, fallbackRevision), error => failure(error, fallbackRevision), { enableHighAccuracy: false, maximumAge: 30_000, timeout: 30_000 });
+        } catch { unavailable(fallbackRevision); }
       } else if (error.code === 2 || error.code === 3) {
         setPositionProblem({ scope, message: 'Your device could not get a location. Check location services and try again.' });
       }
@@ -218,16 +234,18 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
       if (!isAppForeground() || document.visibilityState === 'hidden' || permissionDenied) return;
       fellBack = false;
       const revision = ++watchRevision;
-      navigator.geolocation.getCurrentPosition(pos => success(pos, revision), error => failure(error, revision), { enableHighAccuracy: false, timeout: 10_000, maximumAge: 30_000 });
-      watchId = navigator.geolocation.watchPosition(pos => success(pos, revision), error => failure(error, revision), { enableHighAccuracy: true, maximumAge: 4000, timeout: 20_000 });
+      try {
+        navigator.geolocation.getCurrentPosition(pos => success(pos, revision), error => failure(error, revision), { enableHighAccuracy: false, timeout: 10_000, maximumAge: 30_000 });
+        if (!current(revision)) return;
+        watchId = navigator.geolocation.watchPosition(pos => success(pos, revision), error => failure(error, revision), { enableHighAccuracy: true, maximumAge: 4000, timeout: 20_000 });
+      } catch { unavailable(revision); }
     };
     const visibility = () => {
       watchRevision++; context.intent++; setPublished(null);
-      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
-      watchId = undefined;
+      stopWatch();
       if (document.visibilityState !== 'hidden') start();
     };
-    try { start(); } catch { setPositionProblem({ scope, message: 'Location is unavailable on this device.' }); }
+    start();
     document.addEventListener('visibilitychange', visibility);
     window.addEventListener('app-paused', visibility);
     window.addEventListener('app-resumed', visibility);
@@ -236,7 +254,7 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
       document.removeEventListener('visibilitychange', visibility);
       window.removeEventListener('app-paused', visibility);
       window.removeEventListener('app-resumed', visibility);
-      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
+      stopWatch();
     };
   }, [shouldWatch, request?.revision, scope, context, publish]);
   // A stationary device may not emit watch callbacks. Refresh an approved share
@@ -248,7 +266,7 @@ export function useBackgroundLocation(userId?: string, options?: { watchOnMap?: 
     let waiting = false, sequence = 0;
     let deadline: ReturnType<typeof setTimeout> | undefined;
     const requestFresh = () => {
-      if (!active || waiting || !isAppForeground() || context.blocked || !latest.current.state?.enabled || document.visibilityState === 'hidden') return;
+      if (!active || waiting || !isAppForeground() || context.blocked || context.gpsBlocked || !latest.current.state?.enabled || document.visibilityState === 'hidden') return;
       try { latest.current.guard(); } catch { return; }
       const intent = context.intent, requestSequence = ++sequence;
       waiting = true;

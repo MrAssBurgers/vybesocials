@@ -3,15 +3,15 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import { FRAME_CLASS_MAP, THEME_GRADIENTS } from '@/lib/cosmeticConstants';
-const mock = vi.hoisted(() => ({ theme: 'theme_neon', frame: 'avatar_frame_gold', hasWallpaper: true, setBackground: vi.fn(), refreshBackground: vi.fn(), unavailable: [] as string[], removeSaved: vi.fn(), removeError: false }));
+const mock = vi.hoisted(() => ({ target:'alice', markRead:vi.fn(), theme: 'theme_neon', frame: 'avatar_frame_gold', hasWallpaper: true, setBackground: vi.fn(), refreshBackground: vi.fn(), unavailable: [] as string[], removeSaved: vi.fn(), removeError: false }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 'alice' }, authReady: true, profile: { id: 'alice-profile', user_id: 'alice', username: 'alice' } }) }));
-vi.mock('@/hooks/useProfile', () => ({ useProfileByUsername: () => ({ data: { id: 'alice-profile', user_id: 'alice', username: 'alice' } }), useFollow: () => ({}), useUpdateAvatar: () => ({}) }));
+vi.mock('@/hooks/useProfile', () => ({ useProfileByUsername: () => ({ data: { id: `${mock.target}-profile`, user_id: mock.target, username: mock.target } }), useFollow: () => ({}), useUpdateAvatar: () => ({}) }));
+vi.mock('@/lib/firebase',()=>({db:{from:()=>({select:()=>({eq:()=>({eq:()=>({maybeSingle:async()=>({data:null,error:null})})})})})}}));
 vi.mock('@/hooks/usePosts', () => ({ usePosts: () => ({ data: [] }) }));
 vi.mock('@/hooks/useSavedPosts', () => ({ useSavedPosts: () => ({ data: [], unavailableSavedPostIds: mock.unavailable }), useRemoveSavedPost: () => ({ mutate: mock.removeSaved, isPending: false, isError: mock.removeError }) }));
 vi.mock('@/hooks/useSignedUrl', () => ({ useSignedUrl: () => ({}) }));
-vi.mock('@/hooks/useMessages', () => ({ useMarkConversationReadByUser: () => ({ mutate: vi.fn() }) }));
+vi.mock('@/hooks/useMessages', () => ({ useMarkConversationReadByUser: () => ({ mutate: mock.markRead }) }));
 vi.mock('@/hooks/useUserRoleById', () => ({ useUserRoleById: () => ({ data: null }) }));
-vi.mock('@/hooks/useLiveFollowerCount', () => ({ useLiveFollowerCount: () => 0 }));
 vi.mock('@/hooks/useBadges', () => ({ useUserBadges: () => ({ data: [] }), useUserPrimaryBadge: () => ({ data: null }) }));
 vi.mock('@/hooks/useLockerItems', () => ({ useLockerItems: () => ({ data: { equippedProfileTheme: mock.theme, equippedFrame: mock.frame } }) }));
 vi.mock('@/hooks/usePremiumStatus', () => ({ usePremiumStatus: () => ({ isPremium: false }) }));
@@ -30,8 +30,17 @@ vi.mock('@/components/growth/GuestJoinBanner', () => ({ GuestJoinBanner: () => n
 vi.mock('@/components/moderation/ModeratorActionsMenu', () => ({ useIsModOrAdmin: () => false, ModeratorDialogs: () => null }));
 vi.mock('@/components/premium/PremiumMemeBanItems', () => ({ PremiumMemeBanDialog: () => null }));
 import Profile from './Profile';
-beforeEach(() => { vi.clearAllMocks(); mock.hasWallpaper = true; mock.unavailable = []; mock.removeError = false; });
+beforeEach(() => { vi.clearAllMocks(); mock.target='alice'; mock.hasWallpaper = true; mock.unavailable = []; mock.removeError = false; });
 afterEach(cleanup);
+describe('profile visits preserve unread direct messages',()=>{
+  it('does not mark a direct conversation as read when another profile is viewed or changes',()=>{
+    mock.target='bob'; const view=render(<MemoryRouter><Profile /></MemoryRouter>);
+    expect(screen.getByTestId('profile-avatar')).toBeInTheDocument();
+    expect(mock.markRead).not.toHaveBeenCalled();
+    mock.target='charlie';view.rerender(<MemoryRouter><Profile /></MemoryRouter>);
+    expect(mock.markRead).not.toHaveBeenCalled();
+  });
+});
 describe('profile renders purchased cosmetics', () => {
   it.each([['theme_neon', 'avatar_frame_gold'], ['theme_ocean', 'avatar_frame_fire']])('renders %s from equipped ID and passes the actual avatar frame style', (theme, frame) => {
     mock.theme = theme; mock.frame = frame;

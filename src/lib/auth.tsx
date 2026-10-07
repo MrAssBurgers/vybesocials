@@ -35,6 +35,7 @@ import { tokenAccountGuard, tokenAccountSnapshot } from '@/lib/tokenMarketplaceS
 import { beginLoginApprovalCheck, endLoginApprovalCheck, shouldBlockPostLoginNavigation } from '@/lib/loginApprovalGate';
 import { captureAuthSnapshotGuard, completeAuthConfirmation, createAuthAttemptController, isRetiredAuthAttempt, type AuthSessionAttempt } from '@/lib/authSessionAttempt';
 import { getFirebaseAuth, getAuthRestoreState, subscribeAuthRestoreState } from '@/lib/firebase/authService';
+import { isAppForeground, getForegroundReadPhase, foregroundReadPhaseCurrent } from '@/lib/foregroundReadPhase';
 
 const BannedScreen = lazy(() => import('@/components/auth/BannedScreen').then(module => ({ default: module.BannedScreen })));
 const MemeBanScreen = lazy(() => import('@/components/auth/MemeBanScreen').then(module => ({ default: module.MemeBanScreen })));
@@ -346,7 +347,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           guard();
           refreshTimerRef.current = null;
-          if (document.visibilityState !== 'visible' || navigator.onLine === false) {
+          if (!isAppForeground() || navigator.onLine === false) {
             scheduleTokenRefresh(expiresAt, retryAttempt, 30000);
             return;
           }
@@ -434,18 +435,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // A failed network bootstrap must not suppress the next successful
       // same-account token event. The attempt/lifetime guards above prevent
       // retired work from releasing another account's bootstrap latch.
+      let retryScheduled = false;
       if (transient && !preserveConfirmedOnFailure && bootstrapUserRef.current === `${userId}:${captured.epoch}`) {
         bootstrapUserRef.current = null;
         bootstrapRetryRef.current = `${userId}:${captured.epoch}`;
         // A brief token-fetch failure may recover without an online/token event.
         // Retry only this checked startup, twice; never retry ownership rejection
         // or restart a replacement account, manual attempt or provider lifetime.
-        if (action === 'ensure' && _retryCount < 2 && navigator.onLine !== false && document.visibilityState !== 'hidden') {
+        if (action === 'ensure' && _retryCount < 2 && !shouldBlockPostLoginNavigation() && navigator.onLine !== false && isAppForeground()) {
           const key = bootstrapRetryRef.current;
+          retryScheduled = true;
           bootstrapRetryTimerRef.current = setTimeout(() => {
             bootstrapRetryTimerRef.current = null;
             try { guard(); } catch { return; }
-            if (bootstrapRetryRef.current !== key || shouldBlockPostLoginNavigation() || navigator.onLine === false || document.visibilityState === 'hidden') return;
+            if (bootstrapRetryRef.current !== key) return;
+            if (shouldBlockPostLoginNavigation() || navigator.onLine === false || !isAppForeground()) {
+              setSetupState({ uid: userId, epoch: captured.epoch, loading: false, error: profileSetupFailure(error) });
+              return;
+            }
             bootstrapUserRef.current = key;
             void fetchProfile(userId, _retryCount + 1, outerGuard, action, defaults);
           }, _retryCount === 0 ? 1000 : 3000);
@@ -453,7 +460,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const preserve = transient && preserveConfirmedOnFailure && profileScopeRef.current?.uid === userId && profileScopeRef.current.epoch === captured.epoch;
       if (!preserve) { profileScopeRef.current = null; setProfile(null); }
-      setSetupState({ uid: userId, epoch: captured.epoch, loading: false, error: preserve ? null : profileSetupFailure(error) });
+      // Keep brief network recovery continuous, but a full deadline must
+      // expose recovery controls immediately instead of extending the spinner.
+      const recovering = retryScheduled && failureCode !== 'deadline-exceeded';
+      setSetupState({ uid: userId, epoch: captured.epoch, loading: recovering, error: preserve || recovering ? null : profileSetupFailure(error) });
       return null;
     }
   };
@@ -692,7 +702,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (session.expires_at) {
             scheduleTokenRefresh(session.expires_at);
           }
-          if (bootstrapRetryRef.current === `${session.user.id}:${reportAccountSnapshot().epoch}`) {
+          if (isAppForeground() && navigator.onLine !== false && bootstrapRetryRef.current === `${session.user.id}:${reportAccountSnapshot().epoch}`) {
             bootstrapSessionData(session.user.id, event, eventGuard);
           }
           return;
@@ -826,8 +836,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     let lastResumeRefreshAt = 0;
+    let lastResumePhase: ReturnType<typeof getForegroundReadPhase> | null = null;
     const resumeRefresh = () => {
-      if (document.visibilityState !== 'visible' || navigator.onLine === false) return;
+      if (!isAppForeground() || navigator.onLine === false) return;
+      const phase = getForegroundReadPhase();
       const sdkUser = getFirebaseAuth()?.currentUser;
       if (!sdkUser && !hasStoredAuthSession()) return;
       const lifetime = providerLifetimeRef.current;
@@ -839,11 +851,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const now = Date.now();
       const debounceMs = 2000;
-      if (now - lastResumeRefreshAt < debounceMs) return;
+      if (lastResumePhase === phase && now - lastResumeRefreshAt < debounceMs) return;
       lastResumeRefreshAt = now;
+      lastResumePhase = phase;
+      const readGuard = () => {
+        guard();
+        if (!foregroundReadPhaseCurrent(phase) || navigator.onLine === false) throw new Error('Resume read retired.');
+      };
 
       void db.auth.getSession().then(({ data: { session } }) => {
-        guard();
+        readGuard();
         if (sdkUser && session?.user && session.user.id !== sdkUser.uid) return;
         if (session?.user && session.expires_at) {
           const expiresMs = session.expires_at * 1000;
@@ -860,7 +877,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (sdkUser) scheduleTokenRefresh(session?.expires_at ?? Date.now() / 1000);
         else if (!session?.user) void refreshFirebaseSession().catch(() => {});
       }).catch(() => {
-        try { guard(); } catch { return; }
+        try { readGuard(); } catch { return; }
         if (sdkUser) scheduleTokenRefresh(Date.now() / 1000);
       });
     };

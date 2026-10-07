@@ -1,307 +1,95 @@
 import { db } from '@/lib/firebase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
-import { setCachedProfile, getCachedCurrentProfile } from '@/lib/profileCache';
+import { setCachedProfile } from '@/lib/profileCache';
+import { getDocumentFromServer, getDocumentsFromServer, where, firestoreLimit } from '@/lib/firebase/firestoreDb';
 import { useVisiblePostCount } from './useVisiblePostCount';
-
-/** Supabase RPCs return row arrays; Firebase client fallbacks may return a single object. */
-function firstProfileRow(data: unknown): Record<string, unknown> | null {
-  if (!data) return null;
-  if (Array.isArray(data)) return (data[0] as Record<string, unknown>) ?? null;
-  if (typeof data === 'object' && data !== null && 'id' in data) {
-    return data as Record<string, unknown>;
-  }
-  return null;
-}
+import { useProfileReadView } from './useProfileReadView';
+import { withProfileReadDeadline } from '@/lib/profileReadDeadline';
 
 interface Profile {
-  id: string;
-  user_id: string;
-  username: string;
-  display_name?: string | null;
-  avatar_url: string | null;
-  bio: string;
-  created_at: string;
-  date_of_birth?: string | null;
-  feature_on_landing?: boolean | null;
-  follower_count: number;
-  following_count: number;
-  post_count: number;
-  post_count_label?: string;
-  post_count_exact?: boolean;
-  is_following: boolean;
-  is_private?: boolean | null;
-  is_verified?: boolean | null;
+  id: string; user_id: string; username: string; display_name?: string | null;
+  avatar_url: string | null; bio: string; created_at: string;
+  follower_count: number; follower_count_label?: string; following_count: number; following_count_label?: string;
+  post_count: number; post_count_label?: string; post_count_exact?: boolean;
+  is_following: boolean; is_private?: boolean | null; is_verified?: boolean | null;
+}
+const selectedFields = 'id user_id username avatar_url bio created_at display_name link_url location is_private is_verified interests language timezone coins_balance onboarding_completed tutorial_completed tutorial_skipped intro_completed badge_settings feature_on_landing'.split(' ');
+const validId=(value:unknown):value is string=>typeof value==='string'&&value.length>0&&value.length<=128&&!value.includes('/');
+function checkedProfile(row:Record<string,unknown>):Profile {
+  if(!validId(row.id)||!validId(row.user_id)||typeof row.username!=='string'||!row.username.trim())throw new Error('This profile needs an identity review.');
+  return {...Object.fromEntries(selectedFields.filter(field=>Object.prototype.hasOwnProperty.call(row,field)).map(field=>[field,row[field]])),
+    follower_count:0,following_count:0,post_count:0,is_following:false} as unknown as Profile;
 }
 
-/**
- * Hook to fetch a profile by ID with full stats
- */
-export function useProfileById(profileId: string | undefined) {
-  const { profile: currentProfile } = useAuth();
-
-  const query = useQuery({
-    queryKey: ['profile-by-id', profileId, currentProfile?.id],
-    placeholderData: undefined,
-    queryFn: async (): Promise<Profile | null> => {
-      if (!profileId) return null;
-
-      let profile: Profile | null = null;
-
-      const profileSelect =
-        'id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings';
-
-      if (currentProfile) {
-        const { data, error } = await db
-          .from('profiles')
-          .select(profileSelect)
-          .eq('id', profileId)
-          .maybeSingle();
-        if (!error && data) {
-          profile = data as unknown as Profile;
-        } else {
-          const { data: rows } = await db.rpc('get_profile_by_id', { target_id: profileId });
-          const row = firstProfileRow(rows);
-          if (row) {
-            profile = row as unknown as Profile;
-          } else {
-            const { data: byUserId } = await db
-              .from('profiles')
-              .select(profileSelect)
-              .eq('user_id', profileId)
-              .limit(1);
-            if (byUserId?.[0]) profile = byUserId[0] as unknown as Profile;
-          }
-        }
-      } else {
-        const { data: rows, error } = await db.rpc('get_profile_by_id', { target_id: profileId });
-        const row = firstProfileRow(rows);
-        if (error || !row) {
-          console.warn('[useProfileById] Profile not found:', profileId, error?.message);
-          return null;
-        }
-        profile = {
-          ...row,
-          follower_count: 0,
-          following_count: 0,
-          post_count: 0,
-          is_following: false,
-        } as Profile;
+function useProfileRead(kind:'id'|'username',target:string|undefined) {
+  const name=(target||'').trim(),normalized=kind==='username'?name.toLowerCase():name;
+  const view=useProfileReadView(!!name);
+  const root=kind==='id'?'profile-by-id':'profile';
+  const query=useQuery({
+    queryKey:[root,normalized,...view.key],enabled:view.active,
+    placeholderData:undefined,staleTime:0,gcTime:0,retry:false,refetchOnMount:'always',refetchOnWindowFocus:true,networkMode:'always',
+    queryFn:({signal}):Promise<Profile|null>=>withProfileReadDeadline(async guard=>{
+      guard();
+      if(!name||name.includes('/'))throw new Error('This profile address is invalid.');
+      // The AuthProvider has already checked this exact current owner's profile.
+      // Do not read it again or wait for auxiliary statistics before painting it.
+      let row:Record<string,unknown>|null=null;
+      if(view.profile && (kind==='id'?[view.profile.id,view.profile.user_id].includes(name):view.profile.username.toLowerCase()===normalized))row=view.profile as unknown as Record<string,unknown>;
+      if(!row&&kind==='username')for(const candidate of [...new Set([name,name.toLowerCase()])]){
+        guard();const rows=await getDocumentsFromServer<Record<string,unknown>>('profiles',[where('username','==',candidate),firestoreLimit(2)]);guard();
+        if(rows.length>1)throw new Error('This username needs an identity review.');if(rows[0]){row=rows[0];break;}
       }
-
-      if (!profile) {
-        console.warn('[useProfileById] Profile not found:', profileId);
-        return null;
-      }
-
-      // Get counts in parallel
-      const [followerCount, followingCount, isFollowing] = await Promise.all([
-        db.from('follows').select('id', { count: 'exact', head: true }).eq('following_id', profile.id),
-        db.from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', profile.id),
-        currentProfile
-          ? db
-              .from('follows')
-              .select('id')
-              .eq('follower_id', currentProfile.id)
-              .eq('following_id', profile.id)
-              .maybeSingle()
-          : Promise.resolve({ data: null }),
-      ]);
-
-      // Cache the profile
-      setCachedProfile({
-        id: profile.id,
-        username: profile.username,
-        display_name: profile.display_name || null,
-        avatar_url: profile.avatar_url,
-      });
-
-      return {
-        ...profile,
-        follower_count: followerCount.count || 0,
-        following_count: followingCount.count || 0,
-        post_count: 0,
-        is_following: !!isFollowing.data,
-      };
-    },
-    enabled: !!profileId,
-    staleTime: 1000 * 60 * 15, // 15 minutes
-    gcTime: 1000 * 60 * 60, // 1 hour
-    retry: 1,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
+      if(!row){guard();row=await getDocumentFromServer<Record<string,unknown>>('profiles',name);guard();}
+      if(!row){guard();const rows=await getDocumentsFromServer<Record<string,unknown>>('profiles',[where('user_id','==',name),firestoreLimit(2)]);guard();if(rows.length>1)throw new Error('This account needs an identity review.');row=rows[0]??null;}
+      if(!row)return null;
+      const profile=checkedProfile(row);guard();
+      setCachedProfile({id:profile.id,username:profile.username,display_name:profile.display_name||null,avatar_url:profile.avatar_url});
+      return profile;
+    },()=>view.guard(signal),signal),
   });
-  const posts = useVisiblePostCount(query.data?.id);
-  return { ...query, data: query.data ? { ...query.data, post_count: posts.count ?? 0, post_count_label: posts.label, post_count_exact: posts.exact } : query.data };
-}
-
-export function useProfileByUsername(username: string) {
-  const { profile: currentProfile } = useAuth();
-  const queryClient = useQueryClient();
-  const normalizedKey = (username || '').trim().toLowerCase();
-
-  const query = useQuery({
-    // Stable across auth hydrate — never miss warm/disk cache when viewer id arrives.
-    queryKey: ['profile', normalizedKey],
-    queryFn: async (): Promise<Profile | null> => {
-      const trimmedUsername = username.trim();
-      const normalizedUsername = trimmedUsername.toLowerCase();
-      let profile: Record<string, unknown> | null = null;
-      let error: { message?: string } | null = null;
-
-      // Authenticated users: direct Firestore read first (most reliable).
-      if (currentProfile) {
-        for (const candidate of [trimmedUsername, normalizedUsername]) {
-          const { data: rows } = await db
-            .from('profiles')
-            .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, feature_on_landing')
-            .eq('username', candidate)
-            .limit(1);
-          if (rows?.[0]) {
-            profile = rows[0] as Record<string, unknown>;
-            break;
-          }
-        }
-      }
-
-      // RPC fallback for guests or when direct read misses.
-      if (!profile) {
-        let profiles: unknown = null;
-        ({ data: profiles, error } = await db.rpc('get_profile_by_username', {
-          target_username: trimmedUsername,
-        }));
-        profile = firstProfileRow(profiles);
-        if (!profile && normalizedUsername !== trimmedUsername) {
-          const retry = await db.rpc('get_profile_by_username', {
-            target_username: normalizedUsername,
-          });
-          profile = firstProfileRow(retry.data);
-          if (!error && retry.error) error = retry.error;
-        }
-      }
-      
-      // If not found and looks like a UUID, try ID lookup via RPC (works for guests)
-      if (!profile && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedUsername)) {
-        const { data: idProfiles } = await db.rpc('get_profile_by_id', { target_id: trimmedUsername });
-        profile = firstProfileRow(idProfiles);
-      }
-
-      // Auth uid in URL (legacy links)
-      if (!profile && currentProfile) {
-        const { data: byUserId } = await db
-          .from('profiles')
-          .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, feature_on_landing')
-          .eq('user_id', trimmedUsername)
-          .limit(1);
-        if (byUserId?.[0]) profile = byUserId[0] as Record<string, unknown>;
-      }
-      
-      if (error && !profile) {
-        console.warn('[useProfile] Profile not found for:', trimmedUsername, error?.message);
-        return null;
-      }
-      
-      if (!profile) return null;
-
-      const p = profile as any;
-      setCachedProfile({
-        id: String(p.id),
-        username: String(p.username),
-        display_name: (p.display_name as string | null) || null,
-        avatar_url: (p.avatar_url as string | null) || null,
-      });
-
-      const paintReady = {
-        ...p,
-        follower_count: 0,
-        following_count: 0,
-        post_count: 0,
-        is_following: false,
-      } as Profile;
-
-      // Counts hydrate in background — Firebase exact-count scans must not block paint.
-      void Promise.all([
-        db.from('follows').select('id', { count: 'exact', head: true }).eq('following_id', p.id),
-        db.from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', p.id),
-        currentProfile
-          ? db
-              .from('follows')
-              .select('id')
-              .eq('follower_id', currentProfile.id)
-              .eq('following_id', p.id)
-              .maybeSingle()
-          : Promise.resolve({ data: null }),
-      ])
-        .then(([followerCount, followingCount, isFollowing]) => {
-          queryClient.setQueryData(['profile', normalizedKey], (prev: Profile | null | undefined) => {
-            if (!prev || prev.id !== String(p.id)) return prev;
-            return {
-              ...prev,
-              follower_count: followerCount.count || 0,
-              following_count: followingCount.count || 0,
-              post_count: 0,
-              is_following: !!isFollowing.data,
-            };
-          });
-        })
-        .catch(() => {});
-
-      return paintReady;
-    },
-    enabled: !!username?.trim(),
-    staleTime: 1000 * 60 * 15, // 15 minutes
-    gcTime: 1000 * 60 * 60, // 1 hour
-    retry: 1,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    placeholderData: () => {
-      const key = (username || '').trim().toLowerCase();
-      if (!key) return undefined;
-      const current = getCachedCurrentProfile();
-      if (current?.username?.toLowerCase() === key) {
-        return {
-          ...current,
-          follower_count: 0,
-          following_count: 0,
-          post_count: 0,
-          is_following: false,
-        } as any;
-      }
-      return undefined;
-    },
-    networkMode: 'always',
+  const current=view.active && query.isFetchedAfterMount && !query.isPlaceholderData && !query.isError ? query.data:undefined;
+  // Statistics are independently scoped and cannot overwrite the identity query
+  // or another viewer's follow state, even after an account A -> B -> A switch.
+  const stats=useQuery({
+    queryKey:[root,normalized,'stats',...view.key,current?.id,query.dataUpdatedAt],enabled:view.active&&!!current,
+    placeholderData:undefined,staleTime:0,gcTime:0,retry:false,refetchOnMount:'always',refetchOnWindowFocus:true,
+    refetchInterval:view.active&&!!current?30_000:false,
+    queryFn:({signal})=>withProfileReadDeadline(async guard=>{
+      guard();if(!current)throw new Error('Profile is not loaded.');
+      const [followers,following,isFollowing]=await Promise.all([
+        db.from('follows').select('id',{count:'exact',head:true}).eq('following_id',current.id),
+        db.from('follows').select('id',{count:'exact',head:true}).eq('follower_id',current.id),
+        view.profile?db.from('follows').select('id').eq('follower_id',view.profile.id).eq('following_id',current.id).maybeSingle():Promise.resolve({data:null,error:null}),
+      ]);guard();
+      if(followers.error||following.error||isFollowing.error)throw new Error('Profile counts could not be loaded.');
+      if(!Number.isSafeInteger(followers.count)||followers.count!<0||!Number.isSafeInteger(following.count)||following.count!<0)throw new Error('Profile counts could not be confirmed.');
+      return {follower_count:followers.count!,following_count:following.count!,is_following:!!isFollowing.data};
+    },()=>view.guard(signal),signal),
   });
-  const posts = useVisiblePostCount(query.data?.id);
-  return { ...query, data: query.data ? { ...query.data, post_count: posts.count ?? 0, post_count_label: posts.label, post_count_exact: posts.exact } : query.data };
+  const summary=useVisiblePostCount(current?.id);
+  const counts=view.active&&stats.isFetchedAfterMount&&!stats.isError?stats.data:undefined;
+  return {...query,data:current?{...current,...counts,follower_count_label:counts?String(counts.follower_count):'—',following_count_label:counts?String(counts.following_count):'—',post_count:summary.count??0,post_count_label:summary.label,post_count_exact:summary.exact}:current,
+    isLoading:view.active&&(!query.isFetchedAfterMount||query.isPending),statsPending:!!current&&stats.isPending,statsError:stats.isError};
 }
+
+export function useProfileById(profileId:string|undefined){return useProfileRead('id',profileId);}
+export function useProfileByUsername(username:string){return useProfileRead('username',username);}
 
 export function useUpdateAvatar() {
   const { profile, updateProfile } = useAuth();
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async (file: File) => {
       if (!profile) throw new Error('Not authenticated');
-
       const fileExt = file.name.split('.').pop();
       const fileName = `${profile.user_id}/avatar.${fileExt}`;
-
-      const { error: uploadError } = await db.storage
-        .from('media')
-        .upload(fileName, file, { upsert: true });
-
+      const { error: uploadError } = await db.storage.from('media').upload(fileName, file, { upsert: true });
       if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = db.storage
-        .from('media')
-        .getPublicUrl(fileName);
-
+      const { data: { publicUrl } } = db.storage.from('media').getPublicUrl(fileName);
       await updateProfile({ avatar_url: publicUrl });
-
       return publicUrl;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['profile'] });
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['profile'] }); },
   });
 }
