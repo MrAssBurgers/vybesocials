@@ -45,30 +45,30 @@ async function observe() {
   subscriptions.push(service.firebaseAuth.onAuthStateChange((event, session) => events.push([event, session])).data.subscription.unsubscribe);
   return { service, events };
 }
-it.skipIf(!enabled)('real browser SDK hydrates delayed native credentials without initializing auth early', async () => {
+it.skipIf(!enabled)('real browser SDK opens sign-in immediately and hydrates a delayed native credential in place', async () => {
   let release!: (json: string) => void; const vault = new Promise<string>(resolve => { release = resolve; }); let saved: string | null = null;
   mirror.setAuthVaultTransportForTests({ read: () => saved ? Promise.resolve(saved) : vault, write: (_key, json) => { saved = json; } });
-  const { service, events } = await observe(); await new Promise(resolve => setTimeout(resolve, 800));
-  expect(service.getAuthRestoreState()).toBe('pending'); expect(service.getFirebaseAuth()).toBeNull(); expect(events).toEqual([]);
+  const { service, events } = await observe();
+  await vi.waitFor(() => expect(service.getAuthRestoreState()).toBe('ready'));
+  expect(service.getFirebaseAuth()).not.toBeNull();
   release(serialized);
   await vi.waitFor(() => expect(service.getFirebaseAuth()?.currentUser?.uid).toBe(uid), { timeout: 10000 });
   expect(service.getAuthRestoreState()).toBe('ready');
-  await vi.waitFor(() => expect(events.some(([event, session]) => event === 'INITIAL_SESSION' && session?.user.id === uid)).toBe(true));
-  expect(events.some(([, session]) => session === null)).toBe(false);
+  await vi.waitFor(() => expect(events.some(([, session]) => session?.user.id === uid)).toBe(true));
 }, 15000);
-it.skipIf(!enabled)('retry attaches the existing subscriber after restore error and releases authoritative empty state', async () => {
-  let fail = true;
-  mirror.setAuthVaultTransportForTests({ read: async () => { if (fail) throw Error('No native reply'); return null; }, write: vi.fn() });
-  const { service, events } = await observe(); await vi.waitFor(() => expect(service.getAuthRestoreState()).toBe('error'));
-  expect(service.getFirebaseAuth()).toBeNull(); expect(events).toEqual([]);
-  fail = false; await service.retryAuthRestore();
-  await vi.waitFor(() => expect(events).toContainEqual(['INITIAL_SESSION', null])); expect(service.getAuthRestoreState()).toBe('ready');
+it.skipIf(!enabled)('a vault that never answers opens sign-in instead of staying on the restore screen', async () => {
+  mirror.setAuthVaultTransportForTests({ read: async () => { throw Error('No native reply'); }, write: vi.fn() });
+  const { service, events } = await observe();
+  await vi.waitFor(() => expect(service.getAuthRestoreState()).toBe('ready'));
+  await vi.waitFor(() => expect(events).toContainEqual(['INITIAL_SESSION', null]));
+  expect(service.getFirebaseAuth()?.currentUser).toBeNull();
 });
-it.skipIf(!enabled)('deliberate Sign in again works from first-use missing vault with no initialized SDK', async () => {
+it.skipIf(!enabled)('Sign in again from a missing vault still leaves a signed-out shell', async () => {
   let saved: string | null = null;
   mirror.setAuthVaultTransportForTests({ read: async () => { if (!saved) throw Error('Unknown first-use vault'); return saved; }, write: (_key, value) => { saved = value; } });
-  const { service, events } = await observe(); await vi.waitFor(() => expect(service.getAuthRestoreState()).toBe('error'));
-  expect(service.getFirebaseAuth()).toBeNull(); await service.abandonAuthRestore();
+  const { service, events } = await observe();
+  await vi.waitFor(() => expect(service.getAuthRestoreState()).toBe('ready'));
+  await service.abandonAuthRestore();
   await vi.waitFor(() => expect(events).toContainEqual(['INITIAL_SESSION', null]));
   expect(service.getAuthRestoreState()).toBe('ready'); expect(service.getFirebaseAuth()?.currentUser).toBeNull(); expect(saved).toContain('signed-out');
 });

@@ -46,11 +46,193 @@ Local Vite at `http://127.0.0.1:8080` against live Firebase `vybe-daaab`. [Walk 
 2. Deploy the post-read functions only, then confirm a private post is absent from another account and tagged on the author's profile.
 3. Leave `auth2faRequest` undeployed.
 
+## ACTIVE (2026-10-07) - Friend requests after the sign-in merge
+
+### What changed
+- Merged `origin/main` at `5cbd4503` (“Show the password form immediately instead of Restoring your account”). A saved session stays on a silent spinner. `/?mode=login` and `/?signup=true` still skip the mobile intro.
+- The Requests tab still loads pending friend requests when the status filter is rejected, and it tries the Auth uid when the profile id is denied. Incoming requests still show if the outgoing query fails. The error banner no longer sits on top of “No requests”.
+
+### Verification
+- `npm run test`: 522 files passed, 1 skipped; 5129 passed, 6 skipped. Map renderer stderr is the existing noise.
+- App `tsc` and Functions `tsc` passed. ESLint on `useFriends.ts`, `useFriendRequests.read.test.tsx`, and `RootGate.tsx` passed. `npm run build` passed. Entry `app-DNmRcDjr.js` is 858.3 KB raw / 261.2 KB gzip. Generated `public/version.json` and `public/despia/local.json` restored.
+
+### Blockers
+- `vybehub.app` needs Lovable → Share → Publish before the profile, share-link, and friend-request fixes are on the phone.
+- Older cloudfunctions.net share links keep the old card until `npx -y firebase-tools@latest deploy --only functions:sharePreview --project vybe-daaab`. Do not deploy `auth2faRequest`.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then open Notifications → Requests and another member’s profile.
+2. After `npx -y firebase-tools@latest login`, deploy only `functions:sharePreview` if old shared links should show the new card.
+3. Leave `auth2faRequest` undeployed.
+
+## ACTIVE (2026-10-07) - Sign-in does not say Restoring your account
+
+### What changed
+- The password form was still waiting on “Restoring your account…” for about 10 seconds whenever the phone vault stayed silent. That sentence is no longer the login screen.
+- A saved session that is already on the device starts Auth immediately, and the app opens. A vault reply that is already in hand is stored before Auth starts, so a saved account does not flash the password form.
+- When nothing is saved yet, the email and password fields are on the first screen. A vault reply that arrives later signs that account in without a reload and without the restoring sentence.
+- A private screen that is still settling uses a silent spinner. The old sentence remains only if a recovered account could not be stored.
+
+### Verification
+- `npm run test`: 516 files passed, 1 skipped; 5110 passed, 6 skipped.
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. ESLint on the edited auth files passed. `npm run build` passed. Generated `public/version.json` and `public/despia/local.json` restored.
+- Chrome 475×751, Fold user agent, Despia bridge present, vault read never answered. Body text never included “Restoring your account”. About 1.2s after the document loaded, the email and password form was up (Android splash cap stays 800ms; iOS splash is unchanged). An email was typed locally and not submitted. No “Firebase is not configured” banner. No posts, messages, follows, or settings writes.
+
+### Blockers
+- `vybehub.app` needs Lovable → Share → Publish, then force-close VYBE and open it again. Do not deploy `auth2faRequest`.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then force-close VYBE. A saved sign-in should open the app. With no saved sign-in, the password form should be there immediately.
+2. Leave `auth2faRequest` undeployed.
+3. If a saved account still does not appear, sign in with email and password once so this device stores it.
+
+## ACTIVE (2026-10-07) - Profile open, share link, and friend requests
+
+### What changed
+- Opening another member’s profile no longer fails when the profile document has a username and document id but no separate `user_id`. The lookup also accepts `@handle`, the lowercase handle, and a capital first letter.
+- Sharing a profile copies `https://vybehub.app/u/{username}`. Sharing a post copies `https://vybehub.app/p/{postId}`. Older `sharePreview?type=profile&username=` links render a card and send the browser to that same address. That card ships when `sharePreview` is deployed.
+- The Requests tab reads pending friend requests with one party filter when the status filter is rejected, and it checks both the profile id and the Auth uid. An error no longer sits on top of “No requests”.
+
+### Verification
+- `npm run test`: 521 files passed, 1 skipped; 5127 passed, 6 skipped.
+- App `tsc` and Functions `tsc` passed. ESLint on the edited app files passed. `npm run build` passed. Entry `app-2DBV81Vt.js` is 857.1 KB raw / 261.2 KB gzip. Generated `public/version.json` and `public/despia/local.json` restored.
+
+### Blockers
+- `vybehub.app` needs Lovable → Share → Publish before the new share address and the profile/request fixes are on the phone.
+- Older cloudfunctions.net share links keep the old card until `npx -y firebase-tools@latest deploy --only functions:sharePreview --project vybe-daaab`. Do not deploy `auth2faRequest`.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then open another member’s profile and copy their share link.
+2. After `npx -y firebase-tools@latest login`, deploy only `functions:sharePreview` if old shared links should show the new card.
+3. Leave `auth2faRequest` undeployed.
+
+## ACTIVE (2026-10-07) - Phone login leaves the restore screen
+
+### What changed
+- A Play Store shell whose native session vault never answers used to stay on “Restoring your account…” with “Sign in again”, and sign-in code reported that missing Auth instance as “Firebase is not configured”.
+- An empty, unreadable, or timed-out vault is now treated as no saved account. The password form opens. A recovered account that cannot be stored still stays on the restore screen so it is not discarded silently.
+- “Sign in again” always releases the form, including when Auth was never created or the vault write does not finish.
+- Google and Apple completion wait for that restore instead of toasting “Firebase is not configured” while Firebase is already set.
+
+### Verification
+- `npm run test`: 516 files passed, 1 skipped; 5111 passed, 6 skipped.
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. ESLint on the edited auth files passed.
+- Chrome 475×751, Fold user agent, Despia bridge present, vault read never answered. At 3.9s the screen was only “Restoring your account…”. At 11.0s the email and password form was up. No “Firebase is not configured” banner. No posts, messages, follows, or settings writes.
+
+### Blockers
+- `vybehub.app` needs Lovable → Share → Publish, then force-close VYBE and open it again. Do not deploy `auth2faRequest`.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then force-close VYBE on the phone and sign in with email and password.
+2. If a real saved account still will not store, use “Sign in again” once. That now opens the form.
+3. Leave `auth2faRequest` undeployed.
+
+## ACTIVE (2026-10-07) - Signed-in local walk and smaller entry
+
+### What changed
+- Merged `origin/main` at `e3acf855` (“Open the login form when the phone vault never answers”). The only conflict was `WORKLOG.md`. Main’s phone-login section stays above this one, and the auth files merged cleanly.
+- Merged `origin/main` at `965968f6` (“Publish a mini app when the direct snapshot read is denied”). That merge was clean. The earlier merge’s only conflict was `WORKLOG.md`, and both the Firebase config audit and the auto welcome stayed above the new-user section.
+- The camera and the bottom nav now load when they are needed. `entryFileNames` is still `assets/app-[hash].js`. The Despia plugin and the Lovable tagger are unchanged.
+- Sign-in starts the member’s own profile grid and stores the admitted page the profile screen already reads, so the first open can paint from that lease.
+- `readSocialPostList` now overlaps the viewer and target identity reads, the candidate and pin queries, and the like and bookmark reads. The callable requests `512MiB`. That setting does nothing until the function is deployed by name.
+- A publish exception keeps its own sentence. An account change still says to sign back in and retry the same draft.
+- The local preview entry can run `ensureAccountProfile` without importing `functions/src/auth.ts`, and it can run `startVybeCheck`, `listMiniApps`, posts, comments, follows, and DMs. `auth2faRequest` is not in that entry and was not deployed.
+
+### Verification
+- After the `e3acf855` merge: `npm run test` 519 files passed, 1 skipped; 5122 passed, 6 skipped. Map renderer stderr is the existing noise. `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` and `functions/tsconfig.json` passed. `npm run build` passed. Generated `public/version.json` and `public/despia/local.json` restored.
+- Entry chunk after that merge: `dist/assets/app-DW1fC3f_.js` 857.2 KB raw / 261.2 KB gzip. Before the phone-login merge it was `app-CnuAeFmI.js` at 856.7 KB raw / 260.1 KB gzip. The earlier handoff was 1096.2 KB raw / 332.6 KB gzip. Limits remain 1125 / 335.
+- Chrome on `http://127.0.0.1:8082` as `alice@vybe.test` (emulator only, email 2FA off). No email-code screen. Desktop 1280×800 and mobile 390×844: Home showed the text post, the profile grid showed it about 209ms after opening the profile from Home, the like stored a like, the comment stored “Local preview comment”, Follow on Bob became Following, and the Alice–Bob thread showed “Local preview hello Bob” as Delivered. Notifications said “You’re all caught up”. Settings opened. Mini Apps listed “Preview Hello”. No production Auth user was created. Crash-consent was not enabled.
+
+### Blockers
+- Production `listMiniApps`, `readSocialPostList`, and `auth2faRequest` answer unauthenticated calls with HTTP 401, so those functions exist. This session did not deploy any of them. Firebase CLI is not logged in.
+- The parallel profile-list reads and the `512MiB` setting are only in source. Production still runs the previous function. After `npx -y firebase-tools@latest login`, deploy only `npx -y firebase-tools@latest deploy --only functions:readSocialPostList --project vybe-daaab`. Do not deploy `auth2faRequest`.
+- `vybehub.app` needs Lovable → Share → Publish for the smaller entry and the profile warm.
+- The messages notes row in the local preview still says it could not be refreshed. The thread send itself succeeded.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then force-close VYBE on the phone.
+2. After `npx -y firebase-tools@latest login`, deploy only `functions:readSocialPostList`.
+3. Leave `auth2faRequest` undeployed.
+
+## ACTIVE (2026-10-07) - Mini-app publish no longer looks like a moderation hold
+
+### What changed
+- Publishing a saved draft read `mini_apps/{id}` in the browser before calling `publishMiniApp`. Deployed rules deny that direct read, and the studio mapped every `permission-denied` to “Publishing is blocked for this app. A moderation hold or account permissions may need review.” The draft save had already succeeded, so the owner saw a moderation message for a rules denial.
+- That preflight now uses `listMiniApps` when the direct read is denied, the same checked path Discover already uses. A missing public snapshot publishes with `expectedVersion: null`. A real callable hold or ownership message is shown as written.
+
+### Verification
+- `npm run test`: 516 files passed, 1 skipped; 5111 passed, 6 skipped. Includes the mini-app publish preflight test.
+- App `tsc` and ESLint on the edited mini-app files passed.
+
+### Blockers
+- `vybehub.app` still needs Lovable → Share → Publish before the phone uses this client. `publishMiniApp` is already answering unauthenticated requests in production. Do not deploy `auth2faRequest`.
+- A real moderation hold still blocks that one app. This change does not release holds.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then force-close VYBE and publish the mini app again.
+2. If the studio then shows the callable’s own hold sentence, review `_mini_app_moderation` for that app id.
+3. Leave `auth2faRequest` undeployed.
+
+## ACTIVE (2026-10-07) - Firebase config audit
+
+### What changed
+- Branched `cursor/firebase-config-1b49` from `origin/main` at `2ebc6bdc`. The mini-app list/publish source fix is already on that tip (`d9b976fd`). It was not duplicated.
+- `public/robots.txt` still sent crawlers to `hprmicwhlaaqfgshucec.supabase.co/functions/v1/sitemap-dynamic`. That URL returns HTTP 404. `https://vybehub.app/sitemap.xml` returns the static sitemap (HTTP 200). The dead Supabase line is removed. `sitemapDynamic` on `us-central1-vybe-daaab` returns a gateway 403, so robots.txt does not point at it.
+- When `VITE_FIREBASE_STORAGE_BUCKET` is omitted, the client fell back to `<projectId>.appspot.com`. `vybe-daaab.appspot.com` returns HTTP 404. `vybe-daaab.firebasestorage.app` exists (HTTP 403 unauthenticated). The fallback now uses `.firebasestorage.app`, which already matches `.env.example`, Android `google-services.json`, the Apple plist, and Hosting `__/firebase/init.json`. Local preview still uses the emulator `demo-vybe-preview.appspot.com` bucket.
+
+### Checked and left unchanged
+- `.firebaserc` default project is `vybe-daaab`. Client env, Hosting init.json, Android, and iOS agree on project id, auth domain `vybe-daaab.firebaseapp.com`, sender `728651793473`, web app id `1:728651793473:web:ea126ca97899504f9e32c0`, storage bucket `vybe-daaab.firebasestorage.app`, and Functions region `us-central1`.
+- Auth handlers on `vybe-daaab.firebaseapp.com` and `vybe-daaab.web.app` are the Firebase handler. `vybehub.app/__/auth/handler` is still the SPA. `getFirebaseAuthDomain` already refuses that host.
+- Hosting rewrites for `/oauth-dismiss`, `/mcp`, `/apple-callback`, and `/google-callback` hit the deployed functions on `vybe-daaab.web.app`. Lovable `vybehub.app` still serves the SPA for those paths; Google and Apple sign-in use `native-callback.html` on purpose.
+- The local web API key and the Hosting init.json API key both answer Identity Toolkit for project number `728651793473`. They are different keys. Production `vybehub.app` and staging already embed the local/Lovable key with the matching app id and `firebasestorage.app` bucket. No key was copied into source.
+- Client callables used for sign-in, feed, and posts (`ensureAccountProfile`, `authLoginNotify`, `auth2faRequest`, `auth2faVerify`, `readSocialFeed`, `readSocialPostList`, `managePost`) are deployed. `auth2faRequest` was not deployed from this session.
+- `listMiniApps`, `saveMiniAppDraft`, `deleteMiniAppDraft`, and `publishMiniApp` are exported in source and return HTTP 404 in production. Firebase CLI and the Firebase MCP have no logged-in user, so they were not deployed.
+- Firestore rules in source still deny client writes to mini-app drafts and published snapshots. Rules were not changed and were not deployed.
+- No Supabase client is initialized (`src/integrations/supabase/client.ts` exports null). Emulator ports and welcome-animation files were not edited.
+
+### Verification
+- `npm run test`: 516 files passed, 1 skipped; 5110 passed, 6 skipped. Includes `src/lib/firebase/config.test.ts` (omitted bucket resolves to `vybe-daaab.firebasestorage.app`; an explicit bucket is kept).
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. ESLint on `src/lib/firebase/config.ts` and `src/lib/firebase/config.test.ts` passed. `npm run build` passed. Generated `public/version.json` and `public/despia/local.json` restored.
+- Built `dist/assets/app-SzWvibed.js` contains `vybe-daaab.firebasestorage.app` and does not contain `vybe-daaab.appspot.com`. Messaging worker placeholders were injected. No posts, messages, follows, or settings writes.
+
+### Blockers
+- Firebase CLI / MCP is not authenticated, so no Functions, Rules, or index deploy ran.
+- Deploy only `listMiniApps` first: `npx -y firebase-tools@latest deploy --only functions:listMiniApps --project vybe-daaab`. Do not deploy `auth2faRequest`.
+- `vybehub.app` needs Lovable → Share → Publish for the robots.txt and storage-bucket fallback.
+
+### Next 3 tasks
+1. Lovable → Share → Publish so production robots.txt drops the dead Supabase sitemap.
+2. After `npx -y firebase-tools@latest login`, deploy `listMiniApps` only. Do not deploy `auth2faRequest`.
+3. Then deploy `saveMiniAppDraft`, `deleteMiniAppDraft`, and `publishMiniApp` as separate named targets.
+
+## ACTIVE (2026-10-07) - Welcome plays itself
+
+### What changed
+- The welcome no longer waits on a Close button. As soon as the login sheet is gone (`[data-auth-shell]` absent), the signed-in profile photo pops in the center with "Welcome back" under it, plus any return notice that is already waiting. Nothing has to be tapped.
+- The circle stays invisible until that photo has decoded, up to 900ms, so the first thing on screen is the real picture. The pop is 380ms. One continuous swirl then carries the photo to the account avatar (bottom-nav on a phone, sidebar on desktop) in 1080ms, using transform and opacity only. A short burst, about 460ms, plays on that avatar. The account picture stays hidden until the flying photo lands, then the real one appears and the flying one is gone.
+- Reduced motion skips the swirl and the burst. "Welcome back" shows for about 420ms, then the account picture appears. No click.
+- There is no Close button, no `useLocation`, no floating @handle chip, and no letter fallback. Sign-in is not blocked and the overlay does not cover the login sheet. The story plus and the login-wave gating are unchanged.
+
+### Verification
+- `npm run test`: 515 files passed, 1 skipped; 5108 passed, 6 skipped.
+- `./node_modules/.bin/tsc --noEmit -p tsconfig.app.json` passed. ESLint on the welcome component and its test passed. `npm run build` passed. Generated `public/version.json` and `public/despia/local.json` restored.
+- Chrome 475×751, password sign-in, no email-code screen. No Close button. The photo and "Welcome back" appeared on their own (pop about 400ms), then flew for about 1080ms. The bottom-nav account picture stayed at opacity 0 (28px at 384, 678) until the flight landed, then a burst played and that picture was opacity 1. The story plus stayed 44px with a 26px disc. A focus before submit left response and working waves at 0. Working waves showed while the button said "Signing in…".
+- Desktop 1280×800 played the same sequence onto the sidebar picture (40px at 25, 76). It stayed hidden until the burst, then the photo was there. No posts, messages, follows, or settings writes. Crash-consent buttons were not clicked.
+
+### Blockers
+- `vybehub.app` needs Lovable → Share → Publish.
+- Do not deploy `auth2faRequest`.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then force-close VYBE on the phone.
+2. Confirm the auto welcome, swirl, and avatar burst on a physical Fold.
+3. Leave `auth2faRequest` undeployed.
+
 ## ACTIVE (2026-10-07) - New-user first visit
 
 ### What changed
 - The backend is Firebase (Auth, Firestore, Functions, Storage). There is no Supabase client.
-- Desktop `/` ignored `?signup=true` and `?mode=login`, so footer and article Sign up links stayed on the marketing page. Those links now go to `/signup` and `/login`, and `/` still opens the auth screen when an old query link is used.
+- Desktop `/` ignored `?signup=true` and `/?mode=login`, so footer and article Sign up links stayed on the marketing page. Those links now go to `/signup` and `/login`, and `/` still opens the auth screen when an old query link is used.
 - Logged-out `/mini-apps` explains Mini App Studio and offers account creation. The studio itself stays behind an account.
 - The marketing member count listed every `profiles` document, which signed-out visitors cannot read. The creator stack called `get_landing_top_creators`, which is not deployed. Neither request runs now. The founder-spot counter and the reconnect heartbeat wait until someone is signed in.
 - Google and Apple signup stay off until the terms box is checked. Usernames are checked on the form before the account request. A first OAuth account sees "Welcome to VYBE". The login footer says "Preview VYBE".

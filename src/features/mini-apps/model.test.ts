@@ -31,5 +31,7 @@ describe('mini app persistence boundary', () => {
     expect(miniAppError(new Error('Connection lost'), 'publish')).toBe('Connection lost');
     expect(miniAppError({ code: 'internal', message: 'INTERNAL' }, 'publish')).toContain('not available right now');
     expect(miniAppError({ code: 'not-found', message: 'NOT_FOUND' }, 'publish')).toContain('private draft is still saved');
+    expect(miniAppError({ code: 'permission-denied', message: 'Publishing is blocked by a moderation hold. Your private draft is still available.' }, 'publish')).toBe('Publishing is blocked by a moderation hold. Your private draft is still available.');
+    expect(miniAppError({ code: 'permission-denied', message: 'Missing or insufficient permissions.' }, 'publish')).toContain('Publishing is blocked for this app');
   });
 });

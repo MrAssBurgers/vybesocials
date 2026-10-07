@@ -5,6 +5,7 @@ import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { prefetchDMConversations } from '@/lib/loadDMConversations';
 import { setCachedUserLevel } from '@/lib/userLevelCache';
 import { signAndPreloadProfileAvatar } from '@/lib/imagePreload';
+import { warmOwnProfilePosts } from '@/lib/warmOwnProfilePosts';
 
 // Feed content is loaded only by the visible account-bound reader. Boot warming
 // must not revive legacy raw posts or start their media downloads.
@@ -128,6 +129,7 @@ export function warmHomeCachesForProfile(
 
   signCachedProfileMedia();
   void prefetchDMConversations(queryClient, profileId, uid);
+  warmOwnProfilePosts(uid, profileId);
   warmNotifications(queryClient, profileId);
   warmUserMeta(queryClient, uid, profileId);
 }

@@ -61,9 +61,13 @@ function runJob(id: string, input: PostUploadInput) {
       updateJob(id, { stage: 'done', progress: 100, postId: result.postId, input: undefined });
       window.dispatchEvent(new CustomEvent('vybe:upload-complete', { detail: { id, postId: result.postId, ownerUid: input.profile.user_id, accountEpoch } }));
       setTimeout(() => { try { guard(); dismissUploadJob(id); } catch { /* Retired owner. */ } }, 6000);
-    } catch {
+    } catch (error) {
       // Retain the original draft for its owner without painting another account.
-      if (runs.get(id) === run) updateJob(id, { stage: 'failed', progress: 0, error: 'Your account changed. Retry this original publication after signing back in.' });
+      if (runs.get(id) !== run) return;
+      const accountChanged = !!error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'account-changed';
+      updateJob(id, { stage: 'failed', progress: 0, error: accountChanged
+        ? 'Your account changed. Retry this original publication after signing back in.'
+        : error instanceof Error && error.message ? error.message : 'Publishing could not be confirmed. Retry the same draft.' });
     }
   })();
 }

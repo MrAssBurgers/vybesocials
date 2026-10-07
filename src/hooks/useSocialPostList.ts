@@ -7,12 +7,13 @@ import { usePostReadWindow } from './usePostReadWindow';
 import { usePostReadRecovery } from './usePostReadRecovery';
 import { withPostReadDeadline } from '@/lib/postReadDeadline';
 import { readAdmittedPage, writeAdmittedPage } from '@/lib/admittedReadCache';
+import { socialPostListCacheKey } from '@/lib/socialPostListCacheKey';
 
 export function useSocialPostList(selection: SocialPostSelection, enabled = true, options?: { includeCommentCounts?: boolean }) {
   const view = usePostReadView(enabled), { account } = view;
   const window = usePostReadWindow(JSON.stringify([selection, ...view.key]));
   const recovery = usePostReadRecovery(JSON.stringify([selection, ...view.key, window.cursor]), view.guard);
-  const cacheKey = JSON.stringify(['social-post-list', account.session.uid, account.session.epoch, account.profile?.id, selection, window.cursor]);
+  const cacheKey = socialPostListCacheKey(account.session.uid, account.session.epoch, account.profile?.id, selection, window.cursor);
   const admitted = view.active ? readAdmittedPage<InfiniteData<Awaited<ReturnType<typeof readSocialPostList>>>>(cacheKey) : undefined;
   const query = useInfiniteQuery({
     placeholderData: undefined,

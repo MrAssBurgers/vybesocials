@@ -922,11 +922,16 @@ async function completeDespiaOAuthFromUrlInner(url: string): Promise<DespiaOAuth
   }
 
   try {
-    const { firebaseAuth } = await import('@/lib/firebase');
-    const auth = firebaseAuth.auth;
+    const { ensureFirebaseAuth, firebaseAuth, isFirebaseConfigured } = await import('@/lib/firebase');
+    const auth = await ensureFirebaseAuth();
     if (!auth) {
       clearDespiaOAuthPending();
-      return { data: { session: null }, error: { message: 'Firebase is not configured', name: 'firebase/not-configured' } };
+      return {
+        data: { session: null },
+        error: isFirebaseConfigured()
+          ? { message: 'Your saved sign-in has not finished loading. Try again.', name: 'auth/restore-unavailable' }
+          : { message: 'Firebase is not configured', name: 'firebase/not-configured' },
+      };
     }
 
     const providerHint = redeemedProvider || state?.provider || 'google';

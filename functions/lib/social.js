@@ -16,13 +16,57 @@ function safeImageUrl(url, fallback) {
         return s;
     return fallback;
 }
-/** share-preview — public HTTP renderer for shared post links (OG tags). */
+function previewHtml(title, description, image, url) {
+    return `<!doctype html><html><head>
+<meta charset="utf-8"/><title>${title}</title>
+<meta property="og:title" content="${title}"/>
+<meta property="og:description" content="${description}"/>
+<meta property="og:image" content="${image}"/>
+<meta property="og:url" content="${escapeHtml(url)}"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta http-equiv="refresh" content="0; url=${escapeHtml(url)}"/>
+</head><body><a href="${escapeHtml(url)}">Open in VYBE</a></body></html>`;
+}
+async function sendProfilePreview(username, res) {
+    const name = username.trim().replace(/^@+/, '').slice(0, 100);
+    if (!/^[A-Za-z0-9._-]{1,100}$/.test(name)) {
+        res.status(400).send('username required');
+        return;
+    }
+    const candidates = [...new Set([name, name.toLowerCase(), name.charAt(0).toUpperCase() + name.slice(1).toLowerCase()])];
+    let snap = null;
+    for (const candidate of candidates) {
+        const page = await db.collection('profiles').where('username', '==', candidate).limit(2).get();
+        if (!page.empty) {
+            snap = page;
+            break;
+        }
+    }
+    if (!snap || snap.size !== 1) {
+        res.status(404).send('not found');
+        return;
+    }
+    const row = snap.docs[0].data() || {};
+    const handle = typeof row.username === 'string' && row.username.trim() ? row.username.trim() : name;
+    const display = typeof row.display_name === 'string' && row.display_name.trim() ? row.display_name.trim() : handle;
+    const bio = typeof row.bio === 'string' ? row.bio.trim() : '';
+    const url = `https://vybehub.app/u/${encodeURIComponent(handle)}`;
+    res.set('Cache-Control', 'no-store');
+    res.set('Content-Type', 'text/html');
+    res.status(200).send(previewHtml(escapeHtml(`${display} on VYBE`), escapeHtml((bio || `@${handle} on VYBE`).slice(0, 160)), escapeHtml(safeImageUrl(row.avatar_url, 'https://vybehub.app/og-default.png')), url));
+}
+/** share-preview — public HTTP renderer for older shared links (OG tags). */
 export const sharePreview = onRequest({ cors: true }, async (req, res) => {
     if (req.method === 'GET' && (req.query.probe === '1' || req.query.health === '1')) {
         res.status(200).json({ ok: true, fn: 'sharePreview' });
         return;
     }
-    const rawId = req.query.postId || (req.path.split('/').pop() || '');
+    const username = typeof req.query.username === 'string' ? req.query.username : '';
+    if (req.query.type === 'profile' || username) {
+        await sendProfilePreview(username, res);
+        return;
+    }
+    const rawId = req.query.postId || '';
     const postId = rawId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 128);
     if (!postId) {
         res.status(400).send('postId required');
@@ -37,16 +81,8 @@ export const sharePreview = onRequest({ cors: true }, async (req, res) => {
     const title = escapeHtml('A post on VYBE');
     const desc = escapeHtml((post.caption || '').slice(0, 160));
     const image = escapeHtml(safeImageUrl(post.thumbnailUrl || post.mediaUrl, 'https://vybehub.app/og-default.png'));
-    const safePostId = encodeURIComponent(postId);
-    res.set('Content-Type', 'text/html').send(`<!doctype html><html><head>
-<meta charset="utf-8"/><title>${title}</title>
-<meta property="og:title" content="${title}"/>
-<meta property="og:description" content="${desc}"/>
-<meta property="og:image" content="${image}"/>
-<meta property="og:url" content="https://vybehub.app/p/${safePostId}"/>
-<meta name="twitter:card" content="summary_large_image"/>
-<meta http-equiv="refresh" content="0; url=https://vybehub.app/p/${safePostId}"/>
-</head><body><a href="https://vybehub.app/p/${safePostId}">Open in VYBE</a></body></html>`);
+    const url = `https://vybehub.app/p/${encodeURIComponent(postId)}`;
+    res.set('Content-Type', 'text/html').send(previewHtml(title, desc, image, url));
 });
 async function legacyAdmittedFeed(uid, personalized, limit = 20) {
     const viewer = await db.runTransaction(tx => resolveIdentity(db, tx, uid));

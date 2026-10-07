@@ -27,15 +27,18 @@ export async function readSocialPostListPage(db, uid, raw, nowMs = Date.now()) {
     const selection = { scope: input.scope, targetId: input.targetId ?? null, search: input.search ?? null, since: input.since ?? null, contentType: input.contentType ?? null };
     const cursorId = randomBytes(24).toString('hex');
     return db.runTransaction(async (tx) => {
-        const viewer = await resolveIdentity(db, tx, uid);
+        const [viewer, target] = await Promise.all([
+            resolveIdentity(db, tx, uid),
+            input.scope === 'profile' || input.scope === 'tagged' ? resolveIdentity(db, tx, input.targetId) : Promise.resolve(null),
+        ]);
         if (!viewer || viewer.uid !== uid || viewer.profileId !== input.expectedProfileId)
             throw new HttpsError('failed-precondition', 'Your profile changed. Reopen these posts.');
-        const target = input.scope === 'profile' || input.scope === 'tagged' ? await resolveIdentity(db, tx, input.targetId) : null;
         const empty = { ownerUid: uid, viewerProfileId: viewer.profileId, selection, posts: [], unavailableSavedPostIds: [], nextCursor: null };
         if ((input.scope === 'profile' || input.scope === 'tagged') && !target)
             return empty;
+        const knownAuthor = (alias) => target && target.aliases.includes(alias) ? target : undefined;
         if (input.scope === 'tagged') {
-            const targetAdmission = await authorAdmission(db, tx, viewer, target.profileId);
+            const targetAdmission = await authorAdmission(db, tx, viewer, target.profileId, knownAuthor(target.profileId));
             if (!targetAdmission || !targetAdmission.allows(targetAdmission.settings.posts))
                 return empty;
         }
@@ -61,12 +64,16 @@ export async function readSocialPostListPage(db, uid, raw, nowMs = Date.now()) {
                 throw new HttpsError('failed-precondition', 'This post page expired. Refresh and retry.');
             query = query.startAfter(cursor.created_at, cursor.document_id);
         }
-        const candidates = await tx.get(query.limit(input.scope === 'search' ? 101 : 21));
+        const [candidates, pinSnap] = await Promise.all([
+            tx.get(query.limit(input.scope === 'search' ? 101 : 21)),
+            input.scope === 'profile' && !input.cursor
+                ? tx.get(db.collection('posts').where('author_id', 'in', target.aliases).where('is_pinned', '==', true).limit(3))
+                : Promise.resolve(null),
+        ]);
         const rawCandidates = candidates.docs.slice(0, input.scope === 'search' ? 100 : 20);
         // Existing profile pins remain first even when their posts are old. They
         // are admitted independently and deduplicated against ordinary pages.
-        const pins = input.scope === 'profile' && !input.cursor
-            ? (await tx.get(db.collection('posts').where('author_id', 'in', target.aliases).where('is_pinned', '==', true).limit(3))).docs : [];
+        const pins = pinSnap ? pinSnap.docs : [];
         const selected = [...pins, ...rawCandidates];
         const rows = new Map();
         for (const candidate of selected) {
@@ -109,7 +116,7 @@ export async function readSocialPostListPage(db, uid, raw, nowMs = Date.now()) {
                     && !(Array.isArray(row.tags) && row.tags.some(tag => typeof tag === 'string' && tag.toLowerCase().includes(search.replace(/^#/, '')))))
                     continue;
                 if (!admissions.has(row.author_id))
-                    admissions.set(row.author_id, authorAdmission(db, tx, viewer, row.author_id));
+                    admissions.set(row.author_id, authorAdmission(db, tx, viewer, row.author_id, knownAuthor(row.author_id)));
                 const admission = await admissions.get(row.author_id);
                 if (admission && (row.user_id === undefined || (typeof row.user_id === 'string' && admission.author.aliases.includes(row.user_id)))) {
                     // Search stops after 20 admitted matches inside a 100-candidate scan;
@@ -127,13 +134,15 @@ export async function readSocialPostListPage(db, uid, raw, nowMs = Date.now()) {
         }
         const reactions = new Map();
         const saved = new Set();
-        if (posts.length)
-            for (const alias of viewer.aliases) {
-                const ids = posts.map(post => post.id);
-                const [likes, bookmarks] = await Promise.all([
-                    tx.get(db.collection('likes').where('user_id', '==', alias).where('post_id', 'in', ids).limit(101)),
-                    tx.get(db.collection('bookmarks').where('user_id', '==', alias).where('post_id', 'in', ids).limit(101)),
-                ]);
+        if (posts.length) {
+            const ids = posts.map(post => post.id);
+            const batches = await Promise.all(viewer.aliases.flatMap(alias => [
+                tx.get(db.collection('likes').where('user_id', '==', alias).where('post_id', 'in', ids).limit(101)),
+                tx.get(db.collection('bookmarks').where('user_id', '==', alias).where('post_id', 'in', ids).limit(101)),
+            ]));
+            for (let index = 0; index < batches.length; index += 2) {
+                const likes = batches[index];
+                const bookmarks = batches[index + 1];
                 if (likes.size > 100 || bookmarks.size > 100)
                     throw new HttpsError('resource-exhausted', 'Post interactions need repair. Please contact support.');
                 for (const like of likes.docs)
@@ -141,6 +150,7 @@ export async function readSocialPostListPage(db, uid, raw, nowMs = Date.now()) {
                 for (const bookmark of bookmarks.docs)
                     saved.add(bookmark.data().post_id);
             }
+        }
         let nextCursor = null;
         if (last && (candidates.size > rawCandidates.length || last.id !== rawCandidates.at(-1)?.id)) {
             tx.create(db.collection('_social_post_list_cursors').doc(cursorId), { version: 1, owner_uid: uid, profile_id: viewer.profileId,

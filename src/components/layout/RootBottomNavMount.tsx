@@ -1,8 +1,9 @@
-import { memo } from "react";
-import { BottomNav } from "./BottomNav";
+import { lazy, memo, Suspense } from "react";
 import { useBottomNavMount } from "@/hooks/useBottomNavMount";
 import { useRecoverBottomNavOnTabEnter } from "@/hooks/useRecoverBottomNavOnTabEnter";
 import { useAuth } from "@/lib/auth";
+
+const BottomNav = lazy(() => import("./BottomNav").then(m => ({ default: m.BottomNav })));
 
 /**
  * Mounts BottomNav only on primary tab routes (Instagram-style).
@@ -16,5 +17,9 @@ export const RootBottomNavMount = memo(function RootBottomNavMount() {
 
   // Guest entry screens own their sign-in actions; floating tabs obscure them on short displays.
   if (!user || !showNav) return null;
-  return <BottomNav />;
+  return (
+    <Suspense fallback={null}>
+      <BottomNav />
+    </Suspense>
+  );
 });

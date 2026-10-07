@@ -48,7 +48,8 @@ describe('database-backed route access', () => {
   });
   it('shows a named loading state while restoring auth instead of firing guest queries', () => {
     state.auth.authReady = false; show();
-    expect(screen.getByRole('status', { name: 'Restoring your account' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading VYBE' })).toBeInTheDocument();
+    expect(screen.queryByText(/Restoring your account/)).not.toBeInTheDocument();
     expect(screen.queryByText('Protected feature mounted')).not.toBeInTheDocument();
   });
   it('keeps authenticated screens accessible', () => {
@@ -57,7 +58,8 @@ describe('database-backed route access', () => {
   });
   it('uses a stored session only to wait, without mounting private content', () => {
     state.stored = true; state.auth.authReady = false; show();
-    expect(screen.getByRole('status', { name: 'Restoring your account' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading VYBE' })).toBeInTheDocument();
+    expect(screen.queryByText(/Restoring your account/)).not.toBeInTheDocument();
     expect(screen.queryByText('Protected feature mounted')).not.toBeInTheDocument();
   });
   it('does not bypass pending login approval', () => {
@@ -110,14 +112,13 @@ describe('database-backed route access', () => {
     await screen.findByRole('alert', { name: 'Profile setup needs attention' });
     expect(screen.queryByRole('button', { name: 'Recover my profile' })).not.toBeInTheDocument();
   });
-  it('offers restoration retry after a bounded wait without erasing a native session', async () => {
+  it('does not say restoring your account while a private route is still settling', () => {
     vi.useFakeTimers(); state.stored = true; state.auth.authReady = false; show('/messages?chat=friend');
-    expect(screen.queryByRole('button', { name: 'Sign in again' })).not.toBeInTheDocument();
-    act(() => vi.advanceTimersByTime(8_000));
-    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
-    await act(async () => {});
-    expect(state.retryRestore).toHaveBeenCalledOnce();
-    expect(state.abandonRestore).not.toHaveBeenCalled();
+    act(() => { vi.advanceTimersByTime(8_000); });
+    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Restoring your account/)).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading VYBE' })).toBeInTheDocument();
+    expect(screen.queryByText('Protected feature mounted')).not.toBeInTheDocument();
     expect(state.signOut).not.toHaveBeenCalled();
   });
   it('offers deliberate failed-restoration abandonment on a private deep link', async () => {
