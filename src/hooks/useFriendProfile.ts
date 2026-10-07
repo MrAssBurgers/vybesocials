@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { useProfileAccount } from './useProfileAccount';
 import { resolveProfileVisibility } from '@/lib/friendProfileClient';
 import { getDocumentFromServer, getDocumentsFromServer, where, firestoreLimit } from '@/lib/firebase/firestoreDb';
-import { profileUsernameCandidates } from '@/lib/profileUsername';
+import { chooseProfileIdentity, profileUsernameCandidates } from '@/lib/profileUsername';
 import type { ProfileViewProfile } from '@/features/profile/types';
 import type { FriendshipUiStatus } from './useFriends';
 
@@ -31,10 +31,10 @@ export function useFriendProfile(username: string | undefined) {
       const name = username?.trim();
       if (!name || name.includes('/')) return null;
       for (const candidate of profileUsernameCandidates(name)) {
-        const rows = await getDocumentsFromServer('profiles', [where('username', '==', candidate), firestoreLimit(2)]);
+        const rows = await getDocumentsFromServer('profiles', [where('username', '==', candidate), firestoreLimit(8)]);
         actor.guard();
-        if (rows.length > 1) throw new Error('This profile could not be identified.');
-        if (rows[0]) return profileRow(rows[0]);
+        const chosen = chooseProfileIdentity(rows, undefined, 'This profile could not be identified.');
+        if (chosen) return profileRow(chosen);
       }
       // Older links can contain the canonical profile ID or Auth UID.
       const direct = await getDocumentFromServer('profiles', name); actor.guard();

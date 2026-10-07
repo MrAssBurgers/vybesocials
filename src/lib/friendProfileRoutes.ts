@@ -11,8 +11,11 @@ export function friendProfilePath(username: string): string {
   return `/friend/${encodeURIComponent(username)}`;
 }
 
-export function publicProfilePath(username: string): string {
-  return `/u/${encodeURIComponent(username)}`;
+export function publicProfilePath(username: string, profileId?: string | null): string {
+  const path = `/u/${encodeURIComponent(username)}`;
+  const id = typeof profileId === 'string' ? profileId.trim() : '';
+  if (!id || id === username || id.includes('/') || id.length > 128) return path;
+  return `${path}?p=${encodeURIComponent(id)}`;
 }
 
 /** Every relationship state uses the canonical username route. */

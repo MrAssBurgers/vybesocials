@@ -13,7 +13,7 @@ interface ProfileLinkProps extends Omit<LinkProps, 'to'> {
 export const ProfileLink = forwardRef<HTMLAnchorElement, ProfileLinkProps>(function ProfileLink(
   {
     username,
-    userId: _userId,
+    userId,
     forcePublic: _forcePublic,
     children,
     ...rest
@@ -21,7 +21,7 @@ export const ProfileLink = forwardRef<HTMLAnchorElement, ProfileLinkProps>(funct
   ref,
 ) {
   return (
-    <Link ref={ref} to={publicProfilePath(username)} {...rest}>
+    <Link ref={ref} to={publicProfilePath(username, userId)} {...rest}>
       {children}
     </Link>
   );

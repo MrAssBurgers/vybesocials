@@ -1,3 +1,18 @@
+## ACTIVE (2026-10-07) - Open a profile when a leftover duplicate shares the username
+
+### What changed
+- Clicking someone whose username is stored on two profile documents no longer ends on “Couldn't load this profile” or “This user doesn't exist”.
+- The Auth-owned document (its id is the Auth uid) opens. A click that already knows the profile id opens that profile. Two Auth-owned documents with the same username still stop for review.
+- A profile click keeps a loading skeleton until the signed-in profile is ready, instead of saying the other account does not exist.
+
+### Verification
+- Pending in this handoff until tests, typecheck, and build finish.
+
+### Next 3 tasks
+1. Lovable → Share → Publish, then open @blaze from Explore.
+2. Delete the `vybe_qa_test` and `vybe_qa_test2` Auth users, posts, follow, and pending friend request when QA is done.
+3. Leave `auth2faRequest` undeployed.
+
 ## ACTIVE (2026-10-07) - Merged main after PR #4
 
 ### What changed

@@ -1,6 +1,6 @@
 import { PostListReadStatus } from '@/components/posts/PostListReadStatus';
 import { useRemoveSavedPost } from '@/hooks/useSavedPosts';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Grid, Film, Bookmark, Package, Play, Pin } from 'lucide-react';
@@ -45,6 +45,8 @@ import {
 
 export default function ProfilePage() {
   const { username, usernameOrId } = useParams<{ username?: string; usernameOrId?: string }>();
+  const [searchParams] = useSearchParams();
+  const linkedProfileId = searchParams.get('p') || undefined;
   const navigate = useNavigate();
   const { profile: currentProfile, user, authReady } = useAuth();
   const resolvedUsername = username || usernameOrId || currentProfile?.username;
@@ -53,7 +55,7 @@ export default function ProfilePage() {
     isLoading: profilePending,
     isError: profileError,
     refetch: refetchProfile,
-  } = useProfileByUsername(resolvedUsername || '');
+  } = useProfileByUsername(resolvedUsername || '', linkedProfileId);
   // Own /profile: never block forever when username query is disabled/empty.
   const profile =
     profileData ??
@@ -184,19 +186,8 @@ export default function ProfilePage() {
     owner_private: isOwnProfile && post.owner_private === true,
   }));
 
-  if ((!authReady || (user && !resolvedUsername && !currentProfile)) && !profile) {
-    return (
-      <AppLayout>
-        <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
-          <Skeleton className="h-44 w-full rounded-3xl" />
-          <Skeleton className="h-20 w-full rounded-2xl" />
-          <Skeleton className="h-32 w-full rounded-2xl" />
-        </div>
-      </AppLayout>
-    );
-  }
-
-  if (profilePending && !profile && !!resolvedUsername) {
+  const waitingForViewer = !!user && !currentProfile;
+  if ((!authReady || waitingForViewer || (profilePending && !!resolvedUsername)) && !profile) {
     return (
       <AppLayout>
         <div className="max-w-lg mx-auto px-4 py-6 space-y-4">

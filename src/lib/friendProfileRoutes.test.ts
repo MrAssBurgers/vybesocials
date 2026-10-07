@@ -19,5 +19,7 @@ describe('friendProfileRoutes', () => {
   it('encodes usernames in paths', () => {
     expect(friendProfilePath('a b')).toBe('/friend/a%20b');
     expect(publicProfilePath('x/y')).toBe('/u/x%2Fy');
+    expect(publicProfilePath('blaze', 'uid-live')).toBe('/u/blaze?p=uid-live');
+    expect(publicProfilePath('blaze', 'blaze')).toBe('/u/blaze');
   });
 });

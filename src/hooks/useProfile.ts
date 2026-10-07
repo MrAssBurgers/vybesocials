@@ -6,7 +6,7 @@ import { getDocumentFromServer, getDocumentsFromServer, where, firestoreLimit } 
 import { useVisiblePostCount } from './useVisiblePostCount';
 import { useProfileReadView } from './useProfileReadView';
 import { withProfileReadDeadline } from '@/lib/profileReadDeadline';
-import { profileUsernameCandidates } from '@/lib/profileUsername';
+import { chooseProfileIdentity, profileUsernameCandidates } from '@/lib/profileUsername';
 
 interface Profile {
   id: string; user_id: string; username: string; display_name?: string | null;
@@ -25,13 +25,14 @@ function checkedProfile(row:Record<string,unknown>):Profile {
   return {...picked, id, user_id: userId, follower_count:0,following_count:0,post_count:0,is_following:false} as unknown as Profile;
 }
 
-function useProfileRead(kind:'id'|'username',target:string|undefined) {
+function useProfileRead(kind:'id'|'username',target:string|undefined,preferredId?:string) {
   const raw=(target||'').trim();
   const name=kind==='username'?raw.replace(/^@+/,''):raw,normalized=kind==='username'?name.toLowerCase():name;
+  const preferred=(preferredId||'').trim();
   const view=useProfileReadView(!!name);
   const root=kind==='id'?'profile-by-id':'profile';
   const query=useQuery({
-    queryKey:[root,normalized,...view.key],enabled:view.active,
+    queryKey:[root,normalized,preferred,...view.key],enabled:view.active,
     placeholderData:undefined,staleTime:0,gcTime:0,retry:false,refetchOnMount:'always',refetchOnWindowFocus:true,networkMode:'always',
     queryFn:({signal}):Promise<Profile|null>=>withProfileReadDeadline(async guard=>{
       guard();
@@ -42,8 +43,14 @@ function useProfileRead(kind:'id'|'username',target:string|undefined) {
       const ownName = typeof view.profile?.username === 'string' ? view.profile.username.toLowerCase() : '';
       if(view.profile && (kind==='id'?[view.profile.id,view.profile.user_id].includes(name):ownName===normalized))row=view.profile as unknown as Record<string,unknown>;
       if(!row&&kind==='username')for(const candidate of profileUsernameCandidates(name)){
-        guard();const rows=await getDocumentsFromServer<Record<string,unknown>>('profiles',[where('username','==',candidate),firestoreLimit(2)]);guard();
-        if(rows.length>1)throw new Error('This username needs an identity review.');if(rows[0]){row=rows[0];break;}
+        guard();const rows=await getDocumentsFromServer<Record<string,unknown>>('profiles',[where('username','==',candidate),firestoreLimit(8)]);guard();
+        const chosen=chooseProfileIdentity(rows,preferred);if(chosen){row=chosen;break;}
+      }
+      if(!row&&preferred&&!preferred.includes('/')&&preferred.length<=128){
+        guard();const linked=await getDocumentFromServer<Record<string,unknown>>('profiles',preferred);guard();
+        const linkedName=typeof linked?.username==='string'?linked.username:'';
+        const linkedHandles=profileUsernameCandidates(linkedName);
+        if(linked&&profileUsernameCandidates(name).some(candidate=>linkedHandles.includes(candidate)))row=linked;
       }
       if(!row){guard();row=await getDocumentFromServer<Record<string,unknown>>('profiles',name);guard();}
       if(!row){guard();const rows=await getDocumentsFromServer<Record<string,unknown>>('profiles',[where('user_id','==',name),firestoreLimit(2)]);guard();if(rows.length>1)throw new Error('This account needs an identity review.');row=rows[0]??null;}
@@ -79,7 +86,7 @@ function useProfileRead(kind:'id'|'username',target:string|undefined) {
 }
 
 export function useProfileById(profileId:string|undefined){return useProfileRead('id',profileId);}
-export function useProfileByUsername(username:string){return useProfileRead('username',username);}
+export function useProfileByUsername(username:string,preferredId?:string){return useProfileRead('username',username,preferredId);}
 
 export function useUpdateAvatar() {
   const { profile, updateProfile } = useAuth();
