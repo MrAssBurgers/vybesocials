@@ -16,11 +16,19 @@ export const WELCOME_AVATAR_SIZE = 168;
 export const WELCOME_ACCOUNT_PENDING = 'welcome-account-pending';
 export const WELCOME_BACK_SPLASH = 'welcome-back-splash';
 
+/** Punchy pop, then the photo is already moving. A few hundred milliseconds. */
+export const WELCOME_POP_MS = 420;
+/** One continuous swirl-and-fly after the pop. Kept inside 900–1400ms. */
+export const WELCOME_FLIGHT_MS = 1080;
+/** Confetti on the account picture. Brief, then the overlay is gone. */
+export const WELCOME_BURST_MS = 420;
+/** Reduced motion shows the greeting, then reveals the account picture. No click. */
+export const WELCOME_REDUCED_MS = 420;
+
 type AvatarBox = { left: number; top: number; width: number; height: number };
-type WelcomePhase = 'hold' | 'swirl' | 'fly' | 'done';
+type WelcomePhase = 'pop' | 'flight' | 'done';
 
 const CONFETTI_COLORS = ['#10182a', '#7dd3fc', '#d6e6f5', 'hsl(var(--accent))', '#8eb4d4'];
-const CONFETTI_MS = 680;
 
 export type WelcomeNoticeSource = {
   title?: unknown;
@@ -56,30 +64,66 @@ export function welcomeCenter(viewport: { width: number; height: number }, size 
   };
 }
 
-/** One smooth orbit that leaves center and returns, so the fly has a single handoff. */
-export function welcomeSwirlFrames(
+/**
+ * One smooth move from the center to the account picture.
+ * A tight one-turn swirl rides along the flight and dies out at both ends,
+ * so the photo leaves center already traveling and arrives without a second tween.
+ */
+export function welcomeFlightFrames(
   center: { x: number; y: number },
+  dest: { x: number; y: number; scale: number },
   viewport: { width: number; height: number },
   size = WELCOME_AVATAR_SIZE,
 ) {
-  const cx = center.x + size / 2;
-  const cy = center.y + size / 2;
-  const radius = Math.max(84, Math.min(viewport.width, viewport.height) * 0.28);
-  const steps = 14;
+  const steps = 48;
+  const sx = center.x + size / 2;
+  const sy = center.y + size / 2;
+  const ex = dest.x + size / 2;
+  const ey = dest.y + size / 2;
+  const dx = ex - sx;
+  const dy = ey - sy;
+  const travel = Math.hypot(dx, dy) || 1;
+  const px = -dy / travel;
+  const py = dx / travel;
+  const radius = Math.max(44, Math.min(68, Math.min(viewport.width, viewport.height) * 0.12));
   const x: number[] = [];
   const y: number[] = [];
   const scale: number[] = [];
+  const rotate: number[] = [];
   const times: number[] = [];
+
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
+    if (i === 0) {
+      x.push(center.x);
+      y.push(center.y);
+      scale.push(1);
+      rotate.push(0);
+      times.push(0);
+      continue;
+    }
+    if (i === steps) {
+      x.push(dest.x);
+      y.push(dest.y);
+      scale.push(dest.scale);
+      rotate.push(0);
+      times.push(1);
+      continue;
+    }
+    // Ease-out travel: quick to leave, soft landing. Swirl envelope is zero at both ends.
+    const along = 1 - (1 - t) ** 1.55;
+    const envelope = Math.sin(Math.PI * t) ** 2;
     const angle = -Math.PI / 2 + t * Math.PI * 2;
-    const reach = radius * Math.sin(t * Math.PI);
-    x.push(cx + Math.cos(angle) * reach - size / 2);
-    y.push(cy + Math.sin(angle) * reach * 0.78 - size / 2);
-    scale.push(1 - 0.08 * Math.sin(t * Math.PI));
+    const ox = Math.cos(angle) * radius * envelope + px * radius * 0.32 * envelope;
+    const oy = Math.sin(angle) * radius * 0.82 * envelope + py * radius * 0.32 * envelope;
+    x.push(sx + dx * along + ox - size / 2);
+    y.push(sy + dy * along + oy - size / 2);
+    scale.push(1 + (dest.scale - 1) * along);
+    rotate.push(Math.sin(angle) * 11 * envelope);
     times.push(Number(t.toFixed(4)));
   }
-  return { x, y, scale, times };
+
+  return { x, y, scale, rotate, times };
 }
 
 export function welcomeFlyTarget(
@@ -120,14 +164,10 @@ function sleep(ms: number) {
   });
 }
 
-export async function waitForAccountAvatar(timeoutMs: number): Promise<AvatarBox | null> {
-  const start = performance.now();
-  let found = readAccountAvatarRect();
-  while (!found && performance.now() - start < timeoutMs) {
-    await sleep(80);
-    found = readAccountAvatarRect();
-  }
-  return found;
+function nextFrame() {
+  return new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
 }
 
 export function welcomeNoticeText(value: unknown): string {
@@ -166,22 +206,23 @@ function prefersReducedMotion() {
 }
 
 function AvatarConfetti({ x, y }: { x: number; y: number }) {
-  const pieces = Array.from({ length: 12 }, (_, index) => {
-    const angle = (Math.PI * 2 * index) / 12 + (index % 2 === 0 ? 0.12 : -0.08);
-    const dist = 16 + (index % 5) * 8;
+  const pieces = Array.from({ length: 14 }, (_, index) => {
+    const angle = (Math.PI * 2 * index) / 14 + (index % 2 === 0 ? 0.1 : -0.06);
+    const dist = 18 + (index % 5) * 7;
     const wide = index % 3 === 0;
     return {
       id: index,
       dx: Math.cos(angle) * dist,
-      dy: Math.sin(angle) * dist - 6,
+      dy: Math.sin(angle) * dist - 8,
       color: CONFETTI_COLORS[index % CONFETTI_COLORS.length],
-      delay: (index % 4) * 0.018,
-      rotate: (index % 2 === 0 ? 1 : -1) * (70 + index * 14),
-      width: wide ? 8 : 5,
-      height: wide ? 4 : 8,
+      delay: (index % 4) * 0.012,
+      rotate: (index % 2 === 0 ? 1 : -1) * (80 + index * 12),
+      width: wide ? 7 : 5,
+      height: wide ? 4 : 7,
       round: index % 4 === 0,
     };
   });
+  const burst = WELCOME_BURST_MS / 1000;
 
   return (
     <div
@@ -190,12 +231,31 @@ function AvatarConfetti({ x, y }: { x: number; y: number }) {
       className="pointer-events-none"
       style={{ position: 'fixed', left: x, top: y, width: 0, height: 0, zIndex: 10060 }}
     >
+      {[0, 1].map((ring) => (
+        <motion.span
+          key={`ring-${ring}`}
+          initial={{ scale: 0.35, opacity: 0.95 }}
+          animate={{ scale: 2.15 + ring * 0.45, opacity: 0 }}
+          transition={{ duration: burst * 0.85, delay: ring * 0.05, ease: [0.16, 0.84, 0.28, 1] }}
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            width: 26,
+            height: 26,
+            marginLeft: -13,
+            marginTop: -13,
+            borderRadius: 999,
+            border: ring === 0 ? '2px solid #7dd3fc' : '2px solid rgba(255,255,255,0.85)',
+          }}
+        />
+      ))}
       {pieces.map((piece) => (
         <motion.span
           key={piece.id}
-          initial={{ x: 0, y: 0, opacity: 1, scale: 0.55, rotate: 0 }}
+          initial={{ x: 0, y: 0, opacity: 1, scale: 0.45, rotate: 0 }}
           animate={{ x: piece.dx, y: piece.dy, opacity: 0, scale: 1, rotate: piece.rotate }}
-          transition={{ duration: 0.62, delay: piece.delay, ease: [0.16, 0.84, 0.32, 1] }}
+          transition={{ duration: burst * 0.9, delay: piece.delay, ease: [0.16, 0.84, 0.32, 1] }}
           style={{
             position: 'absolute',
             left: 0,
@@ -206,7 +266,6 @@ function AvatarConfetti({ x, y }: { x: number; y: number }) {
             marginTop: -piece.height / 2,
             borderRadius: piece.round ? 999 : 1.5,
             background: piece.color,
-            boxShadow: '0 0 0 1px rgba(255,255,255,0.28)',
           }}
         />
       ))}
@@ -215,9 +274,11 @@ function AvatarConfetti({ x, y }: { x: number; y: number }) {
 }
 
 /**
- * Post-sign-in profile picture. It holds in the center until Close, then swirls
- * and lands on the account avatar. Portaled outside the router, so it never
- * calls useLocation. It stays unmounted while the login sheet is up.
+ * Post-sign-in profile picture. It pops in the center on its own once the login
+ * sheet is gone, then swirls to the account avatar. Portaled outside the router,
+ * so it never calls useLocation. It stays unmounted while the login sheet is up.
+ * Position is x/y on a fixed origin — framer's transform would wipe a Tailwind
+ * -translate class.
  */
 export const WelcomeBackSplash = memo(function WelcomeBackSplash({
   avatarUrl,
@@ -228,14 +289,15 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
   const reducedRef = useRef(prefersReducedMotion());
-  const flyingRef = useRef(false);
   const aliveRef = useRef(true);
   const [holdingForAuth, setHoldingForAuth] = useState(
     () => typeof document !== 'undefined' && !!document.querySelector('[data-auth-shell]'),
   );
   const [dismissed, setDismissed] = useState(false);
-  const [motionKind, setMotionKind] = useState<'pending' | 'swirl' | 'direct'>('pending');
-  const [phase, setPhase] = useState<WelcomePhase>('hold');
+  const [motionKind, setMotionKind] = useState<'swirl' | 'direct'>(() => (
+    prefersReducedMotion() ? 'direct' : 'swirl'
+  ));
+  const [phase, setPhase] = useState<WelcomePhase>('pop');
   const [fly, setFly] = useState<{ x: number; y: number; fallback: boolean } | null>(null);
   const [confetti, setConfetti] = useState<{ x: number; y: number } | null>(null);
   const [origin] = useState(() =>
@@ -243,7 +305,6 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
       ? { x: 0, y: 0 }
       : welcomeCenter({ width: window.innerWidth, height: window.innerHeight }),
   );
-  const closeRef = useRef<HTMLButtonElement>(null);
   const { toasts } = useSonner();
   const notices = welcomeReturnNotices([
     ...toastSources(toast.getToasts()),
@@ -260,7 +321,7 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
   useEffect(() => {
     const tick = () => setHoldingForAuth(!!document.querySelector('[data-auth-shell]'));
     tick();
-    const id = window.setInterval(tick, 120);
+    const id = window.setInterval(tick, 80);
     return () => window.clearInterval(id);
   }, []);
 
@@ -271,6 +332,13 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
       document.body.classList.remove(WELCOME_ACCOUNT_PENDING, WELCOME_BACK_SPLASH);
     };
   }, [holdingForAuth, dismissed]);
+
+  const finish = useCallback(() => {
+    if (!aliveRef.current) return;
+    document.body.classList.remove(WELCOME_ACCOUNT_PENDING);
+    setDismissed(true);
+    onCompleteRef.current();
+  }, []);
 
   useEffect(() => {
     if (holdingForAuth || dismissed) return;
@@ -283,26 +351,69 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
     const run = async () => {
       const center = welcomeCenter(viewport());
       try {
-        if (cancelled || flyingRef.current) return;
         if (reduced) {
-          await controls.set({ x: center.x, y: center.y, scale: 1, opacity: 1 });
-        } else {
-          await controls.set({ x: center.x, y: center.y, scale: 0.72, opacity: 0 });
-          if (cancelled || flyingRef.current) return;
-          await controls.start({
-            x: center.x,
-            y: center.y,
-            scale: 1,
-            opacity: 1,
-            transition: { type: 'spring', stiffness: 380, damping: 28, mass: 0.7 },
-          });
+          await controls.set({ x: center.x, y: center.y, scale: 1, opacity: 1, rotate: 0 });
+          if (cancelled || !aliveRef.current) return;
+          await sleep(WELCOME_REDUCED_MS);
+          if (cancelled || !aliveRef.current) return;
+          finish();
+          return;
         }
+
+        await controls.set({ x: center.x, y: center.y, scale: 0.62, opacity: 0, rotate: 0 });
+        if (cancelled || !aliveRef.current) return;
+        await controls.start({
+          x: center.x,
+          y: center.y,
+          scale: [0.62, 1.08, 1],
+          opacity: [0, 1, 1],
+          rotate: 0,
+          transition: {
+            duration: WELCOME_POP_MS / 1000,
+            ease: [0.16, 0.84, 0.28, 1],
+            times: [0, 0.58, 1],
+          },
+        });
+        if (cancelled || !aliveRef.current) return;
+
+        let avatar = readAccountAvatarRect();
+        if (!avatar) {
+          await nextFrame();
+          if (cancelled || !aliveRef.current) return;
+          avatar = readAccountAvatarRect();
+        }
+        const dest = welcomeFlyTarget(viewport(), avatar);
+        if (cancelled || !aliveRef.current) return;
+        setPhase('flight');
+        setFly({ x: dest.x, y: dest.y, fallback: dest.usedFallback });
+        const frames = welcomeFlightFrames(center, dest, viewport());
+        await controls.start({
+          x: frames.x,
+          y: frames.y,
+          scale: frames.scale,
+          rotate: frames.rotate,
+          opacity: 1,
+          transition: {
+            duration: WELCOME_FLIGHT_MS / 1000,
+            ease: 'linear',
+            times: frames.times,
+          },
+        });
+        if (cancelled || !aliveRef.current) return;
+
+        const landed = readAccountAvatarRect() ?? avatar;
+        const point = landed
+          ? { x: landed.left + landed.width / 2, y: landed.top + landed.height / 2 }
+          : { x: dest.x + WELCOME_AVATAR_SIZE / 2, y: dest.y + WELCOME_AVATAR_SIZE / 2 };
+        document.querySelector('[data-welcome-avatar]')?.setAttribute('data-welcome-landed', '');
+        document.body.classList.remove(WELCOME_ACCOUNT_PENDING);
+        setConfetti(point);
+        setPhase('done');
+        await sleep(WELCOME_BURST_MS);
+        if (cancelled || !aliveRef.current) return;
+        finish();
       } catch {
-        if (!cancelled && !flyingRef.current && aliveRef.current) {
-          try {
-            await controls.set({ x: center.x, y: center.y, scale: 1, opacity: 1 });
-          } catch { /* Close still dismisses if the pop cannot start. */ }
-        }
+        if (!cancelled && aliveRef.current) finish();
       }
     };
 
@@ -310,118 +421,43 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
     return () => {
       cancelled = true;
     };
-  }, [holdingForAuth, dismissed, controls]);
-
-  const finish = useCallback(() => {
-    if (!aliveRef.current) return;
-    document.body.classList.remove(WELCOME_ACCOUNT_PENDING);
-    setDismissed(true);
-    onCompleteRef.current();
-  }, []);
-
-  const flyHome = useCallback(async () => {
-    const viewport = () => ({ width: window.innerWidth, height: window.innerHeight });
-    const center = welcomeCenter(viewport());
-    try {
-      controls.stop();
-      const frames = welcomeSwirlFrames(center, viewport());
-      await controls.start({
-        x: frames.x,
-        y: frames.y,
-        scale: frames.scale,
-        opacity: 1,
-        transition: { duration: 0.92, ease: [0.42, 0.02, 0.18, 1], times: frames.times },
-      });
-      if (!aliveRef.current) return;
-      setPhase('fly');
-      let avatar = readAccountAvatarRect() ?? await waitForAccountAvatar(700);
-      let dest = welcomeFlyTarget(viewport(), avatar);
-      if (dest.usedFallback) {
-        const late = readAccountAvatarRect() ?? await waitForAccountAvatar(420);
-        if (late) {
-          avatar = late;
-          dest = welcomeFlyTarget(viewport(), late);
-        }
-      }
-      if (!aliveRef.current) return;
-      setFly({ x: dest.x, y: dest.y, fallback: dest.usedFallback });
-      await controls.start({
-        x: dest.x,
-        y: dest.y,
-        scale: dest.scale,
-        opacity: 1,
-        transition: { type: 'spring', stiffness: 220, damping: 26, mass: 0.8 },
-      });
-      if (!aliveRef.current) return;
-      const landed = readAccountAvatarRect() ?? avatar;
-      const point = landed
-        ? { x: landed.left + landed.width / 2, y: landed.top + landed.height / 2 }
-        : { x: dest.x + WELCOME_AVATAR_SIZE / 2, y: dest.y + WELCOME_AVATAR_SIZE / 2 };
-      document.querySelector('[data-welcome-avatar]')?.setAttribute('data-welcome-landed', '');
-      document.body.classList.remove(WELCOME_ACCOUNT_PENDING);
-      setConfetti(point);
-      setPhase('done');
-      await sleep(CONFETTI_MS);
-      finish();
-    } catch {
-      finish();
-    }
-  }, [controls, finish]);
-
-  const beginFlight = useCallback(() => {
-    if (flyingRef.current || dismissed) return;
-    flyingRef.current = true;
-    if (reducedRef.current || prefersReducedMotion()) {
-      reducedRef.current = true;
-      finish();
-      return;
-    }
-    setPhase('swirl');
-    void flyHome();
-  }, [dismissed, finish, flyHome]);
-
-  useEffect(() => {
-    if (holdingForAuth || dismissed || phase !== 'hold') return;
-    closeRef.current?.focus({ preventScroll: true });
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        beginFlight();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [holdingForAuth, dismissed, phase, beginFlight]);
+  }, [holdingForAuth, dismissed, controls, finish]);
 
   if (typeof document === 'undefined' || holdingForAuth || dismissed) return null;
 
-  const holding = phase === 'hold';
+  const greeting = phase === 'pop';
 
   return createPortal(
     <div
-      role={holding ? 'dialog' : 'status'}
-      aria-modal={holding ? true : undefined}
+      role="status"
       aria-live="polite"
-      aria-labelledby={holding ? 'welcome-back-title' : undefined}
+      aria-labelledby={greeting ? 'welcome-back-title' : undefined}
       data-welcome-root=""
       data-welcome-motion={motionKind}
       data-welcome-phase={phase}
+      data-welcome-auto=""
+      data-welcome-pop-ms={String(WELCOME_POP_MS)}
+      data-welcome-flight-ms={String(WELCOME_FLIGHT_MS)}
       data-fly-x={fly ? String(Math.round(fly.x)) : undefined}
       data-fly-y={fly ? String(Math.round(fly.y)) : undefined}
       data-fly-fallback={fly ? String(fly.fallback) : undefined}
       className="pointer-events-none"
     >
-      {holding && (
-        <div
-          aria-hidden
-          className="pointer-events-auto fixed inset-0 bg-[#070b14]/80"
-          style={{ zIndex: 10000 }}
-        />
-      )}
-      {holding && (
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0"
+        style={{
+          zIndex: 10000,
+          opacity: greeting ? 1 : 0,
+          transition: 'opacity 160ms linear',
+          background:
+            'radial-gradient(ellipse at 50% 42%, rgba(7,11,20,0.78) 0%, rgba(7,11,20,0.34) 38%, rgba(7,11,20,0) 70%)',
+        }}
+      />
+      {greeting && (
         <div
           className="pointer-events-none fixed inset-x-0 z-[10002] mx-auto flex w-[min(92vw,380px)] flex-col items-center gap-2 px-6 text-center"
-          style={{ top: origin.y + WELCOME_AVATAR_SIZE + 22 }}
+          style={{ top: origin.y + WELCOME_AVATAR_SIZE + 18 }}
         >
           <h1 id="welcome-back-title" className="text-[1.65rem] font-bold tracking-tight text-white">
             Welcome back
@@ -438,7 +474,13 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
       <motion.div
         data-welcome-avatar=""
         aria-hidden
-        initial={{ x: origin.x, y: origin.y, scale: reducedRef.current ? 1 : 0.72, opacity: reducedRef.current ? 1 : 0 }}
+        initial={{
+          x: origin.x,
+          y: origin.y,
+          scale: reducedRef.current ? 1 : 0.62,
+          opacity: reducedRef.current ? 1 : 0,
+          rotate: 0,
+        }}
         animate={controls}
         style={{
           position: 'fixed',
@@ -449,6 +491,7 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
           zIndex: 10050,
           pointerEvents: 'none',
           transformOrigin: 'center center',
+          willChange: 'transform, opacity',
         }}
       >
         <Avatar className="h-full w-full bg-[#10182a] shadow-[0_18px_48px_rgba(2,6,16,0.55)] ring-2 ring-white/85">
@@ -461,17 +504,6 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
           />
         </Avatar>
       </motion.div>
-      {holding && (
-        <button
-          ref={closeRef}
-          type="button"
-          onClick={beginFlight}
-          className="pointer-events-auto fixed inset-x-0 z-[10003] mx-auto h-11 w-fit min-w-[8.5rem] rounded-full bg-[#10182a] px-8 text-sm font-semibold text-white shadow-[0_10px_28px_rgba(2,6,16,0.45)] ring-1 ring-white/20"
-          style={{ bottom: 'max(1.25rem, calc(env(safe-area-inset-bottom, 0px) + 1.25rem))' }}
-        >
-          Close
-        </button>
-      )}
       {confetti && <AvatarConfetti x={confetti.x} y={confetti.y} />}
     </div>,
     document.body,
