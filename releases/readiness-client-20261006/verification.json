@@ -1,0 +1,22 @@
+{
+  "checkedAt": "2026-10-07T01:07:08.677Z",
+  "sourceCommit": "2a56bf63196261f29c5e1dafee0e7b41bd8e00c1",
+  "sourceSha256": "7acb3cd0f310809a42b67752ee7f36f613659232c254615a55a379aa6ddd51fb",
+  "entry": "/assets/app-lUua0SI4.js",
+  "entrySha256": "f48478dabe76f05a0417e558a88323f79d8383bb541ed8d3a5899e83580a1a6b",
+  "builtAt": "2026-10-07T01:04:22.484Z",
+  "routes": [
+    "/login",
+    "/signup",
+    "/home",
+    "/profile",
+    "/messages",
+    "/map",
+    "/explore",
+    "/clips",
+    "/settings"
+  ],
+  "assets": 628,
+  "nativeDeployedAt": "1791335061278",
+  "scope": "HTTP source identity, entry integrity, route shells and native asset availability; not signed-in flows, physical phone adoption or native binary verification"
+}
