@@ -1478,19 +1478,15 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   await applyOAuthSession(active.session, confirmation ? 'email_2fa' : 'login_approval', { ...confirmation, guard });
                   guard();
                 } else {
-                  toast.error('Could not finish signing in. Try again.');
-                  setLoginGate(null);
-                  clearPendingLoginApproval();
-                  return;
+                  throw new Error('Session was not established');
                 }
               }
             } catch (e) {
               try { guard(); } catch { return; }
               console.warn('finish login after approval failed', e);
-              toast.error('Could not finish signing in. Please try again.');
-              setLoginGate(null);
-              clearPendingLoginApproval();
-              return;
+              // Let the gate retain its accepted receipt for an explicit retry.
+              // A profile/network failure does not mean the one-use code failed.
+              throw e;
             }
             guard();
             clearPendingLoginApproval();
