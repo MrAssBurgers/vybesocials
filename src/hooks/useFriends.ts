@@ -173,6 +173,18 @@ function partyIds(profileId?: string, authUid?: string | null): string[] {
   return [...new Set([profileId, authUid].filter((id): id is string => !!id))];
 }
 
+function queryErrorCode(error: { code?: string; message?: string } | null | undefined): string {
+  const raw = String(error?.code || '');
+  const code = raw.includes('/') ? raw.slice(raw.lastIndexOf('/') + 1) : raw;
+  if (!code && /requires an index/i.test(String(error?.message || ''))) return 'failed-precondition';
+  return code;
+}
+
+function canReadRequestsWithoutStatus(error: { code?: string; message?: string } | null | undefined): boolean {
+  const code = queryErrorCode(error);
+  return code === 'failed-precondition' || code === 'permission-denied';
+}
+
 async function readPendingFriendRequests(field: 'receiver_id' | 'sender_id', partyId: string) {
   const select = field === 'receiver_id'
     ? `*, sender:profiles!sender_id(id, user_id, username, avatar_url, display_name)`
@@ -182,7 +194,7 @@ async function readPendingFriendRequests(field: 'receiver_id' | 'sender_id', par
   // A status filter needs a composite index and some rule checks reject that
   // shape. One party filter uses the automatic index and still only returns
   // this member's own requests.
-  if (filtered.error.code !== 'failed-precondition' && filtered.error.code !== 'permission-denied') throw filtered.error;
+  if (!canReadRequestsWithoutStatus(filtered.error)) throw filtered.error;
   const broad = await db.from('friend_requests').select(select).eq(field, partyId).limit(100);
   if (broad.error) throw broad.error;
   return ((broad.data || []) as FriendRequest[]).filter((row) => row.status === 'pending');
@@ -200,7 +212,7 @@ async function readPendingForParties(field: 'receiver_id' | 'sender_id', ids: st
       succeeded = true;
     } catch (error) {
       lastError = error;
-      const code = error && typeof error === 'object' && 'code' in error ? String((error as { code?: string }).code) : '';
+      const code = queryErrorCode(error && typeof error === 'object' ? error as { code?: string; message?: string } : undefined);
       if (code === 'permission-denied') continue;
       throw error;
     }
@@ -265,8 +277,11 @@ export function useFriendRequests() {
     queryFn: async () => {
       if (!profileId) return { incoming: [], outgoing: [] };
 
-      const incomingRaw = await readPendingForParties('receiver_id', identities);
-      const outgoingRaw = await readPendingForParties('sender_id', identities);
+      const [incomingResult, outgoingResult] = await Promise.allSettled([
+        readPendingForParties('receiver_id', identities),
+        readPendingForParties('sender_id', identities),
+      ]);
+      if (incomingResult.status === 'rejected') throw incomingResult.reason;
 
       const sortByCreatedDesc = <T extends { created_at?: string }>(rows: T[]) =>
         [...rows].sort(
@@ -274,8 +289,8 @@ export function useFriendRequests() {
         );
 
       return {
-        incoming: sortByCreatedDesc(incomingRaw || []) as FriendRequest[],
-        outgoing: sortByCreatedDesc(outgoingRaw || []) as FriendRequest[],
+        incoming: sortByCreatedDesc(incomingResult.value || []) as FriendRequest[],
+        outgoing: sortByCreatedDesc(outgoingResult.status === 'fulfilled' ? outgoingResult.value || [] : []) as FriendRequest[],
       };
     },
     enabled: !!profileId,
