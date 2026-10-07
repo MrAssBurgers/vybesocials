@@ -1,0 +1,11 @@
+{
+  "firestore": { "rules": "releases/people-discovery-20261006/firestore.rules" },
+  "emulators": {
+    "firestore": { "host": "127.0.0.1", "port": 9494, "websocketPort": 9158 },
+    "auth": { "host": "127.0.0.1", "port": 9497 },
+    "hub": { "host": "127.0.0.1", "port": 4463 },
+    "logging": { "host": "127.0.0.1", "port": 4563 },
+    "ui": { "enabled": false },
+    "singleProjectMode": true
+  }
+}
