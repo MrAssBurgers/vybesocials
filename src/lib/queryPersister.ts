@@ -29,6 +29,8 @@ const PRIVATE_COMMUNITY_KEYS = new Set([
 const PRIVATE_STORY_KEYS = new Set(['stories', 'visible-story', 'story-author', 'friend-profile-stories', 'story-highlights', 'close-friends', 'close-friend-ids', 'story-likes', 'story-views', 'story-polls', 'story-poll-votes']);
 // Profile sections depend on the current viewer and fresh audience decisions.
 const PRIVATE_PROFILE_KEYS = new Set(['session-profile-id', 'profile', 'profile-by-id', 'profile-by-username', 'profile-view-identity', 'profile-view-request', 'profile-visibility-resolved', 'profile-visibility-settings', 'profile-section', 'profile-blocked-pair', 'profile-view-level', 'profile-view-friends-count', 'profile-cover-bg', 'profile-friends-list', 'follow-list', 'follow-authority', 'follow-management', 'tagged-posts']);
+// Strip snapshots left by the retired unscoped profile polling hook.
+PRIVATE_PROFILE_KEYS.add('follower-count');
 const PRIVATE_THEME_KEYS = new Set(['shared-theme', 'public-themes', 'saved-themes', 'my-shared-themes', 'theme-likes']);
 const PRIVATE_LOCATION_KEYS = new Set(['vybemap-location-intel', 'map-social', 'map-pins', 'vybemap-meetups', 'vybemap-places', 'vybemap-place-posts', 'vybemap-place-comments', 'vybemap-friend-checkins', 'vybemap-meetup-memberships', 'vybemap-group-maps', 'vybemap-group-members', 'vybemap-stories', 'vybemap-posts', 'vybemap-clips', 'vybemap-event-pins', 'location-sharing', 'location-share', 'vybemap-history', 'vybemap-heatmap']);
 const PRIVATE_DNA_KEYS = new Set(['dna-agent-settings', 'dna-content-preferences', 'dna-actions']);

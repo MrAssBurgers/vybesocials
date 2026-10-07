@@ -10,7 +10,7 @@ import { withProfileReadDeadline } from '@/lib/profileReadDeadline';
 interface Profile {
   id: string; user_id: string; username: string; display_name?: string | null;
   avatar_url: string | null; bio: string; created_at: string;
-  follower_count: number; following_count: number; following_count_label?: string;
+  follower_count: number; follower_count_label?: string; following_count: number; following_count_label?: string;
   post_count: number; post_count_label?: string; post_count_exact?: boolean;
   is_following: boolean; is_private?: boolean | null; is_verified?: boolean | null;
 }
@@ -54,6 +54,7 @@ function useProfileRead(kind:'id'|'username',target:string|undefined) {
   const stats=useQuery({
     queryKey:[root,normalized,'stats',...view.key,current?.id,query.dataUpdatedAt],enabled:view.active&&!!current,
     placeholderData:undefined,staleTime:0,gcTime:0,retry:false,refetchOnMount:'always',refetchOnWindowFocus:true,
+    refetchInterval:view.active&&!!current?30_000:false,
     queryFn:({signal})=>withProfileReadDeadline(async guard=>{
       guard();if(!current)throw new Error('Profile is not loaded.');
       const [followers,following,isFollowing]=await Promise.all([
@@ -68,7 +69,7 @@ function useProfileRead(kind:'id'|'username',target:string|undefined) {
   });
   const summary=useVisiblePostCount(current?.id);
   const counts=view.active&&stats.isFetchedAfterMount&&!stats.isError?stats.data:undefined;
-  return {...query,data:current?{...current,...counts,following_count_label:counts?String(counts.following_count):'—',post_count:summary.count??0,post_count_label:summary.label,post_count_exact:summary.exact}:current,
+  return {...query,data:current?{...current,...counts,follower_count_label:counts?String(counts.follower_count):'—',following_count_label:counts?String(counts.following_count):'—',post_count:summary.count??0,post_count_label:summary.label,post_count_exact:summary.exact}:current,
     isLoading:view.active&&(!query.isFetchedAfterMount||query.isPending),statsPending:!!current&&stats.isPending,statsError:stats.isError};
 }
 

@@ -53,6 +53,15 @@ describe('private profile sections never enter or return from shared disk query 
     expect(state.options!.deserialize(JSON.stringify(value)).clientState.queries).toHaveLength(0);
     client.clear();
   });
+  it('removes the retired unscoped follower count from old disk snapshots and new serialization', () => {
+    const client = new QueryClient();
+    client.setQueryData(['follower-count', 'alice-profile'], 42);
+    const value = { timestamp: Date.now(), buster: 'fixture', clientState: dehydrate(client) };
+    expect(shouldPersistQueryKey(['follower-count', 'alice-profile'], 42)).toBe(false);
+    expect(JSON.parse(state.options!.serialize(value)).clientState.queries).toHaveLength(0);
+    expect(state.options!.deserialize(JSON.stringify(value)).clientState.queries).toHaveLength(0);
+    client.clear();
+  });
   it.each(privateKeys)('denies %s even with a nonempty, account-scoped result', root => {
     expect(shouldPersistQueryKey([root, 'alice', 3], [{ content: 'private' }])).toBe(false);
   });

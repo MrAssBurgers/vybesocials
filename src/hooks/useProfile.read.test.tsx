@@ -19,6 +19,24 @@ function countReply(request:any){return request.count?{count:3,data:null,error:n
 beforeEach(()=>{vi.clearAllMocks();state.uid='alice';state.epoch++;state.ready=true;state.authReady=true;Object.defineProperty(navigator,'onLine',{configurable:true,value:true});window.dispatchEvent(new Event('app-resumed'));state.docs.mockResolvedValue([bob]);state.direct.mockResolvedValue(bob);state.disk.mockReturnValue(null);state.read.mockImplementation(async request=>request.table==='profiles'?{data:request.single?bob:[bob],error:null}:countReply(request));});
 afterEach(()=>{cleanup();vi.useRealTimers();Object.defineProperty(navigator,'onLine',{configurable:true,value:true});window.dispatchEvent(new Event('app-resumed'));});
 describe('actual profile read lifetime and auxiliary loading',()=>{
+  it('shares confirmed follower totals with the header instead of presenting an unconfirmed zero',async()=>{
+    const gate=pending<void>();state.read.mockImplementation(request=>gate.promise.then(()=>countReply(request)));
+    const hook=renderHook(()=>useProfileByUsername('bob'),{wrapper:wrapper(new QueryClient())});
+    await waitFor(()=>expect(hook.result.current.data?.id).toBe('bob-profile'));
+    expect(hook.result.current.data?.follower_count_label).toBe('—');
+    await act(async()=>{gate.resolve()});await waitFor(()=>expect(hook.result.current.data?.follower_count_label).toBe('3'));
+  });
+  it('refreshes statistics alone every thirty seconds and stops that polling during native pause',async()=>{
+    vi.useFakeTimers();const hook=renderHook(()=>useProfileByUsername('bob'),{wrapper:wrapper(new QueryClient())});
+    await act(async()=>{await vi.advanceTimersByTimeAsync(5)});expect(state.read).toHaveBeenCalledTimes(3);
+    await act(async()=>{await vi.advanceTimersByTimeAsync(30005)});expect(state.read).toHaveBeenCalledTimes(6);expect(state.docs).toHaveBeenCalledOnce();
+    await act(async()=>{window.dispatchEvent(new Event('app-paused'))});
+    await act(async()=>{await vi.advanceTimersByTimeAsync(60005)});expect(state.read).toHaveBeenCalledTimes(6);expect(hook.result.current.data).toBeUndefined();
+    await act(async()=>{window.dispatchEvent(new Event('app-resumed'))});
+    await act(async()=>{await vi.advanceTimersByTimeAsync(5)});
+    await act(async()=>{await vi.advanceTimersByTimeAsync(1)});
+    expect(state.read).toHaveBeenCalledTimes(9);expect(state.docs).toHaveBeenCalledTimes(2);expect(hook.result.current.data?.follower_count_label).toBe('3');
+  });
   it('retires a stalled header at the deadline and ignores its reply after a successful explicit retry',async()=>{
     vi.useFakeTimers();const gate=pending<any>();state.docs.mockReturnValueOnce(gate.promise);
     const hook=renderHook(()=>useProfileByUsername('bob'),{wrapper:wrapper(new QueryClient())});

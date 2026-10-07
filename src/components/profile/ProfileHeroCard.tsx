@@ -42,7 +42,7 @@ interface ProfileHeroCardProps {
   isPremium: boolean;
   profileRole: any;
   isModOrAdmin: boolean;
-  liveFollowerCount: number;
+  liveFollowerCount: number | undefined;
   displayBadges: any[];
   nameColor?: string;
   effectClass?: string;
@@ -275,7 +275,7 @@ export function ProfileHeroCard({
         <div className="flex items-center gap-1.5 sm:gap-2 mt-4 overflow-x-auto no-scrollbar">
           <StatCapsule value={profile.post_count_label ?? '—'} label="Visible posts" />
           <StatCapsule
-            value={liveFollowerCount}
+            value={liveFollowerCount ?? '—'}
             label="Followers"
             highlight
             onClick={() => setFollowListMode('followers')}
@@ -326,7 +326,7 @@ function StatCapsule({
   highlight,
   onClick,
 }: {
-  value: number;
+  value: number | string;
   label: string;
   highlight?: boolean;
   onClick?: () => void;

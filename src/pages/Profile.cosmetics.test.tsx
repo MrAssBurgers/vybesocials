@@ -12,7 +12,6 @@ vi.mock('@/hooks/useSavedPosts', () => ({ useSavedPosts: () => ({ data: [], unav
 vi.mock('@/hooks/useSignedUrl', () => ({ useSignedUrl: () => ({}) }));
 vi.mock('@/hooks/useMessages', () => ({ useMarkConversationReadByUser: () => ({ mutate: mock.markRead }) }));
 vi.mock('@/hooks/useUserRoleById', () => ({ useUserRoleById: () => ({ data: null }) }));
-vi.mock('@/hooks/useLiveFollowerCount', () => ({ useLiveFollowerCount: () => 0 }));
 vi.mock('@/hooks/useBadges', () => ({ useUserBadges: () => ({ data: [] }), useUserPrimaryBadge: () => ({ data: null }) }));
 vi.mock('@/hooks/useLockerItems', () => ({ useLockerItems: () => ({ data: { equippedProfileTheme: mock.theme, equippedFrame: mock.frame } }) }));
 vi.mock('@/hooks/usePremiumStatus', () => ({ usePremiumStatus: () => ({ isPremium: false }) }));
