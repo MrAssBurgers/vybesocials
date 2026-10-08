@@ -239,12 +239,23 @@ export async function loadConversationMessages(
   };
 
   if (recentOnly) {
-    let { data, error } = await fetchRecentTimed(conversationId, select, maxMessages);
+    // The joined select waits on a profile read per sender before the thread
+    // can paint. The plain page returns as soon as the messages do, and sender
+    // names fill in afterwards.
+    let { data, error } = await fetchRecentTimed(conversationId, MESSAGE_SELECT_MINIMAL, maxMessages);
     guard();
 
-    if (error) {
+    if (error && isAccessDenial(error)) {
       await repairWithTimeout(conversationId, resolvedActorId, otherProfileId);
       guard();
+      const retry = await fetchRecentTimed(conversationId, MESSAGE_SELECT_MINIMAL, maxMessages);
+      guard();
+      data = retry.data;
+      error = retryFailure(error, retry.error);
+    } else if (error) {
+      // A hung join or timeout used to wait out membership repair (about 3s)
+      // before the plain retry. Repair can finish in the background.
+      runRepairBackground();
       const retry = await fetchRecentTimed(conversationId, MESSAGE_SELECT_MINIMAL, maxMessages);
       guard();
       data = retry.data;

@@ -12,6 +12,7 @@ import {
   presenceIsOnline,
   shouldMirrorLastActive,
 } from '@/lib/signedInListenScope';
+import { patchUserPresence } from '@/lib/usersPresenceDoc';
 
 // Debug flag - set to true for dev debugging
 const DEBUG_PRESENCE = false;
@@ -68,6 +69,9 @@ export function usePresence() {
         console.error('[Presence] Failed to update presence:', error.message, error.details);
       } else {
         logPresence('Presence updated successfully');
+        // Chat headers read users/{id}. The app heartbeat used to update only
+        // user_presence, so a person active outside this thread looked offline.
+        void patchUserPresence(profile.id, { online: true }).catch(() => {});
         const mirroredAt = Date.now();
         if (shouldMirrorLastActive(mirroredAt, lastActiveMirroredAt)) {
           lastActiveMirroredAt = mirroredAt;

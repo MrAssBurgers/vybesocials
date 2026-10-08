@@ -8,6 +8,7 @@ import {
 import { useNotifications, useMarkNotificationsRead, NotificationType } from '@/hooks/useNotifications';
 import { useRecentAnnouncements } from '@/hooks/useAnnouncements';
 import { useFriendRequests, useRespondToFriendRequest } from '@/hooks/useFriends';
+import { keepFriendRequestNotice } from '@/lib/friendRequestNoticeModel';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -276,13 +277,15 @@ export default function NotificationsPage() {
     () => new Set(pendingRequests.map((request) => request.sender_id)),
     [pendingRequests],
   );
+  const requestsKnown = friendRequests !== undefined && !requestsError;
   const activeNotifications = useMemo(() => {
-    return (notifications || []).filter((notification) => {
-      if (notification.type !== 'friend_request') return true;
-      const actorId = notification.actor?.id;
-      return Boolean(actorId && pendingRequestSenderIds.has(actorId));
-    });
-  }, [notifications, pendingRequestSenderIds]);
+    return (notifications || []).filter((notification) => keepFriendRequestNotice(
+      notification.type,
+      notification.actor?.id,
+      pendingRequestSenderIds,
+      requestsKnown,
+    ));
+  }, [notifications, pendingRequestSenderIds, requestsKnown]);
 
   const unreadNotifications = activeNotifications.filter(n => !n.read) || [];
   const readNotifications = activeNotifications.filter(n => n.read) || [];

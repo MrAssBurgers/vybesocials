@@ -195,7 +195,10 @@ export function toUiActivity(
   if (!doc || !doc.online) return 'offline';
   if (isPresenceStale(doc)) return 'offline';
   if (doc.in_call) return 'in_call';
-  if (doc.active_conversation !== conversationId) return 'offline';
+  // App activity lives on this doc even when the person is not inside this
+  // thread. A fresh online row must stay "online" for scoped listeners.
+  // Conversation-specific actions still require this conversation.
+  if (doc.active_conversation !== conversationId) return 'online';
 
   const act = doc.current_activity;
   if (act === 'typing' || doc.typing_in === conversationId) return 'typing';
@@ -216,5 +219,5 @@ export function toUiActivity(
   if (act === 'uploading_image') return 'uploading_image';
   if (act === 'uploading_video') return 'uploading_video';
   if (act === 'viewing' || doc.active_conversation === conversationId) return 'viewing';
-  return 'offline';
+  return 'online';
 }

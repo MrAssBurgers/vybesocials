@@ -227,7 +227,9 @@ export function useChatPresence(
 
     const handleVisibility = () => {
       if (document.hidden) {
-        leaveNow(true);
+        // Still in the app, just not this thread. Marking the users doc offline
+        // made the other person's header say "offline" while they were active.
+        leaveNow(false);
       } else {
         void enterConversationPresence(effectiveProfileId, conversationId, metaRef.current);
         applyActivity(activityRef.current === 'offline' ? 'viewing' : activityRef.current);
@@ -251,7 +253,7 @@ export function useChatPresence(
       window.removeEventListener('pagehide', handlePageHide);
       document.removeEventListener('freeze', handleFreeze as EventListener);
       window.clearInterval(heartbeat);
-      leaveNow(true);
+      leaveNow(false);
     };
   }, [conversationId, effectiveProfileId, applyActivity]);
 

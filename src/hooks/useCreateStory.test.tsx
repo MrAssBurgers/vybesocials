@@ -46,10 +46,13 @@ describe('create story account and cache lifetime', () => {
     await act(async () => { await result.current.mutateAsync(input('second')); }); publish.reject(new Error('Unavailable')); await expect(promise).rejects.toThrow('Unavailable');
     expect(client.getQueryData(['stories', 'alice-profile', 'alice', 1])).toMatchObject({ pages: [{ stories: [expect.objectContaining({ id: 'confirmed' })] }] }); unmount(); client.clear();
   });
-  it('does not update cached confirmation after the composer unmounts', async () => {
+  it('still confirms the story after the composer unmounts', async () => {
     const publish = deferred<unknown>(); state.publish.mockReturnValue(publish.promise); const { result, client, unmount } = setup();
     let promise!: Promise<unknown>; act(() => { promise = result.current.mutateAsync(input()); }); await waitFor(() => expect(state.publish).toHaveBeenCalled());
-    unmount(); client.clear(); publish.resolve({ story, created: true }); await expect(promise).rejects.toMatchObject({ code: 'account-changed' }); expect(client.getQueryCache().getAll()).toHaveLength(0);
+    unmount(); publish.resolve({ story, created: true });
+    await expect(promise).resolves.toMatchObject({ id: 'confirmed' });
+    expect(client.getQueryData(['stories', 'alice-profile', 'alice', 1])).toMatchObject({ pages: [{ stories: [expect.objectContaining({ id: 'confirmed', isOptimistic: false })] }] });
+    client.clear();
   });
   it('preserves loaded story pages and raw continuation while inserting confirmed publication', async () => {
     const { result, client, unmount } = setup();

@@ -29,6 +29,7 @@ vi.mock('@/lib/resolveSessionProfileId', () => ({
 }));
 
 import { fetchRecentConversationMessages, fetchFullConversationMessageHistory } from '@/lib/conversationMessagesQuery';
+import { prepareConversationForMessages } from '@/lib/dmMembershipRepair';
 import { loadConversationMessages, MESSAGE_FETCH_TIMEOUT_MS } from '@/lib/loadConversationMessages';
 
 describe('loadConversationMessages timeouts', () => {
@@ -116,6 +117,19 @@ describe('loadConversationMessages timeouts', () => {
       .mockResolvedValueOnce({ data: [], error: position === 'second' ? denial : transient } as never);
     vi.mocked(fetchRecentConversationMessages).mockResolvedValueOnce({ data: null, error: position === 'last' ? denial : transient } as never);
     await expect(loadConversationMessages(qc, 'c1', 'actor-1', { recentOnly: false })).rejects.toBe(denial);
+  });
+
+  it('retries a transient message failure without waiting for membership repair', async () => {
+    const qc = new QueryClient();
+    vi.mocked(prepareConversationForMessages).mockImplementation(() => new Promise(() => {}));
+    vi.mocked(fetchRecentConversationMessages)
+      .mockResolvedValueOnce({ data: null, error: new Error('fetchRecentConversationMessages timed out') } as never)
+      .mockResolvedValueOnce({
+        data: [{ id: 'm1', conversation_id: 'c1', sender_id: 'actor-1', content: 'hi', created_at: '2026-01-01T00:00:00.000Z', is_deleted: false }],
+        error: null,
+      } as never);
+    await expect(loadConversationMessages(qc, 'c1', 'actor-1', { recentOnly: true })).resolves.toMatchObject([{ id: 'm1' }]);
+    vi.mocked(prepareConversationForMessages).mockImplementation(() => Promise.resolve());
   });
 
   it('accepts a later successful server read after an initial denial', async () => {

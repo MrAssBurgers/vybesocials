@@ -1,3 +1,53 @@
+## ACTIVE (2026-10-08) - Incoming requests, DM send, presence, stories, and invites
+
+### What changed
+- A denied `friend_requests` read no longer hides the Requests tab. The recipient reads `friend_request` notification rows they already own, confirms each with the deployed `getFriendshipState` callable, and Accept uses the returned `request_id`. The sender writes that notice when the request is `pending_outgoing`, including a repeat send and a profile view. `friend_request` notices stay visible while that list is still unknown.
+- Rules still deny the direct query when `profileId()` is empty, even if `receiver_id` is the signed-in uid. A rules change that allows read when `sender_id` or `receiver_id` is the auth uid would make the query work. That change is not deployed. The notification plus callable path does not need it.
+- Enter in the DM composer sends. Shift+Enter inserts a newline. The send uses the textarea value, and the phone keyboard's line-break input sends too.
+- Friend-request notices are written by the client under the existing create rule. A DM does not create a bell row. `notifyDmRecipients` in `functions/src/pushTriggers.ts` sends a push only, and a client create of type `dm` or `message` is denied. Unread DM badges come from the inbox `unread_count`. A bell row needs that function to insert a `notifications` document, then a functions deploy. No functions were deployed.
+- The inbox status says "Loading messages" while the list has not arrived, instead of "No unread messages".
+- A fresh online `users` document is Active now when that person is in another chat. Hiding the app no longer marks them offline. The app heartbeat also writes `online: true` onto `users/{id}`. The thread listens for both the profile id and the member user id.
+- Opening a DM starts with the auth uid and the minimal message select. A transient load retries immediately and repairs membership in the background. Access denials still wait for the repair.
+- Story Share finishes the publish after the editor unmounts, so the story exists and can be deleted. Switching accounts still cancels it.
+- Invite Friends no longer logs `[useInviteLeaderboard] Error` when `invite_leaderboard` is missing. The board is empty.
+
+### Verification
+- `npm run test`: 531 files passed, 1 skipped; 5162 passed, 6 skipped. Map renderer stderr is the existing noise.
+- `npm run typecheck` passed. `npm run build` passed. Entry `app-DLFOAqIZ.js` is 857.5 KB raw / 261.1 KB gzip. Generated `public/version.json` and `public/despia/local.json` restored.
+- No rules or functions were deployed. This client is not on vybehub.app until it is published.
+
+### Blockers
+- `vybe_qa_test2` sees the existing QA request only after a `friend_request` notice exists. The deployed sender wrote one only on the first create. This client writes it when the sender opens the profile or sends again.
+- DM bell rows stay absent until `notifyDmRecipients` also inserts a notification and that function is deployed.
+- `checkPremiumSubscription` answers the browser preflight with 403 and no CORS header. `tokenMarketplace`, `tokenMarketplace2`, and `checkStreamSubscription` are not deployed (404, no CORS header).
+
+### Next 3 tasks
+1. Publish this client, then open the QA profile from `vybe_qa_test` (or resend) so `vybe_qa_test2` can accept the request.
+2. Deploy `notifyDmRecipients` only after it writes the DM notification row. Leave the friend-request rules change undeployed unless the direct query is required.
+3. Delete the `vybe_qa_test` and `vybe_qa_test2` Auth users, the pending friend request, the QA display-name edit, and the QA direct messages when QA is done.
+
+## ACTIVE (2026-10-08) - Profile friend button follows the server request
+
+### What changed
+- Another person's profile asks `getFriendshipState` before it decides Add Friend, Request Sent, or Accept.
+- A direct `friend_requests` read that is denied, or that comes back empty, no longer hides a pending request the server already confirmed.
+- If that callable fails, the profile still checks the direct pending rows.
+
+### Verification
+- `npm run test`: 525 files passed, 1 skipped; 5149 passed, 6 skipped. Map renderer stderr is the existing noise.
+- `npm run typecheck` passed. `npm run build` passed. Entry `app-BdIqTuO0.js` is 857.5 KB raw / 261.4 KB gzip. Generated `public/version.json` and `public/despia/local.json` restored.
+- Live retest on `d2648b26` (vybehub.app, built 06:31 UTC): `mutateFriendship` confirmed the QA request as `pending_outgoing`, and `getFriendshipState` reported `pending_incoming` for the other QA account. The profile still showed Add Friend, and the Requests tab stayed empty, because the client read of `friend_requests` returns permission denied. No functions were deployed.
+
+### Blockers
+- This profile button change is not on vybehub.app until the client is published.
+- `checkPremiumSubscription` answers the browser preflight with 403 and no CORS header. `tokenMarketplace`, `tokenMarketplace2`, and `checkStreamSubscription` are not deployed (404, no CORS header).
+- Do not deploy functions from this change.
+
+### Next 3 tasks
+1. Publish this client, then accept the pending QA friend request from the profile Accept button.
+2. Fix or redeploy `checkPremiumSubscription` so the browser preflight succeeds, and remove or deploy the three 404 marketplace/stream callables.
+3. Delete the `vybe_qa_test` and `vybe_qa_test2` Auth users, the pending friend request, the QA display-name edit, and the QA direct messages when QA is done.
+
 ## ACTIVE (2026-10-08) - Live errors, story delete, and XP claims
 
 ### What changed

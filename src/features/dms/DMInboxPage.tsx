@@ -15,6 +15,7 @@ import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import { useAuth } from '@/lib/auth';
 import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 import { InboxNotes } from './InboxNotes';
+import { inboxListIsLoading, inboxUnreadAnnouncement } from './inboxUnreadStatus';
 
 export function DMInboxPage() {
   const { user } = useAuth();
@@ -69,9 +70,7 @@ function DMInboxContent() {
   return (
     <section className="dm-inbox" aria-label="Direct messages">
       <span className="sr-only" role="status" aria-live="polite">
-        {inbox.unreadBadgeCount > 0
-          ? `${inbox.unreadBadgeCount} unread ${inbox.unreadBadgeCount === 1 ? 'message' : 'messages'}`
-          : 'No unread messages'}
+        {inboxUnreadAnnouncement(inbox.unreadBadgeCount, inboxListIsLoading(inbox))}
       </span>
       <div className="dm-inbox-column">
         <DMHeader

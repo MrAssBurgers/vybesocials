@@ -303,6 +303,8 @@ export const LivePresenceBar = memo(function LivePresenceBar({
         <span className="text-xs font-medium text-sky-500">{activityLabel}</span>
       ) : isInChat || activity === 'viewing' ? (
         <span className="text-xs font-medium text-green-500">in chat</span>
+      ) : isOnline ? (
+        <span className="text-xs font-medium text-green-500">Active now</span>
       ) : readTimeAgo ? (
         <span className="text-xs font-medium text-muted-foreground">
           Read {readTimeAgo}

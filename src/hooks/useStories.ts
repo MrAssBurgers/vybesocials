@@ -115,14 +115,15 @@ export function useCreateStory() {
   const session = useReportAccountSession();
   const queryClient = useQueryClient();
   const boundGuard = useMemo(() => reportAccountGuard(user?.id || ''), [user?.id, session.epoch]);
-  const lifetime = useRef({ mounted: true });
-  useEffect(() => { const active = lifetime.current; active.mounted = true; return () => { active.mounted = false; }; }, []);
 
   return useMutation({
     mutationFn: async (input: CreateStoryParams): Promise<Story> => {
       const guard = () => {
         boundGuard(); input.accountGuard?.();
-        if (!lifetime.current.mounted || input.expectedOwnerUid !== user?.id) throw Object.assign(new Error('Your account changed. Open this story draft again.'), { code: 'account-changed' });
+        // The composer unmounts when Share closes the editor or the user
+        // leaves the page. The publish still has to finish so the story can
+        // be deleted. An account change still stops it.
+        if (input.expectedOwnerUid !== user?.id) throw Object.assign(new Error('Your account changed. Open this story draft again.'), { code: 'account-changed' });
       };
       guard();
       const authorId = await resolveStoryAuthorProfileId(profileId ?? profile?.id);
