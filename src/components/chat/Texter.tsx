@@ -6,6 +6,7 @@ import { VoiceRecorder } from '@/components/chat/VoiceRecorder';
 import { VoiceNoteReviewBar } from '@/components/chat/VoiceNoteReviewBar';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/lib/haptics';
+import { composerBeforeInputShouldSend } from '@/lib/composerEnter';
 
 const MAX_LINES = 5;
 const LINE_HEIGHT_PX = 22;
@@ -66,6 +67,26 @@ export const Texter = memo(function Texter({
   const [voiceReview, setVoiceReview] = useState<{ blob: Blob; duration: number } | null>(null);
   const voicePointerIdRef = useRef<number | null>(null);
   const voiceCaptureElRef = useRef<HTMLElement | null>(null);
+  const shiftNewlineRef = useRef(false);
+  const sendLockRef = useRef(0);
+
+  const handleComposerKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const isEnter = event.key === 'Enter' || event.code === 'Enter' || event.keyCode === 13;
+    shiftNewlineRef.current = isEnter && event.shiftKey;
+    onKeyDown(event);
+  };
+
+  const handleComposerBeforeInput = (event: React.FormEvent<HTMLTextAreaElement>) => {
+    const native = event.nativeEvent as InputEvent;
+    const shiftNewline = shiftNewlineRef.current;
+    shiftNewlineRef.current = false;
+    if (!composerBeforeInputShouldSend(native.inputType, shiftNewline, native.isComposing)) return;
+    event.preventDefault();
+    const now = Date.now();
+    if (now - sendLockRef.current < 400) return;
+    sendLockRef.current = now;
+    onSend();
+  };
 
   const releaseVoicePointerCapture = () => {
     const el = voiceCaptureElRef.current;
@@ -220,7 +241,9 @@ export const Texter = memo(function Texter({
                     onChange(e.target.value);
                     autoResize();
                   }}
-                  onKeyDown={onKeyDown}
+                  enterKeyHint="send"
+                  onKeyDown={handleComposerKeyDown}
+                  onBeforeInput={handleComposerBeforeInput}
                   onFocus={() => {
                     onFocus?.();
                     autoResize();

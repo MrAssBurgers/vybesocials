@@ -29,6 +29,7 @@ import {
   seedConversationDetailCache,
   seedMessagesFromInboxPreview,
 } from '@/lib/warmDmConversation';
+import { composerKeyShouldSend } from '@/lib/composerEnter';
 import { useAISmartReplies } from '@/hooks/useAIMessageAssist';
 import { useScreenCapture } from '@/hooks/useScreenCapture';
 import { blackoutChatScreenNow } from '@/lib/chatScreenShield';
@@ -668,7 +669,7 @@ function ChatViewContent() {
     setSendingVybe,
   } = useChatPresence(
     conversationId,
-    isGroupChat ? groupPeerIds : otherMember?.id,
+    isGroupChat ? groupPeerIds : [otherMember?.id, resolvedOther?.user_id],
   );
 
   const groupDockPeer = useMemo(
@@ -1003,7 +1004,8 @@ function ChatViewContent() {
   const handleSend = useCallback(() => {
     if (conversationWriteBlocked) return;
     try { assertMessageActionCurrent(); } catch { return; }
-    const raw = messageTextRef.current;
+    const raw = inputRef.current?.value ?? messageTextRef.current;
+    messageTextRef.current = raw;
     if (!raw.trim() || !conversationId) return;
 
     // Clear draft on send
@@ -1050,7 +1052,7 @@ function ChatViewContent() {
   // sendWithReply is now handled by useInstantSend's sendText
 
   const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (composerKeyShouldSend(e)) {
       e.preventDefault();
       handleSend();
     }
