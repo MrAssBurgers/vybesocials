@@ -29,8 +29,13 @@ export function useInviteLeaderboard(limit = 10) {
         .limit(limit);
       
       if (error) {
-        console.error('[useInviteLeaderboard] Error:', error);
-        throw error;
+        // invite_leaderboard is a leftover view, not a Firestore collection.
+        // A denied or missing read must not throw into the console.
+        return {
+          entries: [] as LeaderboardEntry[],
+          currentUserEntry: null,
+          currentUserInTop: false,
+        };
       }
       
       const entries = (data || []) as LeaderboardEntry[];
