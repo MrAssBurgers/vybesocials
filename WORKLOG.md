@@ -1,3 +1,31 @@
+## ACTIVE (2026-10-08) - Incoming requests, DM send, presence, stories, and invites
+
+### What changed
+- A denied `friend_requests` read no longer hides the Requests tab. The recipient reads `friend_request` notification rows they already own, confirms each with the deployed `getFriendshipState` callable, and Accept uses the returned `request_id`. The sender writes that notice when the request is `pending_outgoing`, including a repeat send and a profile view. `friend_request` notices stay visible while that list is still unknown.
+- Rules still deny the direct query when `profileId()` is empty, even if `receiver_id` is the signed-in uid. A rules change that allows read when `sender_id` or `receiver_id` is the auth uid would make the query work. That change is not deployed. The notification plus callable path does not need it.
+- Enter in the DM composer sends. Shift+Enter inserts a newline. The send uses the textarea value, and the phone keyboard's line-break input sends too.
+- Friend-request notices are written by the client under the existing create rule. A DM does not create a bell row. `notifyDmRecipients` in `functions/src/pushTriggers.ts` sends a push only, and a client create of type `dm` or `message` is denied. Unread DM badges come from the inbox `unread_count`. A bell row needs that function to insert a `notifications` document, then a functions deploy. No functions were deployed.
+- The inbox status says "Loading messages" while the list has not arrived, instead of "No unread messages".
+- A fresh online `users` document is Active now when that person is in another chat. Hiding the app no longer marks them offline. The app heartbeat also writes `online: true` onto `users/{id}`. The thread listens for both the profile id and the member user id.
+- Opening a DM starts with the auth uid and the minimal message select. A transient load retries immediately and repairs membership in the background. Access denials still wait for the repair.
+- Story Share finishes the publish after the editor unmounts, so the story exists and can be deleted. Switching accounts still cancels it.
+- Invite Friends no longer logs `[useInviteLeaderboard] Error` when `invite_leaderboard` is missing. The board is empty.
+
+### Verification
+- `npm run test`: 531 files passed, 1 skipped; 5162 passed, 6 skipped. Map renderer stderr is the existing noise.
+- `npm run typecheck` passed. `npm run build` passed. Entry `app-DLFOAqIZ.js` is 857.5 KB raw / 261.1 KB gzip. Generated `public/version.json` and `public/despia/local.json` restored.
+- No rules or functions were deployed. This client is not on vybehub.app until it is published.
+
+### Blockers
+- `vybe_qa_test2` sees the existing QA request only after a `friend_request` notice exists. The deployed sender wrote one only on the first create. This client writes it when the sender opens the profile or sends again.
+- DM bell rows stay absent until `notifyDmRecipients` also inserts a notification and that function is deployed.
+- `checkPremiumSubscription` answers the browser preflight with 403 and no CORS header. `tokenMarketplace`, `tokenMarketplace2`, and `checkStreamSubscription` are not deployed (404, no CORS header).
+
+### Next 3 tasks
+1. Publish this client, then open the QA profile from `vybe_qa_test` (or resend) so `vybe_qa_test2` can accept the request.
+2. Deploy `notifyDmRecipients` only after it writes the DM notification row. Leave the friend-request rules change undeployed unless the direct query is required.
+3. Delete the `vybe_qa_test` and `vybe_qa_test2` Auth users, the pending friend request, the QA display-name edit, and the QA direct messages when QA is done.
+
 ## ACTIVE (2026-10-08) - Profile friend button follows the server request
 
 ### What changed
