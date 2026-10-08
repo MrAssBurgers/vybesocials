@@ -1,3 +1,25 @@
+## ACTIVE (2026-10-08) - Profile friend button follows the server request
+
+### What changed
+- Another person's profile asks `getFriendshipState` before it decides Add Friend, Request Sent, or Accept.
+- A direct `friend_requests` read that is denied, or that comes back empty, no longer hides a pending request the server already confirmed.
+- If that callable fails, the profile still checks the direct pending rows.
+
+### Verification
+- `npm run test`: 525 files passed, 1 skipped; 5149 passed, 6 skipped. Map renderer stderr is the existing noise.
+- `npm run typecheck` passed. `npm run build` passed. Entry `app-BdIqTuO0.js` is 857.5 KB raw / 261.4 KB gzip. Generated `public/version.json` and `public/despia/local.json` restored.
+- Live retest on `d2648b26` (vybehub.app, built 06:31 UTC): `mutateFriendship` confirmed the QA request as `pending_outgoing`, and `getFriendshipState` reported `pending_incoming` for the other QA account. The profile still showed Add Friend, and the Requests tab stayed empty, because the client read of `friend_requests` returns permission denied. No functions were deployed.
+
+### Blockers
+- This profile button change is not on vybehub.app until the client is published.
+- `checkPremiumSubscription` answers the browser preflight with 403 and no CORS header. `tokenMarketplace`, `tokenMarketplace2`, and `checkStreamSubscription` are not deployed (404, no CORS header).
+- Do not deploy functions from this change.
+
+### Next 3 tasks
+1. Publish this client, then accept the pending QA friend request from the profile Accept button.
+2. Fix or redeploy `checkPremiumSubscription` so the browser preflight succeeds, and remove or deploy the three 404 marketplace/stream callables.
+3. Delete the `vybe_qa_test` and `vybe_qa_test2` Auth users, the pending friend request, the QA display-name edit, and the QA direct messages when QA is done.
+
 ## ACTIVE (2026-10-08) - Live errors, story delete, and XP claims
 
 ### What changed

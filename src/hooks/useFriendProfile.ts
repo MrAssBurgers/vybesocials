@@ -2,10 +2,19 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useProfileAccount } from './useProfileAccount';
 import { resolveProfileVisibility } from '@/lib/friendProfileClient';
+import { invokeFunction } from '@/lib/firebase/functionsService';
 import { getDocumentFromServer, getDocumentsFromServer, where, firestoreLimit } from '@/lib/firebase/firestoreDb';
 import { chooseProfileIdentity, profileUsernameCandidates } from '@/lib/profileUsername';
 import type { ProfileViewProfile } from '@/features/profile/types';
 import type { FriendshipUiStatus } from './useFriends';
+
+function friendshipUiStatus(state: string): FriendshipUiStatus {
+  if (state === 'accepted') return 'friends';
+  if (state === 'pending_outgoing') return 'pending_sent';
+  if (state === 'pending_incoming') return 'pending_received';
+  if (state === 'blocked') return 'blocked';
+  return 'none';
+}
 
 function profileRow(row: Record<string, unknown>): ProfileViewProfile {
   if ((typeof row.user_id !== 'string' || !row.user_id) && typeof row.id === 'string' && row.id && !row.id.includes('/')) {
@@ -58,12 +67,32 @@ export function useFriendProfile(username: string | undefined) {
     queryKey: ['profile-view-request', targetId, ...key],
     queryFn: async (): Promise<FriendshipUiStatus> => {
       actor.guard();
-      const [sent, received] = await Promise.all([
-        getDocumentsFromServer('friend_requests', [where('sender_id', '==', profileId), where('receiver_id', '==', targetId), where('status', '==', 'pending'), firestoreLimit(1)]),
-        getDocumentsFromServer('friend_requests', [where('sender_id', '==', targetId), where('receiver_id', '==', profileId), where('status', '==', 'pending'), firestoreLimit(1)]),
-      ]);
+      // The profile button used to read friend_requests directly. That query
+      // fails closed (missing composite index or a rules rejection) and the
+      // failure was shown as "Add Friend" even after getFriendshipState had
+      // already confirmed a pending request.
+      const result = await invokeFunction<{ state?: string }>('get-friendship-state', { target_profile_id: targetId }).single();
       actor.guard();
-      return received.length ? 'pending_received' : sent.length ? 'pending_sent' : 'none';
+      const state = !result.error && typeof result.data?.state === 'string' ? result.data.state : '';
+      if (state === 'pending_outgoing' || state === 'pending_incoming' || state === 'accepted' || state === 'blocked') {
+        return friendshipUiStatus(state);
+      }
+      let fallback: FriendshipUiStatus = 'none';
+      try {
+        const [sent, received] = await Promise.all([
+          getDocumentsFromServer('friend_requests', [where('sender_id', '==', profileId), where('receiver_id', '==', targetId), where('status', '==', 'pending'), firestoreLimit(1)]),
+          getDocumentsFromServer('friend_requests', [where('sender_id', '==', targetId), where('receiver_id', '==', profileId), where('status', '==', 'pending'), firestoreLimit(1)]),
+        ]);
+        actor.guard();
+        if (received.length) fallback = 'pending_received';
+        else if (sent.length) fallback = 'pending_sent';
+      } catch (error) {
+        if (!state) throw error;
+      }
+      if (fallback !== 'none') return fallback;
+      if (state === 'none' || state === 'declined' || state === 'cancelled') return 'none';
+      if (result.error) throw new Error(result.error.message || 'Friendship could not be checked.');
+      return 'none';
     },
     enabled: !!resolved && !resolved.isSelf && !resolved.isBlocked && !resolved.isFriend,
     retry: false, gcTime: 0, staleTime: 0,

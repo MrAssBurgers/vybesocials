@@ -6,7 +6,7 @@ const state = vi.hoisted(() => ({ user: { id: 'alice' }, profile: { id: 'a-profi
   auth: { currentUser: { uid: 'alice' } as { uid: string } | null, onAuthStateChanged: vi.fn() }, read: vi.fn(), single: vi.fn() }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: state.user, profile: state.profile }) }));
 vi.mock('@/lib/firebase/authService', () => ({ getFirebaseAuth: () => state.auth }));
-vi.mock('@/lib/firebase/functionsService', () => ({ invokeFunction: () => ({ single: state.single }) }));
+vi.mock('@/lib/firebase/functionsService', () => ({ invokeFunction: (name: string) => ({ single: () => state.single(name) }) }));
 vi.mock('@/lib/firebase/firestoreDb', () => ({ getDocumentsFromServer: state.read, getDocumentFromServer: vi.fn(), where: (...args: unknown[]) => args, firestoreLimit: (n: number) => n }));
 import { useFriendProfile } from './useFriendProfile';
 import { PROFILE_VISIBILITY_FIELDS } from '@/lib/profileVisibility';
@@ -56,5 +56,32 @@ describe('mounted profile authority', () => {
     await waitFor(() => expect(state.single).toHaveBeenCalledTimes(2));
     await act(async () => { old.resolve(response()); }); expect(result.current.profile).toBeNull();
     await act(async () => { current.resolve(response()); }); await waitFor(() => expect(result.current.profile?.id).toBe('target'));
+  });
+  it('shows an incoming request from the friendship callable when the client request query is empty', async () => {
+    const visible = response();
+    visible.data.isFriend = false;
+    visible.data.settings = Object.fromEntries(Object.keys(visible.data.settings).map((field) => [field, 'public']));
+    state.single.mockImplementation((name: string) => Promise.resolve(name === 'get-friendship-state'
+      ? { data: { state: 'pending_incoming', request_id: 'alice_target' }, error: null }
+      : visible));
+    state.read.mockImplementation((table: string) => Promise.resolve(table === 'friend_requests' ? [] : [{ id: 'target', user_id: 'target-uid', username: 'target', bio: 'private biography' }]));
+    const { result } = renderHook(() => useFriendProfile('target'), { wrapper });
+    await waitFor(() => expect(result.current.friendshipStatus).toBe('pending_received'));
+    expect(result.current.isPendingRequest).toBe(true);
+  });
+  it('uses the direct request rows when the friendship callable fails', async () => {
+    const visible = response();
+    visible.data.isFriend = false;
+    visible.data.settings = Object.fromEntries(Object.keys(visible.data.settings).map((field) => [field, 'public']));
+    state.single.mockImplementation((name: string) => Promise.resolve(name === 'get-friendship-state'
+      ? { data: null, error: { message: 'unavailable' } }
+      : visible));
+    state.read.mockImplementation((table: string, constraints: unknown[] = []) => {
+      if (table !== 'friend_requests') return Promise.resolve([{ id: 'target', user_id: 'target-uid', username: 'target' }]);
+      const sender = Array.isArray(constraints[0]) && constraints[0][0] === 'sender_id' && constraints[0][2] === 'a-profile';
+      return Promise.resolve(sender ? [{ id: 'req' }] : []);
+    });
+    const { result } = renderHook(() => useFriendProfile('target'), { wrapper });
+    await waitFor(() => expect(result.current.friendshipStatus).toBe('pending_sent'));
   });
 });
