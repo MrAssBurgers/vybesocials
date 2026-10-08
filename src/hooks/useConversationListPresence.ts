@@ -75,7 +75,10 @@ export function useConversationListPresence(
         const doc = peerDocs.get(peerId) ?? null;
         const state = toUiActivity(doc, conversationId);
         if (state === 'offline') continue;
-        const activity = uiActivityFromState(state);
+        const mapped = uiActivityFromState(state);
+        // App-level "online" maps to idle so a thread does not say "in chat".
+        // The inbox dot still needs a non-idle activity to light up.
+        const activity = state === 'online' && mapped === 'idle' ? 'viewing' : mapped;
         if (activity !== 'idle') next.set(conversationId, activity);
       }
       setActivityByConversation(previous => previous.size === next.size

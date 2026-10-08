@@ -19,8 +19,9 @@ export function uiActivityFromState(state: UserActivityState): ActivityType {
     case 'in_call':
       return 'in_call';
     case 'viewing':
-    case 'online':
       return 'viewing';
+    case 'online':
+      return 'idle';
     default:
       return 'idle';
   }
