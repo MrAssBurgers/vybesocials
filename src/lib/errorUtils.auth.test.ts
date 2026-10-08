@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getFriendlyAuthError, sanitizeAuthToastMessage } from './errorUtils';
+import { getFriendlyAuthError, getUserFriendlyError, sanitizeAuthToastMessage } from './errorUtils';
 
 describe('getFriendlyAuthError', () => {
   it('maps unauthorized domain', () => {
@@ -20,6 +20,7 @@ describe('getFriendlyAuthError', () => {
 
   it('suppresses cancelled popup', () => {
     expect(getFriendlyAuthError({ code: 'auth/popup-closed-by-user' })).toBe('__SUPPRESS__');
+    expect(getUserFriendlyError({ code: 'auth-attempt-retired', message: 'This sign-in changed. Please try again.' })).toBe('__SUPPRESS__');
   });
 
   it('maps Apple SDK missing', () => {

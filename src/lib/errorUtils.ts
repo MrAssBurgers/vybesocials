@@ -149,6 +149,11 @@ export function getUserFriendlyError(error: any): string {
     return APPLE_SIGNIN_OPEN_FAILED;
   }
 
+  // A replaced attempt is not a failed password. The newer attempt owns the result.
+  if (code === 'auth-attempt-retired' || message === 'This sign-in changed. Please try again.') {
+    return '__SUPPRESS__';
+  }
+
   // Prefer the OAuth-specific mapper when Firebase auth codes are present.
   if (code.startsWith('auth/')) {
     return getFriendlyAuthError(error);

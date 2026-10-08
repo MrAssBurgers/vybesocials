@@ -133,6 +133,20 @@ describe('mounted resume watcher', () => {
     renderHook(useSessionTracking); await waitFor(() => expect(state.read).toHaveBeenCalledOnce());
     expect(state.signOut).not.toHaveBeenCalled(); expect(localStorage.getItem('vybe-app-session-id-alice-device-one')).toBe('old-device');
   });
+  it('waits for the interactive registration before a resume can sign the device out', async () => {
+    const pending = deferred<{ data: ReturnType<typeof response>; error: null }>();
+    state.invoke.mockReturnValueOnce(pending.promise).mockResolvedValue({ data: response(), error: null });
+    const login = notifyFreshLogin('password');
+    renderHook(useSessionTracking);
+    await act(async () => { await Promise.resolve(); });
+    expect(state.signOut).not.toHaveBeenCalled();
+    expect(state.invoke).toHaveBeenCalledOnce();
+    pending.resolve({ data: response(), error: null });
+    await login;
+    await waitFor(() => expect(state.invoke).toHaveBeenCalledTimes(2));
+    expect(state.invoke.mock.calls[1][1].body.method).toBe('session_resume');
+    expect(state.signOut).not.toHaveBeenCalled();
+  });
   it('requires interactive confirmation after an interrupted first-factor startup when the server denies resume', async () => {
     state.invoke.mockResolvedValue({ data: null, error: pendingError() });
     renderHook(useSessionTracking); await waitFor(() => expect(state.signOut).toHaveBeenCalledOnce());

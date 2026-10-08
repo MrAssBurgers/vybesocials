@@ -6,6 +6,9 @@ import { clearPendingLoginApproval, setPendingLoginApproval, shouldBlockPostLogi
 import { captureDeviceSignIn, deviceConfirmationRequired, registerCurrentDevice, signOutForDeviceConfirmation, signOutIfCurrentDeviceRevoked } from '@/lib/loginDeviceService';
 
 const REVOKE_CHECK_INTERVAL_MS = 15_000;
+/** Password sign-in hydrates before device registration finishes. A resume
+ * during that window sees an untrusted row and must not sign the person out. */
+let freshRegistration: Promise<unknown> | null = null;
 export interface FreshLoginNotifyResult {
   requiresApproval: boolean; challengeId?: string; expiresAt?: string; sessionId?: string;
   deviceLabel?: string; geo?: PendingLoginApproval['location']; reason?: string;
@@ -30,6 +33,12 @@ export function useSessionTracking() {
       if (cancelled || running || shouldBlockPostLoginNavigation()) return;
       running = true;
       try {
+        const pending = freshRegistration;
+        if (pending) {
+          try { await pending; } catch { /* The interactive sign-in owns this failure. */ }
+          guard();
+          if (shouldBlockPostLoginNavigation()) return;
+        }
         const signIn = await captureDeviceSignIn(user.id, guard);
         rememberCurrentSessionHash(user.id, device);
         if (!checkedId && Date.now() - lastRegistration >= 60_000) {
@@ -60,6 +69,13 @@ export function useSessionTracking() {
 
 /** Interactive confirmation failures stay errors rather than claiming approval. */
 export async function notifyFreshLogin(method: string, guard: () => void = () => {}, expectedEmailChallengeId?: string, deferGateClear = false): Promise<FreshLoginNotifyResult> {
+  const work = registerFreshLogin(method, guard, expectedEmailChallengeId, deferGateClear);
+  freshRegistration = work;
+  try { return await work; }
+  finally { if (freshRegistration === work) freshRegistration = null; }
+}
+
+async function registerFreshLogin(method: string, guard: () => void, expectedEmailChallengeId?: string, deferGateClear = false): Promise<FreshLoginNotifyResult> {
   const signIn = await captureDeviceSignIn(undefined, guard), device = getOrCreateDeviceId();
   const payload = await registerCurrentDevice(signIn, device, method, undefined, expectedEmailChallengeId);
   signIn.guard(); rememberCurrentSessionHash(signIn.uid, device);
