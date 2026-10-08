@@ -1021,7 +1021,8 @@ const CLIENT_RPC: Record<string, (params: Record<string, unknown>) => Promise<un
     return data ?? { ok: true };
   },
   match_contacts: async (p) => {
-    const hashes = Array.isArray(p.hashes) ? p.hashes : [];
+    const hashes = Array.isArray(p.hashes) ? p.hashes.filter((hash): hash is string => typeof hash === 'string' && /^[a-f0-9]{64}$/.test(hash)) : [];
+    if (!hashes.length) return [];
     const { data, error } = await invokeFunction<unknown[]>('match_contacts', { hashes });
     if (error) throw error;
     if (Array.isArray(data)) return data;

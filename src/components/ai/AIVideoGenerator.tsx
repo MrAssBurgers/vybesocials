@@ -155,10 +155,13 @@ export function AIVideoGenerator({ onVideoGenerated, onClose }: AIVideoGenerator
       }
 
     } catch (err) {
-      console.error('Generation error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to generate');
+      const message = err instanceof Error ? err.message : 'Failed to generate';
+      const unavailable = message === 'video_generation_unavailable';
+      if (!unavailable) console.error('Generation error:', err);
+      const shown = unavailable ? 'AI video is not available right now.' : message;
+      setError(shown);
       setStatus('idle');
-      toast.error(err instanceof Error ? err.message : 'Failed to generate AI content');
+      toast.error(shown);
     }
   };
 

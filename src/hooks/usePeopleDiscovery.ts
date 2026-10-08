@@ -24,8 +24,9 @@ export function usePeopleDiscovery() {
     // Slow transport shortens the checked lease. Renew while it is still
     // current so the fixed ten-second poll does not make suggestions blink.
     refetchInterval: query => {
+      if (query.state.error) return false;
       const remaining = (query.state.data?.validUntil ?? 0) - Date.now();
-      return remaining > 0 && !query.state.error ? Math.max(1000, Math.min(10_000, remaining / 3)) : 10_000;
+      return remaining > 0 ? Math.max(1000, Math.min(10_000, remaining / 3)) : 10_000;
     },
   });
   useEffect(() => {
