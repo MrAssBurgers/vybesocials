@@ -231,16 +231,21 @@ export default function InviteFriends() {
             </h2>
             
             <div className="flex flex-wrap gap-2">
-              {badges.map((badge) => (
+              {badges.map((badge) => {
+                if (!badge) return null;
+                const type = typeof badge.badge_type === 'string' ? badge.badge_type : '';
+                const name = badge.badge_name || 'Badge';
+                return (
                 <Badge 
                   key={badge.id} 
                   variant="outline"
                   className="py-2 px-3 gap-2"
                 >
-                  {badge.badge_type.includes('invite') && '🎖️'}
-                  {badge.badge_name}
+                  {type.includes('invite') && '🎖️'}
+                  {name}
                 </Badge>
-              ))}
+                );
+              })}
             </div>
           </motion.div>
         )}
