@@ -37,8 +37,13 @@ vi.mock('@/lib/realtimeChannel', () => ({
   subscribePostgresChannel: () => ({}),
   removeRealtimeChannel: () => {},
 }));
+const inbox = vi.hoisted(() => ({ load: vi.fn(async () => [] as Array<Record<string, unknown>>) }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: state.userId ? { id: state.userId } : null }) }));
 vi.mock('@/hooks/useAuthProfileId', () => ({ useAuthProfileId: () => state.profileId }));
+vi.mock('@/lib/friendRequestNotice', () => ({
+  loadIncomingFriendRequestsFromNotices: (...args: unknown[]) => inbox.load(...args),
+  ensureFriendRequestNotice: vi.fn(),
+}));
 
 import { useFriendRequests } from './useFriends';
 
@@ -58,6 +63,8 @@ afterEach(() => {
   clients.length = 0;
   state.profileId = 'profile-alice';
   state.userId = 'alice';
+  inbox.load.mockReset();
+  inbox.load.mockResolvedValue([]);
 });
 
 const pending = {
@@ -105,10 +112,25 @@ describe('pending friend request reads', () => {
     expect(view.result.current.data?.incoming.map((row) => row.id)).toEqual(['req-uid']);
   });
 
-  it('reports an error only when every identity fails', async () => {
+  it('uses getFriendshipState notices when every friend_requests read is denied', async () => {
+    state.rowsFor = () => ({ data: [], error: { code: 'permission-denied', message: 'Missing or insufficient permissions.' } });
+    inbox.load.mockResolvedValue([{
+      id: 'qa1_qa2',
+      sender_id: 'qa1',
+      receiver_id: 'profile-alice',
+      status: 'pending',
+      created_at: '2026-10-08T00:00:00.000Z',
+    }]);
+    const view = renderHook(() => useFriendRequests(), { wrapper: setup() });
+    await waitFor(() => expect(view.result.current.isSuccess).toBe(true));
+    expect(inbox.load).toHaveBeenCalled();
+    expect(view.result.current.data?.incoming.map((row) => row.id)).toEqual(['qa1_qa2']);
+  });
+
+  it('stays empty instead of erroring when the denied list has no confirmed request', async () => {
     state.rowsFor = () => ({ data: [], error: { code: 'permission-denied', message: 'Missing or insufficient permissions.' } });
     const view = renderHook(() => useFriendRequests(), { wrapper: setup() });
-    await waitFor(() => expect(view.result.current.isError).toBe(true));
-    expect(view.result.current.data).toBeUndefined();
+    await waitFor(() => expect(view.result.current.isSuccess).toBe(true));
+    expect(view.result.current.data?.incoming).toEqual([]);
   });
 });

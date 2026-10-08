@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import { ensureFriendRequestNotice } from '@/lib/friendRequestNotice';
 import { useProfileAccount } from './useProfileAccount';
 import { resolveProfileVisibility } from '@/lib/friendProfileClient';
 import { invokeFunction } from '@/lib/firebase/functionsService';
@@ -75,6 +76,9 @@ export function useFriendProfile(username: string | undefined) {
       actor.guard();
       const state = !result.error && typeof result.data?.state === 'string' ? result.data.state : '';
       if (state === 'pending_outgoing' || state === 'pending_incoming' || state === 'accepted' || state === 'blocked') {
+        if (state === 'pending_outgoing' && profileId && targetId) {
+          void ensureFriendRequestNotice(targetId, profileId);
+        }
         return friendshipUiStatus(state);
       }
       let fallback: FriendshipUiStatus = 'none';

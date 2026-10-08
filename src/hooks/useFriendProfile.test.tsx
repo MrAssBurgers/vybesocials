@@ -8,6 +8,8 @@ vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: state.user, profile: stat
 vi.mock('@/lib/firebase/authService', () => ({ getFirebaseAuth: () => state.auth }));
 vi.mock('@/lib/firebase/functionsService', () => ({ invokeFunction: (name: string) => ({ single: () => state.single(name) }) }));
 vi.mock('@/lib/firebase/firestoreDb', () => ({ getDocumentsFromServer: state.read, getDocumentFromServer: vi.fn(), where: (...args: unknown[]) => args, firestoreLimit: (n: number) => n }));
+vi.mock('@/lib/friendRequestNotice', () => ({ ensureFriendRequestNotice: vi.fn() }));
+import { ensureFriendRequestNotice } from '@/lib/friendRequestNotice';
 import { useFriendProfile } from './useFriendProfile';
 import { PROFILE_VISIBILITY_FIELDS } from '@/lib/profileVisibility';
 import { reportAccountSnapshot } from '@/lib/reportModerationService';
@@ -68,6 +70,19 @@ describe('mounted profile authority', () => {
     const { result } = renderHook(() => useFriendProfile('target'), { wrapper });
     await waitFor(() => expect(result.current.friendshipStatus).toBe('pending_received'));
     expect(result.current.isPendingRequest).toBe(true);
+    expect(ensureFriendRequestNotice).not.toHaveBeenCalled();
+  });
+  it('writes a recipient notice when the server says the request is outgoing', async () => {
+    const visible = response();
+    visible.data.isFriend = false;
+    visible.data.settings = Object.fromEntries(Object.keys(visible.data.settings).map((field) => [field, 'public']));
+    state.single.mockImplementation((name: string) => Promise.resolve(name === 'get-friendship-state'
+      ? { data: { state: 'pending_outgoing', request_id: 'a-profile_target' }, error: null }
+      : visible));
+    state.read.mockImplementation((table: string) => Promise.resolve(table === 'friend_requests' ? [] : [{ id: 'target', user_id: 'target-uid', username: 'target', bio: 'private biography' }]));
+    const { result } = renderHook(() => useFriendProfile('target'), { wrapper });
+    await waitFor(() => expect(result.current.friendshipStatus).toBe('pending_sent'));
+    expect(ensureFriendRequestNotice).toHaveBeenCalledWith('target', 'a-profile');
   });
   it('uses the direct request rows when the friendship callable fails', async () => {
     const visible = response();

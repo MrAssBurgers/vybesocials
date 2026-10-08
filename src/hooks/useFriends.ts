@@ -18,6 +18,7 @@ import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
 import { toast } from 'sonner';
 import { recordChallengeActivity } from '@/lib/challengeProgressClient';
 import { ensureArray } from '@/lib/persistedCollections';
+import { ensureFriendRequestNotice, loadIncomingFriendRequestsFromNotices } from '@/lib/friendRequestNotice';
 
 /** Stable doc id — matches directed pair (sender → receiver). */
 function friendRequestDocId(senderId: string, receiverId: string): string {
@@ -204,6 +205,7 @@ async function readPendingForParties(field: 'receiver_id' | 'sender_id', ids: st
   const merged = new Map<string, FriendRequest>();
   let lastError: unknown = null;
   let succeeded = false;
+  let sawDenial = false;
   for (const id of ids) {
     try {
       for (const row of await readPendingFriendRequests(field, id)) {
@@ -213,12 +215,17 @@ async function readPendingForParties(field: 'receiver_id' | 'sender_id', ids: st
     } catch (error) {
       lastError = error;
       const code = queryErrorCode(error && typeof error === 'object' ? error as { code?: string; message?: string } : undefined);
-      if (code === 'permission-denied') continue;
+      if (code === 'permission-denied') {
+        sawDenial = true;
+        continue;
+      }
       throw error;
     }
   }
-  if (!succeeded) throw lastError instanceof Error ? lastError : new Error('Friend requests could not be loaded.');
-  return [...merged.values()];
+  if (!succeeded && !sawDenial) {
+    throw lastError instanceof Error ? lastError : new Error('Friend requests could not be loaded.');
+  }
+  return { rows: [...merged.values()], sawDenial: sawDenial && merged.size === 0 };
 }
 
 export function useFriendRequests() {
@@ -283,14 +290,19 @@ export function useFriendRequests() {
       ]);
       if (incomingResult.status === 'rejected') throw incomingResult.reason;
 
+      let incoming = incomingResult.value.rows;
+      if (incomingResult.value.sawDenial && incoming.length === 0) {
+        incoming = await loadIncomingFriendRequestsFromNotices(identities, profileId) as FriendRequest[];
+      }
+
       const sortByCreatedDesc = <T extends { created_at?: string }>(rows: T[]) =>
         [...rows].sort(
           (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(),
         );
 
       return {
-        incoming: sortByCreatedDesc(incomingResult.value || []) as FriendRequest[],
-        outgoing: sortByCreatedDesc(outgoingResult.status === 'fulfilled' ? outgoingResult.value || [] : []) as FriendRequest[],
+        incoming: sortByCreatedDesc(incoming),
+        outgoing: sortByCreatedDesc(outgoingResult.status === 'fulfilled' ? outgoingResult.value.rows : []) as FriendRequest[],
       };
     },
     enabled: !!profileId,
@@ -730,6 +742,10 @@ export function useSendFriendRequest() {
         queryClient.invalidateQueries({ queryKey: ['infinite-following-posts'] });
         queryClient.invalidateQueries({ queryKey: ['personalized-feed-v2'] });
         queryClient.invalidateQueries({ queryKey: ['personalized-feed'] });
+      }
+
+      if (result?.state === 'pending_outgoing' && profileId && result.receiverProfileId) {
+        void ensureFriendRequestNotice(result.receiverProfileId, profileId);
       }
 
       if (result?.alreadyExists) {
