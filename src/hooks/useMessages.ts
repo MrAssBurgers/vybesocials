@@ -7,12 +7,12 @@ import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
-import { fetchMessagesForConversations } from '@/lib/conversationMessagesQuery';
+import { CHAT_INITIAL_MESSAGE_LIMIT, fetchMessagesForConversations, fetchRecentConversationMessages } from '@/lib/conversationMessagesQuery';
 import { messagesQueryKey, readMessagesCache, mergeMessagesWithLocalCache, patchMessagesCache, normalizeMessagesCache } from '@/lib/messagesQueryKey';
 import { safeDmMembers, ensureArray } from '@/lib/persistedCollections';
 import { applyMessageSaveToggle } from '@/lib/messageSaveToggle';
 import { loadConversationMessages, MESSAGE_SELECT_MINIMAL, MESSAGE_SELECT_WARM } from '@/lib/loadConversationMessages';
-import { CHAT_INITIAL_MESSAGE_LIMIT, fetchRecentConversationMessages } from '@/lib/conversationMessagesQuery';
+import { dmThreadActorId } from '@/lib/dmThreadActor';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { shouldRefetchWhenEmptyOrSparse, refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { toast } from 'sonner';
@@ -315,7 +315,13 @@ export function useMessages(conversationId: string | undefined) {
   const session = useReportAccountSession();
   const profileId = useAuthProfileId();
   const accountReady = !!user?.id && user.id === session.uid;
-  const actorId = accountReady && profile?.user_id === user.id ? (profileId ?? profile.id) : undefined;
+  const actorId = dmThreadActorId({
+    accountReady,
+    authUid: user?.id,
+    profileId,
+    profileUserId: profile?.user_id,
+    profileDocumentId: profile?.id,
+  });
   const queryClient = useQueryClient();
   const prevActorRef = useRef<string | undefined>(actorId);
 
@@ -348,8 +354,7 @@ export function useMessages(conversationId: string | undefined) {
     },
     // Match inbox — offlineFirst can pause forever with isFetched=false.
     networkMode: 'always',
-    retry: 2,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
+    retry: false,
   });
 
   // Refetch whenever actor becomes available OR changes (authUid → legacy UUID).
