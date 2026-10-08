@@ -211,8 +211,11 @@ export function useDMConversations(searchQuery: string = '') {
         guard();
         created = true;
       } catch (error) {
-        console.error('Failed to create conversation for friend:', friend.id, error);
-        attemptedFriendIdsRef.current.delete(friend.id);
+        const denied = /permission|insufficient/i.test(String((error as { message?: string })?.message || ''));
+        if (!denied) {
+          console.error('Failed to create conversation for friend:', friend.id, error);
+          attemptedFriendIdsRef.current.delete(friend.id);
+        }
       }
     }
 

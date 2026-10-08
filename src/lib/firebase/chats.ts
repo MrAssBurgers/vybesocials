@@ -132,7 +132,7 @@ export async function createDmChat(otherUserId: string, accountGuard?: () => voi
       id: `${chatId}_${memberId}`,
       conversation_id: chatId,
       user_id: memberId,
-      role: memberId === myProfileId ? 'admin' : 'member',
+      role: 'member',
       is_muted: false,
       is_pinned: false,
       last_read_at: null,

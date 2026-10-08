@@ -697,10 +697,11 @@ export function useCreateConversation() {
     onSuccess: () => {
       invalidateConversationCaches(queryClient);
     },
-    onError: (error: any) => {
-      console.error('Failed to create conversation:', error);
-      const msg = error?.message || 'Failed to start conversation';
-      toast.error(msg);
+    onError: (error: { message?: string }) => {
+      const raw = String(error?.message || '');
+      const denied = /permission|insufficient/i.test(raw);
+      if (!denied) console.error('Failed to create conversation:', error);
+      toast.error(denied ? 'Could not start that chat. Try again in a moment.' : 'Could not start that conversation.');
     },
   });
 }

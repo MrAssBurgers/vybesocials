@@ -19,6 +19,7 @@ describe('guarded conversation creation', () => {
   it('keeps legitimate creation compatible with a captured session', async () => {
     await expect(createDmChat('bob', guard)).resolves.toBe('alice-profile_bob-profile');
     expect(state.write.mock.calls[0]).toEqual(['conversations', 'alice-profile_bob-profile', expect.objectContaining({ created_by: 'alice-profile' })]);
+    expect(state.write.mock.calls.slice(1).every((call) => call[2].role === 'member')).toBe(true);
     expect(state.write).toHaveBeenCalledTimes(5);
   });
   it('stops before profile resolution when the Auth lookup returns in another account', async () => {
