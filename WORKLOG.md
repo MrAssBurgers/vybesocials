@@ -1,3 +1,30 @@
+## ACTIVE (2026-10-08) - Live errors, story delete, and XP claims
+
+### What changed
+- Invite Friends no longer crashes when a badge is missing `badge_type`.
+- Your own story has a Delete control. A second tap confirms it. Rules still allow the delete only for the story you published.
+- XP is announced only after the server accepts the claim. A reward that cannot be verified says to finish the challenge, instead of claiming XP first.
+- The reward checker accepts bookmark, invite, finished profile, and music-share challenges, including a date stored on the challenge id. An undated daily stays incomplete instead of blocking every claim with a reconciliation error.
+- New chats are created with the member role the rules allow. A permission denial no longer dumps the raw Firestore error.
+- People suggestions stop polling after a failure. Contact matching with no hashes does not call the server.
+- AI video that is unavailable shows a plain message.
+- Map, location, and push status failures return a retryable error instead of an unhandled internal crash. Those function changes apply after the next functions deploy.
+- A resume while password sign-in is still registering the device does not sign you out. A replaced sign-in attempt does not toast “This sign-in changed.”
+
+### Verification
+- `npm run test`: 525 files passed, 1 skipped; 5147 passed, 6 skipped. Map renderer stderr is the existing noise.
+- App `tsc` and Functions `tsc` passed. `npm run build` passed. Entry `app-BdIqTuO0.js` is 857.5 KB raw / 261.4 KB gzip. Generated `public/version.json` and `public/despia/local.json` restored.
+- No production functions were deployed from this session.
+
+### Blockers
+- Claiming XP, and the map, location, and push status changes, stay on the currently deployed functions until `claimChallengeReward`, `manageMapSocial`, `manageLocationSharing`, and `getPushSubscriptionStatus` are deployed. Do not deploy `auth2faRequest`.
+- A wrong email or password still returns Firebase `INVALID_LOGIN_CREDENTIALS`. That is a real rejected password.
+
+### Next 3 tasks
+1. Lovable → Share → Publish this client after it is on `main`.
+2. Deploy `claimChallengeReward`, `manageMapSocial`, `manageLocationSharing`, and `getPushSubscriptionStatus`.
+3. Delete the `vybe_qa_test` and `vybe_qa_test2` Auth users, posts, follow, and pending friend request when QA is done.
+
 ## ACTIVE (2026-10-07) - Open a profile when a leftover duplicate shares the username
 
 ### What changed
