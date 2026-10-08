@@ -34,24 +34,43 @@ function day(value: unknown): number {
   return ms;
 }
 
+function calendarDay(value: unknown): string | null {
+  if (value && typeof value === 'object' && typeof (value as { toDate?: () => Date }).toDate === 'function') {
+    const iso = (value as { toDate: () => Date }).toDate().toISOString();
+    return /^\d{4}-\d{2}-\d{2}/.test(iso) ? iso.slice(0, 10) : null;
+  }
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+  return null;
+}
+
+const REQUIREMENTS = ['post', 'clip', 'story', 'comment', 'like', 'react', 'follow', 'message', 'snap_sent', 'new_conversation', 'daily_login', 'login', 'bookmark', 'invite', 'complete_profile', 'music_share'];
+
 function definition(id: string, row: Row, nowMs: number) {
   const requirement = String(row.requirement_type || '');
-  if (!['post', 'clip', 'story', 'comment', 'like', 'react', 'follow', 'message', 'snap_sent', 'new_conversation', 'daily_login', 'login'].includes(requirement)) throw review();
+  if (!REQUIREMENTS.includes(requirement)) throw review();
   const required = integer(row.requirement_count, 1, MAX_ACTIVITY);
   const xp = integer(row.reward_xp, 0, MAX_REWARD_XP);
   const badge = row.reward_badge_id == null ? null : rewardDocumentId(row.reward_badge_id);
   let start = 0;
   let end = nowMs + 1;
   if (row.type === 'daily' || row.type === 'weekly') {
-    start = day(row.type === 'daily' ? row.active_date : row.active_week_start);
-    end = start + (row.type === 'daily' ? 1 : 7) * 86_400_000;
+    const fromId = /^(daily|weekly)_(\d{4}-\d{2}-\d{2})_/.exec(id);
+    const raw = calendarDay(row.type === 'daily' ? row.active_date : row.active_week_start)
+      || (fromId && fromId[1] === row.type ? fromId[2] : null);
+    // An undated row has no period to prove. It stays incomplete instead of
+    // blocking every other reward with a reconciliation error.
+    if (!raw) { start = 0; end = 0; }
+    else {
+      start = day(raw);
+      end = start + (row.type === 'daily' ? 1 : 7) * 86_400_000;
+    }
   } else if (row.type !== 'achievement') throw review();
-  if (row.ends_at != null) {
+  if (!(start === 0 && end === 0) && row.ends_at != null) {
     const expires = Date.parse(String(row.ends_at));
     if (!Number.isFinite(expires)) throw review();
     end = Math.min(end, expires);
   }
-  if (start >= end || start > nowMs) throw review();
+  if (!(start === 0 && end === 0) && (start >= end || start > nowMs)) throw review();
   return { id, requirement, required, xp, badge, start, end };
 }
 
@@ -69,20 +88,33 @@ async function activityCount(tx: Transaction, db: Firestore, actor: ChallengeAct
     // login_streak counters. Old login periods require operator reconciliation.
     return now >= challenge.start && now < challenge.end ? 1 : 0;
   }
+  if (kind === 'complete_profile') {
+    const profile = (await tx.get(db.collection('profiles').doc(actor.profileId))).data();
+    const username = typeof profile?.username === 'string' ? profile.username.trim() : '';
+    const display = typeof profile?.display_name === 'string' ? profile.display_name.trim() : '';
+    const avatar = typeof profile?.avatar_url === 'string' && profile.avatar_url.startsWith('https://');
+    const ready = !!profile && aliases(actor).includes(String(profile.user_id)) && profile.onboarding_completed === true
+      && username.length >= 2 && !username.startsWith('user_') && (display.length > 0 || avatar);
+    return ready && now >= challenge.start && now < challenge.end ? 1 : 0;
+  }
   const source = kind === 'story' ? ['stories', 'author_id']
-    : kind === 'post' || kind === 'clip' ? ['posts', 'author_id']
+    : kind === 'post' || kind === 'clip' || kind === 'music_share' ? ['posts', 'author_id']
       : kind === 'comment' ? ['comments', 'user_id']
         : kind === 'like' || kind === 'react' ? ['post_reactions', 'user_id']
-          : kind === 'follow' ? ['follows', 'follower_id']
-            : kind === 'new_conversation' ? ['conversations', 'created_by']
-              : ['messages', 'sender_id'];
+          : kind === 'bookmark' ? ['bookmarks', 'user_id']
+            : kind === 'follow' ? ['follows', 'follower_id']
+              : kind === 'new_conversation' ? ['conversations', 'created_by']
+                : kind === 'invite' ? null
+                  : ['messages', 'sender_id'];
   const ownerIds = aliases(actor);
-  const snapshot = await tx.get(db.collection(source[0])
-    .where(source[1], 'in', ownerIds)
+  const inviteDocs = kind === 'invite' ? (await tx.get(db.collection('invites').where('inviter_id', 'in', ownerIds).limit(20))).docs : [];
+  const redemptionDocs = kind === 'invite' ? (await Promise.all(inviteDocs.filter(invite => ownerIds.includes(String(invite.data().inviter_id))).map(invite => tx.get(db.collection('invite_redemptions').where('invite_id', '==', invite.id).limit(MAX_ACTIVITY))))).flatMap(result => result.docs) : [];
+  const snapshot = kind === 'invite' ? { docs: redemptionDocs } : await tx.get(db.collection(source![0])
+    .where(source![1], 'in', ownerIds)
     .where('created_at', '>=', new Date(challenge.start).toISOString())
     .limit(MAX_ACTIVITY));
   const unique = new Set<string>();
-  const publicationOwner = kind === 'post' || kind === 'clip' ? await resolveIdentity(db, tx, actor.authUid) : null;
+  const publicationOwner = kind === 'post' || kind === 'clip' || kind === 'music_share' ? await resolveIdentity(db, tx, actor.authUid) : null;
   const profileCache = new Map<string, Promise<boolean>>();
   const postCache = new Map<string, Promise<boolean>>();
   const liveRow = (row: Row) => !row.deleted_at && row.is_deleted !== true && row.status !== 'draft';
@@ -119,11 +151,18 @@ async function activityCount(tx: Transaction, db: Firestore, actor: ChallengeAct
   };
   for (const doc of snapshot.docs) {
     const row = doc.data();
-    if (!ownerIds.includes(String(row[source[1]])) || !createdInWindow(doc, challenge.start, challenge.end, now)) continue;
+    const ownerField = kind === 'invite' ? 'redeemer_id' : source![1];
+    if (kind !== 'invite' && !ownerIds.includes(String(row[ownerField]))) continue;
+    if (!createdInWindow(doc, challenge.start, challenge.end, now)) continue;
     if (row.deleted_at || row.is_deleted === true || row.status === 'draft') continue;
-    if (kind === 'post' || kind === 'clip') {
+    if (kind === 'post' || kind === 'clip' || kind === 'music_share') {
       const proof = (await tx.get(db.collection('_post_publications').doc(doc.id))).data();
       if (!publicationOwner || publicationOwner.profileId !== actor.profileId || !validPostPublication(row, proof, publicationOwner, doc.id)) continue;
+    }
+    if (kind === 'music_share') {
+      const caption = String(row.caption || '');
+      const tags = Array.isArray(row.tags) ? row.tags.map(tag => String(tag)) : [];
+      if (!/#music\b/i.test(caption) && !tags.includes('music')) continue;
     }
     const postType = String(row.post_type || row.type || row.media_type || 'post');
     if (kind === 'clip' && !['short', 'video', 'clip'].includes(postType)) continue;
@@ -132,9 +171,11 @@ async function activityCount(tx: Transaction, db: Firestore, actor: ChallengeAct
     // Repeated reactions/follows on the same target count once, even when a
     // legacy client was able to create duplicate rows with arbitrary IDs.
     const target = kind === 'follow' ? row.following_id
-      : kind === 'like' || kind === 'react' ? row.post_id : doc.id;
+      : kind === 'like' || kind === 'react' || kind === 'bookmark' || kind === 'comment' ? row.post_id
+        : kind === 'invite' ? row.redeemer_id : doc.id;
     if (kind === 'follow' && (typeof target !== 'string' || !await targetProfileExists(target))) continue;
-    if ((kind === 'like' || kind === 'react' || kind === 'comment') && (typeof row.post_id !== 'string' || !await targetPostExists(row.post_id))) continue;
+    if (kind === 'invite' && (typeof target !== 'string' || !await targetProfileExists(target))) continue;
+    if ((kind === 'like' || kind === 'react' || kind === 'comment' || kind === 'bookmark') && (typeof row.post_id !== 'string' || !await targetPostExists(row.post_id))) continue;
     if (typeof target === 'string' && target && !ownerIds.includes(target)) unique.add(target);
     if (unique.size >= challenge.required) break;
   }

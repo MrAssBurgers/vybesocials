@@ -319,6 +319,46 @@ describe('trusted challenge issuance', () => {
     await expect(sync()).rejects.toMatchObject({ code: 'failed-precondition' });
     expect(rows.has(proofPath)).toBe(false);
   });
+  it('counts a saved post, a real invite, a finished profile, and a published music post', async () => {
+    rows.set('bookmarks/save-one', { user_id: actor.profileId, post_id: 'same-target', created_at: new Date(now).toISOString() });
+    rows.set('challenges/daily-post', challenge({ requirement_type: 'bookmark' }));
+    expect((await sync()).is_completed).toBe(true);
+    rows.set('challenges/daily-post', challenge({ requirement_type: 'bookmark' }));
+    rows.delete('bookmarks/save-one');
+    rows.delete(proofPath);
+    rows.delete('challenge_progress/legacy-player_daily-post');
+    rows.delete(publicPath);
+    expect((await sync()).is_completed).toBe(false);
+
+    rows.set('invites/mine', { inviter_id: actor.authUid });
+    rows.set('invite_redemptions/join', { invite_id: 'mine', redeemer_id: 'other-profile' });
+    rows.set('challenges/daily-post', challenge({ requirement_type: 'invite' }));
+    expect((await sync()).is_completed).toBe(true);
+
+    rows.set('challenges/daily-post', challenge({ type: 'achievement', requirement_type: 'complete_profile' }));
+    rows.delete(proofPath);
+    expect((await sync()).is_completed).toBe(false);
+    rows.get(`profiles/${actor.profileId}`)!.username = 'player';
+    rows.get(`profiles/${actor.profileId}`)!.display_name = 'Player';
+    rows.get(`profiles/${actor.profileId}`)!.onboarding_completed = true;
+    expect((await sync()).is_completed).toBe(true);
+
+    activity('posts/song', { caption: 'Ordinary post' });
+    rows.set('challenges/daily-post', challenge({ requirement_type: 'music_share' }));
+    rows.delete(proofPath);
+    rows.delete('challenge_progress/legacy-player_daily-post');
+    rows.delete(publicPath);
+    expect((await sync()).is_completed).toBe(false);
+    rows.get('posts/song')!.caption = 'Listening #music';
+    rows.get('_post_publications/song')!.source_fingerprint = postSourceFingerprint(rows.get('posts/song')!);
+    expect((await sync()).is_completed).toBe(true);
+  });
+  it('leaves an undated daily incomplete instead of asking for reconciliation', async () => {
+    rows.set('challenges/daily-post', challenge({ requirement_type: 'bookmark', active_date: null }));
+    rows.set('bookmarks/save-one', { user_id: actor.profileId, post_id: 'same-target', created_at: new Date(now).toISOString() });
+    expect((await sync()).is_completed).toBe(false);
+    expect(rows.has(proofPath)).toBe(false);
+  });
   it('does not trust an inflated login streak for historical login periods', async () => {
     rows.set('challenges/daily-post', challenge({ requirement_type: 'daily_login', active_date: '2026-10-02' }));
     rows.set('login_streaks/auth-player', { current_streak: 1_000, last_login_date: '2026-10-02' });

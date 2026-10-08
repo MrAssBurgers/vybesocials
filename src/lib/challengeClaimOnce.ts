@@ -45,14 +45,20 @@ export function claimChallengeRewardOnce(
   const existing = jobs.get(rewardId);
   if (existing) return existing;
 
-  announce(xp);
   const job = (async () => {
     const { data, error } = await db.rpc('claim_challenge_reward', { p_reward_id: rewardId });
     if (error || (!data?.success && !data?.already_claimed)) {
       jobs.delete(rewardId);
       if (challengeId) byChallenge.delete(challengeId);
-      toast.error('Could not claim that reward', { id: 'vybe-challenge-claim-error' });
+      const message = String(error?.message || '');
+      toast.error(/reconciliation|could not be verified/i.test(message)
+        ? 'That reward could not be verified yet. Finish the challenge and try again.'
+        : 'Could not claim that reward', { id: `vybe-challenge-claim-error-${rewardId}` });
       return null;
+    }
+    if (!data.already_claimed) {
+      const gained = typeof data.xp_gained === 'number' ? data.xp_gained : xp;
+      if (gained > 0) announce(gained);
     }
     return data as ClaimedChallengeReward;
   })();

@@ -10,7 +10,7 @@ beforeEach(() => {
   resetChallengeClaimsForTests();
   state.rpc.mockReset();
   state.toast.mockReset();
-  state.rpc.mockResolvedValue({ data: { success: true, xp_gained: 10 }, error: null });
+  state.rpc.mockResolvedValue({ data: { success: true }, error: null });
 });
 
 describe('one challenge claim toast', () => {
