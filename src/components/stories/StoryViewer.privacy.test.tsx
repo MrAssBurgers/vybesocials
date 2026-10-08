@@ -8,7 +8,7 @@ const mock = vi.hoisted(() => {
   const session = { uid: 'alice', epoch: 1 };
   return { session, native: session, ready: true, current: undefined as Story | undefined,
     loading: true, failed: false, refetch: vi.fn(), visible: vi.fn(), markViewed: vi.fn(),
-    chat: vi.fn(), send: vi.fn(), success: vi.fn(), error: vi.fn(), signed: vi.fn() };
+    chat: vi.fn(), send: vi.fn(), success: vi.fn(), error: vi.fn(), signed: vi.fn(), remove: vi.fn() };
 });
 vi.mock('@/hooks/useStoryAccount', () => ({ useStoryAccount: () => {
   const captured = mock.session;
@@ -27,6 +27,7 @@ vi.mock('@/hooks/useShowAds', () => ({ useShowAds: () => ({ showAds: false }) })
 vi.mock('@/components/ads/AdUnit', () => ({ AdUnit: () => null }));
 vi.mock('@/components/ads/FeedAdCard', () => ({ AD_SLOTS: {} }));
 vi.mock('sonner', () => ({ toast: { success: mock.success, error: mock.error } }));
+vi.mock('@/lib/deleteOwnStory', () => ({ deleteOwnStory: (...args: unknown[]) => mock.remove(...args) }));
 
 const story = (id = 'story-bob'): Story => ({ id, author_id: 'profile-bob', media_url: `https://media.invalid/authorized-${id}.jpg`, media_type: 'image',
   caption: 'Current authorized caption', is_close_friends_only: true, view_count: 2, created_at: new Date().toISOString(),
@@ -64,6 +65,21 @@ describe('Story viewer current audience authority', () => {
     expect(mock.signed.mock.calls.some(([value]) => typeof value === 'string' && value.includes('private'))).toBe(false);
     expect(screen.getByRole('button', { name: 'Next story group' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Story likes are currently unavailable' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Delete story' })).toBeNull();
+  });
+
+  it('deletes the signed-in story only after a second confirmation', async () => {
+    const own = story('story-alice');
+    own.author_id = 'profile-alice';
+    own.author = { id: 'profile-alice', username: 'alice', display_name: 'Alice', avatar_url: null };
+    mock.current = own; mock.loading = false; mock.remove.mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    render(<StoryViewer groups={[{ user: { id: 'profile-alice', username: 'alice', display_name: 'Alice', avatar_url: null }, stories: [own], hasUnviewed: false }]} initialGroupIndex={0} onClose={onClose} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete story' }));
+    expect(mock.remove).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm delete story' }));
+    await waitFor(() => expect(mock.remove).toHaveBeenCalledWith('story-alice', expect.any(Function)));
+    expect(mock.success).toHaveBeenCalledWith('Story deleted');
   });
 
   it.each(['denied', 'removed'] as const)('removes current playback immediately after %s without preserving an exiting slide', condition => {

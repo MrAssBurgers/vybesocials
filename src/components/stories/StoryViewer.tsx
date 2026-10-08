@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
-import { X, Pause, Play, Eye, Send, Heart, ChevronLeft, ChevronRight, Megaphone, Loader2 } from 'lucide-react';
+import { X, Pause, Play, Eye, Send, Heart, ChevronLeft, ChevronRight, Megaphone, Loader2, Trash2 } from 'lucide-react';
 import { StoryPollViewer } from './StoryPollViewer';
 import { StoryGroup, useViewStory } from '@/hooks/useStories';
 import { useStoryAccount } from '@/hooks/useStoryAccount';
@@ -19,6 +19,7 @@ import { useShowAds } from '@/hooks/useShowAds';
 import { AdUnit } from '@/components/ads/AdUnit';
 import { AD_SLOTS } from '@/components/ads/FeedAdCard';
 import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
+import { deleteOwnStory } from '@/lib/deleteOwnStory';
 
 interface StoryViewerProps {
   groups: StoryGroup[];
@@ -50,6 +51,8 @@ function StoryViewerSession({ groups, initialGroupIndex, onClose }: StoryViewerP
   const [isSendingReply, setIsSendingReply] = useState(false);
   const [direction, setDirection] = useState(0);
   const [showAdInterstitial, setShowAdInterstitial] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deletingStory, setDeletingStory] = useState(false);
   const groupsSinceAd = useRef(0);
   
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
@@ -164,7 +167,32 @@ function StoryViewerSession({ groups, initialGroupIndex, onClose }: StoryViewerP
   // Reset progress when story changes
   useEffect(() => {
     resetProgress();
+    setConfirmDelete(false);
   }, [currentStory?.id, resetProgress]);
+
+  const handleDeleteStory = useCallback(async () => {
+    if (!currentStory || !isOwnStory || deletingStory) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      setIsPaused(true);
+      return;
+    }
+    setDeletingStory(true);
+    try {
+      storyGuard(currentStory.id);
+      await deleteOwnStory(currentStory.id, () => storyGuard(currentStory.id));
+      storyGuard(currentStory.id);
+      window.dispatchEvent(new CustomEvent('vybe-story-deleted', { detail: { id: currentStory.id } }));
+      toast.success('Story deleted');
+      setConfirmDelete(false);
+      goNextRef.current();
+    } catch (error) {
+      try { storyGuard(currentStory.id); } catch { return; }
+      toast.error(error instanceof Error && error.message ? error.message : 'Could not delete this story');
+    } finally {
+      setDeletingStory(false);
+    }
+  }, [confirmDelete, currentStory, deletingStory, isOwnStory, storyGuard]);
 
   const adTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -560,6 +588,16 @@ function StoryViewerSession({ groups, initialGroupIndex, onClose }: StoryViewerP
               
               <button disabled title="Story likes are currently unavailable" className="flex items-center gap-2 text-white/60 bg-black/40 rounded-full px-4 py-2.5">
                 <Heart className="h-4 w-4" /><span className="text-xs">Likes unavailable</span>
+              </button>
+              <button
+                type="button"
+                className="flex items-center gap-2 text-white bg-black/40 backdrop-blur-sm rounded-full px-4 py-2.5 disabled:opacity-60"
+                aria-label={confirmDelete ? 'Confirm delete story' : 'Delete story'}
+                disabled={deletingStory}
+                onClick={(event) => { event.stopPropagation(); void handleDeleteStory(); }}
+              >
+                {deletingStory ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                <span className="text-sm font-medium">{confirmDelete ? 'Delete story now' : 'Delete'}</span>
               </button>
             </div>
           ) : (

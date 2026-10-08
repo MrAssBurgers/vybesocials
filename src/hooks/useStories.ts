@@ -82,8 +82,13 @@ export function useStories(authorId?: string) {
   useEffect(() => {
     if (!ready) return;
     const resume = () => { if (isStorySessionCurrent(session)) void query.refetch(); };
+    const deleted = () => { if (isStorySessionCurrent(session)) void query.refetch(); };
     window.addEventListener('app-resumed', resume);
-    return () => window.removeEventListener('app-resumed', resume);
+    window.addEventListener('vybe-story-deleted', deleted);
+    return () => {
+      window.removeEventListener('app-resumed', resume);
+      window.removeEventListener('vybe-story-deleted', deleted);
+    };
   }, [ready, session, query.refetch]);
   const data = useMemo(() => {
     if (!ready || !isStorySessionCurrent(session) || query.isError || !query.data) return EMPTY_STORIES;
