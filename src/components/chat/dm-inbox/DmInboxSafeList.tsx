@@ -11,6 +11,7 @@ import { useDMInbox } from '@/features/dms/useDMInbox';
 import { db } from '@/lib/firebase';
 import { isDmLeaveSuppressActive } from '@/lib/leaveDmConversation';
 import { InboxNotes } from '@/features/dms/InboxNotes';
+import { inboxListIsLoading, inboxUnreadAnnouncement } from '@/features/dms/inboxUnreadStatus';
 
 export function DmInboxSafeList() {
   const navigate = useNavigate();
@@ -44,9 +45,7 @@ export function DmInboxSafeList() {
   return (
     <section className="dm-inbox" aria-label="Direct messages">
       <span className="sr-only" role="status" aria-live="polite">
-        {inbox.unreadBadgeCount > 0
-          ? `${inbox.unreadBadgeCount} unread ${inbox.unreadBadgeCount === 1 ? 'message' : 'messages'}`
-          : 'No unread messages'}
+        {inboxUnreadAnnouncement(inbox.unreadBadgeCount, inboxListIsLoading(inbox))}
       </span>
       <div className="dm-inbox-column">
         <DMHeader
