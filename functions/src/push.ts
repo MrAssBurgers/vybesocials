@@ -402,17 +402,28 @@ export const getPushSubscriptionStatus = onCall(
         error: 'onesignal_not_configured',
       };
     }
-    const subscriptionIds = await lookupOneSignalSubscriptionIdsForProfile(
-      appId,
-      restKey,
-      resolvedProfileId,
-    );
-    return {
-      ok: true,
-      profileId: resolvedProfileId,
-      subscriptionIds,
-      count: subscriptionIds.length,
-    };
+    try {
+      const subscriptionIds = await lookupOneSignalSubscriptionIdsForProfile(
+        appId,
+        restKey,
+        resolvedProfileId,
+      );
+      return {
+        ok: true,
+        profileId: resolvedProfileId,
+        subscriptionIds,
+        count: subscriptionIds.length,
+      };
+    } catch (error) {
+      console.warn('[push] subscription lookup failed', error);
+      return {
+        ok: false,
+        profileId: resolvedProfileId,
+        subscriptionIds: [],
+        count: 0,
+        error: 'push_status_unavailable',
+      };
+    }
   },
 );
 
