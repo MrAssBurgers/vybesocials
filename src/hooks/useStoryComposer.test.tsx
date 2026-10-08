@@ -101,13 +101,23 @@ describe('explicit story composer submission', () => {
     expect(retryProgress).toHaveBeenCalledWith('saving', 85);
     expect(progress).toHaveBeenCalledTimes(previousCalls);
   });
-  it.each(['unmount', 'account switch', 'ABA'] as const)('stops a late moderation result after %s', async reason => {
+  it('finishes the story after the editor unmounts so it can be deleted', async () => {
+    const pending = deferred<{ allowed: boolean }>(); state.check.mockReturnValue(pending.promise);
+    const view = renderHook(useStoryComposer); let outcome!: Promise<unknown>;
+    await act(async () => { outcome = view.result.current.submit(input()); });
+    await waitFor(() => expect(state.check).toHaveBeenCalledOnce());
+    view.unmount();
+    pending.resolve({ allowed: true });
+    await act(async () => { await expect(outcome).resolves.toMatchObject({ id: 'story' }); });
+    expect(state.upload).toHaveBeenCalledOnce();
+    expect(state.save).toHaveBeenCalledOnce();
+  });
+  it.each(['account switch', 'ABA'] as const)('stops a late moderation result after %s', async reason => {
     const pending = deferred<{ allowed: boolean }>(); state.check.mockReturnValue(pending.promise);
     const view = renderHook(useStoryComposer); let outcome!: Promise<unknown>;
     await act(async () => { outcome = view.result.current.submit(input()).catch(error => error); });
     await waitFor(() => expect(state.check).toHaveBeenCalledOnce());
-    if (reason === 'unmount') view.unmount();
-    else state.session = { uid: reason === 'ABA' ? 'alice' : 'bob', epoch: reason === 'ABA' ? 3 : 2 };
+    state.session = { uid: reason === 'ABA' ? 'alice' : 'bob', epoch: reason === 'ABA' ? 3 : 2 };
     pending.resolve({ allowed: true }); await act(async () => { expect(await outcome).toBeInstanceOf(Error); });
     expect(state.upload).not.toHaveBeenCalled(); expect(state.save).not.toHaveBeenCalled();
   });

@@ -30,7 +30,7 @@ export function useStoryComposer() {
   const inputRef = useRef<StoryComposerInput>();
   const [busy, setBusy] = useState(false);
   const [locked, setLocked] = useState(false);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; generation.current++; }; }, []);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const reset = () => {
     if (busyRef.current) return;
@@ -49,7 +49,9 @@ export function useStoryComposer() {
     const started = generation.current;
     const guard = () => {
       accountGuard();
-      if (!mounted.current || generation.current !== started) throw new Error('This story editor has closed.');
+      // Leaving the editor must not cancel a share that already started.
+      // Account changes still invalidate this attempt.
+      if (generation.current !== started) throw new Error('This story editor has closed.');
     };
     guard();
     if (!session.uid) throw new Error('Sign in to post stories.');
