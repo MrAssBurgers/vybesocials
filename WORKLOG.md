@@ -1,3 +1,22 @@
+## ACTIVE (2026-10-09) - Cloudflare deploy can install dependencies
+
+### What changed
+- `.npmrc` sets `legacy-peer-deps=true`. `npx wrangler deploy` was running npm and stopping on `ERESOLVE` because `react-leaflet` 5 asks for React 19 while the app uses React 18.
+- `wrangler.toml` publishes the Vite `dist/` folder as the `vybe` Worker and sends unknown paths to `index.html`.
+
+### Verification
+- Clean `npm ci --ignore-scripts` added 903 packages in 7s. The same command is what failed in Cloudflare build 75686315 before `.npmrc`.
+- `npx wrangler deploy --dry-run` (wrangler 4.149.0) read `dist/` and exited without uploading.
+
+### Blockers
+- This is not on the Worker until the next Cloudflare deploy of `main`.
+- No Firebase rules or functions were deployed.
+
+### Next 3 tasks
+1. Redeploy the Cloudflare Worker from `main` after this merges.
+2. Publish the web client with Lovable when the friend-request client should go to vybehub.app.
+3. Delete the QA Auth users, pending friend request, display-name edit, and QA direct messages when QA is done.
+
 ## ACTIVE (2026-10-08) - Incoming requests, DM send, presence, stories, and invites
 
 ### What changed

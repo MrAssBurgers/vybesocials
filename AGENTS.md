@@ -12,10 +12,10 @@ Project operating guidance for AI agents working in this repo.
 3. Restate active goal and immediate next step.
 
 ## Local setup
-`npm i` / `npm ci` fail with `ERESOLVE` (React 18 vs `react-leaflet` 5). Install the way CI does:
+React 18 and `react-leaflet` 5 disagree on the peer range. `.npmrc` sets `legacy-peer-deps=true`, so plain `npm ci` works, including Cloudflare's `npx wrangler deploy`. Functions still install on their own:
 
 ```sh
-npm ci --legacy-peer-deps
+npm ci
 npm ci --prefix functions
 ```
 
