@@ -2,7 +2,6 @@ import { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { isNativeAppShell } from '@/lib/despiaBridge';
-import { isMobileOrTabletDevice } from '@/lib/deviceDetection';
 
 /**
  * Wraps marketing pages (Landing, VybeHome) so:
@@ -13,10 +12,12 @@ import { isMobileOrTabletDevice } from '@/lib/deviceDetection';
 export function PublicOnlyRoute({ children, redirectTo = '/home' }: { children: ReactNode; redirectTo?: string }) {
   const { user, loading } = useAuth();
 
-  if (loading) return null;
-  if (isNativeAppShell() || isMobileOrTabletDevice()) {
+  if (isNativeAppShell()) {
+    if (loading) return null;
     return <Navigate to={user ? redirectTo : '/auth'} replace />;
   }
+  // Public website content should not depend on Firebase settling, nor turn
+  // into an auth screen merely because the visitor uses a phone or tablet.
   if (user) return <Navigate to={redirectTo} replace />;
   return <>{children}</>;
 }

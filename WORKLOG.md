@@ -1,3 +1,27 @@
+## ACTIVE (2026-10-21) - Public website access and AdSense review preparation
+
+### What changed
+- Ordinary phone and tablet browsers now reach the existing public VYBE website at `/` and public tour routes. Only a detected native app shell uses native introduction/account entry. Explicit signup/login query links, stored-account restoration, and signed-in Home routing remain in place.
+- The HTML contains the non-script publisher verification meta `ca-pub-9952523729646293`. JavaScript-disabled visitors see a brief product explanation and support contact instead of an endless loading screen. This does not enable web ads or add a global ad script.
+- The safety blog now explains the actual report form, reported-message disclosure, blocking, and privacy controls. Removed unsupported claims about universal real-time scans, AI detection, message secrecy from administrators, a 24-hour report guarantee, and anonymous/hourly map behavior. The comparison article no longer repeats those safety claims. Existing legal policy pages are unchanged.
+- Seller files and robots.txt are unchanged. The release coordinator verified their public responses; an old AdSense "not found" status does not require replacing correct seller content.
+
+### Verification
+- Started from a fresh isolated clone at `ae8cb1dcdc62f592a52d895f6268e3d506b86c18`. The repo's source-identity generator, run against an archive of that base, produced `8750205245a570a9d4850e20765a950a21366c74cf3ba2f059d1c1acc37d85ad` / 2649 files, exactly matching the live source fingerprint supplied by the release coordinator. No older staged checkout was substituted.
+- `npm run test`: 532 files passed, 1 skipped; 5170 tests passed, 6 skipped. A fresh clone needed `npm ci --ignore-scripts` in both the root and `functions/` before the backend-importing tests could run. No dependency or lockfile was changed.
+- Public entry, auth restoration, explicit auth intent, and marketing-claim regression tests: 21 passed. Tests distinguish a normal mobile browser from a real native shell and exercise the rendered safety/map articles.
+- Final `npm run typecheck`, changed-file ESLint, `npm run build`, and `git diff --check` passed. Build HTML inspection confirmed one correct publisher meta, useful no-JavaScript content, and no global `adsbygoogle` script. Existing large-chunk warnings and map-renderer error-path test output remain.
+- Generated `public/version.json`, `public/despia/local.json`, and `public/boot-theme.js` were restored after build. Final client source fingerprint is `620ed3cae9cf6c17b8263b91b7dec233f9d5487289de8e7feceb6dd915b945bd` / 2650 files.
+
+### Blockers and boundaries
+- This is a local tested patch pending the release coordinator's browser review and publication. It does not establish AdSense approval or ad serving. No backend, Rules, account, billing, DNS, or legal-policy changes were made.
+- No new filler articles, fabricated member content, or blanket scanning promises were added. Google decides whether the published site meets its review requirements.
+
+### Next 3 tasks
+1. Review the built public site on a signed-out phone-sized browser, its explicit signup entry, the two corrected blog articles, and the JavaScript-disabled fallback.
+2. Commit and publish only the reviewed patch from this verified current source. A push to main also triggers the existing Firebase Hosting workflow; the production custom-domain publication must be verified separately.
+3. Verify the public source fingerprint, seller files, and publisher meta after publication, then request an AdSense review without enabling ads on empty or account-only screens.
+
 ## ACTIVE (2026-10-09) - Cloudflare deploy can install dependencies
 
 ### What changed

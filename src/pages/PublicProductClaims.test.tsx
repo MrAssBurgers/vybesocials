@@ -1,12 +1,13 @@
 import type { ComponentType, HTMLAttributes, ReactNode } from 'react';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import VybeHome from './VybeHome';
 import Features from './Features';
 import FAQ from './FAQ';
 import About from './About';
 import Safety from './Safety';
+import BlogPost from './BlogPost';
 
 const publicData = vi.hoisted(() => ({
   count: null as number | null,
@@ -103,5 +104,27 @@ describe('public product claims and creator entry points', () => {
     expect(screen.getByText(/Report response times are not guaranteed/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Optional crash reports' })).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/AES-256|Plaintext only ever|before they ever go live|within 24 hours|under 13|our admins cannot/);
+  });
+
+  it('keeps the linked safety article consistent with message-report disclosure and privacy limits', () => {
+    const { container } = render(<MemoryRouter initialEntries={['/blog/how-vybe-keeps-you-safe']}><Routes>
+      <Route path="/blog/:slug" element={<BlogPost />} />
+    </Routes></MemoryRouter>);
+    expect(screen.getByText(/Reporting a message shares its available text and attachment details/)).toBeInTheDocument();
+    expect(screen.getByText(/VYBE DMs are not end-to-end encrypted/)).toBeInTheDocument();
+    expect(screen.getByText(/Report response times are not guaranteed/)).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/AES-256|Plaintext only ever|our admins cannot|within 24 hours|Gemini Flash|SafeSearch|Every upload gets scanned/);
+    const schema = JSON.parse(document.querySelector('script[data-page-meta]')!.textContent!);
+    expect(schema.headline).toBe(screen.getByRole('heading', { level: 1 }).textContent);
+    expect(schema.description).not.toMatch(/encrypted DMs|Real-time AI scanning/);
+  });
+
+  it('describes Ghost Mode without promising anonymous activity or an hourly update schedule', () => {
+    const { container } = render(<MemoryRouter initialEntries={['/blog/why-we-built-the-friend-map']}><Routes>
+      <Route path="/blog/:slug" element={<BlogPost />} />
+    </Routes></MemoryRouter>);
+    expect(screen.getByText(/If a privacy change fails, use Retry privacy check/)).toBeInTheDocument();
+    expect(screen.getByText(/does not hide every other kind of account activity/)).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/once an hour|one-hour TTL|never stored long-term|not even know you logged in/);
   });
 });

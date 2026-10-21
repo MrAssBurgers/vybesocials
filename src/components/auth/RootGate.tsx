@@ -2,7 +2,6 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { isNativeAppShell } from '@/lib/despiaBridge';
-import { isMobileOrTabletDevice } from '@/lib/deviceDetection';
 import { shouldBlockPostLoginNavigation } from '@/lib/loginApprovalGate';
 import { hasCompletedCurrentIntro } from '@/lib/mobileIntroVersion';
 import { hasStoredAuthSession } from '@/lib/legacyAuthStorage';
@@ -24,13 +23,11 @@ export function isAuthEntrySearch(search: string): boolean {
   return params.get('signup') === 'true' || params.get('mode') === 'login' || params.get('mode') === 'signup';
 }
 
-function useMobileAppEntry(): boolean {
-  const [mobileApp, setMobileApp] = useState(
-    () => isNativeAppShell() || isMobileOrTabletDevice(),
-  );
+function useNativeAppEntry(): boolean {
+  const [nativeApp, setNativeApp] = useState(() => isNativeAppShell());
 
   useEffect(() => {
-    const update = () => setMobileApp(isNativeAppShell() || isMobileOrTabletDevice());
+    const update = () => setNativeApp(isNativeAppShell());
     update();
     window.addEventListener('resize', update);
     window.addEventListener('orientationchange', update);
@@ -40,15 +37,15 @@ function useMobileAppEntry(): boolean {
     };
   }, []);
 
-  return mobileApp;
+  return nativeApp;
 }
 
 /**
  * Root `/` gate:
  *  - Signed-in users → /home
- *  - First-time mobile/native logged-out users → MobileIntro (then /auth)
- *  - Native (Despia / Capacitor) + iPad/tablet → Landing (auth)
- *  - Desktop web (logged out) → VybeHome marketing page
+ *  - First-time native logged-out users → MobileIntro (then /auth)
+ *  - Returning native (Despia / Capacitor) users → Landing (auth)
+ *  - Logged-out web visitors, including phones/tablets → public VybeHome
  */
 export default function RootGate() {
   const { user, loading, authReady } = useAuth();
@@ -57,7 +54,7 @@ export default function RootGate() {
   // Honor VYBE_INTRO_VERSION — bumping the constant re-shows intro after Publish.
   // (Previously only `vybe_intro_seen` was checked, so intro UX changes looked "unpublished".)
   const [introDone, setIntroDone] = useState<boolean>(() => hasCompletedCurrentIntro());
-  const isMobileApp = useMobileAppEntry();
+  const isNativeApp = useNativeAppEntry();
 
   // Login confirmation in progress — stay on auth surface (Landing), do not bounce to /home.
   if (user && !shouldBlockPostLoginNavigation()) {
@@ -68,7 +65,7 @@ export default function RootGate() {
   // password form does not flash, and never say "Restoring your account…".
   if ((loading || !authReady) && hasStoredAuthSession()) return <EntryLoading />;
 
-  const showIntro = !introDone && isMobileApp && !authRequested;
+  const showIntro = !introDone && isNativeApp && !authRequested;
   if (showIntro) {
     return (
       <Suspense fallback={<EntryLoading />}>
@@ -77,7 +74,7 @@ export default function RootGate() {
     );
   }
 
-  if (isMobileApp || authRequested) {
+  if (isNativeApp || authRequested) {
     return (
       <Suspense fallback={<EntryLoading />}>
         <Landing />
