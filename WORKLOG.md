@@ -1,4 +1,4 @@
-## ACTIVE (2026-10-21) - Public website access and AdSense review preparation
+## RELEASED (2026-10-21) - Public website access and AdSense review requested
 
 ### What changed
 - Ordinary phone and tablet browsers now reach the existing public VYBE website at `/` and public tour routes. Only a detected native app shell uses native introduction/account entry. Explicit signup/login query links, stored-account restoration, and signed-in Home routing remain in place.
@@ -14,13 +14,15 @@
 - Generated `public/version.json`, `public/despia/local.json`, and `public/boot-theme.js` were restored after build. Final client source fingerprint is `620ed3cae9cf6c17b8263b91b7dec233f9d5487289de8e7feceb6dd915b945bd` / 2650 files.
 
 ### Blockers and boundaries
-- This is a local tested patch pending the release coordinator's browser review and publication. It does not establish AdSense approval or ad serving. No backend, Rules, account, billing, DNS, or legal-policy changes were made.
+- Source `b948d44873a1a407977e76408be5433ff837d9bc` was pushed and published through Lovable deployment `11aeec96-7d0b-4c1d-b801-d89806725b1c`. At 2026-10-21T07:36:04.529Z the custom domain served the exact new fingerprint above, correct seller files, publisher meta, useful fallback, ten initial assets and six public routes. The corrected blog and public homepage were also reviewed in the browser. Phone routing is covered by component tests; this is not a physical-phone test.
+- After verifying publication, requested AdSense review for the existing `vybehub.app` site. A full browser reload confirmed **Getting ready / Review requested**, with the site row updated October 21, 2026 at 3:36 AM EDT. Google still displays the old ads.txt Not found crawler status despite the verified public file. Evidence is saved in the How U Doin workspace under `outputs/vybe75-public-verification.json` and `outputs/adsense75-review-requested.{txt,png}`.
+- This does not establish AdSense approval or ad serving. No backend, Rules, billing, DNS, or legal-policy changes were made.
 - No new filler articles, fabricated member content, or blanket scanning promises were added. Google decides whether the published site meets its review requirements.
 
 ### Next 3 tasks
-1. Review the built public site on a signed-out phone-sized browser, its explicit signup entry, the two corrected blog articles, and the JavaScript-disabled fallback.
-2. Commit and publish only the reviewed patch from this verified current source. A push to main also triggers the existing Firebase Hosting workflow; the production custom-domain publication must be verified separately.
-3. Verify the public source fingerprint, seller files, and publisher meta after publication, then request an AdSense review without enabling ads on empty or account-only screens.
+1. Wait for Google's review result; do not treat the submitted request as approval.
+2. Recheck ads.txt crawler status after Google processes the active public seller file.
+3. Address any specific review finding before enabling ads on suitable public content; keep ads off empty and account-only screens.
 
 ## ACTIVE (2026-10-09) - Cloudflare deploy can install dependencies
 
