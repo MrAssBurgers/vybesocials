@@ -7,7 +7,11 @@ import {
   getSessionAuthUid,
   markConversationReadForViewer,
 } from '@/lib/markConversationRead';
-import { findInQueryArray, readQueryArray } from '@/lib/persistedCollections';
+import { findInQueryArray } from '@/lib/persistedCollections';
+import { activeDmListKeys, ownedDmProfileId, viewerDmMembership } from '@/lib/dmAccountScope';
+import { patchDmConversationInCache } from '@/lib/dmInboxCachePatch';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
+import { reportAccountSnapshot } from '@/lib/reportModerationService';
 
 /**
  * Mark conversation read + cross-device read sync.
@@ -15,47 +19,29 @@ import { findInQueryArray, readQueryArray } from '@/lib/persistedCollections';
  */
 
 export function useInstantReadClear(conversationId: string | undefined) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const session = useReportAccountSession();
+  const profileId = ownedDmProfileId(user?.id, profile);
   const queryClient = useQueryClient();
 
   const markAsRead = useCallback(async () => {
-    if (!conversationId || !profile?.id) return;
-
-    const convUnread =
-      findInQueryArray(
-        queryClient.getQueryData(['dm-conversations', profile.id]),
-        (c) => c.id === conversationId,
-      )?.unread_count ?? 0;
-
-    const markReadPatch = (old: unknown) => {
-      const list = readQueryArray(old);
-      if (!list.length) return list;
-      return list.map((conv) =>
-        conv.id === conversationId
-          ? { ...conv, unread_count: 0, _hasUnread: false }
-          : conv,
-      );
-    };
-
+    if (!conversationId || !profileId || !activeDmListKeys(profileId, session).length) return;
+    const lists = activeDmListKeys(profileId, session);
+    const convUnread = lists.map(key => findInQueryArray(queryClient.getQueryData(key), c => c.id === conversationId)?.unread_count ?? 0).find(count => count > 0) ?? 0;
     startTransition(() => {
-      queryClient.setQueryData<any[]>(['dm-conversations', profile.id], markReadPatch);
-      queryClient.setQueryData<any[]>(['conversations', profile.id], markReadPatch);
-      queryClient.setQueryData<any[]>(['conversations'], markReadPatch);
-      queryClient.setQueryData<number>(
-        ['unread-messages-count', profile.id],
-        (prev) => (typeof prev === 'number' ? Math.max(0, prev - convUnread) : 0),
-      );
+      patchDmConversationInCache(queryClient, profileId, conversationId, { unread_count: 0, _hasUnread: false }, session);
+      queryClient.setQueryData<number>(['unread-messages-count', profileId], prev => typeof prev === 'number' ? Math.max(0, prev - convUnread) : prev);
     });
-
     const authUid = await getSessionAuthUid();
-    await markConversationReadForViewer(conversationId, profile.id, authUid);
-  }, [conversationId, profile?.id, queryClient]);
+    if (authUid !== session.uid || !activeDmListKeys(profileId, session).length) return;
+    await markConversationReadForViewer(conversationId, profileId, authUid);
+  }, [conversationId, profileId, session, queryClient]);
 
   useEffect(() => {
-    if (conversationId && profile?.id) {
+    if (conversationId && profileId) {
       markAsRead();
     }
-  }, [conversationId, profile?.id, markAsRead]);
+  }, [conversationId, profileId, markAsRead]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -72,32 +58,35 @@ export function useInstantReadClear(conversationId: string | undefined) {
 }
 
 export function useCrossDeviceSync() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const session = useReportAccountSession();
+  const profileId = ownedDmProfileId(user?.id, profile);
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!profile?.id) return;
+    if (!profileId || !activeDmListKeys(profileId, session).length) return;
 
     const channel = subscribePostgresChannel('cross-device-read-sync', [
       {
         event: 'UPDATE',
         table: 'conversation_members',
-        filter: `user_id=eq.${profile.id}`,
+        filter: `user_id=eq.${profileId}`,
         callback: (payload) => {
-          const row: any = payload.new;
-          if (!row?.conversation_id) return;
-
-          const patch = (old: any[] | undefined) => {
-            if (!old) return old;
-            return old.map((c) =>
-              c.id === row.conversation_id
-                ? { ...c, unread_count: 0, _hasUnread: false }
-                : c,
-            );
-          };
-          queryClient.setQueryData<any[]>(['dm-conversations', profile.id], patch);
-          queryClient.setQueryData<any[]>(['conversations', profile.id], patch);
-          queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profile.id] });
+          const current = reportAccountSnapshot();
+          if (current.uid !== session.uid || current.epoch !== session.epoch) return;
+          const row = payload.new as { conversation_id?: string; user_id?: string; last_read_at?: string };
+          if (!row?.conversation_id || row.user_id !== profileId || !row.last_read_at) return;
+          // Pin/mute updates are not read receipts. Only clear when the receipt
+          // reaches the last visible message, never on mark-unread or old reads.
+          for (const key of activeDmListKeys(profileId, session)) {
+            const conv = findInQueryArray(queryClient.getQueryData(key), c => c.id === row.conversation_id);
+            const lastAt = conv?.last_message?.created_at;
+            if (!conv || !lastAt || !viewerDmMembership(conv, profileId, session.uid)
+              || Date.parse(row.last_read_at) < Date.parse(lastAt)
+              || !Number.isFinite(Date.parse(row.last_read_at))) continue;
+            patchDmConversationInCache(queryClient, profileId, row.conversation_id, { unread_count: 0, _hasUnread: false }, session);
+          }
+          void queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profileId], exact: true });
         },
       },
     ]);
@@ -105,5 +94,5 @@ export function useCrossDeviceSync() {
     return () => {
       removeRealtimeChannel(channel);
     };
-  }, [profile?.id, queryClient]);
+  }, [profileId, session, queryClient]);
 }
