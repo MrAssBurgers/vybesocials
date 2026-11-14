@@ -105,7 +105,6 @@ export function assertLegacyPathNotUsed(context: {
     exchange: usedExchange ? 1 : 0,
   });
   if (!ok && import.meta.env.DEV) {
-    // eslint-disable-next-line no-console
     console.warn('[VYBE AUTH] native path used legacy callback/dismiss/exchange — should be zero', {
       provider: context.provider,
       usedCallback,

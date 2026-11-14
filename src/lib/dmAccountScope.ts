@@ -23,6 +23,15 @@ export function dmListQueryKey(profileId: string | null | undefined, session: Re
   return ['dm-conversations', profileId, session.uid, session.epoch] as const;
 }
 
+/** Exact populated list aliases for an owned actor in the current session. */
+export function activeDmListKeys(profileId: string | null | undefined, session: ReportAccountSession = reportAccountSnapshot()) {
+  const current = reportAccountSnapshot();
+  if (!session.uid || current.uid !== session.uid || current.epoch !== session.epoch
+    || !isOwnedDmActor(profileId, session.uid)) return [];
+  return [...new Set([profileId, session.uid])].filter((id): id is string => !!id)
+    .flatMap(id => [dmListQueryKey(id, session), ['conversations', id, session.uid, session.epoch] as const]);
+}
+
 export function conversationDetailQueryKey(conversationId: string | undefined, session: ReportAccountSession = reportAccountSnapshot()) {
   return ['conversation-detail', conversationId, session.uid, session.epoch] as const;
 }

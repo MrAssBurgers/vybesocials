@@ -6,6 +6,9 @@ import { toast } from 'sonner';
 import { invalidateConversationCaches, patchConversationListCaches } from '@/lib/invalidateConversationCaches';
 import { normalizePersistedSet, safeDmMembers } from '@/lib/persistedCollections';
 import { fetchMemberProfiles } from '@/lib/dmMembershipRepair';
+import { activeDmListKeys } from '@/lib/dmAccountScope';
+import { snapshotDmInbox } from '@/lib/dmInboxCachePatch';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 
 export interface TrashedConversation {
@@ -131,10 +134,12 @@ export function useTrashConversation() {
   const { user } = useAuth();
   const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
+  const session = useReportAccountSession();
+  const isCurrent = () => !!profileId && activeDmListKeys(profileId, session).length > 0;
 
   return useMutation({
     mutationFn: async (conversationId: string) => {
-      if (!profileId || !user?.id) throw new Error('Not authenticated');
+      if (!profileId || !user?.id || !isCurrent()) throw new Error('Not authenticated');
 
       await db
         .from('hidden_conversations')
@@ -158,19 +163,20 @@ export function useTrashConversation() {
       return conversationId;
     },
     onMutate: async (conversationId: string) => {
-      if (!profileId) return {};
+      if (!profileId || !isCurrent()) return {};
       await queryClient.cancelQueries({ queryKey: ['trashed-conversation-ids'] });
       await queryClient.cancelQueries({ queryKey: ['trashed-conversations', profileId] });
-      await queryClient.cancelQueries({ queryKey: ['dm-conversations', profileId] });
+      for (const key of activeDmListKeys(profileId, session)) await queryClient.cancelQueries({ queryKey: key, exact: true });
+      if (!isCurrent()) return {};
 
       const previousIds = queryClient.getQueryData<Set<string>>(['trashed-conversation-ids', profileId]);
-      const previousDMs = queryClient.getQueryData(['dm-conversations', profileId]);
+      const inboxSnapshot = snapshotDmInbox(queryClient, profileId, session);
       const previousTrash = queryClient.getQueryData<TrashedConversation[]>([
         'trashed-conversations',
         profileId,
       ]);
 
-      const cachedConv = readDmConversationFromCache(queryClient, profileId, conversationId);
+      const cachedConv = readDmConversationFromCache(queryClient, profileId, conversationId, session);
       const trashedAt = new Date().toISOString();
       const optimisticRow: TrashedConversation = {
         id: `${profileId}_${conversationId}`,
@@ -216,24 +222,24 @@ export function useTrashConversation() {
       patchConversationListCaches(queryClient, profileId, (old) => {
         if (!old) return old;
         return old.filter((conv: { id: string }) => conv.id !== conversationId);
-      });
+      }, session);
+      inboxSnapshot.capture();
 
-      return { previousIds, previousDMs, previousTrash };
+      return { previousIds, inboxSnapshot, previousTrash };
     },
     onSuccess: () => {
-      invalidateConversationCaches(queryClient, profileId);
+      if (!isCurrent()) return;
+      invalidateConversationCaches(queryClient, profileId, session);
       queryClient.invalidateQueries({ queryKey: ['trashed-conversations'] });
       queryClient.invalidateQueries({ queryKey: ['trashed-conversation-ids'] });
       toast.success('Chat moved to trash');
     },
     onError: (error: any, _conversationId, context) => {
+      if (!isCurrent()) return;
       if (profileId && context?.previousIds) {
         queryClient.setQueryData(['trashed-conversation-ids', profileId], context.previousIds);
       }
-      if (profileId && context?.previousDMs) {
-        queryClient.setQueryData(['dm-conversations', profileId], context.previousDMs);
-        queryClient.setQueryData(['conversations', profileId], context.previousDMs);
-      }
+      context?.inboxSnapshot?.restore();
       if (profileId && context?.previousTrash) {
         queryClient.setQueryData(['trashed-conversations', profileId], context.previousTrash);
       }
@@ -247,11 +253,9 @@ function readDmConversationFromCache(
   queryClient: ReturnType<typeof useQueryClient>,
   profileId: string,
   conversationId: string,
+  session: Parameters<typeof activeDmListKeys>[1],
 ): LoadedDMConversation | undefined {
-  const lists = [
-    queryClient.getQueryData<LoadedDMConversation[]>(['dm-conversations', profileId]),
-    queryClient.getQueryData<LoadedDMConversation[]>(['conversations', profileId]),
-  ];
+  const lists = activeDmListKeys(profileId, session).map(key => queryClient.getQueryData<LoadedDMConversation[]>(key));
   for (const list of lists) {
     const hit = list?.find((conv) => conv.id === conversationId);
     if (hit) return hit;
@@ -262,10 +266,12 @@ function readDmConversationFromCache(
 export function useRestoreConversation() {
   const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
+  const session = useReportAccountSession();
+  const isCurrent = () => !!profileId && activeDmListKeys(profileId, session).length > 0;
 
   return useMutation({
     mutationFn: async (conversationId: string) => {
-      if (!profileId) throw new Error('Not authenticated');
+      if (!profileId || !isCurrent()) throw new Error('Not authenticated');
 
       const { error } = await db
         .from('trashed_conversations')
@@ -277,7 +283,7 @@ export function useRestoreConversation() {
       return conversationId;
     },
     onMutate: async (conversationId: string) => {
-      if (!profileId) return {};
+      if (!profileId || !isCurrent()) return {};
       await queryClient.cancelQueries({ queryKey: ['trashed-conversation-ids'] });
       await queryClient.cancelQueries({ queryKey: ['trashed-conversations', profileId] });
 
@@ -301,12 +307,14 @@ export function useRestoreConversation() {
       return { previousIds, previousTrash };
     },
     onSuccess: () => {
-      invalidateConversationCaches(queryClient, profileId);
+      if (!isCurrent()) return;
+      invalidateConversationCaches(queryClient, profileId, session);
       queryClient.invalidateQueries({ queryKey: ['trashed-conversations'] });
       queryClient.invalidateQueries({ queryKey: ['trashed-conversation-ids'] });
       toast.success('Chat restored');
     },
     onError: (error: any, _conversationId, context) => {
+      if (!isCurrent()) return;
       if (profileId && context?.previousIds) {
         queryClient.setQueryData(['trashed-conversation-ids', profileId], context.previousIds);
       }
@@ -323,10 +331,12 @@ export function usePermanentlyDeleteConversation() {
   const { user } = useAuth();
   const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
+  const session = useReportAccountSession();
+  const isCurrent = () => !!profileId && activeDmListKeys(profileId, session).length > 0;
 
   return useMutation({
     mutationFn: async (conversationId: string) => {
-      if (!profileId || !user?.id) throw new Error('Not authenticated');
+      if (!profileId || !user?.id || !isCurrent()) throw new Error('Not authenticated');
 
       const { error: trashError } = await db
         .from('trashed_conversations')
@@ -346,7 +356,7 @@ export function usePermanentlyDeleteConversation() {
       if (hideError) throw hideError;
     },
     onMutate: async (conversationId: string) => {
-      if (!profileId) return {};
+      if (!profileId || !isCurrent()) return {};
       const previousTrash = queryClient.getQueryData<TrashedConversation[]>([
         'trashed-conversations',
         profileId,
@@ -358,11 +368,13 @@ export function usePermanentlyDeleteConversation() {
       return { previousTrash };
     },
     onSuccess: () => {
-      invalidateConversationCaches(queryClient, profileId);
+      if (!isCurrent()) return;
+      invalidateConversationCaches(queryClient, profileId, session);
       queryClient.invalidateQueries({ queryKey: ['trashed-conversations'] });
       toast.success('Chat permanently deleted');
     },
     onError: (error: any, _conversationId, context) => {
+      if (!isCurrent()) return;
       if (profileId && context?.previousTrash) {
         queryClient.setQueryData(['trashed-conversations', profileId], context.previousTrash);
       }

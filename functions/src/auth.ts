@@ -960,9 +960,7 @@ async function mintCustomTokenFromAppleIdToken(
 ): Promise<string> {
   const { createHash } = await import('crypto');
   // Transitively available via firebase-admin; verify Apple JWKS + mint custom token.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const jwksClient = ((await import('jwks-rsa')) as any).default || (await import('jwks-rsa'));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const jwt = ((await import('jsonwebtoken')) as any).default || (await import('jsonwebtoken'));
 
   const client = jwksClient({ jwksUri: APPLE_JWKS_URI, cache: true });

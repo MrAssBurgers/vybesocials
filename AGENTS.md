@@ -27,6 +27,7 @@ npm ci --prefix functions
 - Do not modify secrets or auth config without explicit user request.
 - Prefer safe, reversible migrations over destructive database actions.
 - **Backend is Firebase only** — Firestore, Firebase Auth, Cloud Functions, Storage. Do not add Supabase dependencies or SQL migrations.
+- DM list writes and rollbacks use exact owned profile/UID/session-epoch keys and captured operation sessions; retired operations cannot update a new account incarnation.
 
 ## Platform Scope (iOS vs Android)
 Shared web bundle runs in both Despia shells. When the user says **iOS only** or **Android only**:
