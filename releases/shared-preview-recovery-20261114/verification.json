@@ -1,0 +1,23 @@
+{
+  "checkedAt": "2026-11-14T23:21:03.643Z",
+  "commit": "8d075b9883868198e531b56c49bf6182dacf10e3",
+  "sourceSha256": "8693588123a7d607098681123cfc405a111c2366a1c55aacdb153d936e58eb77",
+  "entry": "/assets/app-CbsrHaOZ.js",
+  "entrySha256": "0e58936a931398843f058b113d82b28272fd940bbd25ff30c839a0734bbd4bdc",
+  "builtAt": "2026-11-14T23:17:39.166Z",
+  "routes": [
+    "/",
+    "/login",
+    "/signup",
+    "/home",
+    "/profile",
+    "/messages",
+    "/map",
+    "/explore",
+    "/clips",
+    "/settings"
+  ],
+  "assets": 709,
+  "nativeDeployedAt": "1794698258369",
+  "scope": "Source/entry integrity, route shells and native asset delivery. Does not prove real account writes, physical mobile adoption, GPS or video performance."
+}
