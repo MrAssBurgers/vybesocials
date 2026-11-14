@@ -14,10 +14,27 @@ function Probe() {
 function Harness({ conversation = 'chat' }: { conversation?: string }) {
   return <SharedPostPreviewProvider conversationId={conversation}><Probe /></SharedPostPreviewProvider>;
 }
-beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal('IntersectionObserver', undefined); mocks.account.mockReturnValue(account('alice')); mocks.read.mockReset(); });
-afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+beforeEach(() => { window.dispatchEvent(new Event('app-resumed')); vi.useFakeTimers(); vi.stubGlobal('IntersectionObserver', undefined); mocks.account.mockReturnValue(account('alice')); mocks.read.mockReset(); });
+afterEach(() => { cleanup(); window.dispatchEvent(new Event('app-resumed')); vi.useRealTimers(); vi.unstubAllGlobals(); });
 const tick = () => act(async () => { await vi.advanceTimersByTimeAsync(500); });
 describe('shared preview React session lifecycle', () => {
+  it('does not read when mounted during native pause and loads on resume', async () => {
+    window.dispatchEvent(new Event('app-paused')); mocks.read.mockResolvedValue([post('Fresh native preview')]);
+    render(<Harness />); await tick(); expect(mocks.read).not.toHaveBeenCalled();
+    act(() => { window.dispatchEvent(new Event('app-resumed')); }); await tick();
+    expect(screen.getByRole('status')).toHaveTextContent('Fresh native preview'); expect(mocks.read).toHaveBeenCalledTimes(1);
+  });
+  it('clears on native pause and retires a stalled response before the fresh resume read', async () => {
+    let finish!: (posts: SocialPostPreview[]) => void;
+    mocks.read.mockImplementationOnce(() => new Promise<SocialPostPreview[]>(done => { finish = done; })).mockResolvedValue([post('After resume')]);
+    render(<Harness />); await tick();
+    act(() => { window.dispatchEvent(new Event('app-paused')); }); await tick();
+    expect(screen.getByRole('status')).toHaveTextContent('unavailable'); expect(mocks.read).toHaveBeenCalledTimes(1);
+    act(() => { window.dispatchEvent(new Event('app-resumed')); }); await tick();
+    expect(screen.getByRole('status')).toHaveTextContent('After resume');
+    await act(async () => { finish([post('Before pause')]); });
+    expect(screen.getByRole('status')).toHaveTextContent('After resume');
+  });
   it.each(['account', 'epoch', 'profile', 'conversation', 'not-ready'])('clears mounted content immediately after a %s change', async (change) => {
     mocks.read.mockResolvedValueOnce([post('Alice preview')]);
     const view = render(<Harness />); await tick();

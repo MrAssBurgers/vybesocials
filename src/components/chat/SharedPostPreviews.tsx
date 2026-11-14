@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useProfileAccount } from '@/hooks/useProfileAccount';
 import { readSocialPostPreviews, type SocialPostPreview } from '@/lib/socialFeedService';
+import { withPostReadDeadline } from '@/lib/postReadDeadline';
+import { foregroundReadPhaseCurrent, getForegroundReadPhase, isAppForeground, subscribeForegroundReadPhase } from '@/lib/foregroundReadPhase';
 
 type Entry = { status: 'queued' | 'loading' | 'ready' | 'unavailable' | 'error'; post?: SocialPostPreview; expires: number };
 const pending: Entry = { status: 'queued', expires: 0 };
@@ -19,6 +21,7 @@ export class SharedPostPreviewStore {
   private visible = true;
   private running = false;
   private nextRequest = 0;
+  private request?: AbortController;
   private timer?: ReturnType<typeof setInterval>;
   constructor(private load: (ids: string[], guard: () => void) => Promise<SocialPostPreview[]>) {}
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
@@ -40,17 +43,22 @@ export class SharedPostPreviewStore {
   retry(id: string) { if (this.counts.has(id)) { this.entries.set(id, pending); this.emit(); } }
   setVisible(visible: boolean) {
     this.visible = visible; this.generation++;
+    this.retireRequest();
     this.entries.clear();
     for (const id of this.counts.keys()) this.entries.set(id, pending);
     this.emit();
   }
   start() {
-    this.active = true; this.visible = document.visibilityState !== 'hidden'; this.emit();
+    this.active = true; this.visible = isAppForeground(); this.emit();
     this.timer = setInterval(() => { void this.tick(); }, 500);
-    return () => { this.active = false; this.generation++; clearInterval(this.timer); this.entries.clear(); this.emit(); };
+    return () => { this.active = false; this.generation++; this.retireRequest(); clearInterval(this.timer); this.entries.clear(); this.emit(); };
+  }
+  private retireRequest() {
+    this.request?.abort(); this.request = undefined;
+    this.running = false; this.nextRequest = 0;
   }
   private async tick() {
-    if (!this.active || !this.visible) return;
+    if (!this.active || !this.visible || !isAppForeground()) return;
     const now = Date.now(); let expired = false;
     for (const [id, entry] of this.entries) {
       if ((entry.status === 'ready' || entry.status === 'unavailable') && entry.expires <= now) {
@@ -66,20 +74,25 @@ export class SharedPostPreviewStore {
     if (!ids.length) return;
     this.running = true; this.nextRequest = now + 2500;
     const generation = this.generation;
-    const guard = () => { if (!this.active || !this.visible || generation !== this.generation) throw new Error('Preview session changed.'); };
+    const request = new AbortController(); this.request = request;
+    const phase = getForegroundReadPhase();
+    const guard = () => { if (!this.active || !this.visible || generation !== this.generation || this.request !== request || request.signal.aborted || !foregroundReadPhaseCurrent(phase)) throw new Error('Preview session changed.'); };
     // Renew before expiry without unmounting playing media. The expiry sweep
     // above still removes content on time if renewal is slow or never settles.
     for (const id of ids) if (this.entries.get(id)?.status === 'queued') this.entries.set(id, { status: 'loading', expires: 0 });
     this.emit();
     try {
-      const posts = await this.load(ids, guard); guard();
+      const posts = await withPostReadDeadline(current => this.load(ids, current), guard, request.signal); guard();
       for (const id of ids) if (this.counts.has(id)) {
         const post = posts.find(row => row.id === id);
         this.entries.set(id, Date.now() >= now + LEASE_MS ? pending : { status: post ? 'ready' : 'unavailable', post, expires: now + LEASE_MS });
       }
     } catch {
       if (this.active && this.visible && generation === this.generation) for (const id of ids) if (this.counts.has(id)) this.entries.set(id, { status: 'error', expires: 0 });
-    } finally { this.running = false; this.emit(); }
+    } finally {
+      // A retired batch may settle after its replacement has started.
+      if (this.request === request) { this.request = undefined; this.running = false; this.emit(); }
+    }
   }
 }
 const Context = createContext<SharedPostPreviewStore | null>(null);
@@ -95,10 +108,11 @@ function PreviewSession({ account, children }: { account: ReturnType<typeof useP
   useEffect(() => {
     if (!store) return;
     const stop = store.start();
-    const visibility = () => store.setVisible(document.visibilityState !== 'hidden');
+    const visibility = () => store.setVisible(isAppForeground());
+    const unsubscribe = subscribeForegroundReadPhase(visibility);
     const hide = () => store.setVisible(false);
-    document.addEventListener('visibilitychange', visibility); window.addEventListener('pagehide', hide); window.addEventListener('pageshow', visibility);
-    return () => { stop(); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('pagehide', hide); window.removeEventListener('pageshow', visibility); };
+    window.addEventListener('pagehide', hide); window.addEventListener('pageshow', visibility);
+    return () => { unsubscribe(); stop(); window.removeEventListener('pagehide', hide); window.removeEventListener('pageshow', visibility); };
   }, [store]);
   return <Context.Provider value={store}>{children}</Context.Provider>;
 }

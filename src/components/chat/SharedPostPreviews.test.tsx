@@ -7,6 +7,30 @@ const post = (id: string) => ({ id, caption: 'Checked caption' }) as SocialPostP
 afterEach(() => { vi.useRealTimers(); });
 
 describe('visible shared-post preview lifetime', () => {
+  it('releases a stalled batch at the post deadline so retry can load again', async () => {
+    vi.useFakeTimers(); let finish!: (posts: SocialPostPreview[]) => void;
+    const load = vi.fn().mockImplementationOnce(() => new Promise(done => { finish = done; })).mockResolvedValue([post('one')]);
+    const store = new SharedPostPreviewStore(load), stop = store.start(); store.observe('one');
+    await vi.advanceTimersByTimeAsync(15500);
+    expect(store.get('one').status).toBe('error');
+    store.retry('one'); await vi.advanceTimersByTimeAsync(500);
+    expect(load).toHaveBeenCalledTimes(2); expect(store.get('one').post).toEqual(post('one'));
+    finish([{ ...post('one'), caption: 'Expired response' }]); await vi.advanceTimersByTimeAsync(0);
+    expect(store.get('one').post?.caption).toBe('Checked caption'); stop();
+  });
+  it('a hidden stalled request does not hold the resumed batch or clear its running state', async () => {
+    vi.useFakeTimers(); let oldFinish!: (posts: SocialPostPreview[]) => void, newFinish!: (posts: SocialPostPreview[]) => void;
+    const load = vi.fn().mockImplementationOnce(() => new Promise(done => { oldFinish = done; })).mockImplementationOnce(() => new Promise(done => { newFinish = done; }));
+    const store = new SharedPostPreviewStore(load), stop = store.start(); store.observe('one');
+    await vi.advanceTimersByTimeAsync(500); const oldGuard = load.mock.calls[0][1];
+    store.setVisible(false); store.setVisible(true);
+    await vi.advanceTimersByTimeAsync(500); expect(load).toHaveBeenCalledTimes(2); expect(oldGuard).toThrow();
+    store.observe('two');
+    oldFinish([post('one')]); await vi.advanceTimersByTimeAsync(3000);
+    expect(load).toHaveBeenCalledTimes(2); expect(store.get('one').post).toBeUndefined();
+    newFinish([{ ...post('one'), caption: 'Fresh response' }]); await vi.advanceTimersByTimeAsync(0);
+    expect(store.get('one').post?.caption).toBe('Fresh response'); stop();
+  });
   it('renews before expiry without removing still-admitted content', async () => {
     vi.useFakeTimers(); let resolve!: (posts: SocialPostPreview[]) => void;
     const load = vi.fn().mockResolvedValueOnce([post('one')]).mockImplementationOnce(() => new Promise(done => { resolve = done; }));

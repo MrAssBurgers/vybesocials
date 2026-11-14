@@ -1,3 +1,20 @@
+## ACTIVE (2026-11-14) - Shared post previews recover from stalled reads and mobile pause
+
+### Current-state reconciliation
+- Previous goal pass made source/test progress at d1213236 and started older publication57850299, but this resumed checkout was stale. Current remote main and Lovable are8dc767e3; vybehub.app serves that October21 release. Recomputed source identity of the clean October21 checkout:620ed3cae9cf6c17b8263b91b7dec233f9d5487289de8e7feceb6dd915b945bd/2650files, matching live. It already includes accepted-code retry and post-token preparation. Did not resume/redeploy the superseded release679f or erase current public/mobile changes.
+- Old vybesocials checkout has a broken origin/main reference and a NUL-filled modified generated public/version.json. Left it untouched. New isolated branch fix/readiness-20261114 starts from current origin/main in the clean vybe-ads-review-20261021 repository; dependencies reused through explicit Windows junctions. Do not recursively remove these junctions.
+
+### Repair and verification
+- A never-settling shared-post preview held the store running forever, preventing Retry and new batches. Bound each batch with the existing15-second post deadline and abort it on hide/stop. A retired batch cannot unlock or overwrite its replacement. Existing30-second permission leases, checked preview admission, visible-ID batching and account/conversation guards retained.
+- Native pause now uses the same page-wide foreground generation as map/hub readers, including mounting while already paused. Pause clears content/retires the read; resume requires a fresh read. Browser pagehide/pageshow retained. No new feature, backend, Rules, Auth/provider/permissions, native binary, real account or content mutation.
+- Four regression cases failed before repair; focused17 and combined existing-auth28 pass. First full run had one existing authService.localPreview native-token timing failure under concurrent build/test load (5173passed); the case passed focused. Final full28971 with four workers passes532files/one skipped,5174tests/six skipped,317.52s. Types/lint96992 exit0:zero errors/five existing warnings. Build97815 exit0:857.5KB raw261.4KB gzip/native manifest/entry/budget pass. Generated public files restored; no runtime edit after checks.
+- Browser390x700 actual SharedPostBubble/provider/preview service with synthetic transport: held request becomes Retry preview, retry displays checked fresh text, native pause hides it, resume refreshes, late original response cannot overwrite it. Screenshot work/shared-preview-mobile.jpg. No real credentials/Firebase data used, no physical Android adoption/FPS/whole-app proof. Own QA8355/session81199 stopped, created tab closed and viewport reset.
+- Read-only current auth compatibility:all eight fixed malformed/unauthenticated probes pass. OPTIONS204+properorigin for map/location/feed/list/previews. Existing checkPremiumSubscription403 and tokenMarketplace/tokenMarketplace2/checkStreamSubscription404 remain current readiness gaps; no IAM broadening or undeployed function rollout. Evidence work/auth-compatibility-current.log and work/current-function-preflight.json. Probes establish reachability/input rejection/CORS only, not authenticated functionality or restoration.
+
+### Next three tasks
+1. Publish this exact current-baseline repair and verify delivered source/entry/native assets.
+2. Check actual installed sign-in/profile/post/Clips/map behavior and finish reviewed Firebase content restoration; synthetic checks do not certify these.
+3. Repair the remaining current subscription/marketplace service gaps and continue the complete existing-flow/security/readiness audit. Goal remains active.
 ## RELEASED (2026-10-21) - Public website access and AdSense review requested
 
 ### What changed
@@ -11015,4 +11032,5 @@ Query runtime source7a6bf35ef413e3d9e1639df3ff59b9562eb83919 publishedviaoneLova
 
 
 Publication follow-up: compatible release679f116438530f7ac727752208bfd3ef9d782a55 pushed; four source/test hashes match main df5521ed1a4dfcfc4829b6762694aabed5d104cf. Release66858 exit0 types/lint/build/native/budget all pass1095.6KB raw/332.3KB gzip; full11917 exit0 4,913 passed/six skipped. No runtime edits after checks. Lovable get_project confirms main df5521ed ready/agentFinished, but supported UI Git branch selector remains aria-disabled=true after normal project reload, settings remount through account/preferences/workspace Go back. No account/workspace/preferences/billing/permissions toggles changed, no forced disabled interaction/private API bypass, no publish request dispatched. Therefore live remains prior verified285f18a/source814af27c; this completion repair is NOT published. Main is broader unfinished backend/client protocol history and must not be blindly published. Own synthetic QA8353/session50818 stopped; own QA tab closed/reset390x700 override. Exact user code error still pending; real phone verification/speed not proved. Next three: restore supported branch selection and publish679f compatible release; correlate actual installed code error/refresh and speed; continue existing loading/content/map/Clips/security readiness. Goal remains active; this is first occurrence of current publication impediment, not a blocked goal audit.
+
 
