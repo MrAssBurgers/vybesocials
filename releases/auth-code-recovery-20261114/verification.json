@@ -1,0 +1,23 @@
+{
+  "checkedAt": "2026-11-15T00:51:51.723Z",
+  "commit": "6813db823266b3b94ffb7b36601026d793b24567",
+  "sourceSha256": "764b188e2b816ed38e6a35b8733a224b95b162cb55372db93712732c529c1eb1",
+  "entry": "/assets/app-BwMeiZSI.js",
+  "entrySha256": "935abe80c925154b1e50961d5075df83b143ef68c50593539ce9c93b062525eb",
+  "builtAt": "2026-11-15T00:50:10.313Z",
+  "routes": [
+    "/",
+    "/login",
+    "/signup",
+    "/home",
+    "/profile",
+    "/messages",
+    "/map",
+    "/explore",
+    "/clips",
+    "/settings"
+  ],
+  "assets": 709,
+  "nativeDeployedAt": "1794703809712",
+  "scope": "Source/entry integrity, route shells and native asset delivery. Does not prove real account writes, physical mobile adoption, GPS or video performance."
+}
