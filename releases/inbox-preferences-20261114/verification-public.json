@@ -1,0 +1,25 @@
+{
+  "checkedAt": "2026-11-15T01:35:26.060Z",
+  "commit": "7e3aa99f374527a56f3de20f36251cc00ca051d2",
+  "sourceSha256": "96d9b4d0e48d5127361cd6bd4e60813549ce8fc5027d446e35eedee54ee62378",
+  "sourceFiles": 2662,
+  "entry": "/assets/app-CcsobMRc.js",
+  "entrySha256": "c75b355be49356b3ec99bac352583c182f03b343d6252d967a295c3022f6a952",
+  "builtAt": "2026-11-15T01:33:38.703Z",
+  "routes": [
+    "/",
+    "/login",
+    "/signup",
+    "/home",
+    "/profile",
+    "/messages",
+    "/map",
+    "/explore",
+    "/clips",
+    "/settings"
+  ],
+  "assets": 709,
+  "nativeDeployedAt": "1794706418135",
+  "failures": [],
+  "scope": "Exact public source/runtime/entry integrity, ten route shells and native manifest delivery. Not a certification of signed-in transactions, provider integrations, native adoption, GPS, calling or sustained media/animation performance."
+}

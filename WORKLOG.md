@@ -1,12 +1,15 @@
-## ACTIVE (2026-11-14) - Preference client merged with premium recovery; publishing next
+## ACTIVE (2026-11-14) - Preference persistence published; optional Auth checks passed
 
 - Preserved current main2f6e230, including the independently deployed/read-verified premium endpoint and client session-epoch guards. Our direct production OPTIONS204/POST401 observations match its saved receipts; no additional backend operation was made here.
 - Final combined suite540files pass/one skip,5235tests pass/six skip,204.84s. Types/lint/build/boot/native entry/CSS/budget all pass, zero lint warnings/errors. Localapp-V5X68S0y.js858.8KB raw262.0KB gzip. No runtime edit after checks. The5233-test pre-merge checkpoint is superseded.
 - Preference conversion/merge regressions and actual demo off/on writes, server projection rebuilds and reloads are recorded in [the preference release](releases/inbox-preferences-20261114/README.md). Physical membership checks remain required; no role/membership or server access is created. Demo settings restored, tab closed and viewport reset.
+- Published source7e3aa99f374527a56f3de20f36251cc00ca051d2 through Lovable deployment7f7aeaf8-ef2f-4bd6-b4fe-53c6d369b54d. At01:35:26.060Z, public fingerprint96d9b4d0e48d5127361cd6bd4e60813549ce8fc5027d446e35eedee54ee62378/2662files, source/runtime/entry identity, ten shells and709native assets pass. Hostedapp-CcsobMRc.js/digestc75b355be49356b3ec99bac352583c182f03b343d6252d967a295c3022f6a952. No additional backend or real account preference mutation.
+- Enabled all6normally skipped real browser-SDK Auth persistence cases against isolated Auth9296/demo-vybe-persistence; all6pass in2.33s. Native vault transport is synthetic; no physical-device claim. Owned hub4503/log4603/Auth9296 service was stopped; pre-existing services preserved. Existing main540files/5235tests plus this separate6-case run are distinct evidence.
+- Current route inventory in ignoredwork/route-inventory.json identifies126literal routes (101static,73protected). It is an inventory, not completion evidence. Next work expands actual feature journeys beyond messaging. The original full app/website goal remains active.
 
 ### Next three tasks
-1. Publish/verify this exact merged preference client.
-2. Continue broader profile, discovery, notifications and community feature journeys; retain ongoing marketplace service authority/deployment prerequisites and current main updates.
+1. Continue broader profile, discovery, notifications and community feature journeys, using the126-route inventory to track unverified coverage.
+2. Retain ongoing marketplace service authority/deployment prerequisites and current main updates; the premium reader is already restored and read-verified in its release record.
 3. Complete remaining permitted provider and physical-device lifecycle/performance checks. The full original app/website goal remains active.
 
 ## ACTIVE (2026-11-14) - Existing premium-status endpoint and account-session recovery
