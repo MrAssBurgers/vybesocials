@@ -1,0 +1,20 @@
+{
+  "checkedAt": "2026-11-15T05:17:40.173Z",
+  "endpoint": "https://us-central1-vybe-daaab.cloudfunctions.net/findRouletteMatch",
+  "status": 404,
+  "allowOrigin": null,
+  "scope": "Read-only browser preflight against the existing client RPC mapping. No Auth token, queue action, match, message, camera or microphone operation. Source declaration checks are static evidence, not a signed-in production matchmaking attempt. No new service or Rules was deployed.",
+  "source": {
+    "route": "src/components/layout/AnimatedRoutes.tsx:334",
+    "page": "src/pages/VYBERoulette.tsx",
+    "hook": "src/hooks/useRouletteMatch.ts",
+    "fallback": "src/lib/firebase/dataClient.ts:1126",
+    "matchingCallableDeclaredOrExported": false,
+    "rawQueueAndMatchRulesDeclaredInLiveBaseline": false
+  },
+  "remaining": [
+    "Build and verify an authoritative matching/queue/cancel/end transport with current account/profile ownership, request retirement, blocked-user exclusion and preserved history.",
+    "Finish the existing promised text/audio/video handoff and participant lifecycle; the current Say Hi button only opens a profile.",
+    "Verify real demo Auth/Firestore/HTTP and actual UI before any named backend/client publication. Do not contact real users or request device permissions for the audit."
+  ]
+}
