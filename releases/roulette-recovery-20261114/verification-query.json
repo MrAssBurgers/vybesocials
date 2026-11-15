@@ -1,0 +1,32 @@
+{
+  "checkedAt": "2026-11-15T06:38:17.021Z",
+  "targetAbsent": true,
+  "rows": [
+    {
+      "query": "bounded text expiry queue",
+      "ok": true,
+      "documentsReturned": 0
+    },
+    {
+      "query": "bounded audio expiry queue",
+      "ok": true,
+      "documentsReturned": 0
+    },
+    {
+      "query": "bounded video expiry queue",
+      "ok": true,
+      "documentsReturned": 0
+    },
+    {
+      "query": "bounded nonexistent block pair",
+      "ok": true,
+      "documentsReturned": 0
+    },
+    {
+      "query": "bounded nonexistent block pair",
+      "ok": true,
+      "documentsReturned": 0
+    }
+  ],
+  "scope": "Read-only administrative production query/index compatibility. No document content stored/printed, no data/index/Rules write. Not actual owner admission or performance proof."
+}

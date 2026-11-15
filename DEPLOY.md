@@ -12,6 +12,10 @@ Production web hosting is **Lovable**, with custom domain **`vybehub.app`**. Lov
 | Firebase Hosting staging frontend | https://vybe-daaab.web.app — shares the production Firebase project; not an isolated data environment |
 | Isolated local QA | `demo-vybe-preview`; follow [LOCAL_PREVIEW_QA.md](docs/LOCAL_PREVIEW_QA.md). Never deploy its configuration or fixtures. |
 
+## Existing Roulette recovery (2026-11-15)
+
+`findRouletteMatch` is now ACTIVE Node22. Its exact nine-file minimal source archive is `3849f3eac67efe959e3cfa38dc7ca98aa84b35fd731a2e7ca6fc88639f21f465`; preserve the scoped256Mi/0.083CPU/max3instances/concurrency1/60second budget. Production browser preflight returns204/correct origin; unauthenticated invocation returns401. Only this new service has public callable transport invocation; application admission still checks verified current Firebase Auth and protected canonical binding. New matching records are private under the existing live catch-all denial; no Rules/index activation occurred. Existing history and real-user matching/calls were untouched. Matched client publication remains pending until current main is combined and checked. See [the release record](releases/roulette-recovery-20261114/README.md).
+
 ## Existing Home announcement recovery (2026-11-14)
 
 The newest-active announcement index is READY and its exact production query succeeds. Only the 25-line personal dismissal preference addition to the exact live baseline was activated. **Current Firestore baseline:** ruleset `11329c9e-47f8-4192-9f0a-d7dbf197c669`, SHA256 `1aaf28af3e57a6a5ba445c9b35a739ed110b177465a5fb63dc7dfa9b1074c222`. All unrelated prior Rules bytes are preserved. Actual local Auth/Firestore SDK checks pass28, including owner upsert/replay and cross-account rejection. The matched client e5dfab5 is published and exact public source/runtime/entry/native delivery is verified; actual local interface checks passed at320/390/840px. Physical adoption remains unverified. See [the exact release record](releases/announcement-interactions-20261114/README.md). Do not deploy the broader root Rules, Functions or indexes.

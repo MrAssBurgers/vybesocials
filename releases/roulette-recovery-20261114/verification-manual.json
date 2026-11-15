@@ -1,0 +1,43 @@
+{
+  "checkedAt": "2026-11-15T06:44:33.443688+00:00",
+  "browser": "Native Chrome, owned private QA window",
+  "cssViewports": [
+    {
+      "width": 320,
+      "height": 844
+    },
+    {
+      "width": 390,
+      "height": 844
+    },
+    {
+      "width": 840,
+      "height": 844
+    }
+  ],
+  "desktopBrowserZoom": "80 percent for complete tall fixture; earlier setup observed at100 percent",
+  "checks": [
+    "Real demo SDK join/poll and acknowledged cancel; pending leave visible",
+    "Native interest toggle via click and Space; selected count follows action",
+    "Two real demo accounts pair in text mode with shared Music; actual conversation participant read succeeds after Open chat",
+    "Real demo signOut/signIn clears retired matched view before new account use",
+    "Audio and video mode queues pair correct peer; native explicit Start call dispatches selected mode, verified peer and conversation to call observer",
+    "Video peer shows Open chat and single-caller explanation after other participant reserved initiator",
+    "End acknowledges and yields usable ended state on both participants",
+    "Skip acknowledges old end before starting fresh audio search; later Cancel returns setup",
+    "Narrow and wide presentations retain readable matched card/actions without horizontal overflow"
+  ],
+  "sourceBodies": "Hook and callable transport exactly match checked source except dependency import rebinding, independently asserted",
+  "seams": [
+    "Owned profile bootstrap uses actual emulator Auth metadata; server revalidates binding",
+    "App shell, safety actions, avatar cache/signing and call provider are fixtures",
+    "Chat destination observes real conversation SDK read; full messaging screen not exercised here"
+  ],
+  "notCertified": [
+    "Actual camera/microphone/provider/incoming calls",
+    "Private-avatar signing transport",
+    "Production authenticated user journey",
+    "Physical Google Play Android device/adoption/frame rate"
+  ],
+  "productionDomainDataWrites": false
+}

@@ -1,0 +1,28 @@
+{
+  "checkedAt": "2026-11-15T06:46:44.995Z",
+  "project": "demo-vybe-roulette-qa",
+  "passed": 20,
+  "checks": [
+    "actual callable browser preflight and guest rejection",
+    "caller cannot choose another owner, arbitrary peer, invalid mode or malformed interests",
+    "real owners join private queues and modes remain separate",
+    "both real Auth owners observe one current canonical pair with minimal peer metadata",
+    "text handoff creates one readable participant conversation and denies an outsider",
+    "even participants cannot bypass the gateway to raw private sessions or match records",
+    "reload resumes one owned search; cancellation closes that exact pair and replay cannot revive it",
+    "actual out-of-order Cancel tombstone prevents a delayed first join from entering any queue",
+    "a failed domain commit does not mint a queue or success receipt",
+    "disabled Auth before commit rolls back matching writes",
+    "actual same-second UID replacement with different raw creation milliseconds is rejected before commit",
+    "a retired canonical binding cannot enter matching",
+    "expired presence cannot match an abandoned search",
+    "late old-operation cleanup preserves the newer owned queue",
+    "blocks are enforced across both historical aliases and revoke an already matched pair",
+    "existing active parental feature restrictions prevent entering Roulette",
+    "three concurrent real joins produce one pair and one waiting owner, without double matching",
+    "video handoff reserves one call initiator and replays the same conversation",
+    "audio mode pairs and hands off through the same checked participant capability",
+    "legacy raw matching records cannot become authority and remain unchanged"
+  ],
+  "scope": "Actual Node22 callable HTTP, real demo Firebase Auth tokens/Firestore SDK/transactions and exact deployed Rules. Synthetic failure/clock/race injection is confined to this exclusive loopback QA server. No production, provider, real user contact, camera or microphone action. Text/audio/video handoff is checked; actual media calls are not certified."
+}
