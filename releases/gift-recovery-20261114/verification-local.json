@@ -1,0 +1,29 @@
+{
+  "checkedAt": "2026-11-15T01:51:02.780Z",
+  "mergeCommit": "8fd2a66632a38debace40fd8feb3cf2f8cf79683",
+  "sourceSha256": "8f96b76b4ba6333ee6016d07925803826c7f7009050a70973ed35f093ac79c98",
+  "sourceFiles": 2665,
+  "tests": {
+    "filesPassed": 542,
+    "filesSkipped": 1,
+    "passed": 5242,
+    "skipped": 6,
+    "durationSeconds": 117.85
+  },
+  "checks": {
+    "typecheck": "pass",
+    "lint": "zero warnings/errors",
+    "build": "pass",
+    "functionsBuild": "pass",
+    "boot": "pass",
+    "native": "pass",
+    "bundleBudget": "pass"
+  },
+  "entry": {
+    "path": "/assets/app-DBu2XfIZ.js",
+    "rawKb": 858.8,
+    "gzipKb": 262
+  },
+  "manual": "Actual Settings gift review and demo Firebase Auth/HTTP/Firestore acceptance; pending card cleared and gifted preview refreshed",
+  "limits": "No real gift/purchase mutation, fresh phone-code flow or physical-native adoption claim"
+}
