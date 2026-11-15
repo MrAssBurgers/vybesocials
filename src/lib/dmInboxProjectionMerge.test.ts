@@ -24,6 +24,13 @@ function projectionEntry(id: string): DmInboxEntryDoc {
 }
 
 describe('mergeLegacyAndProjection', () => {
+  it('rejects another viewer projection even when its conversation ID matches', () => {
+    const result = mergeLegacyAndProjection({
+      legacy: [legacy('a')], projectionEntries: [{ ...projectionEntry('foreign'), viewer_id: 'bob' }],
+      lockedIds: new Set(), projectionReadEnabled: true, projectionReady: true, viewerId: 'alice',
+    });
+    expect(result.map(conversation => conversation.id)).toEqual(['a']);
+  });
   it('returns legacy when projection read is disabled', () => {
     const result = mergeLegacyAndProjection({
       legacy: [legacy('a'), legacy('b')],

@@ -179,6 +179,7 @@ export function projectionToLoadedConversation(
         conversation_id: entry.conversation_id,
         sender_id: entry.latest_sender_id || '',
         content: entry.preview_text,
+        _inboxPreviewText: entry.preview_text,
         created_at: messageAt,
         message_type: entry.latest_message_type || 'text',
       }

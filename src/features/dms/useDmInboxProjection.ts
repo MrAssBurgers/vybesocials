@@ -1,79 +1,70 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  loadDmInboxProjection,
-  subscribeDmInboxProjection,
-} from '@/lib/dmInboxProjection';
+import { loadDmInboxProjection, subscribeDmInboxProjection } from '@/lib/dmInboxProjection';
 import type { DmInboxEntryDoc } from '@/features/dms/dm.types';
-import {
-  isDmInboxProjectionReadEnabled,
-  isDmInboxShadowCompareEnabled,
-} from '@/lib/dmInboxFeatureFlags';
+import { isDmInboxProjectionReadEnabled, isDmInboxShadowCompareEnabled } from '@/lib/dmInboxFeatureFlags';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
+import { reportAccountSnapshot } from '@/lib/reportModerationService';
+
+const EMPTY_ENTRIES: DmInboxEntryDoc[] = [];
+interface ProjectionState {
+  scope: string;
+  entries: DmInboxEntryDoc[];
+  isLoading: boolean;
+  ready: boolean;
+  error: Error | null;
+}
 
 export function useDmInboxProjection(viewerId?: string | null) {
-  const [entries, setEntries] = useState<DmInboxEntryDoc[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-  const staleEntriesRef = useRef<DmInboxEntryDoc[]>([]);
-  const enabled =
-    Boolean(viewerId) &&
-    (isDmInboxProjectionReadEnabled(viewerId) || isDmInboxShadowCompareEnabled());
+  const session = useReportAccountSession();
+  const enabled = Boolean(viewerId && session.uid)
+    && (isDmInboxProjectionReadEnabled(viewerId) || isDmInboxShadowCompareEnabled());
+  const scope = JSON.stringify([viewerId, session.uid, session.epoch, enabled]);
+  const latestScopeRef = useRef(scope);
+  latestScopeRef.current = scope;
+  const [state, setState] = useState<ProjectionState>({
+    scope, entries: EMPTY_ENTRIES, isLoading: enabled, ready: false, error: null,
+  });
 
   useEffect(() => {
-    if (!viewerId || !enabled) {
-      setIsLoading(false);
-      setError(null);
-      return;
-    }
-
+    if (!viewerId || !enabled) return;
     let cancelled = false;
-    setIsLoading(staleEntriesRef.current.length === 0);
-
-    void loadDmInboxProjection(viewerId)
-      .then((rows) => {
-        if (!cancelled && rows.length) {
-          staleEntriesRef.current = rows;
-          setEntries(rows);
-          setError(null);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err : new Error(String(err)));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-
-    const unsub = subscribeDmInboxProjection(
-      viewerId,
-      (rows) => {
-        if (!cancelled) {
-          if (rows.length) staleEntriesRef.current = rows;
-          setEntries(rows.length ? rows : staleEntriesRef.current);
-          setIsLoading(false);
-          setError(null);
-        }
-      },
-      (err) => {
-        if (!cancelled) setError(err);
-      },
-    );
-
-    return () => {
-      cancelled = true;
-      unsub();
+    let receivedStream = false;
+    const current = () => {
+      const active = reportAccountSnapshot();
+      return !cancelled && latestScopeRef.current === scope
+        && active.uid === session.uid && active.epoch === session.epoch;
     };
-  }, [viewerId, enabled]);
+    const commit = (patch: Partial<ProjectionState>) => {
+      if (!current()) return;
+      setState(previous => ({
+        ...(previous.scope === scope ? previous : {
+          scope, entries: EMPTY_ENTRIES, isLoading: true, ready: false, error: null,
+        }),
+        ...patch,
+      }));
+    };
+    const received = (rows: DmInboxEntryDoc[]) => commit({
+      entries: rows.filter(row => row.viewer_id === viewerId || row.viewer_id === session.uid),
+      isLoading: false, ready: true, error: null,
+    });
+    commit({ isLoading: true, error: null });
+    void loadDmInboxProjection(viewerId)
+      .then(rows => { if (!receivedStream) received(rows); })
+      .catch(error => { if (!receivedStream) commit({ error: error instanceof Error ? error : new Error(String(error)), isLoading: false }); });
+    const unsubscribe = subscribeDmInboxProjection(
+      viewerId, rows => { receivedStream = true; received(rows); }, error => commit({ error, isLoading: false }),
+    );
+    return () => { cancelled = true; unsubscribe(); };
+  }, [viewerId, enabled, scope, session.uid, session.epoch]);
 
-  const projectionReady = entries.length > 0 && !isLoading;
-
+  // Suppress the old scope during render, before its effect cleanup runs.
+  const visible = enabled && state.scope === scope ? state : undefined;
   return {
-    entries,
-    isLoading,
-    error,
+    entries: visible?.entries ?? EMPTY_ENTRIES,
+    isLoading: enabled && (visible?.isLoading ?? true),
+    error: visible?.error ?? null,
     enabled,
-    projectionReady,
-    projectionReadEnabled: isDmInboxProjectionReadEnabled(viewerId),
+    projectionReady: Boolean(visible?.ready && !visible.isLoading),
+    projectionReadEnabled: enabled && isDmInboxProjectionReadEnabled(viewerId),
   };
 }

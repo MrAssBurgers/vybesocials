@@ -30,4 +30,4 @@ The five existing integration scripts were rerun against the final combined live
 - Verify actual Android/iOS installation, cold launch, lifecycle, keyboard, GPS, camera/microphone, push and sustained media/animation performance. Browser/emulator tests and Lovable web publication cannot certify the native binary.
 - Review dependency audit findings separately; no blanket dependency upgrade was applied.
 
-Client publication and exact public source/native asset evidence will be recorded after the verified main commit is published through Lovable.
+Initial client source `4185e9cf556663317f2247a1e206936ae9a3e295` was published through Lovable deployment `42bb4262-5c75-482e-80a3-c5b9a03f8a7b`. At 2026-11-15T00:35:16.069Z the public verifier confirmed exact source fingerprint `0fb931dabcb2252b48ec49e1ceaac6cb028700776a173720266c6aa57cdae0ea` / 2655 files, matching source parts/config/public files and runtime dependencies, the published entry hash, ten route shells and all 709 native manifest assets. See `verification-public.json`. A normal signed-in browser reload and navigation showed the corrected Search title. The later inbox polish release is recorded separately.

@@ -7,7 +7,10 @@ const auth = vi.hoisted(() => ({ get currentUser() { return { uid: state.uid }; 
 vi.mock('@/lib/firebase/authService', () => ({ getFirebaseAuth: () => auth }));
 vi.mock('@/lib/firebase/functionsService', () => ({ invokeFunction: vi.fn() }));
 vi.mock('@/lib/firebase/firestoreDb', () => ({ getDocumentFromServer: state.read, updateDocument: state.write }));
-vi.mock('@/lib/firebase', () => ({ db: { from: () => ({ update: (patch: unknown) => ({ eq: async (_key: string, id: string) => { await state.write('conversation_members', id, patch); return { error: null }; } }) }) } }));
+vi.mock('@/lib/firebase', () => ({ db: { from: (table: string) => ({
+  update: (patch: unknown) => ({ eq: async (_key: string, id: string) => { await state.write('conversation_members', id, patch); return { error: null }; } }),
+  insert: async (payload: unknown) => { await state.write(table, '', payload); return { error: null }; },
+}) } }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: state.uid }, profile: { id: `profile-${state.uid}`, user_id: state.uid }, authReady: true }) }));
 vi.mock('@/hooks/useAuthProfileId', () => ({ useAuthProfileId: () => `profile-${state.uid}` }));
 vi.mock('@/hooks/useHiddenConversations', () => ({ useHideConversation: () => ({ mutateAsync: state.hide }) }));
@@ -15,11 +18,12 @@ vi.mock('@/hooks/useLockedChats', () => ({ useLockConversation: () => ({ mutateA
 vi.mock('@/hooks/useDMConversations', () => ({ useMarkConversationRead: () => ({ mutateAsync: state.markRead }) }));
 vi.mock('sonner', () => ({ toast: { success: state.success, error: state.error } }));
 import { useDmInboxActions } from './useDmInboxActions';
-import { dmListQueryKey } from '@/lib/dmAccountScope';
+import { dmListQueryKey, dmPrivateKey } from '@/lib/dmAccountScope';
 import { reportAccountSnapshot } from '@/lib/reportModerationService';
 import { setActiveAuthUserId, setCachedCurrentProfile } from '@/lib/profileCache';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 const conversation = { id: 'chat', unread_count: 2, _hasUnread: true, last_message: { created_at: '2026-11-14T12:00:00.000Z' }, member_ids: ['profile-alice', 'profile-bob'], members: [{ conversation_id: 'chat', user_id: 'alice', is_pinned: false, is_muted: true }] } as LoadedDMConversation;
+const hiddenKey = () => dmPrivateKey('hidden-conversations', { profileId: 'profile-alice', session: reportAccountSnapshot() });
 function switchTo(uid: string) {
   state.uid = uid; setActiveAuthUserId(uid);
   setCachedCurrentProfile({ id: `profile-${uid}`, user_id: uid, username: uid, display_name: uid, avatar_url: null });
@@ -42,6 +46,24 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe('existing inbox pin and mute actions', () => {
+  it('optimistically excludes an archived chat from projection and legacy lists', async () => {
+    const { client, key, hook } = setup();
+    client.setQueryData(hiddenKey(), new Set(['other']));
+    await act(async () => { await hook.result.current.archive.mutateAsync(); });
+    expect([...client.getQueryData<Set<string>>(hiddenKey())!]).toEqual(['other', 'chat']);
+    expect(client.getQueryData(key)).toEqual([]);
+    expect(state.hide).toHaveBeenCalledWith('chat');
+    client.clear();
+  });
+  it('restores the prior hidden IDs and row when archiving fails', async () => {
+    const { client, key, hook } = setup();
+    client.setQueryData(hiddenKey(), new Set(['other']));
+    state.hide.mockRejectedValueOnce(new Error('offline'));
+    await act(async () => { await hook.result.current.archive.mutateAsync().catch(() => {}); });
+    expect([...client.getQueryData<Set<string>>(hiddenKey())!]).toEqual(['other']);
+    expect(client.getQueryData(key)).toEqual([conversation]);
+    client.clear();
+  });
   it('keeps a late unread action bound to its original session after a hook rerender', async () => {
     const { client, hook } = setup();
     let resolve!: () => void;

@@ -12,6 +12,7 @@ import { useMarkConversationRead } from './useDMConversations';
 import { useDmMemberPreference } from './useDmMemberPreference';
 import { useDmAccountMutation, dmPrivateKey, type DmActor } from './useDmAccountMutation';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
+import { normalizePersistedSet } from '@/lib/persistedCollections';
 
 export function useDmInboxActions(conversation: LoadedDMConversation) {
   const { profile } = useAuth();
@@ -61,10 +62,25 @@ export function useDmInboxActions(conversation: LoadedDMConversation) {
     capture: (_value: void) => conversation,
     mutationFn: async ({ value: row, actor }) => { actor.guard(); await hideConversation.mutateAsync(row.id); actor.guard(); },
     onMutate: ({ value: row, actor }) => {
-      const restore = snapshot(actor, row); removeDmConversationFromCache(client, actor.profileId, row.id, actor.session); restore.capture(); return restore;
+      const restore = snapshot(actor, row), key = dmPrivateKey('hidden-conversations', actor);
+      const before = client.getQueryData(key);
+      const hidden = new Set(normalizePersistedSet(before));
+      hidden.add(row.id); client.setQueryData(key, hidden);
+      const after = client.getQueryData(key);
+      removeDmConversationFromCache(client, actor.profileId, row.id, actor.session); restore.capture();
+      return { ...restore, restore: () => {
+        actor.guard(); restore.restore();
+        if (client.getQueryData(key) === after) {
+          if (before === undefined) client.removeQueries({ queryKey: key, exact: true });
+          else client.setQueryData(key, before);
+        }
+      } };
     },
     onSuccess: () => toast.success('Archived'),
-    onError: (_error, { actor }, restore) => failed(actor, restore, 'Could not archive'),
+    onError: (_error, { actor }, restore) => {
+      failed(actor, restore, 'Could not archive');
+      void client.invalidateQueries({ queryKey: dmPrivateKey('hidden-conversations', actor), exact: true });
+    },
   });
   const toggleLock = useDmAccountMutation({
     capture: (lock: boolean) => ({ row: conversation, lock }),

@@ -38,6 +38,15 @@ function conversationRow(id: string): DMInboxRow {
 }
 
 describe('resolveInboxDisplayRows', () => {
+  it('accepts a confirmed empty result after the last chat is removed', () => {
+    const result = resolveInboxDisplayRows({
+      rows: [], lastStableRows: [conversationRow('archived')], hasCachedRows: true,
+      isFetching: false, isInitialLoad: false, fetchSettled: true,
+    });
+    expect(result.displayRows).toEqual([]);
+    expect(result.lastStableRows).toEqual([]);
+    expect(result.showEmpty).toBe(true);
+  });
   it('shows skeleton on initial load with no cache', () => {
     const result = resolveInboxDisplayRows({
       rows: [],

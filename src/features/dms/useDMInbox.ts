@@ -2,12 +2,15 @@ import { useEffect, useMemo, useState, useCallback, useRef, useDeferredValue } f
 import { useParams } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 import { useDMConversations } from '@/hooks/useDMConversations';
 import { useConversationTyping } from '@/hooks/useConversationTyping';
 import { useConversationListPresence } from '@/hooks/useConversationListPresence';
 import { useInboxCallSummaries } from '@/hooks/useInboxCallSummaries';
 import { useQuickAddSuggestions } from '@/hooks/useQuickAddSuggestions';
 import { useLockedChatIds } from '@/hooks/useLockedChats';
+import { useHiddenConversations } from '@/hooks/useHiddenConversations';
+import { useTrashedConversationIds } from '@/hooks/useTrashedConversations';
 import { useMessageRequests, usePendingRequestCount } from '@/hooks/useMessageRequests';
 import { useRecentNewFriendProfileIds } from '@/hooks/useRecentNewFriendProfileIds';
 import { useStreakMap, type Streak } from '@/hooks/useStreaks';
@@ -136,6 +139,8 @@ export function useDMInbox() {
   const { conversationId: activeConversationId } = useParams<{ conversationId?: string }>();
   const { profile, user, authReady } = useAuth();
   const profileId = useAuthProfileId();
+  const session = useReportAccountSession();
+  const inboxScope = JSON.stringify([user?.id, profileId, session.epoch]);
   const [profileResolveTimedOut, setProfileResolveTimedOut] = useState(false);
   const redesignEnabled = false;
   const categoryBarEnabled = isDmInboxCategoryBarEnabled(profileId, user?.id);
@@ -143,6 +148,8 @@ export function useDMInbox() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTabState] = useState<DmInboxTabId>(() => initialTab(false));
   const { data: lockedIdsRaw } = useLockedChatIds();
+  const { data: hiddenIdsRaw } = useHiddenConversations();
+  const { data: trashedIdsRaw } = useTrashedConversationIds();
   const { data: callSummariesRaw } = useInboxCallSummaries();
   const callSummaries = useMemo(
     () => normalizePersistedMap<InboxCallSummary>(callSummariesRaw),
@@ -186,6 +193,9 @@ export function useDMInbox() {
   );
   const suggestionCount = categoryBarEnabled ? (quickAddSuggestions?.length ?? 0) : 0;
   const lockedIds = useMemo(() => ensureStringSet(lockedIdsRaw), [lockedIdsRaw]);
+  const excludedIds = useMemo(() => new Set([
+    ...lockedIds, ...ensureStringSet(hiddenIdsRaw), ...ensureStringSet(trashedIdsRaw),
+  ]), [lockedIds, hiddenIdsRaw, trashedIdsRaw]);
   const pendingRequests = useMemo(
     () => ensureArray<import('@/hooks/useMessageRequests').MessageRequest>(pendingRequestsRaw),
     [pendingRequestsRaw],
@@ -257,6 +267,13 @@ export function useDMInbox() {
   const corePreviewCacheRef = useRef(
     new Map<string, { source: LoadedDMConversation; builder: (conversation: LoadedDMConversation) => DMConversationPreview; preview: DMConversationPreview }>(),
   );
+  const retainedScopeRef = useRef(inboxScope);
+  if (retainedScopeRef.current !== inboxScope) {
+    retainedScopeRef.current = inboxScope;
+    lastStableRowsRef.current = [];
+    lastNonEmptyConversationsRef.current = [];
+    corePreviewCacheRef.current.clear();
+  }
 
   const allConversations = useMemo(() => {
     const legacy = [
@@ -267,14 +284,15 @@ export function useDMInbox() {
     const merged = mergeLegacyAndProjection({
       legacy,
       projectionEntries: projection.entries,
-      lockedIds,
+      lockedIds: excludedIds,
       projectionReadEnabled: isDmInboxProjectionReadEnabled(profileId, user?.id),
       projectionReady: projection.projectionReady,
       viewerId: profileId,
       viewerAuthUid: user?.id,
     });
 
-    const prev = lastNonEmptyConversationsRef.current;
+    const prev = lastNonEmptyConversationsRef.current.filter(conversation => !excludedIds.has(conversation.id));
+    lastNonEmptyConversationsRef.current = prev;
     // Never accept a shrink while the query is refetching or projection hydrates.
     if (
       prev.length > 0 &&
@@ -290,17 +308,25 @@ export function useDMInbox() {
       return merged;
     }
 
+    if (query.isFetched && !query.isFetching && !query.isLoading && !query.error && !projection.isLoading) {
+      lastNonEmptyConversationsRef.current = [];
+      return EMPTY_CONVERSATIONS;
+    }
     return prev;
   }, [
     query.pinnedConversations,
     query.unpinnedConversations,
     query.isFetching,
-    lockedIds,
+    query.isFetched,
+    query.isLoading,
+    query.error,
+    excludedIds,
     projection.entries,
     projection.projectionReady,
     projection.isLoading,
     profileId,
     user?.id,
+    inboxScope,
   ]);
 
   useEffect(() => {
@@ -424,7 +450,13 @@ export function useDMInbox() {
     return ids;
   }, [allConversations, presenceMap, resolveOtherProfileId]);
 
-  const deferredConversations = useDeferredValue(allConversations);
+  const scopedConversations = useMemo(
+    () => ({ scope: inboxScope, conversations: allConversations }),
+    [inboxScope, allConversations],
+  );
+  const deferredSnapshot = useDeferredValue(scopedConversations);
+  const deferredConversations = deferredSnapshot.scope === inboxScope
+    ? deferredSnapshot.conversations : EMPTY_CONVERSATIONS;
 
   const categoryFilter = useFilteredConversations({
     conversations: deferredConversations,
@@ -927,11 +959,12 @@ export function useDMInbox() {
     () =>
       resolveInboxDisplayRows({
         rows,
-        lastStableRows: lastStableRowsRef.current,
+        lastStableRows: lastStableRowsRef.current.filter(row =>
+          row.type !== 'conversation' || !excludedIds.has(row.preview.conversationId)),
         hasCachedRows,
         isFetching: query.isFetching,
         isInitialLoad: query.isLoading && !query.isFetched,
-        fetchSettled: query.isFetched,
+        fetchSettled: query.isFetched && !query.error,
         projectionHydrating: projection.isLoading && !projection.projectionReady,
         tabLoading: showSkeleton && rows.length === 0,
       }),
@@ -941,6 +974,9 @@ export function useDMInbox() {
       query.isFetching,
       query.isLoading,
       query.isFetched,
+      query.error,
+      inboxScope,
+      excludedIds,
       showSkeleton,
       projection.isLoading,
       projection.projectionReady,
