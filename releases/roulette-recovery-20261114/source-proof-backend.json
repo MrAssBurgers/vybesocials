@@ -1,0 +1,15 @@
+{
+  "checkedAt": "2026-11-15T06:10:44.672Z",
+  "modules": {
+    "roulette.js": "c688a78b653a9c92bf43b4207483bc4475141d98faa2747709a4e2571499b527",
+    "_shared/rouletteAuthority.js": "9a5989bfc46a2879dcffb4f770a7450534ee3a50dcad44e78138c9fdd1d3f79c",
+    "_shared/admin.js": "fb1043730c28992de8109eb5e3f880d1e67a31a7c251a1cd049ede1eb85b2894",
+    "_shared/profileAudienceAuthority.js": "6adab5bf15fd5ea6b0bc4d65eda1413edda671dd3500c2a28f9b2e91e27cbea9",
+    "_shared/parentalAccountAuthority.js": "a30002ce8fbfc87e2606ee61e8f6475cac2ccb8bf0a383477106e5236426c060",
+    "_shared/tokenAccountAdmission.js": "91da10b9475c6da59633a9a6aeb989f20a874655f485706316406dcdd6e18009"
+  },
+  "sdkChecks": 20,
+  "node": "22.23.5",
+  "deployed": false,
+  "scope": "Exact compiled modules used by the actual isolated HTTP/Auth/Firestore run; no financial handlers or new Rules activated."
+}

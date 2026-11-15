@@ -117,3 +117,4 @@ export { manageMapWave } from './mapWaves.js';
 export { manageMapPin } from './mapPins.js';
 
 export { manageSpaces, processSpaceAudioEffect } from './spaces.js';
+export { findRouletteMatch } from './roulette.js';
