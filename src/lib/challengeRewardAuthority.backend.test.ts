@@ -141,6 +141,50 @@ describe('challenge account lifetime', () => {
   });
 });
 
+describe('challenge row account lifetime', () => {
+  const creation = now - 10_000 + 123, stamp = { auth_created_at_ms: creation, profile_id: actor.profileId };
+  async function scoped() {
+    const revision = 'a'.repeat(48), account = await captureTokenAccount(actor.authUid, { auth_time: Math.floor(now / 1000) }, async () => ({ uid: actor.authUid, createdAtMs: creation, validSince: 0, disabled: false }), () => now);
+    rows.set(`_account_profile_bindings/${actor.authUid}`, { version: 1, status: 'active', owner_uid: actor.authUid, profile_id: actor.profileId, auth_created_at_ms: Math.floor(creation / 1000) * 1000, revision });
+    rows.set(`_token_account_authority/${actor.authUid}`, { schema_version: 1, owner_uid: actor.authUid, ...stamp, binding_revision: revision, created_at: new Date(now).toISOString() });
+    return { ...actor, account };
+  }
+  it('stamps private challenge proof and earned XP without adopting or discarding display history', async () => {
+    const current = await scoped(); activity(); rows.set(levelPath, { user_id: actor.profileId, total_xp: 600, current_level: 4 });
+    await reconcileChallenge(database, current, 'daily-post', now);
+    expect(rows.get(proofPath)).toMatchObject(stamp);
+    expect((await consumeChallengeReward(database, current, publicPath.split('/')[1], now)).xp_gained).toBe(25);
+    expect(rows.get(proofPath)).toMatchObject({ ...stamp, is_claimed: true, awarded_xp: 25 });
+    expect(rows.get(`_verified_xp_authority/${actor.authUid}`)).toMatchObject({ ...stamp, verified_total_xp: 25 });
+    expect(rows.get(levelPath)?.total_xp).toBe(625);
+  });
+  it.each(['grant', 'xp', 'boost', 'positive-badge'])('a late unscoped %s cannot authorize challenge consumption', async source => {
+    const current = await scoped(); activity(); await reconcileChallenge(database, current, 'daily-post', now);
+    let path = proofPath;
+    if (source === 'grant') delete rows.get(path)!.auth_created_at_ms;
+    if (source === 'xp') { path = `_verified_xp_authority/${actor.authUid}`; rows.set(path, { schema_version: 1, user_id: actor.authUid, profile_id: actor.profileId, verified_total_xp: 9999 }); }
+    if (source === 'boost') { path = `token_boosts/${tokenAuthorityId([actor.authUid, 'xp_2x'])}`; rows.set(path, { id: tokenAuthorityId([actor.authUid, 'xp_2x']), schema_version: 1, user_id: actor.authUid, boost_type: 'xp_2x', source_item_id: 'xp_boost_2x', consumed: false, uses_remaining: null, activated_at: new Date(now).toISOString(), expires_at: new Date(now + 3_600_000).toISOString() }); }
+    if (source === 'positive-badge') { path = `_badge_grant_authority/${tokenAuthorityId([actor.authUid, 'earned-badge'])}`; rows.set(path, { schema_version: 1, source: 'staff', user_id: actor.authUid, profile_id: actor.profileId, badge_id: 'earned-badge', issued_by: 'staff', issued_at: new Date(now).toISOString(), active: true, expires_at: null, revoked_at: null, grant_id: 'old-grant' }); }
+    const retained = structuredClone(rows.get(path));
+    await expect(consumeChallengeReward(database, current, publicPath.split('/')[1], now)).rejects.toMatchObject({ details: { reason: 'token-ownership-review' } });
+    expect(rows.get(path)).toEqual(retained); expect(rows.has(levelPath)).toBe(false); expect(rows.get(proofPath)?.is_claimed).toBe(false);
+  });
+  it('does not acknowledge a consumed proof overwritten by an unscoped old writer', async () => {
+    const current = await scoped(); activity(); await reconcileChallenge(database, current, 'daily-post', now);
+    await consumeChallengeReward(database, current, publicPath.split('/')[1], now);
+    delete rows.get(proofPath)!.auth_created_at_ms;
+    await expect(consumeChallengeReward(database, current, publicPath.split('/')[1], now)).rejects.toMatchObject({ details: { reason: 'token-ownership-review' } });
+    expect(rows.get(`_verified_xp_authority/${actor.authUid}`)?.verified_total_xp).toBe(25);
+  });
+  it('keeps an explicit old negative badge proof effective for scoped challenge claims', async () => {
+    const current = await scoped(); activity(); await reconcileChallenge(database, current, 'daily-post', now);
+    rows.set(`_badge_grant_authority/${tokenAuthorityId([actor.authUid, 'earned-badge'])}`, { schema_version: 1, source: 'staff', user_id: actor.authUid, profile_id: actor.profileId, badge_id: 'earned-badge', issued_by: 'staff', issued_at: new Date(now).toISOString(), active: false, expires_at: null, revoked_at: new Date(now).toISOString() });
+    const result = await consumeChallengeReward(database, current, publicPath.split('/')[1], now);
+    expect(result).toMatchObject({ xp_gained: 25, awarded_badge_id: null });
+    expect(rows.has(`user_badges/${actor.authUid}_earned-badge`)).toBe(false);
+  });
+});
+
 describe('post publication challenge provenance', () => {
   it.each(['missing', 'tampered', 'deleted'])('does not complete a post challenge from %s proof', async mode => {
     activity();

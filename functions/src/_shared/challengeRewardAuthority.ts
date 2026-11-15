@@ -5,6 +5,7 @@ import { assertTokenActor, tokenAuthorityId, validatedTokenBoostMultiplier } fro
 import { resolveIdentity } from './profileAudienceAuthority.js';
 import { validPostPublication } from './postPublicationProof.js';
 import { tokenAccountTransaction, type TokenAccountContext } from './tokenAccountAdmission.js';
+import { assertTokenLedgerRecord, tokenLedgerRecordStamp } from './tokenLedgerOwnership.js';
 
 type Row = Record<string, unknown>;
 export type ChallengeActor = { authUid: string; profileId: string; account?: TokenAccountContext };
@@ -184,6 +185,7 @@ async function activityCount(tx: Transaction, db: Firestore, actor: ChallengeAct
 }
 
 function validateAuthority(row: Row, actor: ChallengeActor, challengeId: string) {
+  assertTokenLedgerRecord(row, actor);
   if (row.auth_uid !== actor.authUid || row.profile_id !== actor.profileId || row.challenge_id !== challengeId || row.version !== 1) throw review();
   integer(row.xp_amount, 0, MAX_REWARD_XP);
   integer(row.requirement_count, 1, MAX_ACTIVITY);
@@ -196,6 +198,7 @@ function validateAuthority(row: Row, actor: ChallengeActor, challengeId: string)
 
 function badgeSuppressed(proof: Row | undefined, actor: ChallengeActor, badgeId: unknown, nowMs: number): boolean {
   if (!proof) return false;
+  if (proof.active === true) assertTokenLedgerRecord(proof, actor);
   const date = (value: unknown) => typeof value === 'string' && Number.isFinite(Date.parse(value));
   if (proof.schema_version !== 1 || proof.source !== 'staff' || proof.user_id !== actor.authUid || proof.profile_id !== actor.profileId
     || proof.badge_id !== badgeId || typeof proof.issued_by !== 'string' || !proof.issued_by || !date(proof.issued_at)
@@ -247,6 +250,7 @@ export async function reconcileChallenge(db: Firestore, actor: ChallengeActor, c
     // or rewrite the account's historic XP. Existing balances remain intact.
     if (complete) {
       tx.create(grantRef, {
+        ...tokenLedgerRecordStamp(actor),
         version: 1, auth_uid: actor.authUid, profile_id: actor.profileId, challenge_id: challengeId,
         requirement_count: challenge.required, xp_amount: challenge.xp, badge_id: challenge.badge,
         is_claimed: previouslyClaimed, legacy_claimed: previouslyClaimed,
@@ -325,10 +329,11 @@ export async function consumeChallengeReward(db: Firestore, actor: ChallengeActo
     if (level && !aliases(actor).includes(String(level.user_id))) throw review();
     const oldXp = level ? integer(level.total_xp, 0, Number.MAX_SAFE_INTEGER) : 0;
     const oldLevel = level ? integer(level.current_level, 1, Number.MAX_SAFE_INTEGER) : 1;
-    const multiplier = validatedTokenBoostMultiplier(boostSnap.data(), actor.authUid, 'xp_2x', nowMs);
+    const multiplier = validatedTokenBoostMultiplier(boostSnap.data(), actor.authUid, 'xp_2x', nowMs, actor);
     const xp = integer(grant.xp_amount, 0, MAX_REWARD_XP) * multiplier;
     const total = integer(oldXp + xp, 0, Number.MAX_SAFE_INTEGER);
     const verified = verifiedSnap.data();
+    assertTokenLedgerRecord(verified, actor);
     if (verified && (verified.schema_version !== 1 || verified.user_id !== actor.authUid || verified.profile_id !== actor.profileId)) throw review();
     // This new private ledger starts at zero; legacy levels and client-written
     // projected fields cannot certify earlier XP or shop eligibility.
@@ -356,8 +361,8 @@ export async function consumeChallengeReward(db: Firestore, actor: ChallengeActo
       current_level: newLevel, updated_at: now, verified_total_xp: verifiedTotal, verified_xp_version: 1,
       ...(!level ? { id: levelRef.id, unclaimed_rewards: [], created_at: now } : {}),
     }, { merge: true });
-    tx.set(verifiedRef, { schema_version: 1, user_id: actor.authUid, profile_id: actor.profileId, verified_total_xp: verifiedTotal, updated_at: now });
-    tx.update(grantRef, { is_claimed: true, claimed_at: now, awarded_xp: xp, xp_multiplier: multiplier, awarded_badge_id: awardedBadge });
+    tx.set(verifiedRef, { ...tokenLedgerRecordStamp(actor), schema_version: 1, user_id: actor.authUid, profile_id: actor.profileId, verified_total_xp: verifiedTotal, updated_at: now });
+    tx.update(grantRef, { ...tokenLedgerRecordStamp(actor), is_claimed: true, claimed_at: now, awarded_xp: xp, xp_multiplier: multiplier, awarded_badge_id: awardedBadge });
     const consumed = { is_claimed: true, claimed_at: now, xp_amount: xp, badge_id: awardedBadge };
     tx.update(rewardRef, consumed);
     if (rewardRef.id !== id) tx.set(db.collection('challenge_rewards').doc(id), consumed, { merge: true });

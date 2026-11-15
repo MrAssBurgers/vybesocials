@@ -6,6 +6,25 @@ type Actor = { authUid: string; profileId: string; account?: TokenAccountContext
 type Row = Record<string, unknown>;
 export const TOKEN_LEDGER_OWNER = '_token_account_authority';
 const review = () => new HttpsError('failed-precondition', 'Your token history needs an ownership review. Existing balances and purchases have been preserved.', { reason: 'token-ownership-review' });
+
+/** Stamp every authoritative row, not only the ledger root. Older deployed
+ * writers do not observe the root; their late unscoped rows must never become
+ * new spending, XP, multipliers or replay authority. */
+export function tokenLedgerRecordStamp(actor: Actor): Row {
+  if (!actor.account) return {};
+  assertTokenAccountContext(actor.account, actor.authUid);
+  return { auth_created_at_ms: actor.account.createdAtMs, profile_id: actor.profileId };
+}
+
+export function assertTokenLedgerRecord(row: Row | undefined, actor: Actor): void {
+  if (!row) return;
+  if (!actor.account) {
+    if (Object.hasOwn(row, 'auth_created_at_ms')) throw review();
+    return;
+  }
+  assertTokenAccountContext(actor.account, actor.authUid);
+  if (row.auth_created_at_ms !== actor.account.createdAtMs || row.profile_id !== actor.profileId) throw review();
+}
 function bindingMatches(row: Row | undefined, actor: Actor): boolean {
   return !!actor.account && !!row && row.version === 1 && row.status === 'active'
     && row.owner_uid === actor.authUid && row.profile_id === actor.profileId

@@ -145,20 +145,20 @@ describe('durable financial account ownership', () => {
     expect(rows.get(walletPath)?.balance).toBe(500); expect(rows.has(requestPath('buy'))).toBe(false);
   });
   it('checks immutable ownership before returning an old purchase replay', async () => {
-    const scoped = await scopedActor(); wallet(500);
+    const scoped = await scopedActor(); wallet(500, { auth_created_at_ms: creation, profile_id: actor.profileId });
     await purchaseTokenItem(database, scoped, { itemId: 'xp_boost_2x', requestId: 'retained', expectedCost: 75 }, now);
     const context = await captureTokenAccount(actor.authUid, { auth_time: Math.floor(now / 1000) }, async () => ({ uid: actor.authUid, createdAtMs: creation + 1, validSince: 0, disabled: false }), () => now);
     await expect(purchaseTokenItem(database, { ...scoped, account: context }, { itemId: 'xp_boost_2x', requestId: 'retained', expectedCost: 75 }, now)).rejects.toMatchObject({ code: 'failed-precondition' });
     expect(rows.get(walletPath)?.balance).toBe(425); expect(rows.get(inventoryPath('xp_boost_2x'))?.quantity).toBe(1);
   });
   it('binding replacement cannot silently transfer a token ledger', async () => {
-    const scoped = await scopedActor(); wallet(500);
+    const scoped = await scopedActor(); wallet(500, { auth_created_at_ms: creation, profile_id: actor.profileId });
     rows.set(`_account_profile_bindings/${actor.authUid}`, { ...rows.get(`_account_profile_bindings/${actor.authUid}`), revision: 'b'.repeat(48) });
     await expect(tokenMarketplaceState(database, scoped, now)).rejects.toMatchObject({ code: 'failed-precondition' });
     expect(rows.get(walletPath)?.balance).toBe(500);
   });
   it('rechecks changed ownership on transaction retry before committing a purchase', async () => {
-    const scoped = await scopedActor(); wallet(500);
+    const scoped = await scopedActor(); wallet(500, { auth_created_at_ms: creation, profile_id: actor.profileId });
     beforeCommit = () => rows.set(ownerPath, { ...rows.get(ownerPath), auth_created_at_ms: creation + 1 });
     await expect(purchaseTokenItem(database, scoped, { itemId: 'xp_boost_2x', requestId: 'contention', expectedCost: 75 }, now)).rejects.toMatchObject({ code: 'failed-precondition' });
     expect(rows.get(walletPath)?.balance).toBe(500); expect(rows.has(requestPath('contention'))).toBe(false);
@@ -166,6 +166,79 @@ describe('durable financial account ownership', () => {
   it('failed owner initialization does not leave a partial ownership record', async () => {
     failCommit = true;
     await expect(scopedActor()).rejects.toThrow('Fixture atomic commit failure'); expect(rows.has(ownerPath)).toBe(false);
+  });
+});
+
+describe('private row account lifetime', () => {
+  const stamp = { auth_created_at_ms: creation, profile_id: actor.profileId };
+  const legacyRow = (kind: string): string => {
+    if (kind === 'wallet') { wallet(500); return walletPath; }
+    if (kind === 'inventory') { owned('theme_neon', 1, 'permanent'); return inventoryPath('theme_neon'); }
+    if (kind === 'boost') { const path = boostPath('xp_2x'); rows.set(path, { schema_version: 1, id: tokenTupleId(actor.authUid, 'xp_2x'), user_id: actor.authUid, boost_type: 'xp_2x', source_item_id: 'xp_boost_2x', consumed: false, uses_remaining: null, activated_at: new Date(now).toISOString(), expires_at: new Date(now + 3_600_000).toISOString() }); return path; }
+    if (kind === 'event') { const path = 'token_events/late'; rows.set(path, { schema_version: 1, user_id: actor.authUid, amount: 3, transaction_type: 'daily_login', created_at: new Date(now).toISOString() }); return path; }
+    const path = `_verified_xp_authority/${actor.authUid}`; rows.set(path, { schema_version: 1, user_id: actor.authUid, profile_id: actor.profileId, verified_total_xp: 9999 }); return path;
+  };
+  it.each(['wallet', 'inventory', 'boost', 'event', 'xp'].flatMap(kind => ['missing', 'different-creation', 'different-profile'].map(change => [kind, change])))('refuses a late %s row with %s scope without changing history', async (kind, change) => {
+    const scoped = await scopedActor(), path = legacyRow(kind);
+    if (change !== 'missing') rows.set(path, { ...rows.get(path), ...stamp, ...(change === 'different-creation' ? { auth_created_at_ms: creation + 1 } : { profile_id: 'foreign-profile' }) });
+    const retained = structuredClone(rows.get(path));
+    await expect(tokenMarketplaceState(database, scoped, now)).rejects.toMatchObject({ details: { reason: 'token-ownership-review' } });
+    expect(rows.get(path)).toEqual(retained);
+  });
+  it.each(['wallet', 'inventory', 'receipt'])('rejects old purchase acknowledgement after a late unscoped %s overwrite', async kind => {
+    const scoped = await scopedActor(); wallet(500, stamp);
+    const input = { itemId: 'xp_boost_2x', requestId: 'record-replay', expectedCost: 75 };
+    await purchaseTokenItem(database, scoped, input, now);
+    const path = kind === 'wallet' ? walletPath : kind === 'inventory' ? inventoryPath('xp_boost_2x') : requestPath(input.requestId);
+    delete rows.get(path)!.auth_created_at_ms;
+    const retained = structuredClone(rows.get(path));
+    await expect(purchaseTokenItem(database, scoped, input, now)).rejects.toMatchObject({ details: { reason: 'token-ownership-review' } });
+    expect(rows.get(path)).toEqual(retained);
+  });
+  it.each(['wallet', 'receipt', 'quota', 'event'])('does not acknowledge a credit replay over a late unscoped %s', async kind => {
+    const scoped = await scopedActor(); await claimTokenCredit(database, scoped, { type: 'daily_login' }, now);
+    const key = tokenTupleId(actor.authUid, 'daily_login', new Date(now).toISOString().slice(0, 10));
+    const path = kind === 'wallet' ? walletPath : kind === 'receipt' ? `_token_credit_receipts/${key}` : kind === 'quota' ? `_token_credit_day_limits/${actor.authUid}` : `token_events/${key}`;
+    delete rows.get(path)!.auth_created_at_ms;
+    await expect(claimTokenCredit(database, scoped, { type: 'daily_login' }, now)).rejects.toMatchObject({ details: { reason: 'token-ownership-review' } });
+    expect(rows.get(walletPath)?.balance).toBe(3);
+  });
+  it.each(['boost', 'inventory', 'receipt'])('rejects an activation replay over a late unscoped %s', async kind => {
+    const scoped = await scopedActor(); wallet(500, stamp);
+    await purchaseTokenItem(database, scoped, { itemId: 'xp_boost_2x', requestId: 'buy-record', expectedCost: 75 }, now);
+    const input = { itemId: 'xp_boost_2x', requestId: 'activate-record' };
+    await activateTokenBoost(database, scoped, input, now);
+    const path = kind === 'boost' ? boostPath('xp_2x') : kind === 'inventory' ? inventoryPath('xp_boost_2x') : requestPath(input.requestId);
+    delete rows.get(path)!.auth_created_at_ms;
+    await expect(activateTokenBoost(database, scoped, input, now)).rejects.toMatchObject({ details: { reason: 'token-ownership-review' } });
+    expect(rows.get(inventoryPath('xp_boost_2x'))?.quantity).toBe(0);
+  });
+  it.each(['staff', 'challenge'])('a late unscoped %s badge proof cannot certify equipment', async source => {
+    const scoped = await scopedActor(); rows.set('badges/earned', { name: 'Earned' }); rows.set('user_badges/grant', { user_id: actor.authUid, badge_id: 'earned', expires_at: null });
+    if (source === 'staff') rows.set(`_badge_grant_authority/${tokenTupleId(actor.authUid, 'earned')}`, { schema_version: 1, source: 'staff', user_id: actor.authUid, profile_id: actor.profileId, badge_id: 'earned', active: true, revoked_at: null, grant_id: 'grant', issued_at: new Date(now).toISOString(), expires_at: null });
+    else rows.set(`_challenge_reward_authority/${tokenTupleId(actor.authUid, 'badge-challenge')}`, { version: 1, auth_uid: actor.authUid, profile_id: actor.profileId, challenge_id: 'badge-challenge', badge_id: 'earned', is_claimed: true, legacy_claimed: false });
+    await expect(equipTokenItem(database, scoped, { type: 'badge', value: 'earned' }, now)).rejects.toMatchObject({ details: { reason: 'token-ownership-review' } });
+    expect(rows.get(`profiles/${actor.profileId}`)?.equipped_badge_id).toBeUndefined();
+  });
+  it('a late unscoped challenge proof cannot mint activity tokens', async () => {
+    const scoped = await scopedActor(), challenge = 'late-claim';
+    const path = `_challenge_reward_authority/${tokenTupleId(actor.authUid, challenge)}`;
+    rows.set(path, { version: 1, auth_uid: actor.authUid, profile_id: actor.profileId, challenge_id: challenge, xp_amount: 25, requirement_count: 1, is_claimed: true, legacy_claimed: false, claimed_at: new Date(now).toISOString() });
+    await expect(claimTokenCredit(database, scoped, { type: 'challenge_completed', referenceId: challenge }, now)).rejects.toMatchObject({ details: { reason: 'token-ownership-review' } });
+    expect(rows.has(walletPath)).toBe(false);
+  });
+  it('all financial writes carry exact scope while public responses omit the private stamp', async () => {
+    const scoped = await scopedActor(); wallet(500, stamp);
+    await claimTokenCredit(database, scoped, { type: 'daily_login' }, now);
+    await purchaseTokenItem(database, scoped, { itemId: 'xp_boost_2x', requestId: 'current-buy', expectedCost: 75 }, now);
+    await activateTokenBoost(database, scoped, { itemId: 'xp_boost_2x', requestId: 'current-activation' }, now);
+    await purchaseTokenItem(database, scoped, { itemId: 'theme_neon', requestId: 'current-theme', expectedCost: 200 }, now);
+    await equipTokenItem(database, scoped, { type: 'profile_theme', value: 'theme_neon' }, now);
+    const tables = new Set(['token_wallets', 'token_entitlements', 'token_boosts', 'token_events', '_token_purchase_requests', '_token_credit_receipts', '_token_credit_day_limits']);
+    for (const [path, row] of rows) if (tables.has(path.split('/')[0])) expect(row).toMatchObject(stamp);
+    const current = await tokenMarketplaceState(database, scoped, now);
+    expect(current.wallet.balance).toBe(228);
+    expect(current.wallet).not.toHaveProperty('auth_created_at_ms');
   });
 });
 

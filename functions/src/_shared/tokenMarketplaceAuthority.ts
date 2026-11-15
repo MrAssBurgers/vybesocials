@@ -4,7 +4,7 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { isActivePremiumGrant, unexpired } from './premiumAuthority.js';
 import { resolveTokenActorIdentity, assertTokenActor } from './tokenCreditAuthority.js';
 import { tokenAccountTransaction, type TokenAccountContext } from './tokenAccountAdmission.js';
-import { initializeTokenLedgerOwner } from './tokenLedgerOwnership.js';
+import { initializeTokenLedgerOwner, assertTokenLedgerRecord, tokenLedgerRecordStamp } from './tokenLedgerOwnership.js';
 
 type Row = Record<string, unknown>;
 export type TokenActor = { authUid: string; profileId: string; account?: TokenAccountContext };
@@ -54,7 +54,9 @@ async function readActor(tx: Transaction, database: Firestore, actor: TokenActor
   return tx.get(database.collection('profiles').doc(actor.profileId));
 }
 
-export function verifiedTokenWallet(row: Row | undefined, uid: string, now: string) {
+export function verifiedTokenWallet(row: Row | undefined, uid: string, now: string, actor?: TokenActor) {
+  if (actor && actor.authUid !== uid) throw review();
+  assertTokenLedgerRecord(row, actor ?? { authUid: uid, profileId: uid });
   if (!row) return { schema_version: 1, id: uid, user_id: uid, balance: 0, lifetime_earned: 0, lifetime_spent: 0, updated_at: now };
   if (row.schema_version !== 1 || row.user_id !== uid || row.id !== uid || !isoDate(row.updated_at)) throw review();
   const balance = safeInt(row.balance), earned = safeInt(row.lifetime_earned), spent = safeInt(row.lifetime_spent);
@@ -63,13 +65,16 @@ export function verifiedTokenWallet(row: Row | undefined, uid: string, now: stri
 }
 
 function entitlement(row: Row | undefined, actor: TokenActor, item: CatalogItem) {
+  assertTokenLedgerRecord(row, actor);
   if (!row) return null;
   if (row.schema_version !== 1 || row.user_id !== actor.authUid || row.item_id !== item.id || row.kind !== item.kind || !isoDate(row.purchased_at)) throw review();
   const quantity = safeInt(row.quantity, item.kind === 'permanent' ? 1 : MAX_INVENTORY);
   return { item_id: item.id, kind: item.kind, quantity, purchased_at: row.purchased_at };
 }
 
-function boostRow(row: Row | undefined, uid: string, type: string) {
+function boostRow(row: Row | undefined, actor: TokenActor, type: string) {
+  assertTokenLedgerRecord(row, actor);
+  const uid = actor.authUid;
   if (!row) return null;
   const item = type === 'xp_2x' ? 'xp_boost_2x' : type === 'tokens_2x' ? 'token_boost_2x' : null;
   if (!item || row.schema_version !== 1 || row.id !== tokenTupleId(uid, type) || row.user_id !== uid || row.boost_type !== type
@@ -82,6 +87,7 @@ function boostRow(row: Row | undefined, uid: string, type: string) {
 function replay(snap: DocumentSnapshot, actor: TokenActor, requestId: string, fingerprint: string): Row | null {
   if (!snap.exists) return null;
   const row = snap.data()!;
+  assertTokenLedgerRecord(row, actor);
   if (row.schema_version !== 1 || row.user_id !== actor.authUid || row.request_id !== requestId) throw review();
   if (row.fingerprint !== fingerprint) throw new HttpsError('already-exists', 'This request ID was used for a different action.');
   if (!row.result || row.result.success !== true) throw review();
@@ -100,21 +106,26 @@ export async function purchaseTokenItem(database: Firestore, actor: TokenActor, 
     const [, request, walletSnap, inventorySnap, event] = await Promise.all([
       readActor(tx, database, actor), tx.get(requestRef), tx.get(walletRef), tx.get(inventoryRef), tx.get(eventRef),
     ]);
-    const prior = replay(request, actor, requestId, fingerprint); if (prior) return prior;
+    assertTokenLedgerRecord(walletSnap.data(), actor);
+    assertTokenLedgerRecord(inventorySnap.data(), actor);
+    const prior = replay(request, actor, requestId, fingerprint); if (prior) {
+      if (!walletSnap.exists || !inventorySnap.exists) throw review();
+      return prior;
+    }
     if (event.exists) throw review();
-    const wallet = verifiedTokenWallet(walletSnap.data(), actor.authUid, now);
+    const wallet = verifiedTokenWallet(walletSnap.data(), actor.authUid, now, actor);
     const owned = entitlement(inventorySnap.data(), actor, item);
     if (owned?.quantity && item.kind === 'permanent') throw new HttpsError('already-exists', 'You already own this item.');
     if ((owned?.quantity || 0) >= MAX_INVENTORY) throw new HttpsError('resource-exhausted', 'Use some inventory before purchasing more.');
     if (wallet.balance < item.cost) throw new HttpsError('failed-precondition', 'Not enough verified tokens. Historical balances may need review.');
     const balance = wallet.balance - item.cost, spent = safeInt(wallet.lifetime_spent + item.cost);
     const result = { success: true, balance, item_id: item.id };
-    tx.set(walletRef, { ...wallet, balance, lifetime_spent: spent, updated_at: now });
+    tx.set(walletRef, { ...wallet, ...tokenLedgerRecordStamp(actor), balance, lifetime_spent: spent, updated_at: now });
     tx.set(inventoryRef, { schema_version: 1, user_id: actor.authUid, item_id: item.id, kind: item.kind,
-      quantity: (owned?.quantity || 0) + 1, purchased_at: owned?.purchased_at || now, updated_at: now });
+      ...tokenLedgerRecordStamp(actor), quantity: (owned?.quantity || 0) + 1, purchased_at: owned?.purchased_at || now, updated_at: now });
     tx.create(eventRef, { schema_version: 1, id: eventRef.id, user_id: actor.authUid, amount: -item.cost,
-      transaction_type: 'purchase', description: `Purchased: ${item.name}`, reference_id: item.id, created_at: now });
-    tx.create(requestRef, { schema_version: 1, user_id: actor.authUid, request_id: requestId, fingerprint, result, created_at: now });
+      ...tokenLedgerRecordStamp(actor), transaction_type: 'purchase', description: `Purchased: ${item.name}`, reference_id: item.id, created_at: now });
+    tx.create(requestRef, { ...tokenLedgerRecordStamp(actor), schema_version: 1, user_id: actor.authUid, request_id: requestId, fingerprint, result, created_at: now });
     return result;
   });
 }
@@ -129,16 +140,21 @@ export async function activateTokenBoost(database: Firestore, actor: TokenActor,
   const boostRef = database.collection('token_boosts').doc(tokenTupleId(actor.authUid, type));
   return tokenAccountTransaction(database, actor, async tx => {
     const [, request, inventory, active] = await Promise.all([readActor(tx, database, actor), tx.get(requestRef), tx.get(inventoryRef), tx.get(boostRef)]);
-    const prior = replay(request, actor, requestId, fingerprint); if (prior) return prior;
-    const owned = entitlement(inventory.data(), actor, item), oldBoost = boostRow(active.data(), actor.authUid, type);
+    assertTokenLedgerRecord(inventory.data(), actor);
+    assertTokenLedgerRecord(active.data(), actor);
+    const prior = replay(request, actor, requestId, fingerprint); if (prior) {
+      if (!inventory.exists || !active.exists) throw review();
+      return prior;
+    }
+    const owned = entitlement(inventory.data(), actor, item), oldBoost = boostRow(active.data(), actor, type);
     if (!owned?.quantity) throw new HttpsError('failed-precondition', 'Buy a verified boost before activating it.');
     if (oldBoost && !oldBoost.consumed && Date.parse(oldBoost.expires_at) > nowMs) throw new HttpsError('failed-precondition', 'This boost is already active. Wait for it to end.');
     const boost = { id: boostRef.id, boost_type: type, source_item_id: item.id, activated_at: now,
       expires_at: new Date(nowMs + HOUR).toISOString(), uses_remaining: null, consumed: false };
     const result = { success: true, item_id: item.id, boost };
-    tx.update(inventoryRef, { quantity: owned.quantity - 1, updated_at: now });
-    tx.set(boostRef, { ...boost, schema_version: 1, user_id: actor.authUid });
-    tx.create(requestRef, { schema_version: 1, user_id: actor.authUid, request_id: requestId, fingerprint, result, created_at: now });
+    tx.update(inventoryRef, { ...tokenLedgerRecordStamp(actor), quantity: owned.quantity - 1, updated_at: now });
+    tx.set(boostRef, { ...boost, ...tokenLedgerRecordStamp(actor), schema_version: 1, user_id: actor.authUid });
+    tx.create(requestRef, { ...tokenLedgerRecordStamp(actor), schema_version: 1, user_id: actor.authUid, request_id: requestId, fingerprint, result, created_at: now });
     return result;
   });
 }
@@ -156,13 +172,14 @@ export async function tokenMarketplaceState(database: Firestore, actor: TokenAct
     ]);
     const transactions = events.docs.map(doc => {
       const row = doc.data();
+      assertTokenLedgerRecord(row, actor);
       if (row.schema_version !== 1 || row.user_id !== actor.authUid || !Number.isSafeInteger(row.amount) || !isoDate(row.created_at)) throw review();
       return { id: doc.id, user_id: actor.authUid, amount: row.amount, transaction_type: String(row.transaction_type || ''),
         description: typeof row.description === 'string' ? row.description : null, reference_id: typeof row.reference_id === 'string' ? row.reference_id : null, created_at: row.created_at };
     });
-    return { wallet: verifiedTokenWallet(wallet.data(), actor.authUid, new Date(nowMs).toISOString()), transactions,
+    return { wallet: verifiedTokenWallet(wallet.data(), actor.authUid, new Date(nowMs).toISOString(), actor), transactions,
       inventory: inventory.map((snap, index) => entitlement(snap.data(), actor, TOKEN_CATALOG[index])).filter(row => row !== null && row.quantity > 0),
-      boosts: boosts.map((snap, index) => boostRow(snap.data(), actor.authUid, ['xp_2x', 'tokens_2x'][index]))
+      boosts: boosts.map((snap, index) => boostRow(snap.data(), actor, ['xp_2x', 'tokens_2x'][index]))
         .filter(row => row !== null && !row.consumed && Date.parse(row.activated_at) <= nowMs && Date.parse(row.expires_at) > nowMs),
       catalog: TOKEN_CATALOG, legacy_review: legacy.some(snapshot => !snapshot.empty), verified_total_xp: verifiedXpValue(verifiedXp.data(), actor),
     };
@@ -170,6 +187,7 @@ export async function tokenMarketplaceState(database: Firestore, actor: TokenAct
 }
 
 function verifiedXpValue(row: Row | undefined, actor: TokenActor): number {
+  assertTokenLedgerRecord(row, actor);
   if (!row) return 0;
   if (row.schema_version !== 1 || row.user_id !== actor.authUid || row.profile_id !== actor.profileId) throw review();
   return safeInt(row.verified_total_xp);
@@ -218,11 +236,14 @@ async function verifyBadgeEquip(tx: Transaction, database: Firestore, actor: Tok
   const grant = grants.docs[0].data();
   if (grant.expires_at != null && !unexpired(grant.expires_at, nowMs)) throw new HttpsError('failed-precondition', 'This badge has expired.');
   const proof = staffProof.data();
+  // Retained negative authority must still suppress an older challenge grant.
+  if (proof?.active === true) assertTokenLedgerRecord(proof, actor);
   const staffVerified = !!proof && proof.schema_version === 1 && proof.source === 'staff' && proof.user_id === actor.authUid
     && proof.profile_id === actor.profileId && proof.badge_id === badgeId && proof.active === true && proof.revoked_at === null
     && proof.grant_id === grants.docs[0].id && isoDate(proof.issued_at) && (proof.expires_at === null || unexpired(proof.expires_at, nowMs));
   const challengeVerified = !staffProof.exists && challengeProofs.docs.some(doc => {
     const row = doc.data();
+    assertTokenLedgerRecord(row, actor);
     return row.version === 1 && row.auth_uid === actor.authUid && row.profile_id === actor.profileId && row.badge_id === badgeId && row.is_claimed === true && row.legacy_claimed === false;
   });
   if (!staffVerified && !challengeVerified) throw review();

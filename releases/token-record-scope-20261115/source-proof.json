@@ -1,0 +1,25 @@
+{
+  "modules": [
+    {
+      "source": "functions/src/_shared/tokenLedgerOwnership.ts",
+      "sourceSha256": "89c0c9cbe83b59c5b3a88f0c384d68e1ee85fd694aa32b60d60f1788fa5a2f18",
+      "compiledSha256": "fc63baaaaea0dfb62110502d5c06667e811632879195c8233421ea5a5cec929c"
+    },
+    {
+      "source": "functions/src/_shared/tokenCreditAuthority.ts",
+      "sourceSha256": "4a209d6fbc8bc06b139496d05e3984a6616bcc2ddd5711e80172ec29b1f00615",
+      "compiledSha256": "a059cd878d4ce740ab52f457e43edd023ee50e12b0583ccaa7b5af5bf0cb2d7f"
+    },
+    {
+      "source": "functions/src/_shared/tokenMarketplaceAuthority.ts",
+      "sourceSha256": "b42e087b24a9d7dd803fb4fb73b6b97dd4b9a5310fb72ca8a42ca282b31147ed",
+      "compiledSha256": "f68480b1460016545a86458005f146c5271585d7b42f1e00143859e730ffba52"
+    },
+    {
+      "source": "functions/src/_shared/challengeRewardAuthority.ts",
+      "sourceSha256": "67db2708b3a8af9186d0446f006e04037060704f6a60948d69b0f2bf07df881c",
+      "compiledSha256": "6459c67b3b1db5ace2208d6ad604af87010ba7f844e509c2887d1a7cb6aa6e8e"
+    }
+  ],
+  "scope": "Prepared per-row private ledger validation/writes only. No production release in this phase."
+}

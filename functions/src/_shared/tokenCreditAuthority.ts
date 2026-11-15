@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { resolveIdentity } from './profileAudienceAuthority.js';
 import { validPostPublication } from './postPublicationProof.js';
 import { tokenAccountTransaction, type TokenAccountContext } from './tokenAccountAdmission.js';
-import { assertTokenLedgerOwner } from './tokenLedgerOwnership.js';
+import { assertTokenLedgerOwner, assertTokenLedgerRecord, tokenLedgerRecordStamp } from './tokenLedgerOwnership.js';
 
 type Row = Record<string, unknown>;
 export type TokenActor = { authUid: string; profileId: string; account?: TokenAccountContext };
@@ -65,7 +65,9 @@ export async function assertTokenActor(tx: Transaction, db: Firestore, actor: To
 }
 
 /** Only the protected canonical grant is eligible. Invalid/legacy grants give no multiplier. */
-export function validatedTokenBoostMultiplier(row: Row | undefined, uid: string, type: 'xp_2x' | 'tokens_2x', nowMs: number): 1 | 2 {
+export function validatedTokenBoostMultiplier(row: Row | undefined, uid: string, type: 'xp_2x' | 'tokens_2x', nowMs: number, actor?: TokenActor): 1 | 2 {
+  if (actor && actor.authUid !== uid) throw review();
+  assertTokenLedgerRecord(row, actor ?? { authUid: uid, profileId: uid });
   if (!row || row.schema_version !== 1 || row.id !== tokenAuthorityId([uid, type]) || row.user_id !== uid || row.boost_type !== type
     || row.source_item_id !== (type === 'xp_2x' ? 'xp_boost_2x' : 'token_boost_2x') || row.consumed !== false || row.uses_remaining !== null) return 1;
   const start = timestamp(row.activated_at); const end = timestamp(row.expires_at);
@@ -93,6 +95,7 @@ async function verifySource(tx: Transaction, db: Firestore, actor: TokenActor, t
   if (type === 'challenge_completed') {
     const source = await tx.get(db.collection('_challenge_reward_authority').doc(tokenAuthorityId([actor.authUid, referenceId])));
     const row = source.data();
+    assertTokenLedgerRecord(row, actor);
     const claimed = timestamp(row?.claimed_at);
     if (!row || row.version !== 1 || row.auth_uid !== actor.authUid || row.profile_id !== actor.profileId || row.challenge_id !== referenceId
       || row.is_claimed !== true || row.legacy_claimed !== false || !Number.isFinite(claimed) || claimed < start || claimed > now
@@ -138,6 +141,7 @@ export async function claimTokenCredit(db: Firestore, actor: TokenActor, input: 
       tx.get(db.collection('token_boosts').doc(tokenAuthorityId([actor.authUid, 'tokens_2x']))), tx.get(eventRef),
     ]);
     const wallet = walletSnap.data();
+    for (const snapshot of [receiptSnap, walletSnap, quotaSnap, boostSnap, eventSnap]) assertTokenLedgerRecord(snapshot.data(), actor);
     if (wallet && (wallet.schema_version !== 1 || wallet.user_id !== actor.authUid || wallet.id !== actor.authUid || !Number.isFinite(timestamp(wallet.updated_at)))) throw review();
     const balance = wallet ? integer(wallet.balance) : 0;
     const earned = wallet ? integer(wallet.lifetime_earned) : 0;
@@ -159,14 +163,14 @@ export async function claimTokenCredit(db: Firestore, actor: TokenActor, input: 
       for (const kind of Object.keys(rates) as CreditType[]) counts[kind] = integer((quota.counts as Row)[kind], rates[kind].cap);
     }
     if (counts[type] >= rate.cap) throw new HttpsError('resource-exhausted', 'Daily token reward limit reached. Try again tomorrow.', { retryAfter: Math.ceil((start + DAY - nowMs) / 1000) });
-    const multiplier = validatedTokenBoostMultiplier(boostSnap.data(), actor.authUid, 'tokens_2x', nowMs);
+    const multiplier = validatedTokenBoostMultiplier(boostSnap.data(), actor.authUid, 'tokens_2x', nowMs, actor);
     const credited = rate.amount * multiplier;
     const next = integer(balance + credited); const totalEarned = integer(earned + credited);
     counts[type]++;
-    tx.set(walletRef, { id: actor.authUid, user_id: actor.authUid, schema_version: 1, balance: next, lifetime_earned: totalEarned, lifetime_spent: spent, updated_at: now });
-    tx.set(quotaRef, { schema_version: 1, user_id: actor.authUid, day: today, counts, updated_at: now });
-    tx.create(receiptRef, { schema_version: 1, user_id: actor.authUid, type, reference_id: referenceId, base_amount: rate.amount, multiplier, credited, created_at: now });
-    tx.create(eventRef, { id: key, schema_version: 1, user_id: actor.authUid, amount: credited, transaction_type: type, description: rate.description, reference_id: referenceId, created_at: now });
+    tx.set(walletRef, { ...tokenLedgerRecordStamp(actor), id: actor.authUid, user_id: actor.authUid, schema_version: 1, balance: next, lifetime_earned: totalEarned, lifetime_spent: spent, updated_at: now });
+    tx.set(quotaRef, { ...tokenLedgerRecordStamp(actor), schema_version: 1, user_id: actor.authUid, day: today, counts, updated_at: now });
+    tx.create(receiptRef, { ...tokenLedgerRecordStamp(actor), schema_version: 1, user_id: actor.authUid, type, reference_id: referenceId, base_amount: rate.amount, multiplier, credited, created_at: now });
+    tx.create(eventRef, { ...tokenLedgerRecordStamp(actor), id: key, schema_version: 1, user_id: actor.authUid, amount: credited, transaction_type: type, description: rate.description, reference_id: referenceId, created_at: now });
     return { success: true as const, balance: next, credited, already_credited: false };
   });
 }
