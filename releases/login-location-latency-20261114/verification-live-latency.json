@@ -1,0 +1,16 @@
+{
+  "checkedAt": "2026-11-15T02:46:15.576Z",
+  "since": "2026-11-15T02:43:18.448641233Z",
+  "results": [
+    {
+      "target": "authloginnotify",
+      "entries": [
+        {
+          "timestamp": "2026-11-15T02:43:29.565678Z",
+          "status": 401,
+          "latency": "0.031807115s"
+        }
+      ]
+    }
+  ]
+}

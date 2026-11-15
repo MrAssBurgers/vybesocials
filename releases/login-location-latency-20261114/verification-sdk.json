@@ -1,0 +1,34 @@
+{
+  "checkedAt": "2026-11-15T02:40:42.232Z",
+  "runtime": "v22.23.5",
+  "scope": "Actual baseline/candidate HTTP callables, real demo Auth tokens and Firestore; local injected geo/mail only; no production account or provider action",
+  "results": [
+    {
+      "name": "unauthenticated request never reaches optional provider"
+    },
+    {
+      "name": "actual baseline waits for the slow optional provider",
+      "ms": 2795
+    },
+    {
+      "name": "actual candidate bounds the same slow provider and retains checked registration",
+      "ms": 1317
+    },
+    {
+      "name": "a different account reuses only location work and receives its own checked receipt",
+      "ms": 291
+    },
+    {
+      "name": "quick provider results retain city/country and coordinates"
+    },
+    {
+      "name": "cached location cannot authorize a disabled account"
+    },
+    {
+      "name": "cached location cannot revive a revoked device generation"
+    },
+    {
+      "name": "actual email receipt and real Auth custom-token exchange still finalize checked device trust"
+    }
+  ]
+}
