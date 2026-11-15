@@ -21,4 +21,10 @@ Concurrent main `3dab96c` was merged before publication. Its delayed-code login 
 
 The complete app audit remains active. Subscription/marketplace reachability, remaining provider/permission journeys, native lifecycle/performance and dependency audit findings remain open as listed in the earlier QA record. The demo has both UID and profile membership aliases; rebuilding projections revealed a pin/mute preference reconciliation concern to test before certifying reload persistence. No unreviewed backend rollout was included.
 
-Publication and exact public source/native delivery will be recorded after verification.
+## Verified publication
+
+Source `55714c551606356411d530620d7d32a4147c7934` was published through Lovable deployment `d0521fae-7da9-4eb7-8d91-9d2dab20bda3`. At 2026-11-15T01:05:52.392Z, vybehub.app served exact tested fingerprint `fa929d413cf2084fd853d4f2e92d940128c8adc469ae889b93ed52a8d6035153` / 2661 files. Source parts/config/public/runtime identity, the published entry digest, ten route shells and all709 native manifest assets passed. See `verification-public.json`.
+
+Hosted entry `/assets/app-BKKtcdAT.js` has SHA256 `e108a5db2efec54d511976a491173998dc35aebbebefdc722708fe7312975526`; native deployed_at is `1794704692261`. The hosting build's entry differs from the local build; its exact source/runtime identity and own entry hash are verified.
+
+Fresh signed-in production Search displayed the recent conversations with “You: VYBE”, replacing the earlier observed “You: You: VYBE”, and retained its correct title. Evidence screenshot is kept locally in ignored `work/live-search-repaired.jpg`; no private conversation image is committed. Temporary QA tab closed and viewport overrides reset. Physical shell adoption and the wider remaining audit are still open.

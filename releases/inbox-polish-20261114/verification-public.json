@@ -1,0 +1,25 @@
+{
+  "checkedAt": "2026-11-15T01:05:52.392Z",
+  "commit": "55714c551606356411d530620d7d32a4147c7934",
+  "sourceSha256": "fa929d413cf2084fd853d4f2e92d940128c8adc469ae889b93ed52a8d6035153",
+  "sourceFiles": 2661,
+  "entry": "/assets/app-BKKtcdAT.js",
+  "entrySha256": "e108a5db2efec54d511976a491173998dc35aebbebefdc722708fe7312975526",
+  "builtAt": "2026-11-15T01:04:52.719Z",
+  "routes": [
+    "/",
+    "/login",
+    "/signup",
+    "/home",
+    "/profile",
+    "/messages",
+    "/map",
+    "/explore",
+    "/clips",
+    "/settings"
+  ],
+  "assets": 709,
+  "nativeDeployedAt": "1794704692261",
+  "failures": [],
+  "scope": "Exact public source/runtime/entry integrity, ten route shells and native manifest delivery. Not a certification of signed-in transactions, provider integrations, native adoption, GPS, calling or sustained media/animation performance."
+}

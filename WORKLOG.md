@@ -1,13 +1,14 @@
-## ACTIVE (2026-11-14) - Combined inbox follow-up ready for publication
+## ACTIVE (2026-11-14) - Combined inbox follow-up published and verified
 
 - Reconciled concurrent main3dab96c before pushing. Preserved its verified login recovery, lighter mobile rendering, shared captured mutation wrapper, exact four-part private keys and acknowledged read/membership checks. Archive optimism/rollback uses that same captured actor and hidden cache key; no security or login work was overwritten.
 - Final combined suite:540files pass/one skip,5229tests pass/six skip,212.05s. Types, lint (zero warnings/errors), build, native/boot/entry, CSS and bundle budget pass. Local entryapp-Cl8cSmra.js858.6KB raw262.0KB gzip. No runtime edits after checks.
 - Fresh merged-client browser: Search still displays one You prefix; actual guarded hide/upsert archive succeeds and removes the final synthetic chat. Earlier actual server projection/send and live two-clip checks remain bounded evidence. Both scoped production Rules repairs remain active; no further backend or real-user mutation.
 - [The follow-up release record](releases/inbox-polish-20261114/README.md) holds final source/test evidence. The earlier5204test/5d1664ec checkpoint was not pushed/published before this merge and is superseded by these combined checks.
+- Published source55714c551606356411d530620d7d32a4147c7934 through Lovable deploymentd0521fae-7da9-4eb7-8d91-9d2dab20bda3. At01:05:52.392Z public fingerprintfa929d413cf2084fd853d4f2e92d940128c8adc469ae889b93ed52a8d6035153/2661files, source/runtime/entry identity, ten route shells and all709native assets pass. Hosted entryapp-BKKtcdAT.js/digeste108a5db2efec54d511976a491173998dc35aebbebefdc722708fe7312975526. Fresh signed-in Search displays one You prefix and correct title; screenshotwork/live-search-repaired.jpg remains local. No real conversation was messaged/called. Demo archive markers/config restored; QA tab closed, viewport reset. Local QA servers remain available for continued audit.
 
 ### Next three tasks
-1. Push/publish this merged client and verify exact public source/native delivery.
-2. Continue the UID/profile alias preference reload test and current premium/marketplace availability repair with matched authority prerequisites.
+1. Continue the UID/profile alias preference reload test; synthetic dual-alias projections surfaced a reconciliation concern.
+2. Repair current premium/marketplace availability with matched authority prerequisites; do not broadly deploy pending Functions/Rules or alter Auth/provider configuration.
 3. Continue remaining feature/provider and physical-device lifecycle/performance checks. The complete readiness goal remains active.
 
 ## ACTIVE (2026-11-14) - Slow code verification and phone login rendering
