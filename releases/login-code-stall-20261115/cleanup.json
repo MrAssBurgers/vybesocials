@@ -1,0 +1,18 @@
+{
+  "checkedAt": "2026-11-15T06:46:34.525Z",
+  "results": [
+    {
+      "projectId": "demo-vybe-code-recovery",
+      "remainingDocuments": 0,
+      "remainingUsers": 0,
+      "removedFixtureDocuments": 0
+    },
+    {
+      "projectId": "demo-vybe-contacts-qa",
+      "remainingDocuments": 0,
+      "remainingUsers": 0,
+      "removedFixtureDocuments": 0
+    }
+  ],
+  "scope": "Only the two exclusive owned loopback demo projects; fixture users/records validated before cleanup; no production action"
+}

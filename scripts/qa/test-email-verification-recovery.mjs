@@ -8,10 +8,11 @@ import { getFunctions, connectFunctionsEmulator, httpsCallable } from 'firebase/
 assert.equal(process.env.GCLOUD_PROJECT,'demo-vybe-code-recovery');
 assert.equal(process.env.FIRESTORE_EMULATOR_HOST,'127.0.0.1:8387');
 assert.equal(process.env.FIREBASE_AUTH_EMULATOR_HOST,'127.0.0.1:9200');
-const root=path.resolve('work/login-code-followup/minimal-verify');
+const qaRoot=process.env.VYBE_CODE_QA_ROOT || 'work/login-code-followup';
+const root=path.resolve(qaRoot,'minimal-verify');
 const load=file=>import(pathToFileURL(path.join(root,file)).href);
 const {db,auth}=await load('lib/_shared/admin.js');
-const {requestEmailChallenge}=await load('lib/_shared/emailChallengeAuthority.js');
+const {requestEmailChallenge,verifyEmailChallenge}=await load('lib/_shared/emailChallengeAuthority.js');
 const app=initializeApp({projectId:process.env.GCLOUD_PROJECT,apiKey:'demo-only'},'code-recovery-qa');
 const fn=getFunctions(app);connectFunctionsEmulator(fn,'127.0.0.1',8358);const invoke=httpsCallable(fn,'auth2faVerify');
 const owned=[], results=[];const key=()=>randomBytes(32).toString('hex');
@@ -21,6 +22,21 @@ async function check(name,run){await run();results.push({name,passed:true});cons
 async function expectDenied(input){await assert.rejects(invoke(input),e=>['functions/failed-precondition','functions/permission-denied','functions/invalid-argument'].includes(e.code));}
 async function tokenClaims(token){const r=await fetch('http://127.0.0.1:9200/identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=demo-only',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,returnSecureToken:true})});assert.equal(r.status,200);return auth.verifyIdToken((await r.json()).idToken);}
 try {
+ for(const consumed of [false,true]) for(const phase of [1,2]) await check('transient Auth lookup '+phase+' remains retryable '+(consumed?'after consumption':'before consumption'),async()=>{
+  const f=await fixture(); if(consumed) await invoke(f.input);
+  const before=await f.secret.get(); let calls=0;
+  const fault={getUser:async uid=>{
+   if(++calls===phase) throw Object.assign(Error('Synthetic Auth transport outage'),{code:'auth/internal-error'});
+   return auth.getUser(uid);
+  },createCustomToken:(...args)=>auth.createCustomToken(...args)};
+  await assert.rejects(verifyEmailChallenge(db,fault,null,f.input),{code:'unavailable'});
+  const after=await f.secret.get(); assert.equal(after.data().status,before.data().status);
+  if(consumed||phase===1) assert.equal(after.updateTime.toMillis(),before.updateTime.toMillis());
+  const r=(await invoke(f.input)).data; assert.equal((await tokenClaims(r.customToken)).uid,f.uid);
+ });
+ await check('confirmed deleted account still retires its challenge',async()=>{
+  const f=await fixture(); await auth.deleteUser(f.uid); await expectDenied(f.input);
+ });
  await check('actual deployed baseline consumes a code then cannot recover its lost HTTP response',async()=>{const f=await fixture();await assert.rejects(raw('/baseline',f.input,true));assert.equal((await f.secret.get()).data().status,'consumed');const r=await raw('/baseline',f.input);assert.equal(r.status,400);});
  await check('candidate recovers a dropped committed HTTP reply via real Firebase callable SDK and custom-token exchange',async()=>{const f=await fixture();await assert.rejects(raw('/demo-vybe-code-recovery/us-central1/auth2faVerify',f.input,true));const before=await f.secret.get();assert.equal(before.data().status,'consumed');const r=(await invoke(f.input)).data;assert.equal(r.ok,true);assert.ok(Date.parse(r.completionExpiresAt)>Date.now());const claims=await tokenClaims(r.customToken);assert.equal(claims.uid,f.uid);assert.equal(claims.email_2fa,f.id);const after=await f.secret.get();assert.equal(after.updateTime.toMillis(),before.updateTime.toMillis());assert.ok(!after.data().code_hash&&!after.data().code_salt);assert.ok(!JSON.stringify(after.data()).includes(f.input.verificationKey));});
  await check('consumed receipt rejects absent or different keys and malformed attempts',async()=>{const f=await fixture();await invoke(f.input);await expectDenied({...f.input,verificationKey:undefined});await expectDenied({...f.input,verificationKey:key()});await expectDenied({...f.input,verificationKey:'short'});});
@@ -30,8 +46,8 @@ try {
  for(const mode of ['expired','disabled','email-changed','creation-changed','revoked','denied','revision-changed','wrong-owner']) await check(mode+' after consumption prevents recovery',async()=>{const f=await fixture();await invoke(f.input);if(mode==='expired')await f.secret.update({consumed_at:Date.now()-600001});if(mode==='disabled')await auth.updateUser(f.uid,{disabled:true});if(mode==='email-changed')await auth.updateUser(f.uid,{email:'new-'+f.uid+'@example.test'});if(mode==='creation-changed')await f.secret.update({auth_created_at:'old-account'});if(mode==='revoked'){await new Promise(done=>setTimeout(done,1100));await auth.revokeRefreshTokens(f.uid);}if(mode==='denied')await f.public.update({status:'denied'});if(mode==='revision-changed')await f.public.update({email_revision:'f'.repeat(48)});if(mode==='wrong-owner')await f.secret.update({owner_uid:'other'});await expectDenied(f.input);});
  await check('legacy clients remain one-use without a recovery key',async()=>{const f=await fixture(),input={challengeId:f.id,code:f.code};const r=await invoke(input);assert.equal(r.data.ok,true);await expectDenied({...input,verificationKey:key()});await expectDenied(input);});
  await check('a recovered token completes the unchanged deployed email-device authority with one trusted session',async()=>{const f=await fixture();await assert.rejects(raw('/demo-vybe-code-recovery/us-central1/auth2faVerify',f.input,true));const reply=(await invoke(f.input)).data,claims=await tokenClaims(reply.customToken);const completion=file=>import(pathToFileURL(path.resolve('work/login-code-followup/completion-verify/'+file)).href);const {ensureAccountProfileForUid}=await completion('lib/_shared/accountProfileAuthority.js');const {runAuthLoginNotify}=await completion('lib/auth.js');const record=await auth.getUser(f.uid),created=Date.parse(record.metadata.creationTime);await ensureAccountProfileForUid(db,auth,f.uid,{action:'ensure',expectedOwnerUid:f.uid,expectedAccountCreatedAt:created,requestId:randomUUID()});const result=await runAuthLoginNotify({auth:{uid:f.uid,token:claims},data:{expectedOwnerUid:f.uid,expectedAuthTime:claims.auth_time,expectedAccountCreatedAt:created,deviceFingerprint:randomUUID(),method:'email_2fa',expectedEmailChallengeId:f.id},rawRequest:{headers:{},ip:'127.0.0.1'}},{geo:async()=>({ip:null}),send:async()=>{throw Error('No real push permitted');}});assert.equal(result.confirmedEmailChallengeId,f.id);assert.equal(result.requiresApproval,false);const sessions=await db.collection('user_sessions').where('user_id','==',f.uid).get();assert.equal(sessions.size,1);assert.equal(sessions.docs[0].data().trusted,true);});
- await fs.writeFile('work/login-code-followup/verification-sdk.json',JSON.stringify({checkedAt:new Date().toISOString(),runtime:process.version,results,scope:'Actual baseline/candidate HTTP callables; real Firebase client SDK, isolated demo Auth/Firestore, real demo custom-token exchange. Email is synthetic; no production accounts or email.'},null,2)+'\n');
+ await fs.writeFile(path.join(qaRoot,'verification-sdk.json'),JSON.stringify({checkedAt:new Date().toISOString(),runtime:process.version,results,scope:'Actual baseline/candidate HTTP callables; real Firebase client SDK, isolated demo Auth/Firestore, real demo custom-token exchange. Auth outage is injected at account lookup; email is synthetic; no production accounts or email.'},null,2)+'\n');
 } finally {
- for(const f of owned){for(const c of ['profiles','user_auth_index','_account_profile_bindings','_account_profile_requests','_account_profile_receipts','_auth_device_session_heads','user_sessions','login_history','user_2fa_settings']){for(const field of ['user_id','owner_uid'])for(const doc of(await db.collection(c).where(field,'==',f.uid).get()).docs)await doc.ref.delete();await db.doc(c+'/'+f.uid).delete();}for(const c of ['auth_challenges','_auth_email_challenges'])if(f.id)await db.doc(c+'/'+f.id).delete();await db.doc('_auth_email_limits/'+f.uid).delete();await auth.deleteUser(f.uid);}
+ for(const f of owned){for(const c of ['profiles','user_auth_index','_account_profile_bindings','_account_profile_requests','_account_profile_receipts','_auth_device_session_heads','user_sessions','login_history','user_2fa_settings']){for(const field of ['user_id','owner_uid'])for(const doc of(await db.collection(c).where(field,'==',f.uid).get()).docs)await doc.ref.delete();await db.doc(c+'/'+f.uid).delete();}for(const c of ['auth_challenges','_auth_email_challenges'])if(f.id)await db.doc(c+'/'+f.id).delete();await db.doc('_auth_email_limits/'+f.uid).delete();await auth.deleteUser(f.uid).catch(error=>{if(error.code!=='auth/user-not-found')throw error;});}
  await deleteApp(app);await db.terminate();console.log('Cleaned owned demo users/challenge/limit fixtures');
 }

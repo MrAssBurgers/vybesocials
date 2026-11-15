@@ -1,0 +1,13 @@
+{
+  "testsPassed": 5424,
+  "types": true,
+  "lint": true,
+  "build": true,
+  "manualUi": true,
+  "archiveSha256": "886e64da0b0c75c8aedbaac4a73b47169051983c0c788e7a6f69ae067e3ddd51",
+  "sourceSha256": "e2c9930cefeea94c750343bf78f9771e62a12f31d8fb9560ecfa686dc78421f3",
+  "sourceFiles": 2683,
+  "entry": "/assets/app-BrFXhDnO.js",
+  "entrySha256": "314b452043d46ffe92f501425bff1c09a8385321ee585648ebfdf4d5cd9dd824",
+  "scope": "Local full unit suite and types/lint/build; demo Firebase only; physical phone remains unverified."
+}

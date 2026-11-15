@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-11-15T06:48:00Z",
+  "viewport": {
+    "width": 390,
+    "height": 740
+  },
+  "actualComponents": [
+    "LoginGateModal",
+    "InputOTP",
+    "AuthAtmosphere",
+    "auth-atmosphere.css"
+  ],
+  "transport": "Synthetic promise stalls 55 seconds on first request; retry returns after 300ms; no real account/code/email",
+  "observed": [
+    "Submitted synthetic code using actual input control",
+    "30-second deadline exposed Retry code check without reentering code",
+    "Clicked retry; success screen confirms two requests with the same attempt key",
+    "Late original reply did not reopen the gate"
+  ],
+  "limits": "Desktop Chrome at phone-sized viewport; not a physical Android benchmark or real user sign-in"
+}

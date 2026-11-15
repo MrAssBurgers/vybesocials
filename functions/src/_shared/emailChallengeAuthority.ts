@@ -18,7 +18,12 @@ function challengeId(value: unknown): string {
 }
 
 async function currentAccount(auth: EmailAuth, uid: string) {
-  const user = await auth.getUser(uid).catch(() => { throw invalid(); });
+  const user = await auth.getUser(uid).catch((error: unknown) => {
+    // Only a confirmed missing account retires the challenge. A temporary
+    // Auth lookup failure must remain retryable, including after consumption.
+    if ((error as { code?: unknown } | null)?.code === 'auth/user-not-found') throw invalid();
+    throw new HttpsError('unavailable', 'Account verification is temporarily unavailable. Try again.');
+  });
   if (user.disabled || !user.email || !user.metadata.creationTime) throw invalid();
   const validSince = user.tokensValidAfterTime ? Date.parse(user.tokensValidAfterTime) : 0;
   if (!Number.isSafeInteger(validSince) || validSince < 0) throw invalid();

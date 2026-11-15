@@ -1,3 +1,16 @@
+## ACTIVE (2026-11-15) - Follow-up for stalled email verification
+
+- User still reports painful/laggy login and failed code entry. Prior login repair is published; exact real-phone symptom remains unconfirmed. Paused unrelated positive staff target preparation, preserving its two uncommitted source files. No new feature work.
+- Reproduced stalled code check without bounded retry and failed resend discarding recovery material. Added30-second email-only wait bound using existing server-attested key, explicit Retry code check, no automatic duplicate submission, no late double completion. Failed resend preserves recovery material. SMS and accepted-code completion retain existing behavior.
+- Actual demo Firebase reproduction: transient Admin getUser failure was misreported as invalid/expired request. Helper now returns unavailable for service lookup failures; confirmed user-not-found and disabled/changed/expired/denied proofs still reject. Six-file package exports only auth2faVerify using unchanged live Node22 dependencies/Admin initializer.
+-24focused UI cases pass; two new regressions reproduced before fix. Full34998exit0:551files passed/one skipped,5424tests passed/six skipped,109.50s. Types/lint/build74060and64342exit0,zero lint warnings/errors; Functions compile. Sourcee2c9930cefeea94c750343bf78f9771e62a12f31d8fb9560ecfa686dc78421f3/2683files independently matches dist. Actual Node22 demo SDK21cases pass; baseline outage reproduction returns incorrectfailed-precondition. Actual390px OTP controls recover stalled synthetic reply with two same-key requests, no reentry or duplicate completion. Both demo projects independently empty. No real email/account/physical-phone success claim. Records releases/login-code-stall-20261115.
+- Only auth2faVerify update submitted once: operation1794725313678-6604b0cca8cc0-f7622e1c-ad216f33, archive886e64da0b0c75c8aedbaac4a73b47169051983c0c788e7a6f69ae067e3ddd51. Observe existing operation; no redispatch. Final live readback and exact client publication remain next. No Auth/provider settings, Rules, IAM, secret or other service change.
+
+### Next three tasks
+1. Verify named backend update and publish exact checked client/source/native assets.
+2. Verify installed phone code entry, profile/posts startup and remaining lag; passwords/codes stay off chat.
+3. Resume existing-feature readiness and preserved staff target/history reconciliation. Full goal remains active; no new features or whole-app certification.
+
 ## ACTIVE (2026-11-15) - Private wallet/reward record scope prepared and actual shop walkthrough verified
 
 - Previous goal turn made authoritative progress: named auth2faVerify and matching client74fa64e/source608e7fcc are deployed/publicly verified. Continued full readiness; no phone symptom answer assumed. Finished the documented per-record prerequisite for existing shop restoration. New private financial/XP/challenge writes carry exact raw Auth-creation and canonical profile stamps. All accepting readers reject missing/mismatched stamps, including live rows checked before replay acknowledgement and positive staff/challenge badge proof. Retained negative staff authority still suppresses badge grants. No history was automatically certified, reset or removed.
