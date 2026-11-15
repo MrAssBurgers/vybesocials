@@ -33,5 +33,16 @@
       "sharedLiveEquivalent": true
     }
   ],
-  "scope": "Only expected account/profile checks in caller; all four transitive shared modules equivalent to both live source baselines. No new authority, export or database namespace."
+  "scope": "Only expected account/profile checks in caller; all four transitive shared modules equivalent to both live source baselines. No new authority, export or database namespace.",
+  "archiveSha256": "34f2ad1b42b075bf1727c0bcadb3bfbc890e03d17267a47153e93188ec209f5d",
+  "archiveBytes": 54068,
+  "dependencies": {
+    "firebase-admin": "13.10.0",
+    "firebase-functions": "6.6.0"
+  },
+  "npmAudit": {
+    "moderate": 8,
+    "high": 0,
+    "critical": 0
+  }
 }

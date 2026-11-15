@@ -1,3 +1,15 @@
+## ACTIVE (2026-11-14) - Combined community release checked; five service updates pending
+
+- Preserved current main bf8414a and reviewed inherited loginGeo/auth, Profile Clips and prepared marketplace changes. Community runtime source did not change across merge. A local work-log merge retained conflict markers after an encoding failure; removed them immediately in documentation-only d09fe6c before any push. Both histories retained.
+- Final full8780 exits0:547 files pass/one skip,5,304 tests pass/six skips,120.95s. Types/lint/build/boot/native entry/CSS/budget55993 and Functions compile pass; lint zero warnings/errors. Source669f178b/2672files matches dist; app-D5dCDkXi.js858.8KB raw/262.0KB gzip. No runtime edit after checks; generated backend/public files restored.
+- Five exact existing service source/runtime operations submitted once from the frozen54,068-byte package34f2ad1b. Only buildConfig.source/runtime are selected. Existing service settings unchanged by request; communityManage retains Node22 and four other community services upgrade Node20 to Node22. Record handles in ignored work/community-release; observe them without resubmitting. No Rules, Auth/provider config, secrets, IAM or real community/account data write.
+- Actual Node22 entrypoint/9HTTP journey/7private-surface groups passed before dispatch. Exact live Firestore baseline was used locally. Final export rename lock recovered by preserving the completed owned synthetic export; QA servers now stopped. User-created unrelated browser tab preserved.
+
+### Next three tasks
+1. Observe existing five operations, verify source digests/configuration and guest transport.
+2. Push/publish this exact combined client through Lovable, then verify public/native source and delivery.
+3. Continue remaining existing services/history/provider/account/physical-device journeys. This is a scoped repair, not whole-app perfection; goal remains active.
+
 ## ACTIVE (2026-11-14) - Community navigation and account binding checked; release pending
 
 - Fixed named keyboard community entry, URL/history selection, mounted invitation handling, scoped rooms, honest query errors/retry and 44px primary controls. Requests bind UID/profile through transport; all five community handlers reject explicit mismatches. No membership/authority fallback was added.
