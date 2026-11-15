@@ -1,3 +1,14 @@
+## ACTIVE (2026-11-14) - Final community keyboard source combined with latest live auth repair
+
+- Main advanced during the first push; safe fast-forward push rejection preserved it. Fetched/reviewed main27ad0d3 and its exact email-confirmed authLoginNotify transaction optimization, already independently deployed and source-verified. Preserved its docs/source/QA scripts in merge806f51c. Only overlapping work-log sections needed reconciliation; both histories retained. No backend operation was dispatched here.
+- Final full92441exit0:547files pass/one skip,5,308tests pass/six skips,119.18s. Types/lint/build43760 and Functions compile pass,zero lint warnings/errors,boot/native entry/CSS/budget pass. Exact source2517c6b4501e67053b2dee3a55c08b1cd8ac0c508dcb7332a1a9214482551676/2674files matches dist;app-DGXisj8z.js858.9KB raw/262.0KB gzip. Community UI unchanged across merge, so the successful actual native Tab/Enter/Space walkthrough still covers the published UI candidate. No runtime edit after final checks; generated outputs restored.
+- Exact-source native manual receipt and separate6-case browser Firebase persistence result retained. Own QA window/preview server are closed/stopped; existing unrelated Chrome263582 preserved. Previous turn's URL-confidence interruption was not bypassed. Entire-app readiness remains active and unproved.
+
+### Next three tasks
+1. Fast-forward main and publish this exact final community keyboard source via Lovable; verify public source/runtime/entry/native delivery.
+2. Continue the actual remaining interface and service journeys. The read-only accessibility candidate scan includes legitimate backdrops/dead code; do not report its123candidates as123bugs or blindly change them.
+3. Verify provider/history/account/marketplace and physical installed lifecycle/performance, preserving Firebase data. Android tooling was absent from the expected SDK path and PATH; this is not proof that no phone is connected.
+
 ## ACTIVE (2026-11-14) - Final community keyboard candidate manually verified; publication ready
 
 - Previous goal turn made authoritative progress: verified initial community client/backend release and prepared the two-line keyboard follow-up with5,308passing tests. Revalidated clean repair branch6013c6d/current mainc8e19cd; exact client sourceebefd578/2672files still matches its checked dist. No runtime edit or dependency/service change this turn.

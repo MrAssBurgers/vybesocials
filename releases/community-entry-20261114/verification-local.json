@@ -1,7 +1,7 @@
 {
   "source_schema": "vybe-client-source-v2",
-  "source_sha256": "ebefd5780ad460dd5a2b60674a5143988ded1952c6ddc66d56e5857d3cc25393",
-  "source_files": 2672,
+  "source_sha256": "2517c6b4501e67053b2dee3a55c08b1cd8ac0c508dcb7332a1a9214482551676",
+  "source_files": 2674,
   "source_parts": {
     "config": {
       "sha256": "95c775b687fa4ad7afebdda0826673040c92ac7deb622c9e92c3b77fd7ff77c2",
@@ -12,8 +12,8 @@
       "files": 113
     },
     "scripts": {
-      "sha256": "0111dd9aac1e30ecebfc677fb8fcf5900f0fd5e996d8c6909b2728d3ff55dbe2",
-      "files": 182
+      "sha256": "448017f8bdfa5bf1d6fcaa5e8b679d253e62d4af4f48896a09e10a421740d1b1",
+      "files": 184
     },
     "src": {
       "sha256": "dc4d4e76cb9ad77f56dbb58f5a29dd30702ad0ce7e8742078fd726f665802a3b",
@@ -160,24 +160,24 @@
     "@capacitor/cli": "8.4.3"
   },
   "app_version": "0.0.0",
-  "commit": "c8e19cdc441b0807ac1e43e1e8a95334467eedcf",
-  "commit_short": "c8e19cd",
-  "built_at": "2026-11-15T03:52:44.772Z",
+  "commit": "806f51cde9e150b8d6e89469ef81ff54bffc6708",
+  "commit_short": "806f51c",
+  "built_at": "2026-11-15T04:01:45.231Z",
   "entry": "/assets/app-DGXisj8z.js",
   "entry_sha256": "1a7b5628a288ef87a584c2f70d8290620dca21827d455023f8e5205e7a2a8dc1",
-  "checkedAt": "2026-11-15T03:54:58.133Z",
+  "checkedAt": "2026-11-15T04:04:29.201Z",
   "combinedChecksPassed": true,
   "fullSuite": {
     "filesPassed": 547,
     "filesSkipped": 1,
     "testsPassed": 5308,
     "testsSkipped": 6,
-    "durationSeconds": 158.13,
+    "durationSeconds": 119.18,
     "maxWorkers": 8,
     "exitCode": 0
   },
   "checks": {
-    "focusedTabKeyboardCases": 3,
+    "functionsBuild": true,
     "typecheck": true,
     "lint": {
       "errors": 0,
@@ -194,7 +194,8 @@
     "rawKB": 858.9,
     "gzipKB": 262
   },
+  "preservedMain": "27ad0d3",
   "manualFinalSourceVerified": true,
   "published": false,
-  "scope": "Final two-line keyboard-wrapper follow-up; exact source locally tested and manually verified in native Chrome with explicitly synthetic transport. Publication/delivery proof follows separately. Backend code unchanged."
+  "scope": "Final combined source includes the already released email-device backend optimization and its QA scripts. UI/card source is unchanged from the verified manual keyboard walkthrough; no backend redeployment is part of this client release."
 }
