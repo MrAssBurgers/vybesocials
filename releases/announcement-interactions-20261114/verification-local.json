@@ -1,8 +1,8 @@
 {
-  "checkedAt": "2026-11-15T05:01:36.369Z",
+  "checkedAt": "2026-11-15T05:13:22.819Z",
   "source_schema": "vybe-client-source-v2",
-  "source_sha256": "9af79984cfeee3f60258776c0c227f456f0f8a44cedf564d82be9199e1797ff3",
-  "source_files": 2678,
+  "source_sha256": "8daaa749bb55876c74d9bf2d4b58e741d797f0483eb2c8cea649c0c09c9d3b12",
+  "source_files": 2681,
   "source_parts": {
     "config": {
       "sha256": "95c775b687fa4ad7afebdda0826673040c92ac7deb622c9e92c3b77fd7ff77c2",
@@ -13,12 +13,12 @@
       "files": 113
     },
     "scripts": {
-      "sha256": "d4b7ae90905b746bd133f944c226e780ab0fc0149266f231aad3df6d6db116fe",
-      "files": 185
+      "sha256": "b0bd696b882771eadfbb2d6fa21cecba2efb3cd98fbf7f3e9b9957b948ad24d7",
+      "files": 187
     },
     "src": {
-      "sha256": "8c9e8313b803b1b3044109482a4d6f0dafc8c8b2f8ca8aa414bcf3c4b98cca23",
-      "files": 2369
+      "sha256": "449c5578d588c5cad64efc504bc8260d502b4d1480f19cf0e6cf3015c52d54d5",
+      "files": 2370
     }
   },
   "source_config": {
@@ -149,18 +149,27 @@
     "splash/splash-828x1792.png": "a75283ac5a7f05ed38b5fe9043380331b1590eaac0f19fd297874fad40e89619",
     "sw.js": "e21e4f11ecaeaabdb64bb847332778bc1b9c4e73ae3bd0f4d71202defb252d30"
   },
+  "runtime_dependencies": {
+    "@tanstack/react-query": "5.101.0",
+    "@tanstack/query-core": "5.101.0",
+    "@tanstack/react-query-persist-client": "5.101.0",
+    "@tanstack/query-persist-client-core": "5.101.0",
+    "@tanstack/query-async-storage-persister": "5.101.0",
+    "@capacitor/android": "8.4.3",
+    "@capacitor/ios": "8.4.3",
+    "@capacitor/core": "8.4.3",
+    "@capacitor/cli": "8.4.3"
+  },
   "entry": "/assets/app-ClgzeqlJ.js",
   "entry_sha256": "1ab1d58f2f78b78f2b0be00d19d9a2c8a82f007b3b057e5c1273b2e7d94ab08f",
+  "combinedWith": "2de9b0069e0380c6c37a689da9b918d43ce01089",
   "fullTests": {
-    "filesPassed": 550,
+    "filesPassed": 551,
     "filesSkipped": 1,
-    "passed": 5324,
+    "passed": 5384,
     "skipped": 6,
-    "durationSeconds": 123.81
-  },
-  "focusedTests": {
-    "files": 4,
-    "passed": 17
+    "durationSeconds": 119.97,
+    "exitCode": 0
   },
   "typecheck": true,
   "lint": {
@@ -168,6 +177,7 @@
     "warnings": 0
   },
   "build": true,
+  "functionsCompile": true,
   "boot": true,
   "nativeManifest": true,
   "css": true,
@@ -175,5 +185,11 @@
     "rawKB": 858.9,
     "gzipKB": 262
   },
-  "scope": "Final pre-merge local checks. Actual manual announcement UI still pending; not proof of live authenticated or physical-device behavior."
+  "manualComponentsUnchangedAcrossMerge": true,
+  "componentSha256": {
+    "src/components/announcements/AnnouncementModal.tsx": "56c553341f449eddbf5bb47ae9061dbf895070103d8f64d08fad21493efa82db",
+    "src/components/announcements/AnnouncementMediaPreview.tsx": "f0d5e8223c9d2d9e6a9cbaae6ad083eb44bfa7687d5ac2bc1a134ac63a97e395",
+    "src/hooks/useAnnouncements.ts": "1fafa199a06500762632c7d8763cba157999cf8374662c9ddacf4243a7e8309e"
+  },
+  "scope": "Final combined local checks and unchanged manually checked announcement components. No Functions deployment. Not proof of live authenticated or physical-device behavior."
 }
