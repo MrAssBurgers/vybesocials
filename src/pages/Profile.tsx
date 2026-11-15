@@ -322,10 +322,12 @@ export default function ProfilePage() {
             return (
               <motion.button
                 key={tab.id}
+                type="button"
+                aria-pressed={isActive}
                 onClick={() => setActiveTab(tab.id)}
                 whileTap={{ scale: 0.95 }}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-colors duration-200 relative",
+                  "flex-1 min-h-11 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-colors duration-200 relative",
                   isActive
                     ? "text-primary"
                     : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"

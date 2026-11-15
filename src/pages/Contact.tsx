@@ -14,23 +14,23 @@ const faqs = [
   },
   {
     question: 'How do I report inappropriate content?',
-    answer: 'You can report any post, message, or user by tapping the three-dot menu and selecting "Report." Our moderation team reviews all reports within 24 hours. For urgent safety concerns, email us directly.',
+    answer: 'Use the Report option on a post, message, or profile to flag content or unwanted contact. Report response times are not guaranteed. You can also contact the safety team at the email address below.',
   },
   {
     question: 'What is VYBE Premium?',
-    answer: 'VYBE Premium (VYBE Pro) unlocks ad-free browsing, exclusive badges, custom themes, priority support, and enhanced creator tools. You can subscribe through the Settings page in the app.',
+    answer: 'Core posting, messaging, and community features are free. Paid subscriptions are not currently available. Some profile items have in-app token or level requirements, shown when you select them.',
   },
   {
     question: 'How does the Creator Program work?',
-    answer: 'Eligible creators can apply to join the VYBE Creator Program to monetize their content, access advanced analytics, and connect with their audience through exclusive tools. Apply through the Creator Dashboard in your profile.',
+    answer: 'Creators can share posts and clips, build communities, and make games, tools, or art in Mini App Studio. Cash tips and creator payouts are not currently available. In-app tokens are for supported profile items and are not a cash balance.',
   },
   {
     question: 'How do I delete my account or request my data?',
-    answer: 'You can delete your account from Settings > Account > Delete Account. To request a copy of your data, email us at the address below with the subject line "Data Request" and we\'ll process it within 30 days.',
+    answer: 'Sign in to manage a deletion request in Settings or on the Account deletion request page. Requests have a 30-day grace period before review. Permanent cleanup is not automatic yet. For deletion follow-up or a data request, contact the support email below.',
   },
   {
     question: 'Is my data safe on VYBE?',
-    answer: 'Yes. We use industry-standard encryption for messages, secure authentication, and strict data protection practices. Read our Privacy Policy for full details on how we handle your information.',
+    answer: 'Conversation membership controls access to messages, but VYBE DMs are not end-to-end encrypted. Messages are processed and stored by VYBE services. Review your privacy settings and read the Privacy Policy for data handling details.',
   },
   {
     question: 'How do Communities work?',
@@ -52,13 +52,13 @@ export default function Contact() {
         style={{ paddingTop: 'var(--sat, 0px)' }}
       >
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
+          <Link to="/" className="flex min-h-11 items-center gap-2">
             <VYBELogo size="sm" />
           </Link>
-          <nav className="flex items-center gap-4 text-sm text-muted-foreground">
-            <Link to="/about" className="hover:text-foreground transition-colors">About</Link>
-            <Link to="/contact" className="text-foreground font-medium">Contact</Link>
-            <Link to="/" className="text-primary font-medium hover:underline">Sign In</Link>
+          <nav aria-label="Public navigation" className="flex items-center gap-1 sm:gap-2 text-sm text-muted-foreground">
+            <Link to="/about" className="inline-flex min-h-11 items-center rounded-lg px-2 hover:text-foreground transition-colors">About</Link>
+            <Link to="/contact" aria-current="page" className="inline-flex min-h-11 items-center rounded-lg px-2 text-foreground font-medium">Contact</Link>
+            <Link to="/login" className="inline-flex min-h-11 items-center rounded-lg px-2 text-primary font-medium hover:underline">Sign In</Link>
           </nav>
         </div>
       </header>
@@ -130,6 +130,11 @@ export default function Contact() {
                 <p className="px-4 pb-4 text-sm text-muted-foreground leading-relaxed">{faq.answer}</p>
               </details>
             ))}
+          </div>
+          <div className="mt-6 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm">
+            <Link to="/faq" className="inline-flex min-h-11 items-center text-primary hover:underline">More questions & answers</Link>
+            <Link to="/features" className="inline-flex min-h-11 items-center text-primary hover:underline">Features & availability</Link>
+            <Link to="/delete-account" className="inline-flex min-h-11 items-center text-primary hover:underline">Account deletion request</Link>
           </div>
         </div>
       </section>
