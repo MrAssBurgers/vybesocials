@@ -1,0 +1,22 @@
+{
+  "checkedAt": "2026-11-15T03:58:57.894Z",
+  "sourceSha256": "ebefd5780ad460dd5a2b60674a5143988ded1952c6ddc66d56e5857d3cc25393",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "actualComponents": [
+    "CommunityCard",
+    "PublicCommunityCard",
+    "Community page and CSS"
+  ],
+  "transport": "explicit synthetic hooks and shell; no Firebase request in this UI fixture",
+  "checks": [
+    "click My Communities, Tab to panel, Tab directly to named Alpha button, Enter opens Alpha/chat without the former wrapper stop",
+    "Browse communities opens Discover",
+    "from Discover, Tab to panel, Tab to named search, Tab directly to Join Gamma without a wrapper stop",
+    "Space changes Join to Joining and then selects Gamma/chat"
+  ],
+  "sourceCopyMatches": true,
+  "scope": "Native Chrome keyboard interaction on the exact final copied component source. Does not certify live member admission, real message or invitation writes, voice, installed-native rendering or physical-device performance."
+}

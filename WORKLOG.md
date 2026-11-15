@@ -1,3 +1,15 @@
+## ACTIVE (2026-11-14) - Final community keyboard candidate manually verified; publication ready
+
+- Previous goal turn made authoritative progress: verified initial community client/backend release and prepared the two-line keyboard follow-up with5,308passing tests. Revalidated clean repair branch6013c6d/current mainc8e19cd; exact client sourceebefd578/2672files still matches its checked dist. No runtime edit or dependency/service change this turn.
+- Permitted new-turn native observation uniquely recovered the existing owned Chrome QA window on index-final/view-final. Actual copied card source matches current source except the explicit signed-URL fixture hook. At390x844, My ->Tab panel ->Tab native Alpha button ->Enter opens Alpha/chat directly. Discover ->Tab panel ->Tab search ->Tab Join Gamma ->Space shows Joining then Gamma/chat. No dead wrapper focus stop remains. Actual page/cards/CSS; shell and transport are explicitly synthetic. No real Auth/community action was sent. Exact manual receipt releases/community-entry-20261114/verification-keyboard-manual.json.
+- Previous turn's URL-confidence interruption was not bypassed or reset. This turn began with fresh supported observation and all normal actions succeeded. Closed only owned QA window9178600; fresh list confirms only existing unrelated Chrome263582 remains. Owned preview36140 stopped. Backend stays at the verified five-service release; no redeploy needed.
+- Final existing checks remain valid by exact source identity: full5,308pass/six skips,547files pass/one skip,158.13s; six normally skipped real-browser Firebase persistence cases pass separately. Types/lint/build/boot/native entry/CSS/budget pass; zero lint warnings/errors. Ready to fast-forward main and publish the exact keyboard follow-up. Physical/native/provider and the wider entire-app readiness remain unproved; goal active.
+
+### Next three tasks
+1. Publish the exact checked keyboard source through Lovable and verify public/runtime/entry/native delivery; retain initial release receipts.
+2. Continue the wider existing-feature accessibility/animation and real service journeys, without treating unit coverage as whole-app completeness.
+3. Continue provider/history/account/marketplace and physical installed lifecycle/performance verification; preserve legitimate Firebase data.
+
 ## ACTIVE (2026-11-14) - Community release live; final keyboard polish checked locally
 
 - Previous goal phase made concrete progress: five exact community backend updates and matched client c8e19cdc441b0807ac1e43e1e8a95334467eedcf are live. Backend ACTIVE Node22/deployed archive34f2ad1b/configuration and guest transport independently verified. Lovable b17c7c1f-b3ad-443b-96e2-4311dbc4e1b2 submitted once; public verification43030exit0 at03:48:27.590Z proves source936a2f8b/2672files, all parts/runtime, entry/assets/app-vdAdjJGx.js/digest2baccb67, fifteen route shells and709native assets, deployed_at1794714465623. No production domain/account/Rules/Auth/provider/IAM write. Receipts releases/community-entry-20261114 have explicit initial client/source/public filenames.

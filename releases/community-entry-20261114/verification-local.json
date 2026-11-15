@@ -194,7 +194,7 @@
     "rawKB": 858.9,
     "gzipKB": 262
   },
-  "manualFinalSourceVerified": false,
+  "manualFinalSourceVerified": true,
   "published": false,
-  "scope": "Final two-line keyboard-wrapper follow-up candidate. Exact source is locally checked, but browser control ended before this source could be manually verified. Initial community release936a2f8b/c8e19cd remains the verified production client; no further backend deployment needed."
+  "scope": "Final two-line keyboard-wrapper follow-up; exact source locally tested and manually verified in native Chrome with explicitly synthetic transport. Publication/delivery proof follows separately. Backend code unchanged."
 }
