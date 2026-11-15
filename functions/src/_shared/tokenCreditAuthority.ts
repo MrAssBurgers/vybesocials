@@ -45,13 +45,20 @@ function ownsSource(row: Row, actor: TokenActor, required: 'user_id' | 'author_i
   return aliases.includes(String(row[required])) && ['author_id', 'user_id'].every(key => !Object.hasOwn(row, key) || aliases.includes(String(row[key])));
 }
 
-export async function assertTokenActor(tx: Transaction, db: Firestore, actor: TokenActor): Promise<void> {
-  const [profile, index, profiles] = await Promise.all([
-    tx.get(db.collection('profiles').doc(id(actor.profileId))), tx.get(db.collection('user_auth_index').doc(id(actor.authUid))),
-    tx.get(db.collection('profiles').where('user_id', '==', actor.authUid).limit(2)),
+export async function resolveTokenActorIdentity(tx: Transaction, db: Firestore, authUid: string, expectedProfileId?: string) {
+  const [identity, binding] = await Promise.all([
+    resolveIdentity(db, tx, id(authUid)), tx.get(db.collection('_account_profile_bindings').doc(id(authUid))),
   ]);
-  if (!profile.exists || profile.data()?.user_id !== actor.authUid || !liveProfile(profile.data()!) || profiles.size !== 1 || profiles.docs[0].id !== actor.profileId
-    || (index.exists && index.data()?.profile_id !== actor.profileId)) throw review();
+  if (!identity || identity.uid !== authUid || (expectedProfileId !== undefined && identity.profileId !== expectedProfileId)) throw review();
+  // Legacy unbound identities still require the full unambiguous alias check.
+  // A durable retirement/mismatched binding cannot be ignored by that fallback.
+  const owner = binding.data();
+  if (binding.exists && (owner?.version !== 1 || owner.status !== 'active' || owner.owner_uid !== authUid || owner.profile_id !== identity.profileId)) throw review();
+  return identity;
+}
+
+export async function assertTokenActor(tx: Transaction, db: Firestore, actor: TokenActor): Promise<void> {
+  await resolveTokenActorIdentity(tx, db, actor.authUid, actor.profileId);
 }
 
 /** Only the protected canonical grant is eligible. Invalid/legacy grants give no multiplier. */

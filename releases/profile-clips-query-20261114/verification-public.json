@@ -1,0 +1,23 @@
+{
+  "checkedAt": "2026-11-15T02:57:56.580Z",
+  "commit": "889f408df617066f9799d5254624fff0509a7207",
+  "sourceSha256": "3f41a04d255a5f9bd5c9538839b92abcf1ac784d000318ac2dd6154907c188e4",
+  "entry": "/assets/app-B2z0S83B.js",
+  "entrySha256": "f3cb9d46479a57c876b98e8591a95e2a2abd7dc0b3356de374c805c89e0dda8c",
+  "builtAt": "2026-11-15T02:57:07.357Z",
+  "routes": [
+    "/",
+    "/login",
+    "/signup",
+    "/home",
+    "/profile",
+    "/messages",
+    "/map",
+    "/explore",
+    "/clips",
+    "/settings"
+  ],
+  "assets": 709,
+  "nativeDeployedAt": "1794711426903",
+  "scope": "Source/entry integrity, route shells and native asset delivery. Does not prove real account writes, physical mobile adoption, GPS or video performance."
+}

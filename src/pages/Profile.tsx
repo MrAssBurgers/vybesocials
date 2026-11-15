@@ -71,7 +71,7 @@ export default function ProfilePage() {
         } as NonNullable<typeof profileData>)
       : undefined);
   const [activeTab, setActiveTab] = useState('posts');
-  const postQuery = usePosts(undefined, profile?.id, { enabled: !!profile?.id && (activeTab === 'posts' || activeTab === 'shorts') });
+  const postQuery = usePosts(activeTab === 'shorts' ? 'short' : undefined, profile?.id, { enabled: !!profile?.id && (activeTab === 'posts' || activeTab === 'shorts') });
   const { data: posts } = postQuery;
   const savedQuery = useSavedPosts(activeTab === 'saved' && profile?.id === currentProfile?.id);
   const { data: savedPosts } = savedQuery;
@@ -170,6 +170,11 @@ export default function ProfilePage() {
   };
 
   const gridPosts = posts?.filter((p) => p.type === 'post' || p.type === 'video') || [];
+  const confirmedPostCount = !!profile?.post_count_label && profile.post_count_label !== '—';
+  // A bounded page proves only what it contains. Clips are a filtered subset
+  // and older windows omit newer posts, so neither is an exact profile total.
+  const postCountLabel = confirmedPostCount ? profile.post_count_label : activeTab === 'posts' && posts
+    ? `${posts.length}${postQuery.hasNextPage || postQuery.hasMoreWindow || postQuery.hasPreviousWindow ? '+' : ''}` : '—';
   const shortPosts = posts?.filter((p) => p.type === 'short') || [];
   const clipsForGrid = shortPosts.map(post => ({
     id: post.id,
@@ -262,12 +267,8 @@ export default function ProfilePage() {
         <ProfileHeroCard
           profile={{
             ...profile,
-            post_count: profile.post_count || posts?.length || 0,
-            post_count_label: profile.post_count_label && profile.post_count_label !== '—'
-              ? profile.post_count_label
-              : posts?.length
-                ? String(posts.length)
-                : profile.post_count_label,
+            post_count: confirmedPostCount ? profile.post_count : activeTab === 'posts' ? posts?.length ?? 0 : 0,
+            post_count_label: postCountLabel,
           }}
           isOwnProfile={isOwnProfile}
           isPremium={isPremium}

@@ -1,0 +1,10 @@
+{
+  "checkedAt": "2026-11-15T03:09:25.792Z",
+  "baselineRuleset": "projects/vybe-daaab/rulesets/86ff97a3-2fb3-4b3c-b582-f4e92cda6542",
+  "baselineSha256": "5e089eb26cc72314e1eff017a70166aa5040fb1f172e01125164b5050945e4e3",
+  "candidateSha256": "2ee0d9fa8175c6cf572f311d1430a98514b7b67817e26ba8d1092a9cb55d39f8",
+  "compiled": true,
+  "warnings": 12,
+  "activated": false,
+  "scope": "Compile/test only. No Ruleset or release created/updated; service availability remains separate."
+}

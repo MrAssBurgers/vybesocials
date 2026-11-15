@@ -3,11 +3,11 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import { FRAME_CLASS_MAP, THEME_GRADIENTS } from '@/lib/cosmeticConstants';
-const mock = vi.hoisted(() => ({ target:'alice', markRead:vi.fn(), theme: 'theme_neon', frame: 'avatar_frame_gold', hasWallpaper: true, setBackground: vi.fn(), refreshBackground: vi.fn(), unavailable: [] as string[], removeSaved: vi.fn(), removeError: false }));
+const mock = vi.hoisted(() => ({ posts: vi.fn(), countLabel: '—', target:'alice', markRead:vi.fn(), theme: 'theme_neon', frame: 'avatar_frame_gold', hasWallpaper: true, setBackground: vi.fn(), refreshBackground: vi.fn(), unavailable: [] as string[], removeSaved: vi.fn(), removeError: false }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 'alice' }, authReady: true, profile: { id: 'alice-profile', user_id: 'alice', username: 'alice' } }) }));
-vi.mock('@/hooks/useProfile', () => ({ useProfileByUsername: () => ({ data: { id: `${mock.target}-profile`, user_id: mock.target, username: mock.target } }), useFollow: () => ({}), useUpdateAvatar: () => ({}) }));
+vi.mock('@/hooks/useProfile', () => ({ useProfileByUsername: () => ({ data: { id: `${mock.target}-profile`, user_id: mock.target, username: mock.target, post_count_label: mock.countLabel, post_count: 0 } }), useFollow: () => ({}), useUpdateAvatar: () => ({}) }));
 vi.mock('@/lib/firebase',()=>({db:{from:()=>({select:()=>({eq:()=>({eq:()=>({maybeSingle:async()=>({data:null,error:null})})})})})}}));
-vi.mock('@/hooks/usePosts', () => ({ usePosts: () => ({ data: [] }) }));
+vi.mock('@/hooks/usePosts', () => ({ usePosts: (...args: unknown[]) => mock.posts(...args) }));
 vi.mock('@/hooks/useSavedPosts', () => ({ useSavedPosts: () => ({ data: [], unavailableSavedPostIds: mock.unavailable }), useRemoveSavedPost: () => ({ mutate: mock.removeSaved, isPending: false, isError: mock.removeError }) }));
 vi.mock('@/hooks/useSignedUrl', () => ({ useSignedUrl: () => ({}) }));
 vi.mock('@/hooks/useMessages', () => ({ useMarkConversationReadByUser: () => ({ mutate: mock.markRead }) }));
@@ -18,20 +18,46 @@ vi.mock('@/hooks/usePremiumStatus', () => ({ usePremiumStatus: () => ({ isPremiu
 vi.mock('@/hooks/useLiveMusicPresence', () => ({ useLiveMusicPresence: () => ({ presence: null }) }));
 vi.mock('@/components/layout/AppLayout', () => ({ AppLayout: ({ children, contentOwnsBottomPadding }: { children: ReactNode; contentOwnsBottomPadding?: boolean }) => <main style={{ transform: 'translateZ(0)', overflowY: 'auto', height: '720px', paddingBottom: contentOwnsBottomPadding ? undefined : '34px' }}>{children}</main> }));
 vi.mock('@/components/layout/AppBackground', () => ({ useAppBackground: () => ({ setBackgroundImage: mock.setBackground, refreshBackground: mock.refreshBackground, hasUserWallpaper: mock.hasWallpaper }) }));
-vi.mock('@/components/profile/ProfileHeroCard', () => ({ ProfileHeroCard: ({ frameClass }: { frameClass: string }) => <div data-testid="profile-avatar" className={frameClass} /> }));
+vi.mock('@/components/profile/ProfileHeroCard', () => ({ ProfileHeroCard: ({ frameClass, profile }: { frameClass: string; profile: { post_count_label?: string } }) => <div data-testid="profile-avatar" className={frameClass}><span aria-label="Visible post count">{profile.post_count_label}</span></div> }));
 vi.mock('@/components/profile/ProfileLocker', () => ({ ProfileLocker: () => <section aria-label="Purchased profile items" style={{ minHeight: '1500px' }}>Owned profile effects</section> }));
 vi.mock('@/components/profile/ProfileAboutMe', () => ({ ProfileAboutMe: () => null }));
 vi.mock('@/components/profile/ProfileAboutDetails', () => ({ ProfileAboutDetails: () => null }));
 vi.mock('@/components/profile/ProfileVibeBoard', () => ({ ProfileVibeBoard: () => null }));
 vi.mock('@/components/music/NowPlayingCard', () => ({ NowPlayingCard: () => null }));
 vi.mock('@/components/ui/VideoThumbnail', () => ({ VideoThumbnail: () => null }));
-vi.mock('@/components/posts/ClipsGrid', () => ({ ClipsGrid: () => null }));
+vi.mock('@/components/posts/ClipsGrid', () => ({ ClipsGrid: ({ clips }: { clips: { id: string; caption: string }[] }) => <section aria-label="Clips">{clips.map(clip => <p key={clip.id}>{clip.caption}</p>)}</section> }));
 vi.mock('@/components/growth/GuestJoinBanner', () => ({ GuestJoinBanner: () => null }));
 vi.mock('@/components/moderation/ModeratorActionsMenu', () => ({ useIsModOrAdmin: () => false, ModeratorDialogs: () => null }));
 vi.mock('@/components/premium/PremiumMemeBanItems', () => ({ PremiumMemeBanDialog: () => null }));
 import Profile from './Profile';
-beforeEach(() => { vi.clearAllMocks(); mock.target='alice'; mock.hasWallpaper = true; mock.unavailable = []; mock.removeError = false; });
+beforeEach(() => { vi.clearAllMocks(); mock.posts.mockReturnValue({ data: [] }); mock.countLabel = '—'; mock.target='alice'; mock.hasWallpaper = true; mock.unavailable = []; mock.removeError = false; });
 afterEach(cleanup);
+describe('profile content loading', () => {
+  const post = { id: 'new-post', type: 'post', caption: 'A recent post', author: { id: 'alice-profile', username: 'alice' } };
+  const clip = { id: 'older-clip', type: 'short', caption: 'An older clip', author: post.author };
+  it('loads clips directly instead of looking only in a mixed first page', () => {
+    mock.posts.mockImplementation(type => ({ data: type === 'short' ? [clip] : [post], hasNextPage: type !== 'short' }));
+    render(<MemoryRouter><Profile /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Clips' }));
+    expect(screen.getByText('An older clip')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Posts' }));
+    expect(mock.posts).toHaveBeenLastCalledWith(undefined, 'alice-profile', { enabled: true });
+  });
+  it('labels a partial post page as a lower bound and never treats clips as the total', () => {
+    mock.posts.mockReturnValue({ data: [post], hasNextPage: true });
+    render(<MemoryRouter><Profile /></MemoryRouter>);
+    expect(screen.getByLabelText('Visible post count')).toHaveTextContent('1+');
+    fireEvent.click(screen.getByRole('button', { name: 'Clips' }));
+    expect(screen.getByLabelText('Visible post count')).toHaveTextContent('—');
+  });
+  it('preserves a confirmed exact zero while clips are loaded', () => {
+    mock.countLabel = '0'; mock.posts.mockReturnValue({ data: [clip], hasNextPage: true });
+    render(<MemoryRouter><Profile /></MemoryRouter>);
+    expect(screen.getByLabelText('Visible post count')).toHaveTextContent('0');
+    fireEvent.click(screen.getByRole('button', { name: 'Clips' }));
+    expect(screen.getByLabelText('Visible post count')).toHaveTextContent('0');
+  });
+});
 describe('profile visits preserve unread direct messages',()=>{
   it('does not mark a direct conversation as read when another profile is viewed or changes',()=>{
     mock.target='bob'; const view=render(<MemoryRouter><Profile /></MemoryRouter>);

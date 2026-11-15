@@ -1,0 +1,6 @@
+{
+  "checkedAt": "2026-11-15T02:45:11.699Z",
+  "scope": "Only this workflow synthetic geo UUID fixtures on demo emulators, including interrupted-run accounts and setup receipts",
+  "accountsRemoved": 2,
+  "remainingOwnedFixtureRecordsRemoved": 14
+}

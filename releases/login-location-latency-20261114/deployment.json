@@ -1,0 +1,18 @@
+{
+  "verifiedAt": "2026-11-15T02:43:28.060Z",
+  "target": "authLoginNotify",
+  "operation": "projects/vybe-daaab/locations/us-central1/operations/operation-1794710542017-660479c54e2fe-f18e6968-dbed4523",
+  "state": "ACTIVE",
+  "runtime": "nodejs22",
+  "updateTime": "2026-11-15T02:43:18.448641233Z",
+  "archiveSha256": "b0148c4a4963d5f68567d32958c4a4177e70ca2f715330990e2eaaf982bfa135",
+  "serviceConfigurationPreserved": true,
+  "iamBindingsPreserved": true,
+  "probe": {
+    "options": 204,
+    "origin": "https://vybehub.app",
+    "post": 401,
+    "code": "UNAUTHENTICATED"
+  },
+  "scope": "Existing sign-in bookkeeping only; unchanged account/device/email proof modules; optional location timing/cache and compatible package patches; no Rules, Auth/provider settings, secret bindings or other function update"
+}

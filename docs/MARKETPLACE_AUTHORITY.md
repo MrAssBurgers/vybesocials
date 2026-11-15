@@ -2,6 +2,8 @@
 
 This is a source migration, not a production deployment or a certification of old balances. No live wallet, purchase, payment, boost, or profile was inspected or changed during implementation.
 
+2026-11-14 prerequisite review: the shared token/challenge actor check now uses the complete canonical alias resolver. A UID colliding with another profile ID, a profile ID colliding with another UID, or an existing retired/mismatched binding cannot read, spend, equip or earn. A valid unbound legacy identity retains its existing compatibility path. These checks do not establish current Firebase Auth creation-time/revocation admission or bind old UID-only ledgers to an account incarnation; those remain coordinated-release requirements. See [the preparation record](../releases/marketplace-identity-20261114/README.md). The exact-baseline Rules candidate is compiled and SDK-tested but is not active. The real tokenMarketplace service remains absent at this checkpoint.
+
 ## Authority and historical data
 
 The old browser `earn_vybe_tokens` / `purchase_marketplace_item` implementations were not authoritative transactions. Wallet rules blocked ordinary users' legitimate writes while `marketplace_purchases` and two overlapping `user_active_boosts` rules still permitted forged benefit records. New grants use separate namespaces, all denied to browsers including admin claims:
