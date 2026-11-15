@@ -1,0 +1,23 @@
+{
+  "checkedAt": "2026-11-15T03:44:01.265Z",
+  "commit": "3941e8c745899e78adaa2062ce185579e74b1b43",
+  "sourceSha256": "46f23c1089d44997c07938a28f4393e9ad1c13885244f62675268b22a9710776",
+  "entry": "/assets/app-Dtb0AMYK.js",
+  "entrySha256": "8cc8173f58006e96c9fce3e71d53035eb2d757e000ab9f8375972bc7856e5851",
+  "builtAt": "2026-11-15T03:43:14.131Z",
+  "routes": [
+    "/",
+    "/login",
+    "/signup",
+    "/home",
+    "/profile",
+    "/messages",
+    "/map",
+    "/explore",
+    "/clips",
+    "/settings"
+  ],
+  "assets": 709,
+  "nativeDeployedAt": "1794714193596",
+  "scope": "Source/entry integrity, route shells and native asset delivery. Does not prove real account writes, physical mobile adoption, GPS or video performance."
+}

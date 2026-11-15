@@ -1,0 +1,11 @@
+{
+  "deploymentId": "f63a1ff2-e1ba-44c2-bb56-f0db3b33ff46",
+  "submittedOnce": true,
+  "commit": "3941e8c745899e78adaa2062ce185579e74b1b43",
+  "expectedSource": "46f23c1089d44997c07938a28f4393e9ad1c13885244f62675268b22a9710776",
+  "status": "verified",
+  "verifiedAt": "2026-11-15T03:44:01.265Z",
+  "liveEntry": "/assets/app-Dtb0AMYK.js",
+  "liveEntrySha256": "8cc8173f58006e96c9fce3e71d53035eb2d757e000ab9f8375972bc7856e5851",
+  "nativeDeployedAt": "1794714193596"
+}
