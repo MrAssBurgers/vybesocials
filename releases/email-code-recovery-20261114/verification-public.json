@@ -1,0 +1,29 @@
+{
+  "checkedAt": "2026-11-15T05:39:27.458Z",
+  "commit": "74fa64e9f8efa454f83fa630dcb4221f281f210b",
+  "sourceSha256": "608e7fcc194868c9bf27947d087dbb0a708a4787e25b96651917e75de0447bce",
+  "sourceFiles": 2683,
+  "entry": "/assets/app-B9YZeRhQ.js",
+  "entrySha256": "9be0ed0ed20fd060277f1e61161960163007d213c04f3afb439b3f9af96d3a81",
+  "builtAt": "2026-11-15T05:38:06.148Z",
+  "routes": [
+    "/",
+    "/login",
+    "/signup",
+    "/auth",
+    "/home",
+    "/profile",
+    "/messages",
+    "/map",
+    "/explore",
+    "/clips",
+    "/settings",
+    "/community",
+    "/hubs",
+    "/upload",
+    "/mini-apps"
+  ],
+  "assets": 709,
+  "nativeDeployedAt": "1794721085594",
+  "scope": "Public source/runtime/entry integrity, route shells and native asset delivery. Does not prove real email/account sign-in, installed adoption, physical mobile latency or whole-app readiness."
+}

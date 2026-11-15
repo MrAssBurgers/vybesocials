@@ -1,3 +1,14 @@
+## ACTIVE (2026-11-14) - Login code reply recovery released and publicly verified
+
+- Prior stage repaired/reproduced lost committed code replies, reduced phone sign-in/signup button animation work, verified5386combined tests/types/lint/build and16actual demo Firebase cases, and deployed the exact six-file auth2faVerify package. Named backend deployment and readback remain verified; no additional service or security-policy action occurred in this publication stage.
+- Source74fa64e9f8efa454f83fa630dcb4221f281f210b published once through Lovablecc459dab-fb1d-4793-abf8-a15873b3e595. Observer30999exit0 at2026-11-15T05:39:27.458Z: exact source608e7fcc194868c9bf27947d087dbb0a708a4787e25b96651917e75de0447bce/2683files, all source/runtime parts, public/assets/app-B9YZeRhQ.js/digest9be0ed0ed20fd060277f1e61161960163007d213c04f3afb439b3f9af96d3a81,15route shells and709native assets pass; native deployed_at1794721085594. Documentation-only main933b2e2 has identical client inputs; Lovable published the actual source commit74fa64e. Receipts releases/email-code-recovery-20261114.
+- Both exclusive demo projects independently empty, owned helper/UI/emulator sessions stopped, listening ports verified absent; other user browser work preserved. Physical Play Store adoption, actual email/code/profile latency and exact user-reported failure are still unverified. Optional symptom question has no answer assumed. Whole-app readiness remains active; do not declare it complete or add new features.
+
+### Next three tasks
+1. Observe a fresh real phone sign-in using the new client/code attempt, including secure code recovery and profile/posts startup; keep passwords/codes off chat. Scope any further fix to evidence from that flow.
+2. Continue existing-feature readiness while preserving the announcement and login releases. Current Roulette transport gap is recorded by concurrent audit; do not hide it or count static checks as a working real session.
+3. Before marketplace cutover, finish per-record exact account stamps/read validation, positive staff target admission and evidence-based protected/legacy history reconciliation; preserve legitimate data.
+
 ## ACTIVE (2026-11-14) - Lost verification reply repaired; phone animation layers reduced
 
 - User reports login lag and a code that did not work. Paused marketplace work and preserved its prepared ownership change in2de9b00. Read-only live request metadata contains no fresh real-code attempt to attribute this specific report; do not claim an exact diagnosis of the user's attempt. Actual baseline reproduction did find that a consumed code cannot recover a dropped committed HTTP reply.
