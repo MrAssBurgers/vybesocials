@@ -31,3 +31,11 @@ This restores the existing gift workflow; it is not a full billing or public-lau
 ## Final combined client checks
 
 Preserved concurrent preference repair3e41b20 in merge8fd2a66632a38debace40fd8feb3cf2f8cf79683. Final suite:542 files pass/one skipped,5242 tests pass/six skipped,117.85s. Typecheck, zero-warning lint, production/native/boot/entry/budget checks pass. Local entryapp-DBu2XfIZ.js858.8KB raw262.0KB gzip. Exact tested source8f96b76b4ba6333ee6016d07925803826c7f7009050a70973ed35f093ac79c98/2665files. Generated artifacts restored; no runtime changes after these checks. See verification-local.json. Client publication is recorded separately after public verification.
+
+## Verified public delivery and account read
+
+Lovable deploymente9230cdd-79f1-4df8-a999-49deaa869974 published client18b5b9e8dad5669fce2ce24a6dc5a422e701d102. At2026-11-15T01:53:41.530Z, exact tested source8f96b76b4ba6333ee6016d07925803826c7f7009050a70973ed35f093ac79c98, source parts/config/public/runtime identity, hosted entryapp-BwjDIV9E.js/digest2ad707f7daa95c89d077f06dd33e2f23c5d4099c2f5b009aea354b7481e64f19, ten route shells and all709 native update assets passed. Native deployed_at1794707575900. See verification-public.json.
+
+Fresh signed-in Settings on this published version shows Owner preview and no unavailable-gift alert. Profile → Subscription navigation retains the correct state, and captured console warnings/errors are empty. HTTP metadata records three POST200 responses on premiumGiftManage during this walkthrough (verification-live-read.json). The first observed authenticated read took4.962s; subsequent observed reads took0.164s and0.223s. This small sample is server request evidence, not an installed-phone benchmark or proof of instant loading. First-read latency remains a readiness optimization.
+
+No real gift was created, accepted or revoked, and no account/profile/subscription/conversation was edited. Temporary tabs21/22closed. Final full screenshot is local ignored work/gift-status-live-repaired-full.jpg; the earlier clipped screenshot was unsuitable and is not the proof artifact. Owned local QA services and fixtures were already cleaned up. Physical-native adoption and the wider public-readiness audit remain open.

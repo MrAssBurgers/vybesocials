@@ -1,0 +1,26 @@
+{
+  "checkedAt": "2026-11-15T01:58:46.690Z",
+  "target": "premiumGiftManage",
+  "since": "2026-11-15T01:56:03Z",
+  "entries": [
+    {
+      "timestamp": "2026-11-15T01:58:15.481596Z",
+      "status": 200,
+      "method": "POST",
+      "latency": "0.222880356s"
+    },
+    {
+      "timestamp": "2026-11-15T01:57:15.236289Z",
+      "status": 200,
+      "method": "POST",
+      "latency": "0.164451758s"
+    },
+    {
+      "timestamp": "2026-11-15T01:56:10.037784Z",
+      "status": 200,
+      "method": "POST",
+      "latency": "4.962411017s"
+    }
+  ],
+  "scope": "HTTP response metadata only during the live Settings read; no tokens, account identifiers, request bodies or real gift actions captured"
+}
