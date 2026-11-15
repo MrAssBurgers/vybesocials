@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 ## ACTIVE (2026-11-14) - Community navigation and account binding checked; release pending
 
 - Fixed named keyboard community entry, URL/history selection, mounted invitation handling, scoped rooms, honest query errors/retry and 44px primary controls. Requests bind UID/profile through transport; all five community handlers reject explicit mismatches. No membership/authority fallback was added.
@@ -10,7 +9,7 @@
 1. Preserve/review current main bf8414a, including new login/profile and prepared marketplace work, and run final combined checks.
 2. Release only the checked five backend handlers and matched community client; verify exact source/runtime/public delivery.
 3. Continue the broader existing app/provider/history/account/physical-device audit. The whole goal remains active.
-=======
+
 ## ACTIVE (2026-11-14) - Marketplace identity and exact Rules prerequisites verified; coordinated release pending
 
 - Continued the full app readiness goal; previous goal turn was progress with the profile Clips publication. Reviewed the genuine missing tokenMarketplace service and existing shop/locker/reward protocol rather than creating obsolete tokenMarketplace2/checkStreamSubscription endpoints. Read-only production metadata still returns404 for tokenMarketplace; active Rules remain86ff97a3/SHA5e089eb2. No live wallet/account/content data was inspected or changed.
@@ -52,7 +51,6 @@
 1. Retain the exact live source/runtime/configuration receipts and confirm physical Play Store adoption/fresh-code completion when the pending phone answer arrives.
 2. Continue remaining first-profile/feed latency and preservation of legitimate Firebase history/media, without treating cached display or a successful guest probe as authenticated completion.
 3. Continue actual existing-route/service/provider coverage, including genuine token marketplace deployment prerequisites, mobile map consent/location and Clips lifecycle, before any whole-app readiness claim.
->>>>>>> origin/main
 
 ## ACTIVE (2026-11-14) - Combined sign-in and profile player published and live-verified
 
