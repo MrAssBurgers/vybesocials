@@ -1,0 +1,11 @@
+# Accepted-code completion recovery
+
+The initial sign-in check's 20-second deadline also covered the separate profile binding and authenticated device checks after a code had been accepted. A 12-second profile response followed by a 12-second device response interrupted completion and signed the attempt out. Confirmed email/device completion now has its own bounded 60-second window. Initial preference checks retain their 20-second limit, and profile provisioning retains its independent 15-second limit. No account is hydrated before the required owned profile and device receipts succeed.
+
+Accepted receipts remain available in the mounted challenge for up to ten minutes after acceptance, independently of the already-consumed code's original expiry. Firebase/server proof checks remain authoritative. Closing/replacing the challenge retires its receipt; nothing sensitive is persisted. After 15 seconds, completion shows a non-error progress message, continues observing the same completion and pauses decorative waves. Narrow phone layouts receive the existing inexpensive authentication styles even with a fine pointer.
+
+Two new regressions failed against the prior source: combined 24-second completion and a retry after a code accepted near expiry. Final focused verification: 102 tests passed across three suites, including bounded late completion, account/challenge retirement, no premature hydration and single-flight verification. Full suite: 5,282 passed, six skipped; 544 files passed, one skipped; 117.68 seconds. Typecheck, lint and production build passed. Runtime source SHA256: `46f23c1089d44997c07938a28f4393e9ad1c13885244f62675268b22a9710776`; local entry app-ChyIhVeY.js, 858.9 KB raw / 262.0 KB gzip. Generated public artifacts were restored after checks.
+
+Read-only production HTTP metadata still includes device-registration responses of 6.86 and 13.84 seconds. It does not identify the user's code attempt or establish the cause of the reported phone failure. This repair does not claim instant network responses or physical Play Store performance. No Auth/provider configuration, backend Function, Rules, email content or account data changed in this release.
+
+Publication and UI evidence are recorded separately after execution.

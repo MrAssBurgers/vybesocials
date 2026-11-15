@@ -573,7 +573,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (result?.requiresApproval && result.challengeId) void softSignOutForLoginApproval(attempt);
           }).catch(() => { /* Session tracking retries registration. A real challenge still signs out above. */ });
           return null;
-        });
+        }, needsConfirmation ? 'confirmation' : 'completion');
       },
       signOut: () => softSignOutForLoginApproval(attempt),
       hydrate: () => {

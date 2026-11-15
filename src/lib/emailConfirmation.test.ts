@@ -3,7 +3,7 @@ const mock = vi.hoisted(() => ({ read: vi.fn(), invoke: vi.fn(), auth: null as a
 vi.mock('@/lib/firebase/firestoreDb', () => ({ getDocumentFromServer: mock.read }));
 vi.mock('@/lib/firebase/functionsService', () => ({ invokeFunction: mock.invoke }));
 vi.mock('@/lib/firebase/authService', () => ({ getFirebaseAuth: () => mock.auth }));
-import { beginEmailConfirmation, checkedEmailChallenge, withSignInCheckDeadline, SIGN_IN_CHECK_TIMEOUT_MS } from './emailConfirmation';
+import { beginEmailConfirmation, checkedEmailChallenge, withSignInCheckDeadline, SIGN_IN_CHECK_TIMEOUT_MS, SIGN_IN_COMPLETION_TIMEOUT_MS } from './emailConfirmation';
 afterEach(() => vi.useRealTimers());
 beforeEach(() => { vi.resetAllMocks(); mock.listener = null; mock.auth = { currentUser: {uid:'alice'}, onAuthStateChanged: (fn: any) => {mock.listener=fn;return () => {}; } }; mock.read.mockResolvedValue({ email_2fa_enabled: true }); });
 it('does not send when the account has no enabled email confirmation', async () => {
@@ -67,5 +67,15 @@ it('retires a late device-registration continuation after timeout without accept
   });
   const rejected = expect(result).rejects.toMatchObject({ code: 'auth/confirmation-timeout' });
   await vi.advanceTimersByTimeAsync(SIGN_IN_CHECK_TIMEOUT_MS); await rejected;
+  finish(); await vi.advanceTimersByTimeAsync(0); expect(committed).not.toHaveBeenCalled();
+});
+
+it('bounds an accepted-code completion and prevents a timed-out response from committing', async () => {
+  vi.useFakeTimers(); let finish!: () => void; const committed = vi.fn();
+  const result = withSignInCheckDeadline(() => {}, async guard => {
+    await new Promise<void>(resolve => { finish = resolve; }); guard(); committed(); return 'ready';
+  }, 'completion');
+  const rejected = expect(result).rejects.toMatchObject({ code: 'auth/confirmation-timeout' });
+  await vi.advanceTimersByTimeAsync(SIGN_IN_COMPLETION_TIMEOUT_MS); await rejected;
   finish(); await vi.advanceTimersByTimeAsync(0); expect(committed).not.toHaveBeenCalled();
 });

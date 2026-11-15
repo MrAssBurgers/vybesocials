@@ -3,10 +3,14 @@ import { invokeFunction } from '@/lib/firebase/functionsService';
 import { tokenAccountGuard } from '@/lib/tokenMarketplaceService';
 
 export const SIGN_IN_CHECK_TIMEOUT_MS = 20_000;
+// Once a code has been accepted, profile binding and the authenticated device
+// receipt are separate network steps. Keep observing them beyond the initial
+// preferences-check budget; they still must both succeed before hydration.
+export const SIGN_IN_COMPLETION_TIMEOUT_MS = 60_000;
 const confirmationError = (code: string, message: string) => Object.assign(new Error(message), { code });
 
 /** A timed-out check cannot dispatch another step or commit its late result. */
-export async function withSignInCheckDeadline<T>(guard: () => void, run: (guard: () => void) => Promise<T>): Promise<T> {
+export async function withSignInCheckDeadline<T>(guard: () => void, run: (guard: () => void) => Promise<T>, phase: 'confirmation' | 'completion' = 'confirmation'): Promise<T> {
   let retired = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const current = () => {
@@ -20,7 +24,7 @@ export async function withSignInCheckDeadline<T>(guard: () => void, run: (guard:
       new Promise<never>((_, reject) => { timer = setTimeout(() => {
         retired = true;
         reject(confirmationError('auth/confirmation-timeout', 'Sign-in confirmation took too long. Please try again.'));
-      }, SIGN_IN_CHECK_TIMEOUT_MS); }),
+      }, phase === 'completion' ? SIGN_IN_COMPLETION_TIMEOUT_MS : SIGN_IN_CHECK_TIMEOUT_MS); }),
     ]);
   } finally { retired = true; clearTimeout(timer); }
 }
