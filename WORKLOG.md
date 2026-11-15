@@ -1,3 +1,15 @@
+## ACTIVE (2026-11-14) - Community navigation and account binding checked; release pending
+
+- Fixed named keyboard community entry, URL/history selection, mounted invitation handling, scoped rooms, honest query errors/retry and 44px primary controls. Requests bind UID/profile through transport; all five community handlers reject explicit mismatches. No membership/authority fallback was added.
+- Final pre-merge full suite546 files pass/one skip,5,279 tests pass/six skips,124.56s; focused102 pass. Types/lint/build/boot/native entry/CSS/budget pass, zero lint warnings/errors. Pre-merge source20ceab76/2670files. Actual frozen package on Node22.23.5 exposes exactly five exports; actual Auth/HTTP/SDK journey9 groups and private-surface7 groups pass on Node22. Current live Firestore source5e089eb2 used locally; no cloud Rules write.
+- Native Chrome390px with actual page/cards/CSS and synthetic hooks verifies card/link/Back/Retry/search behavior. Manual keyboard/wide/real combined UI journeys remain unproved; component keyboard regressions execute separately. A user-created unrelated browser tab appeared during testing; preserved it and stopped further browser input. No real social/account action submitted.
+- Read exact deployed metadata/source for the five services: four Node20 and communityManage Node22. Four transitive shared modules match live; only caller checks differ. Frozen minimal package uses the deployed Firebase SDK versions. Preserve all service configuration and restrict rollout to these five functions. See releases/community-entry-20261114. No deployment dispatched yet.
+
+### Next three tasks
+1. Preserve/review current main bf8414a, including new login/profile and prepared marketplace work, and run final combined checks.
+2. Release only the checked five backend handlers and matched community client; verify exact source/runtime/public delivery.
+3. Continue the broader existing app/provider/history/account/physical-device audit. The whole goal remains active.
+
 ## ACTIVE (2026-11-14) - Combined sign-in and profile player published and live-verified
 
 - Preserved the newer sign-in recovery main e16b32d in merge 61cf944. Resolved only overlapping work-log notes, retaining both histories; the final toolbar source is unchanged. The inherited login CSS remains scoped to authentication surfaces. No Functions, Rules, Auth/provider configuration or real account mutation was performed.

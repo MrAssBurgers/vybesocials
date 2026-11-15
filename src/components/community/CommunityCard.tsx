@@ -56,7 +56,6 @@ export const CommunityCard = memo(function CommunityCard({
       }}
       whileHover={{ y: -6, scale: 1.03 }}
       whileTap={{ scale: 0.97 }}
-      onClick={onClick}
       className="relative cursor-pointer group h-full"
     >
       <div className="liquid-glass rounded-2xl overflow-hidden border border-foreground/5 hover:border-primary/30 transition-all duration-300 h-full flex flex-col hover:shadow-[0_8px_30px_-8px_hsl(var(--primary)/0.3)]">
@@ -163,6 +162,12 @@ export const CommunityCard = memo(function CommunityCard({
           </div>
         </div>
       </div>
+      <button
+        type="button"
+        aria-label={`Open ${community.name}`}
+        onClick={onClick}
+        className="absolute inset-0 z-10 rounded-2xl bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      />
     </motion.div>
   );
 });
@@ -172,11 +177,13 @@ export const PublicCommunityCard = memo(function PublicCommunityCard({
   community,
   onJoin,
   isJoining,
+  disabled = isJoining,
   index = 0,
 }: { 
   community: Community;
   onJoin: () => void;
   isJoining: boolean;
+  disabled?: boolean;
   index?: number;
 }) {
   const coverUrl = useSignedUrl(community.cover_url || community.banner_url);
@@ -240,11 +247,14 @@ export const PublicCommunityCard = memo(function PublicCommunityCard({
         
         <div className="mt-auto">
           <motion.button
+            type="button"
+            aria-label={`${isJoining ? 'Joining' : 'Join'} ${community.name}`}
+            aria-busy={isJoining}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
-            className="w-full h-8 rounded-full text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+            className="w-full min-h-11 rounded-full text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             onClick={onJoin}
-            disabled={isJoining}
+            disabled={disabled}
           >
             {isJoining ? 'Joining...' : 'Join Community'}
           </motion.button>

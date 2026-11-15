@@ -1,0 +1,71 @@
+{
+  "checkedAt": "2026-11-15T03:33:23.585Z",
+  "scope": "Read-only exact metadata and deployed source snapshots; no cloud mutations.",
+  "targets": [
+    {
+      "target": "communityCreate",
+      "state": "ACTIVE",
+      "runtime": "nodejs20",
+      "revision": "communitycreate-00001-bos",
+      "archiveSha256": "3cbc2a817e170ed4bf5b129c8544ab6ea76dcb6d491044819e5d6391361e1402",
+      "archiveBytes": 1325507,
+      "memory": "256Mi",
+      "cpu": "1",
+      "timeout": 60,
+      "max": 10,
+      "concurrency": 20
+    },
+    {
+      "target": "communityJoin",
+      "state": "ACTIVE",
+      "runtime": "nodejs20",
+      "revision": "communityjoin-00001-rem",
+      "archiveSha256": "3cbc2a817e170ed4bf5b129c8544ab6ea76dcb6d491044819e5d6391361e1402",
+      "archiveBytes": 1325507,
+      "memory": "256Mi",
+      "cpu": "1",
+      "timeout": 60,
+      "max": 10,
+      "concurrency": 20
+    },
+    {
+      "target": "communityInvite",
+      "state": "ACTIVE",
+      "runtime": "nodejs20",
+      "revision": "communityinvite-00001-qur",
+      "archiveSha256": "3cbc2a817e170ed4bf5b129c8544ab6ea76dcb6d491044819e5d6391361e1402",
+      "archiveBytes": 1325507,
+      "memory": "256Mi",
+      "cpu": "1",
+      "timeout": 60,
+      "max": 10,
+      "concurrency": 20
+    },
+    {
+      "target": "communityManage",
+      "state": "ACTIVE",
+      "runtime": "nodejs22",
+      "revision": "communitymanage-00002-rat",
+      "archiveSha256": "7b45ac4399c9af96750783f9d691f09d6ec4785173c58a0c7cb18a7fd1033434",
+      "archiveBytes": 1149311,
+      "memory": "256Mi",
+      "cpu": "1",
+      "timeout": 60,
+      "max": 10,
+      "concurrency": 20
+    },
+    {
+      "target": "communitySendMessage",
+      "state": "ACTIVE",
+      "runtime": "nodejs20",
+      "revision": "communitysendmessage-00001-fiz",
+      "archiveSha256": "3cbc2a817e170ed4bf5b129c8544ab6ea76dcb6d491044819e5d6391361e1402",
+      "archiveBytes": 1325507,
+      "memory": "256Mi",
+      "cpu": "1",
+      "timeout": 60,
+      "max": 10,
+      "concurrency": 20
+    }
+  ]
+}

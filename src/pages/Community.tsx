@@ -43,23 +43,24 @@ export default function Community() {
 
 function CommunityAccountView() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(
-    searchParams.get('community') || searchParams.get('server'),
-  );
-  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(
-    searchParams.get('room') || searchParams.get('channel'),
-  );
+  // The URL owns selection so links, Back and Forward keep the same view.
+  const selectedCommunityId = searchParams.get('community') || searchParams.get('server');
+  const selectedRoomId = selectedCommunityId ? searchParams.get('room') || searchParams.get('channel') : null;
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [inviteFromLink] = useState(() => searchParams.get('join') || '');
+  const [inviteFromLink, setInviteFromLink] = useState(() => searchParams.get('join') || '');
   const [showJoinDialog, setShowJoinDialog] = useState(() => !!searchParams.get('join'));
   const [activeTab, setActiveTab] = useState<'my' | 'discover'>('my');
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
 
-  const { data: communities = [], isLoading: communitiesLoading } = useMyCommunities();
-  const { data: publicCommunities = [], isLoading: publicLoading } = usePublicCommunities(debouncedSearch);
-  const { data: selectedCommunity } = useCommunity(selectedCommunityId || undefined);
-  const { data: rooms = [] } = useRooms(selectedCommunityId || undefined);
+  const communitiesQuery = useMyCommunities();
+  const publicQuery = usePublicCommunities(debouncedSearch);
+  const selectedQuery = useCommunity(selectedCommunityId || undefined);
+  const roomsQuery = useRooms(selectedCommunityId || undefined);
+  const communities = communitiesQuery.data || [];
+  const publicCommunities = publicQuery.data || [];
+  const selectedCommunity = selectedQuery.data?.id === selectedCommunityId ? selectedQuery.data : undefined;
+  const rooms = useMemo(() => (roomsQuery.data || []).filter(room => room.community_id === selectedCommunityId), [roomsQuery.data, selectedCommunityId]);
   const { data: unreadCounts = {} } = useUnreadCountPerServer();
   const joinCommunity = useJoinCommunity();
 
@@ -69,35 +70,66 @@ function CommunityAccountView() {
     [publicCommunities, myCommunityIds],
   );
 
-  useEffect(() => {
-    if (selectedCommunityId && rooms.length > 0 && !selectedRoomId) {
-      const chatRoom = rooms.find((r) => r.room_type === 'chat') || rooms[0];
-      if (chatRoom) setSelectedRoomId(chatRoom.id);
-    }
-  }, [selectedCommunityId, rooms, selectedRoomId]);
+  const selectRoute = useCallback((communityId: string | null, roomId: string | null, replace = false) => {
+    const params = new URLSearchParams(searchParams);
+    for (const key of ['community', 'server', 'room', 'channel', 'join']) params.delete(key);
+    if (communityId) params.set('community', communityId);
+    if (communityId && roomId) params.set('room', roomId);
+    if (params.toString() !== searchParams.toString()) setSearchParams(params, { replace });
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (selectedCommunityId) params.set('community', selectedCommunityId);
-    if (selectedRoomId) params.set('room', selectedRoomId);
+    if (selectedCommunity && selectedCommunityId && rooms.length > 0 && !selectedRoomId && !selectedQuery.isError && !roomsQuery.isError) {
+      const chatRoom = rooms.find((r) => r.room_type === 'chat') || rooms[0];
+      if (chatRoom) selectRoute(selectedCommunityId, chatRoom.id, true);
+    }
+  }, [selectedCommunity, selectedCommunityId, rooms, selectedRoomId, selectedQuery.isError, roomsQuery.isError, selectRoute]);
+
+  useEffect(() => {
+    if (!searchParams.has('join')) return;
+    const invitation = searchParams.get('join');
+    if (invitation) {
+      setInviteFromLink(invitation);
+      setShowJoinDialog(true);
+    }
+    const params = new URLSearchParams(searchParams);
+    params.delete('join');
     setSearchParams(params, { replace: true });
-  }, [selectedCommunityId, selectedRoomId, setSearchParams]);
+  }, [searchParams, setSearchParams]);
 
   const handleSelectCommunity = useCallback((communityId: string) => {
-    setSelectedCommunityId(communityId);
-    setSelectedRoomId(null);
-  }, []);
+    if (communityId !== selectedCommunityId) selectRoute(communityId, null);
+  }, [selectRoute, selectedCommunityId]);
 
   const handleBackToList = useCallback(() => {
-    setSelectedCommunityId(null);
-    setSelectedRoomId(null);
-  }, []);
+    selectRoute(null, null);
+  }, [selectRoute]);
+
+  const handleBackToDiscover = useCallback(() => {
+    setActiveTab('discover');
+    selectRoute(null, null);
+  }, [selectRoute]);
 
   const myRole = communities.find((c) => c.id === selectedCommunityId)?.myRole;
   const needsRecovery = communities.find((c) => c.id === selectedCommunityId)?.requiresRecovery;
 
   if (selectedCommunityId && needsRecovery) {
     return <AppLayout><CommunityRecovery serverId={selectedCommunityId} onBack={handleBackToList} /></AppLayout>;
+  }
+
+  if (selectedCommunityId && (!selectedCommunity || selectedQuery.isError || roomsQuery.isError || roomsQuery.isLoading || roomsQuery.isPending)) {
+    const loading = !selectedQuery.isError && !roomsQuery.isError && (selectedQuery.isLoading || selectedQuery.isPending || (!!selectedCommunity && (roomsQuery.isLoading || roomsQuery.isPending)));
+    const channelFailure = !!selectedCommunity && roomsQuery.isError;
+    return <AppLayout hideRightSidebar><div className="max-w-xl mx-auto p-4 sm:p-6 space-y-4">
+      <CommunityReadNotice
+        message={loading ? selectedCommunity ? 'Loading community channels…' : 'Loading community…' : channelFailure ? "Couldn't load community channels." : selectedQuery.isError ? "Couldn't load this community." : 'This community is unavailable.'}
+        loading={loading}
+        onRetry={channelFailure ? roomsQuery.refetch : selectedQuery.refetch}
+        retryLabel={channelFailure ? 'Retry channels' : 'Retry community'}
+        retrying={channelFailure ? roomsQuery.isFetching : selectedQuery.isFetching}
+      />
+      <Button variant="ghost" className="min-h-11" onClick={handleBackToList}>Back to communities</Button>
+    </div></AppLayout>;
   }
 
   if (selectedCommunityId && selectedCommunity) {
@@ -111,9 +143,9 @@ function CommunityAccountView() {
             rooms={rooms}
             selectedRoomId={selectedRoomId}
             onSelectCommunity={handleSelectCommunity}
-            onSelectRoom={setSelectedRoomId}
+            onSelectRoom={roomId => selectRoute(selectedCommunityId, roomId)}
             onBackToList={handleBackToList}
-            onBackToDiscover={handleBackToList}
+            onBackToDiscover={handleBackToDiscover}
             onCreateCommunity={() => setShowCreateDialog(true)}
             serverUnreadCounts={unreadCounts}
             myRole={myRole}
@@ -169,7 +201,7 @@ function CommunityAccountView() {
                       variant="outline"
                       size="sm"
                       onClick={() => setShowJoinDialog(true)}
-                      className="gap-1.5 rounded-full"
+                      className="gap-1.5 min-h-11 rounded-full"
                     >
                       <Plus className="h-3.5 w-3.5" />
                       Join
@@ -177,7 +209,7 @@ function CommunityAccountView() {
                     <Button
                       size="sm"
                       onClick={() => setShowCreateDialog(true)}
-                      className="gap-1.5 rounded-full shadow-[0_0_20px_hsl(var(--primary)/0.3)]"
+                      className="gap-1.5 min-h-11 rounded-full shadow-[0_0_20px_hsl(var(--primary)/0.3)]"
                     >
                       <Plus className="h-3.5 w-3.5" />
                       Create
@@ -187,12 +219,12 @@ function CommunityAccountView() {
               </motion.div>
 
               <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'my' | 'discover')}>
-                <TabsList className="w-full max-w-md rounded-full p-1 h-10 bg-foreground/5">
-                  <TabsTrigger value="my" className="flex-1 gap-2 rounded-full text-sm">
+                <TabsList className="w-full max-w-md rounded-full p-1 h-auto min-h-[52px] bg-foreground/5">
+                  <TabsTrigger value="my" className="flex-1 min-h-11 gap-2 rounded-full text-sm">
                     <Folder className="h-3.5 w-3.5" />
                     My Communities
                   </TabsTrigger>
-                  <TabsTrigger value="discover" className="flex-1 gap-2 rounded-full text-sm">
+                  <TabsTrigger value="discover" className="flex-1 min-h-11 gap-2 rounded-full text-sm">
                     <Globe className="h-3.5 w-3.5" />
                     Discover
                   </TabsTrigger>
@@ -200,8 +232,10 @@ function CommunityAccountView() {
 
                 <TabsContent value="my" className="mt-5">
                   <AnimatePresence mode="wait">
-                    {communitiesLoading && communities.length === 0 ? (
-                      <CommunityGridSkeleton />
+                    {communitiesQuery.isError ? (
+                      <CommunityReadNotice message="Couldn't load your communities." retryLabel="Retry communities" onRetry={communitiesQuery.refetch} retrying={communitiesQuery.isFetching} />
+                    ) : communitiesQuery.data === undefined || communitiesQuery.isLoading && communities.length === 0 ? (
+                      <div role="status" aria-label="Loading your communities"><CommunityGridSkeleton /></div>
                     ) : communities.length === 0 ? (
                       <CommunityEmptyPanel
                         icon={Users}
@@ -232,16 +266,20 @@ function CommunityAccountView() {
                   <div className="relative max-w-md">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
+                      type="search"
+                      aria-label="Search communities"
                       placeholder="Search communities..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-11 h-10 rounded-full bg-foreground/5 border-foreground/10 text-sm"
+                      className="pl-11 h-11 rounded-full bg-foreground/5 border-foreground/10 text-sm"
                     />
                   </div>
 
                   <AnimatePresence mode="wait">
-                    {publicLoading && filteredPublicCommunities.length === 0 ? (
-                      <CommunityGridSkeleton />
+                    {publicQuery.isError ? (
+                      <CommunityReadNotice message="Couldn't load public communities." retryLabel="Retry public communities" onRetry={publicQuery.refetch} retrying={publicQuery.isFetching} />
+                    ) : publicQuery.data === undefined || publicQuery.isLoading && filteredPublicCommunities.length === 0 ? (
+                      <div role="status" aria-label="Loading public communities"><CommunityGridSkeleton /></div>
                     ) : filteredPublicCommunities.length === 0 ? (
                       <CommunityEmptyPanel
                         icon={Globe}
@@ -255,7 +293,8 @@ function CommunityAccountView() {
                             key={community.id}
                             community={community}
                             onJoin={() => joinCommunity.mutate({ serverId: community.id }, { onSuccess: joined => handleSelectCommunity(joined.id) })}
-                            isJoining={joinCommunity.isPending}
+                            isJoining={joinCommunity.isPending && typeof joinCommunity.variables === 'object' && joinCommunity.variables?.serverId === community.id}
+                            disabled={joinCommunity.isPending}
                             index={i}
                           />
                         ))}
@@ -273,6 +312,19 @@ function CommunityAccountView() {
       </AppLayout>
     </TooltipProvider>
   );
+}
+
+function CommunityReadNotice({ message, loading = false, onRetry, retryLabel, retrying = false }: {
+  message: string;
+  loading?: boolean;
+  onRetry?: () => unknown;
+  retryLabel: string;
+  retrying?: boolean;
+}) {
+  return <div role={loading ? 'status' : 'alert'} className="rounded-2xl border border-border bg-card/70 p-5 space-y-3">
+    <p className="text-sm text-foreground">{message}</p>
+    {!loading && onRetry && <Button variant="outline" className="min-h-11" disabled={retrying} aria-busy={retrying} onClick={() => { void onRetry(); }}>{retryLabel}</Button>}
+  </div>;
 }
 
 function CommunityRecovery({ serverId, onBack }: { serverId: string; onBack: () => void }) {

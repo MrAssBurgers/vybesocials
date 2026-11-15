@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-11-15T03:36:24.476Z",
+  "project": "demo-vybe-preview",
+  "passed": 9,
+  "checks": [
+    "actual HTTP rejects a guest, a mismatched expected account and a mismatched profile",
+    "authenticated creation/replay retains one owned community and its list entry",
+    "private discovery/direct-ID join does not expose or admit the nonmember",
+    "current invitation admits once, old invitation is rejected, and a member cannot regenerate it",
+    "real channel creation/listing excludes private owner channels from the member",
+    "member text send, physical read and identical replay preserve one unchanged message",
+    "owner permission changes deny and then restore actual member sends",
+    "leaving revokes the same message read and new sends while preserving the owner and history",
+    "public discovery hides invitation secrets and direct-ID join/replay/leave update membership once"
+  ],
+  "serverId": "K1azGabxpfCcUFxYJ19J",
+  "publicServerId": "IMCpZGzuDIdz5coy66hS",
+  "textChannelId": "uNeedy0yqQndjl2NJgl2",
+  "messageId": "21dec5849e960637c472b76f25883761008782ce9af8539b3e4a2807b8a54ad0",
+  "scope": "Actual local Firebase Auth/HTTP callables and SDK Firestore rules. No forged admissions, cloud policy/provider changes or production data. Not browser UI, voice or physical-device proof."
+}

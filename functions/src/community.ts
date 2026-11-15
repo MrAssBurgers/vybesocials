@@ -20,8 +20,18 @@ const makeInvite = () => {
 };
 async function caller(request: CallableRequest, operation: string, max = 120, window = 60) {
   const uid = requireAuth(request);
+  const data = input(request);
+  // Bind delayed client work to its initiating account/profile. Older callers
+  // still derive authority from verified Auth and current private admissions.
+  if (Object.hasOwn(data, 'expectedOwnerUid') && data.expectedOwnerUid !== uid) {
+    throw new HttpsError('failed-precondition', 'Your account changed. Reopen this community.');
+  }
   enforceRateLimit(await rateLimit(`community:${operation}:${uid}`, max, window));
-  return communityActor(uid);
+  const actor = await communityActor(uid);
+  if (Object.hasOwn(data, 'expectedProfileId') && data.expectedProfileId !== actor.profileId) {
+    throw new HttpsError('failed-precondition', 'Your community profile changed. Reopen this community.');
+  }
+  return actor;
 }
 function input(request: CallableRequest): Row {
   if (!request.data || typeof request.data !== 'object' || Array.isArray(request.data)) throw new HttpsError('invalid-argument', 'Request data required');

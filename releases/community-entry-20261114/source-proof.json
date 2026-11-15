@@ -1,0 +1,37 @@
+{
+  "targets": [
+    "communityCreate",
+    "communityJoin",
+    "communityInvite",
+    "communityManage",
+    "communitySendMessage"
+  ],
+  "runtime": "nodejs22",
+  "files": [
+    {
+      "path": "lib/community.js",
+      "sha256": "81e4a58c78a58c5fb0c6860a9e5376f7d64c6448917ad09ca637c98159a10a78"
+    },
+    {
+      "path": "lib/_shared/admin.js",
+      "sha256": "fb1043730c28992de8109eb5e3f880d1e67a31a7c251a1cd049ede1eb85b2894",
+      "sharedLiveEquivalent": true
+    },
+    {
+      "path": "lib/_shared/communityPolicy.js",
+      "sha256": "902ac0ecb0d8586cc5f4c2d5ad9771910ad9089f2297af97c6f3a31fc22396a3",
+      "sharedLiveEquivalent": true
+    },
+    {
+      "path": "lib/_shared/conversationMembership.js",
+      "sha256": "0a08cedcd2887f086abf674ddf19c28de475722e412945fc6367f6834f78a4f8",
+      "sharedLiveEquivalent": true
+    },
+    {
+      "path": "lib/_shared/profileAudienceAuthority.js",
+      "sha256": "6adab5bf15fd5ea6b0bc4d65eda1413edda671dd3500c2a28f9b2e91e27cbea9",
+      "sharedLiveEquivalent": true
+    }
+  ],
+  "scope": "Only expected account/profile checks in caller; all four transitive shared modules equivalent to both live source baselines. No new authority, export or database namespace."
+}

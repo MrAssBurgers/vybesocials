@@ -29,23 +29,24 @@ describe('both community interfaces share server authority', () => {
     await act(async () => { await result.current.mutateAsync({ name: 'Private', isPublic: false }); });
     expect(state.invoke.mock.calls[1][1].body.requestId).toBe(first.requestId);
     expect(first.requestId).toMatch(/^[\w-]{16,80}$/);
+    expect(first).toMatchObject({ expectedOwnerUid: 'auth-a', expectedProfileId: 'profile-auth-a' });
     expect(state.from).not.toHaveBeenCalled();
   });
   it.each([useJoinServer, useJoinCommunity])('uses separate public and private join bodies', async hook => {
     state.invoke.mockResolvedValue({ data: { server: { id: 'joined', name: 'Joined' } }, error: null });
     const { result } = renderHook(hook, { wrapper: wrapper() });
     await act(async () => { await result.current.mutateAsync({ serverId: 'public' }); });
-    expect(state.invoke.mock.calls[0]).toEqual(['community-join', { body: { serverId: 'public' } }]);
+    expect(state.invoke.mock.calls[0]).toEqual(['community-join', { body: { serverId: 'public', expectedOwnerUid: 'auth-a', expectedProfileId: 'profile-auth-a' } }]);
     const inviteCode = `vyc_${'A'.repeat(32)}`;
     await act(async () => { await result.current.mutateAsync(inviteCode); });
-    expect(state.invoke.mock.calls[1]).toEqual(['community-join', { body: { inviteCode } }]);
+    expect(state.invoke.mock.calls[1]).toEqual(['community-join', { body: { inviteCode, expectedOwnerUid: 'auth-a', expectedProfileId: 'profile-auth-a' } }]);
     expect(state.from).not.toHaveBeenCalled();
   });
   it.each([useMyServers, useMyCommunities])('gets roles from trusted admissions rather than legacy browser-writable rows', async hook => {
     state.invoke.mockResolvedValue({ data: { servers: [{ id: 'private', myRole: 'member' }] }, error: null });
     const { result } = renderHook(hook, { wrapper: wrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(state.invoke).toHaveBeenCalledWith('community-manage', { body: { action: 'listMine' } });
+    expect(state.invoke).toHaveBeenCalledWith('community-manage', { body: { action: 'listMine', expectedOwnerUid: 'auth-a', expectedProfileId: 'profile-auth-a' } });
     expect(result.current.data?.[0].myRole).toBe('member');
     expect(state.from).not.toHaveBeenCalled();
   });
@@ -53,7 +54,7 @@ describe('both community interfaces share server authority', () => {
     state.invoke.mockResolvedValue({ data: { channels: [{ id: 'visible', server_id: 'private' }] }, error: null });
     const { result } = renderHook(() => hook('private'), { wrapper: wrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(state.invoke).toHaveBeenCalledWith('community-manage', { body: { action: 'listChannels', serverId: 'private' } });
+    expect(state.invoke).toHaveBeenCalledWith('community-manage', { body: { action: 'listChannels', serverId: 'private', expectedOwnerUid: 'auth-a', expectedProfileId: 'profile-auth-a' } });
     expect(state.from).not.toHaveBeenCalled();
   });
   it('never converts a failed permissions lookup into send/view permission', async () => {

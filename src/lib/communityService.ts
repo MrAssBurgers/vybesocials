@@ -60,7 +60,11 @@ export function communityAccount(): string {
 /** Community authority always comes from the service, never a browser-written role. */
 export async function communityRequest<T>(name: string, body: Record<string, unknown>, guard: CommunityAccountLease = communityAccountLease(communityAccount())): Promise<T> {
   guard();
-  const result = await db.functions.invoke<T>(name, { body });
+  const expectedOwnerUid = communityAccount();
+  if (Object.prototype.hasOwnProperty.call(body, 'expectedOwnerUid') && body.expectedOwnerUid !== expectedOwnerUid) {
+    throw Object.assign(new Error('Your account changed. Please try again.'), { code: 'account-changed' });
+  }
+  const result = await db.functions.invoke<T>(name, { body: { ...body, expectedOwnerUid } });
   guard();
   if (result.error) throw Object.assign(new Error(result.error.message || 'Community request failed'), { code: result.error.code || result.error.name });
   if (!result.data || typeof result.data !== 'object') throw new Error('Community service returned an invalid response');

@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-11-15T03:35:49.160Z",
+  "runtime": "v22.23.5",
+  "exports": [
+    "communityCreate",
+    "communityInvite",
+    "communityJoin",
+    "communityManage",
+    "communitySendMessage"
+  ],
+  "exactExports": true,
+  "allFiveUnauthenticatedRejected": true,
+  "scope": "Actual frozen package entrypoints; authentication rejection occurs before database work. Authenticated HTTP journeys are separate."
+}

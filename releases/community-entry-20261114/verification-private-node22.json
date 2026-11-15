@@ -1,0 +1,13 @@
+{
+  "project": "demo-vybe-preview",
+  "messageId": "attachment_66bd87b2987bf7174f4a5ca367a63b503ca9699784f9dd2fc222cc11f0d6cb85",
+  "checks": [
+    "private community and text channel are provisioned by actual authenticated community services",
+    "real Auth, reservation, private HTTP upload and replay publish one attachment; direct upload denied",
+    "actual authenticated HTTP verifies full bytes, byte range and permission HEAD",
+    "anonymous, wrong-owner, raw Storage and proof reads stay denied",
+    "revoking membership denies the same GET and HEAD immediately at the server",
+    "fresh synthetic friendship prerequisite is established by authenticated send/accept services",
+    "current Close Friends grants govern profile sections; Only me, self and owner settings are enforced"
+  ]
+}

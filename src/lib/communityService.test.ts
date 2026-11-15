@@ -7,6 +7,15 @@ import { communityJoinBody, communityRequest } from './communityService';
 const code = `vyc_${'A'.repeat(32)}`;
 beforeEach(() => { state.uid = 'auth-a'; invoke.mockReset(); });
 describe('community service client boundary', () => {
+  it('binds the initiating account in the server request', async () => {
+    invoke.mockResolvedValue({ data: { ok: true }, error: null });
+    await communityRequest('community-manage', { action: 'listMine' });
+    expect(invoke).toHaveBeenCalledWith('community-manage', { body: { action: 'listMine', expectedOwnerUid: 'auth-a' } });
+  });
+  it('rejects a conflicting account in the payload before dispatch', async () => {
+    await expect(communityRequest('community-manage', { action: 'listMine', expectedOwnerUid: 'auth-b' })).rejects.toMatchObject({ code: 'account-changed' });
+    expect(invoke).not.toHaveBeenCalled();
+  });
   it('joins public communities by ID without an invite code', () => expect(communityJoinBody({ serverId: 'public' })).toEqual({ serverId: 'public' }));
   it.each([code, ` ${code} `, `https://vybehub.app/community?join=${code}`])('accepts a current invitation %s', input => expect(communityJoinBody(input)).toEqual({ inviteCode: code }));
   it.each(['OLDWEAK', '', `https://other.invalid/community?join=${code}`, 'https://vybehub.app/community'])('rejects invalid and foreign invitation input %s', input => expect(() => communityJoinBody(input)).toThrow());

@@ -88,6 +88,15 @@ try {
   const input = { target_id: profile('alice'), expectedProfileId: profile('bob') };
   const visible = () => bob.call('resolveProfileVisibility', input);
   assert.equal((await visible()).fields.bio, false); assert.equal((await visible()).fields.posts, false);
+  // A fresh preview has no friendship. Establish it through the actual service
+  // instead of depending on a previously run story fixture or forging a row.
+  const friendship = await alice.call('mutateFriendship', { action: 'send', target_profile_id: profile('bob') });
+  if (friendship.state === 'pending_outgoing') {
+    assert.equal((await bob.call('mutateFriendship', { action: 'accept', request_id: friendship.request_id })).state, 'accepted');
+  } else if (friendship.state === 'pending_incoming') {
+    assert.equal((await alice.call('mutateFriendship', { action: 'accept', request_id: friendship.request_id })).state, 'accepted');
+  } else assert.equal(friendship.state, 'accepted');
+  checks.push('fresh synthetic friendship prerequisite is established by authenticated send/accept services');
   await alice.call('manageCloseFriends', { expectedProfileId: profile('alice'), action: 'add', friendId: profile('bob') });
   assert.equal((await visible()).fields.bio, true); assert.equal((await visible()).fields.posts, false);
   await alice.call('manageCloseFriends', { expectedProfileId: profile('alice'), action: 'remove', friendId: profile('bob') });

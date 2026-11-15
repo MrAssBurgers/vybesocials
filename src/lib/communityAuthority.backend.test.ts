@@ -86,6 +86,14 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
 describe('trusted community admission', () => {
+  it.each([communityCreate, communityJoin, communityInvite, communityManage, communitySendMessage])('rejects a mismatched initiating account before any write', async fn => {
+    await expect(fn.run(request('auth-a', { expectedOwnerUid: 'auth-b', action: 'listMine', name: 'Test community', requestId: 'bound-request-abcdefghijkl' }) as Parameters<typeof fn.run>[0])).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(state.writes).toEqual([]);
+  });
+  it.each([communityCreate, communityJoin, communityInvite, communityManage, communitySendMessage])('rejects a mismatched initiating profile before any write', async fn => {
+    await expect(fn.run(request('auth-a', { expectedOwnerUid: 'auth-a', expectedProfileId: 'profile-b', action: 'listMine', name: 'Test community', requestId: 'bound-request-abcdefghijkl' }) as Parameters<typeof fn.run>[0])).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(state.writes).toEqual([]);
+  });
   it('replays creation concurrently without duplicating rooms or spending another quota slot', async () => {
     const data = { requestId: 'creation-request-stable' };
     const results = await Promise.all([create(data), create(data)]);
