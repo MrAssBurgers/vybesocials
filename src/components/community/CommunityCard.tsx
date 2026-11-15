@@ -56,6 +56,7 @@ export const CommunityCard = memo(function CommunityCard({
       }}
       whileHover={{ y: -6, scale: 1.03 }}
       whileTap={{ scale: 0.97 }}
+      tabIndex={-1}
       className="relative cursor-pointer group h-full"
     >
       <div className="liquid-glass rounded-2xl overflow-hidden border border-foreground/5 hover:border-primary/30 transition-all duration-300 h-full flex flex-col hover:shadow-[0_8px_30px_-8px_hsl(var(--primary)/0.3)]">
@@ -198,6 +199,7 @@ export const PublicCommunityCard = memo(function PublicCommunityCard({
       transition={{ duration: 0.4, delay: index * 0.08, ease: [0.25, 0.46, 0.45, 0.94] }}
       whileHover={{ y: -4, scale: 1.02 }}
       whileTap={{ scale: 0.97 }}
+      tabIndex={-1}
       className="liquid-glass rounded-2xl overflow-hidden border border-foreground/5 hover:border-primary/20 transition-all duration-300 h-full flex flex-col"
     >
       {/* Cover */}

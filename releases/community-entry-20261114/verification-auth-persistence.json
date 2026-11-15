@@ -1,0 +1,19 @@
+{
+  "checkedAt": "2026-11-15T03:48:15.509Z",
+  "project": "demo-vybe-persistence",
+  "authPort": 9296,
+  "filesPassed": 1,
+  "testsPassed": 6,
+  "testsSkipped": 0,
+  "durationSeconds": 1.86,
+  "exitCode": 0,
+  "checks": [
+    "delayed native credential restores through actual browser SDK",
+    "unavailable vault opens sign-in",
+    "abandoning restore stays signed out",
+    "logout tombstone defeats surviving SDK persistence",
+    "normal saved session initializes without native wait",
+    "native credential restores with localStorage write failures"
+  ],
+  "scope": "Actual browser Firebase Auth SDK with isolated Auth emulator and synthetic vault transport. These six skipped-by-default cases passed separately; not physical native vault or Play Store lifecycle evidence. Owned Auth/hub/logging processes stopped."
+}

@@ -1,0 +1,30 @@
+{
+  "checkedAt": "2026-11-15T03:48:27.590Z",
+  "commit": "c8e19cdc441b0807ac1e43e1e8a95334467eedcf",
+  "sourceSha256": "936a2f8b4b4b825d79adfe7f98819d4d479fa799355a06aae7f78e6b5ff8987e",
+  "sourceFiles": 2672,
+  "entry": "/assets/app-vdAdjJGx.js",
+  "entrySha256": "2baccb67bf558604cb0d9ccc6402f69b39ce2ef2351c588a2b06e47040d2f15b",
+  "builtAt": "2026-11-15T03:47:46.246Z",
+  "routes": [
+    "/",
+    "/login",
+    "/signup",
+    "/home",
+    "/profile",
+    "/messages",
+    "/community",
+    "/map",
+    "/explore",
+    "/clips",
+    "/settings",
+    "/about",
+    "/contact",
+    "/faq",
+    "/delete-account"
+  ],
+  "assets": 709,
+  "nativeDeployedAt": "1794714465623",
+  "failures": [],
+  "scope": "Exact public source/runtime/entry integrity, fifteen route shells and native manifest delivery. Not a certification of signed-in transactions, provider integrations, native adoption, GPS, calling or sustained media/animation performance."
+}

@@ -1,6 +1,6 @@
 {
   "source_schema": "vybe-client-source-v2",
-  "source_sha256": "936a2f8b4b4b825d79adfe7f98819d4d479fa799355a06aae7f78e6b5ff8987e",
+  "source_sha256": "ebefd5780ad460dd5a2b60674a5143988ded1952c6ddc66d56e5857d3cc25393",
   "source_files": 2672,
   "source_parts": {
     "config": {
@@ -16,7 +16,7 @@
       "files": 182
     },
     "src": {
-      "sha256": "84fd272bff9b78df8e1384d01ef893c247e8f70b0f89a8b8038c2b567c5c6399",
+      "sha256": "dc4d4e76cb9ad77f56dbb58f5a29dd30702ad0ce7e8742078fd726f665802a3b",
       "files": 2366
     }
   },
@@ -160,23 +160,24 @@
     "@capacitor/cli": "8.4.3"
   },
   "app_version": "0.0.0",
-  "commit": "d5379f6b452567b63c5bab6f04d8001c18082dfd",
-  "commit_short": "d5379f6",
-  "built_at": "2026-11-15T03:44:05.153Z",
-  "entry": "/assets/app-CXFE5ehE.js",
-  "entry_sha256": "29735c4a0dde020e518aaa1c5a0b8157c295b846a966852e28a774d0d96e6c31",
-  "checkedAt": "2026-11-15T03:45:26.959Z",
+  "commit": "c8e19cdc441b0807ac1e43e1e8a95334467eedcf",
+  "commit_short": "c8e19cd",
+  "built_at": "2026-11-15T03:52:44.772Z",
+  "entry": "/assets/app-DGXisj8z.js",
+  "entry_sha256": "1a7b5628a288ef87a584c2f70d8290620dca21827d455023f8e5205e7a2a8dc1",
+  "checkedAt": "2026-11-15T03:54:58.133Z",
   "combinedChecksPassed": true,
   "fullSuite": {
     "filesPassed": 547,
     "filesSkipped": 1,
     "testsPassed": 5308,
     "testsSkipped": 6,
-    "durationSeconds": 119.67,
+    "durationSeconds": 158.13,
     "maxWorkers": 8,
     "exitCode": 0
   },
   "checks": {
+    "focusedTabKeyboardCases": 3,
     "typecheck": true,
     "lint": {
       "errors": 0,
@@ -186,14 +187,14 @@
     "boot": true,
     "nativeEntry": true,
     "css": true,
-    "bundleBudget": true,
-    "functionsBuild": true
+    "bundleBudget": true
   },
   "mainBundle": {
-    "entry": "app-CXFE5ehE.js",
+    "entry": "app-DGXisj8z.js",
     "rawKB": 858.9,
     "gzipKB": 262
   },
-  "preservedMain": "3941e8c",
-  "scope": "Final combined local source and executed checks. Not production delivery or installed-device proof."
+  "manualFinalSourceVerified": false,
+  "published": false,
+  "scope": "Final two-line keyboard-wrapper follow-up candidate. Exact source is locally checked, but browser control ended before this source could be manually verified. Initial community release936a2f8b/c8e19cd remains the verified production client; no further backend deployment needed."
 }

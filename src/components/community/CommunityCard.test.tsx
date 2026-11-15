@@ -13,7 +13,9 @@ describe('community entry controls', () => {
     const user = userEvent.setup(), open = vi.fn();
     render(<CommunityCard community={community} onClick={open} unreadCount={2} />);
     const entry = screen.getByRole('button', { name: 'Open Alpha club' });
-    entry.focus(); await user.keyboard(key);
+    await user.tab();
+    expect(entry).toHaveFocus();
+    await user.keyboard(key);
     expect(open).toHaveBeenCalledOnce();
     expect(screen.getByRole('heading', { name: 'Alpha club' })).toBeInTheDocument();
     expect(screen.getByText('3 members')).toBeInTheDocument();
@@ -22,7 +24,10 @@ describe('community entry controls', () => {
   it('identifies the community being joined and blocks another join while it is pending', async () => {
     const user = userEvent.setup(), join = vi.fn();
     const view = render(<PublicCommunityCard community={community} onJoin={join} isJoining={false} />);
-    await user.click(screen.getByRole('button', { name: 'Join Alpha club' }));
+    const entry = screen.getByRole('button', { name: 'Join Alpha club' });
+    await user.tab();
+    expect(entry).toHaveFocus();
+    await user.keyboard('{Enter}');
     expect(join).toHaveBeenCalledOnce();
     view.rerender(<PublicCommunityCard community={community} onJoin={join} isJoining />);
     const pending = screen.getByRole('button', { name: 'Joining Alpha club' });
