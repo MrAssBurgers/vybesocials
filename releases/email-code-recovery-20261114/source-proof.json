@@ -1,0 +1,32 @@
+{
+  "baselineArchiveSha256": "b7ee96628251f94d318513df12ead836d070156b09a8d94d49c3cf8103ee15f2",
+  "dependencySourceArchiveSha256": "eafde96c443bb726b17ddcea9c0c6e288f24c8401c9b6680b52c0f5c604ee98e",
+  "archiveSha256": "2b89cd8186ed828c6f87ccc39e7696289b073ef9c72a76a462ec599d5211c437",
+  "files": [
+    {
+      "path": "index.js",
+      "sha256": "97a9b63c0c2064b7106553de3d0076fa91c79bb4e65681445ea3652953f92928"
+    },
+    {
+      "path": "lib/_shared/admin.js",
+      "sha256": "fb1043730c28992de8109eb5e3f880d1e67a31a7c251a1cd049ede1eb85b2894"
+    },
+    {
+      "path": "lib/_shared/emailChallengeAuthority.js",
+      "sha256": "32e8a509cd57516cbee20ee9f0adf28133a1701cf39a0fdd644be7466b1b9cbf"
+    },
+    {
+      "path": "lib/_shared/emailChallengeAuthority.js.map",
+      "sha256": "312d794944fbfd558ef36a195d438f2cb41971a796731ba880542ab9191417d6"
+    },
+    {
+      "path": "package.json",
+      "sha256": "f23b8b3ce753ae0f11e29326eb81c58572abf895e22a8fe648ebdc9cafe8031d"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "5594aa942e9ccc1a2250170595eac6c38d5734aa32db7329e78a7c12225588f8"
+    }
+  ],
+  "scope": "Single auth2faVerify export copied exactly from repository compilation. Helper/map match compiled TypeScript; unchanged deployed admin module; exact package/lock copied from current live authLoginNotify Node22 package. No other exports bundled."
+}

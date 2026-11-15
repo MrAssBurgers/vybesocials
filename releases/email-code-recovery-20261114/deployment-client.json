@@ -1,0 +1,13 @@
+{
+  "status": "verified",
+  "deployment_id": "cc459dab-fb1d-4793-abf8-a15873b3e595",
+  "url": "https://vybesocials.lovable.app",
+  "preview_url": "https://id-preview--416714c8-d013-4aff-984d-522418a9bbc7.lovable.app",
+  "verifiedAt": "2026-11-15T05:39:27.458Z",
+  "publishedCommit": "74fa64e9f8efa454f83fa630dcb4221f281f210b",
+  "sourceSha256": "608e7fcc194868c9bf27947d087dbb0a708a4787e25b96651917e75de0447bce",
+  "entry": "/assets/app-B9YZeRhQ.js",
+  "entrySha256": "9be0ed0ed20fd060277f1e61161960163007d213c04f3afb439b3f9af96d3a81",
+  "nativeAssets": 709,
+  "nativeDeployedAt": "1794721085594"
+}

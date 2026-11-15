@@ -147,10 +147,11 @@ describe('anchored reward source ownership', () => {
     rows.set(`_account_profile_bindings/${actor.authUid}`, { version: 1, status: 'active', owner_uid: actor.authUid, profile_id: actor.profileId, auth_created_at_ms: Math.floor(creation / 1000) * 1000, revision });
     rows.set(`_token_account_authority/${actor.authUid}`, { schema_version: 1, owner_uid: actor.authUid, profile_id: actor.profileId, auth_created_at_ms: creation, binding_revision: revision, created_at: new Date(now).toISOString() });
     const reference = type === 'post_created' ? post('old-source', {}, creation - 1) : type === 'comment_added' ? comment('old-source', {}, creation - 1) : challenge('old-source');
-    if (type === 'challenge_completed') created.set(`_challenge_reward_authority/${tokenAuthorityId([actor.authUid, reference])}`, creation - 1);
+    if (type === 'challenge_completed') { const path = `_challenge_reward_authority/${tokenAuthorityId([actor.authUid, reference])}`; rows.set(path, { ...rows.get(path), auth_created_at_ms: creation, profile_id: actor.profileId }); created.set(path, creation - 1); }
     await expect(claimTokenCredit(database, scoped, { type, referenceId: reference }, now)).rejects.toMatchObject({ code: 'failed-precondition' });
     expect(rows.has(walletPath)).toBe(false); expect(rows.has(receiptPath(type, reference))).toBe(false);
     const current = type === 'post_created' ? post('current-source') : type === 'comment_added' ? comment('current-source') : challenge('current-source');
+    if (type === 'challenge_completed') { const path = `_challenge_reward_authority/${tokenAuthorityId([actor.authUid, current])}`; rows.set(path, { ...rows.get(path), auth_created_at_ms: creation, profile_id: actor.profileId }); }
     expect((await claimTokenCredit(database, scoped, { type, referenceId: current }, now)).credited).toBe(type === 'post_created' ? 10 : type === 'comment_added' ? 2 : 25);
   });
 });

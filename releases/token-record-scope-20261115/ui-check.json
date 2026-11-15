@@ -1,0 +1,9 @@
+{
+  "checkedAt": "2026-11-15T06:09:40.208Z",
+  "action": "check",
+  "balance": 300,
+  "quantity": 1,
+  "equippedTheme": "theme_neon",
+  "scopeMatches": true,
+  "scope": "Independent reads of the owned demo account after actual UI purchase/equip. Optional old-write action removes only its wallet stamp to model a legacy overwrite."
+}

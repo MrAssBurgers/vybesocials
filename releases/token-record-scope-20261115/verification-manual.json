@@ -1,0 +1,50 @@
+{
+  "checkedAt": "2026-11-15T06:19:13.473266+00:00",
+  "viewport": {
+    "width": 390,
+    "height": 740
+  },
+  "purchase": {
+    "initialTokens": 500,
+    "price": 200,
+    "remainingTokens": 300,
+    "item": "theme_neon",
+    "quantity": 1
+  },
+  "equipPersisted": "theme_neon",
+  "legacyOverwriteResult": "Actual state rejected with token-ownership-review; UI shows unavailable, balance dash and Retry; retry stays blocked; balance/item/equipment preserved",
+  "seams": [
+    "Simplified surrounding AppLayout",
+    "Synthetic non-premium presentation",
+    "Haptic/sound output disabled"
+  ],
+  "real": [
+    "Actual TokenMarketplace component, query/mutation hooks and state/response validation",
+    "Firebase browser SDK Auth/custom-token/HTTP callable against isolated demo project",
+    "Staged server code and actual Firestore transactions",
+    "Independent Admin verification of saved balance, ownership and profile effect"
+  ],
+  "scope": "Owned demo only; no production account/provider action or physical phone benchmark",
+  "uiSource": [
+    {
+      "path": "src/pages/TokenMarketplace.tsx",
+      "sha256": "952ed4d18679b5e9378bdf974ef3f1f1ab6fc6fa43c730ab975a9e10a2714e27"
+    },
+    {
+      "path": "src/hooks/useTokenMarketplaceState.ts",
+      "sha256": "688208bc662f11c62998e280e97a0b2b0ff6af505d719d7dcd3796835ae98b02"
+    },
+    {
+      "path": "src/lib/tokenMarketplaceService.ts",
+      "sha256": "a4de64d006529fa90ae888ff2f762e6c0c6defc18a617b180e08d5793d01a538"
+    },
+    {
+      "path": "src/hooks/useMarketplacePurchase.ts",
+      "sha256": "4d16bafeac72c231aeb2f04f105badff9c9a1f233ba29cd0f35e8b63404f0f71"
+    },
+    {
+      "path": "src/hooks/useLockerItems.ts",
+      "sha256": "40bc1dc50f70b21bc558c3d883be5f4eb4bbe16939e0891da7d3975e2448926b"
+    }
+  ]
+}

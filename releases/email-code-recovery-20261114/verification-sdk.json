@@ -1,0 +1,71 @@
+{
+  "checkedAt": "2026-11-15T05:30:08.159Z",
+  "runtime": "v22.23.5",
+  "results": [
+    {
+      "name": "actual deployed baseline consumes a code then cannot recover its lost HTTP response",
+      "passed": true
+    },
+    {
+      "name": "candidate recovers a dropped committed HTTP reply via real Firebase callable SDK and custom-token exchange",
+      "passed": true
+    },
+    {
+      "name": "consumed receipt rejects absent or different keys and malformed attempts",
+      "passed": true
+    },
+    {
+      "name": "incorrect code cannot reserve recovery and original wrong key cannot borrow a later success",
+      "passed": true
+    },
+    {
+      "name": "same-attempt concurrent retries return only the same owned proof and leave one consumed row",
+      "passed": true
+    },
+    {
+      "name": "different attempts racing a valid code cannot acquire the winning recovery secret",
+      "passed": true
+    },
+    {
+      "name": "expired after consumption prevents recovery",
+      "passed": true
+    },
+    {
+      "name": "disabled after consumption prevents recovery",
+      "passed": true
+    },
+    {
+      "name": "email-changed after consumption prevents recovery",
+      "passed": true
+    },
+    {
+      "name": "creation-changed after consumption prevents recovery",
+      "passed": true
+    },
+    {
+      "name": "revoked after consumption prevents recovery",
+      "passed": true
+    },
+    {
+      "name": "denied after consumption prevents recovery",
+      "passed": true
+    },
+    {
+      "name": "revision-changed after consumption prevents recovery",
+      "passed": true
+    },
+    {
+      "name": "wrong-owner after consumption prevents recovery",
+      "passed": true
+    },
+    {
+      "name": "legacy clients remain one-use without a recovery key",
+      "passed": true
+    },
+    {
+      "name": "a recovered token completes the unchanged deployed email-device authority with one trusted session",
+      "passed": true
+    }
+  ],
+  "scope": "Actual baseline/candidate HTTP callables; real Firebase client SDK, isolated demo Auth/Firestore, real demo custom-token exchange. Email is synthetic; no production accounts or email."
+}

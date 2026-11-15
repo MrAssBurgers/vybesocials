@@ -37,7 +37,7 @@ db.runTransaction = async (run, ...args) => {
 const { tokenMarketplace } = await import('../../functions/lib/tokenMarketplace.js');
 const { syncMyChallengeProgress, claimChallengeReward } = await import('../../functions/lib/challengeProgress.js');
 const app = express(); app.use(express.json());
-for (const [name, handler] of [['tokenMarketplace', tokenMarketplace], ['syncMyChallengeProgress', syncMyChallengeProgress], ['claimChallengeReward', claimChallengeReward]]) app.post('/' + name, (req, res) => {
+for (const [name, handler] of [['tokenMarketplace', tokenMarketplace], ['syncMyChallengeProgress', syncMyChallengeProgress], ['claimChallengeReward', claimChallengeReward]]) app.all('/' + name, (req, res) => {
   const uid = req.headers['x-qa-uid'];
   if (uid !== undefined) assert.match(uid, /^token-admission-[0-9a-f-]{36}$/);
   const scope = { uid, scenario: req.headers['x-qa-scenario'], lookups: 0, transactions: 0, createdAtMs: 0 };

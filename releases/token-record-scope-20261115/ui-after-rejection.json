@@ -1,0 +1,8 @@
+{
+  "checkedAt": "2026-11-15T06:11:04.192Z",
+  "balanceRetained": 300,
+  "quantityRetained": 1,
+  "equipmentRetained": "theme_neon",
+  "unscopedWalletNotRewritten": true,
+  "scope": "Independent read after actual shop UI rejected and retried the old unscoped overwrite; only owned demo data"
+}

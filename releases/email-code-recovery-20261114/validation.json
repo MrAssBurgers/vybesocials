@@ -1,0 +1,26 @@
+{
+  "testsPassed": 5386,
+  "testsSkipped": 6,
+  "filesPassed": 551,
+  "filesSkipped": 1,
+  "seconds": 100.93,
+  "types": true,
+  "lint": true,
+  "build": true,
+  "functionsCompile": true,
+  "manualUi": true,
+  "sdkCases": 16,
+  "legacyBackendRulesGroups": 11,
+  "archiveSha256": "2b89cd8186ed828c6f87ccc39e7696289b073ef9c72a76a462ec599d5211c437",
+  "sourceSha256": "608e7fcc194868c9bf27947d087dbb0a708a4787e25b96651917e75de0447bce",
+  "entry": "/assets/app-hxT4EA9k.js",
+  "entrySha256": "ef277abb2e3c741c541cc82456911f600efb8e172466fdf42a773b007e49af59",
+  "limits": [
+    "Phone-sized native browser inputs with synthetic verification transport; not a physical phone benchmark",
+    "Actual demo Firebase proof/custom-token/device completion; no real production email/account used",
+    "Existing additional email gate is not a new server MFA implementation"
+  ],
+  "combinedWithMain": "431fbf45b3ff05abaaed30b1e9f44fdf99015f50",
+  "runtimeEditsAfterFinalChecks": false,
+  "sourceFiles": 2683
+}

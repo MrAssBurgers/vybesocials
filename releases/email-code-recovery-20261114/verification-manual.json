@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-11-15T05:30:35.992812+00:00",
+  "viewport": {
+    "width": 390,
+    "height": 740
+  },
+  "actions": [
+    "Actual OTP input through Windows UI control",
+    "First synthetic transport reply unavailable",
+    "Tapped Retry code check without reentering code",
+    "Success:2requests and same attempt key confirmed"
+  ],
+  "scope": "Real rendered LoginGateModal/OTP/CSS. Synthetic transport/account only. Review tab closed; other user browser work preserved."
+}

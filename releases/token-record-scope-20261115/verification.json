@@ -1,0 +1,30 @@
+{
+  "testsPassed": 5422,
+  "testsSkipped": 6,
+  "filesPassed": 551,
+  "filesSkipped": 1,
+  "seconds": 103.63,
+  "fullSession": 22068,
+  "focusedCases": 302,
+  "beforeRepairFailures": 35,
+  "beforeRepairPasses": 1,
+  "beforeRepairSkipped": 143,
+  "actualSdkCases": 26,
+  "legacyDirectHelperCases": 27,
+  "functionsBuild": true,
+  "typesLintBuild": true,
+  "finalChecksSession": 89655,
+  "lintWarnings": 0,
+  "sourceSha256": "299d5e8a046f6300a710098ca22088a52a8913c350222036f53d55322999e8ef",
+  "sourceFiles": 2683,
+  "entry": "/assets/app-hxT4EA9k.js",
+  "entrySha256": "ef277abb2e3c741c541cc82456911f600efb8e172466fdf42a773b007e49af59",
+  "productRuntimeEditsAfterChecks": false,
+  "productionChanges": false,
+  "limits": [
+    "Positive staff award target admission remains pending",
+    "Protected reward and legacy financial history need reconciliation",
+    "Exact baseline-preserving Rules/backend cutover pending",
+    "Physical installed behavior and full-app readiness unverified"
+  ]
+}
