@@ -1,6 +1,6 @@
 {
   "source_schema": "vybe-client-source-v2",
-  "source_sha256": "bc5805580e6dc10ee535a9e965f79a7b60eb6c417a451845972b7ae98af58f9b",
+  "source_sha256": "813395150f7abbca24dc1694233fc87a96f9545e13644dd20e6059dc471f9f7d",
   "source_files": 2666,
   "source_parts": {
     "config": {
@@ -16,7 +16,7 @@
       "files": 180
     },
     "src": {
-      "sha256": "5fde9edadb85c9f58e2b19e93691216f7d3cfe53a1321c84e59a2318cd7211ac",
+      "sha256": "1643f7ba874c7bf41da0995185a1ce62459339a2d0e136cb7e0927f3e0e05fd0",
       "files": 2362
     }
   },
@@ -160,9 +160,9 @@
     "@capacitor/cli": "8.4.3"
   },
   "app_version": "0.0.0",
-  "commit": "0b1ae1c989312bbdb5f8bcc6c0af2937b015cc82",
-  "commit_short": "0b1ae1c",
-  "built_at": "2026-11-15T02:09:02.713Z",
-  "entry": "/assets/app-D4Dp7VaU.js",
-  "entry_sha256": "e49617f9b9b51f4bc712ed198b6506ede7f347d7ce9850387dbd49595fc03f28"
+  "commit": "af91038fc4f87f3fe8139c310919c9b0873995d1",
+  "commit_short": "af91038",
+  "built_at": "2026-11-15T02:18:50.142Z",
+  "entry": "/assets/app-DGAmiboj.js",
+  "entry_sha256": "9bd3a9a342757825ecf615be9613b6252701bda2c52d066aa71ff710128735e7"
 }

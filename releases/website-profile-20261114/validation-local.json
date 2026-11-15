@@ -1,0 +1,28 @@
+{
+  "checkedAt": "2026-11-15T02:22:41.198Z",
+  "commit": "af91038fc4f87f3fe8139c310919c9b0873995d1",
+  "sourceSha256": "813395150f7abbca24dc1694233fc87a96f9545e13644dd20e6059dc471f9f7d",
+  "sourceFiles": 2666,
+  "fullSuite": {
+    "session": 30415,
+    "exitCode": 0,
+    "filesPassed": 543,
+    "filesSkipped": 1,
+    "testsPassed": 5251,
+    "testsSkipped": 6,
+    "durationSeconds": 251.2
+  },
+  "focusedCases": 26,
+  "checks": [
+    "app types",
+    "repository lint: zero errors/warnings",
+    "production build",
+    "boot entry",
+    "native manifest entry",
+    "CSS validation",
+    "bundle budget"
+  ],
+  "buildSession": 40085,
+  "buildExitCode": 0,
+  "scope": "Client-only website navigation/support and profile clip viewer. Synthetic-layout checks do not certify video decoding; real published playback and native adoption remain separate."
+}
