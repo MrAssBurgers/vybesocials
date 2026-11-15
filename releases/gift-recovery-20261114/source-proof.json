@@ -1,0 +1,22 @@
+{
+  "target": "premiumGiftManage",
+  "runtime": "nodejs22",
+  "files": [
+    {
+      "path": "lib/premiumGifts.js",
+      "sha256": "a672cd1f4322e565af6b71eb539f216798b3f18a9b77dd1e6e982d4f16069a1f"
+    },
+    {
+      "path": "lib/_shared/admin.js",
+      "sha256": "fb1043730c28992de8109eb5e3f880d1e67a31a7c251a1cd049ede1eb85b2894"
+    },
+    {
+      "path": "lib/_shared/premiumAuthority.js",
+      "sha256": "9450a23ff2ecbeb9116dfedbc85299f1be2fee8dce6daa595c5f9b81ec18956b"
+    }
+  ],
+  "dependencies": {
+    "firebase-admin": "13.10.0",
+    "firebase-functions": "6.6.0"
+  }
+}

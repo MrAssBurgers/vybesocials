@@ -1,0 +1,24 @@
+{
+  "verifiedAt": "2026-11-15T01:44:01.666Z",
+  "target": "premiumGiftManage",
+  "operation": "projects/vybe-daaab/locations/us-central1/operations/operation-1794706988932-66046c88d1cc3-346578ec-4dd39223",
+  "runtime": "nodejs22",
+  "state": "ACTIVE",
+  "updateTime": "2026-11-15T01:43:55.717835712Z",
+  "archiveSha256": "273dd525c7c3e29d6238e4781f96cc91ad58c9db573d11f0e58108eeaf205325",
+  "newServiceBudget": {
+    "memory": "256Mi",
+    "cpu": "0.083",
+    "maxInstances": 3,
+    "concurrency": 1,
+    "timeoutSeconds": 60
+  },
+  "publicTransportInvoker": true,
+  "probe": {
+    "options": 204,
+    "origin": "https://vybehub.app",
+    "post": 401,
+    "code": "UNAUTHENTICATED"
+  },
+  "scope": "One callable needed by the existing gift UI; matched legacy gift Rules released separately. No real grants, subscriptions, payments or balances changed."
+}

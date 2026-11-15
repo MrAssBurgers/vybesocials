@@ -7,6 +7,7 @@ import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 import { usePendingPremiumGift } from '@/hooks/usePendingPremiumGift';
 import { PremiumGiftNotification } from '@/components/premium/PremiumGiftNotification';
 import { useAuth } from '@/lib/auth';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 
 /**
  * Subscription section — temporarily replaced with a "VYBE+ coming soon"
@@ -15,7 +16,8 @@ import { useAuth } from '@/lib/auth';
  */
 export function SubscriptionSection() {
   const { user } = useAuth();
-  return <AccountSubscriptionSection key={user?.id || 'signed-out'} />;
+  const session = useReportAccountSession();
+  return <AccountSubscriptionSection key={`${user?.id || 'signed-out'}:${session.epoch}`} />;
 }
 
 function AccountSubscriptionSection() {

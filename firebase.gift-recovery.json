@@ -1,0 +1,5 @@
+{
+  "firestore": {
+    "rules": "security/gift-recovery-20261114.rules"
+  }
+}

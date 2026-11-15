@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Gift, Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -6,34 +6,39 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { acceptPremiumGift, isPremiumAccountCurrent } from '@/lib/premiumGiftService';
+import { acceptPremiumGift, capturePremiumAccountGuard } from '@/lib/premiumGiftService';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 
 interface PremiumGiftNotificationProps { giftId: string; gifterUsername: string; onDismiss: () => void }
 /** Opened only by the recipient's Review gift button in Settings. */
 export function PremiumGiftNotification(props: PremiumGiftNotificationProps) {
   const { user } = useAuth();
-  return user ? <AccountGiftReview key={`${user.id}:${props.giftId}`} {...props} uid={user.id} /> : null;
+  const session = useReportAccountSession();
+  const guard = useMemo(() => capturePremiumAccountGuard(user?.id || ''), [user?.id, session.epoch]);
+  return user && session.uid === user.id ? <AccountGiftReview key={`${user.id}:${session.epoch}:${props.giftId}`} {...props} uid={user.id} guard={guard} /> : null;
 }
-function AccountGiftReview({ giftId, gifterUsername, onDismiss, uid }: PremiumGiftNotificationProps & { uid: string }) {
+function AccountGiftReview({ giftId, gifterUsername, onDismiss, uid, guard }: PremiumGiftNotificationProps & { uid: string; guard: () => void }) {
   const [accepting, setAccepting] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const reducedMotion = useReducedMotion();
   const queryClient = useQueryClient();
+  const current = () => { try { guard(); return true; } catch { return false; } };
   const handleAccept = async () => {
-    if (accepting || !isPremiumAccountCurrent(uid)) return;
+    if (accepting || !current()) return;
     setAccepting(true);
     try {
       await acceptPremiumGift(uid, giftId);
-      if (!isPremiumAccountCurrent(uid)) return;
+      if (!current()) return;
       setAccepted(true);
       void queryClient.invalidateQueries({ queryKey: ['db-premium-status', uid] });
     } catch (err) {
-      if (isPremiumAccountCurrent(uid)) toast.error(err instanceof Error ? err.message : 'Could not accept this gift.');
-    } finally { setAccepting(false); }
+      if (current()) toast.error(err instanceof Error ? err.message : 'Could not accept this gift.');
+    } finally { if (current()) setAccepting(false); }
   };
   const dismiss = () => {
     if (accepting) return;
-    if (isPremiumAccountCurrent(uid)) void queryClient.invalidateQueries({ queryKey: ['pending-premium-gift', uid] });
+    if (!current()) return;
+    void queryClient.invalidateQueries({ queryKey: ['pending-premium-gift', uid] });
     onDismiss();
   };
   return <Dialog open onOpenChange={open => { if (!open) dismiss(); }}>
