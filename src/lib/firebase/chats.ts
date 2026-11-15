@@ -15,6 +15,7 @@ import {
   ensureDmMembershipPair,
 } from '@/lib/dmMembershipRepair';
 import { markConversationReadForViewer, getSessionAuthUid } from '@/lib/markConversationRead';
+import { reportAccountGuard, reportAccountSnapshot } from '@/lib/reportModerationService';
 import type { ChatDocument } from './types';
 
 export interface ChatWithMembers extends ChatDocument {
@@ -150,6 +151,7 @@ export async function updateChat(chatId: string, updates: Partial<ChatDocument>)
 }
 
 export async function markChatRead(chatId: string, userId: string): Promise<void> {
+  const guard = reportAccountGuard(reportAccountSnapshot().uid); guard();
   const authUid = await getSessionAuthUid();
-  await markConversationReadForViewer(chatId, userId, authUid);
+  guard(); await markConversationReadForViewer(chatId, userId, authUid, guard); guard();
 }

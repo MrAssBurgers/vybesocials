@@ -1,18 +1,15 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { safeDmMembers } from '@/lib/persistedCollections';
+import { activeDmListKeys, ownedDmProfileId } from '@/lib/dmAccountScope';
+import { reportAccountSnapshot, type ReportAccountSession } from '@/lib/reportModerationService';
 
 /** Invalidate both legacy and DM list caches (mobile + desktop stay in sync). */
 export function invalidateConversationCaches(
   queryClient: QueryClient,
   profileId?: string | null,
+  session: ReportAccountSession = reportAccountSnapshot(),
 ): void {
-  if (profileId) {
-    queryClient.invalidateQueries({ queryKey: ['dm-conversations', profileId] });
-    queryClient.invalidateQueries({ queryKey: ['conversations', profileId] });
-    return;
-  }
-  queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
-  queryClient.invalidateQueries({ queryKey: ['conversations'] });
+  for (const key of activeDmListKeys(profileId || ownedDmProfileId(session.uid) || session.uid, session)) void queryClient.invalidateQueries({ queryKey: key, exact: true });
 }
 
 type EmbeddedProfile = {
@@ -54,8 +51,10 @@ export function patchEmbeddedProfileInCaches<T extends { members?: unknown }>(
     return changed ? next : old;
   };
 
-  queryClient.setQueriesData<T[]>({ queryKey: ['dm-conversations'] }, apply);
-  queryClient.setQueriesData<T[]>({ queryKey: ['conversations'] }, apply);
+  const session = reportAccountSnapshot();
+  for (const key of activeDmListKeys(ownedDmProfileId(session.uid) || session.uid, session)) {
+    if (queryClient.getQueryData(key) !== undefined) queryClient.setQueryData<T[]>(key, apply);
+  }
 }
 
 /** Patch author fields on cached post arrays (feed cards) without full invalidation. */
@@ -86,7 +85,9 @@ export function patchConversationListCaches<T>(
   queryClient: QueryClient,
   profileId: string,
   patch: (old: T[] | undefined) => T[] | undefined,
+  session: ReportAccountSession = reportAccountSnapshot(),
 ): void {
-  queryClient.setQueryData(['dm-conversations', profileId], patch);
-  queryClient.setQueryData(['conversations', profileId], patch);
+  for (const key of activeDmListKeys(profileId, session)) {
+    if (queryClient.getQueryData(key) !== undefined) queryClient.setQueryData<T[]>(key, patch);
+  }
 }

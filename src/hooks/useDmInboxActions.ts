@@ -1,137 +1,88 @@
 import { useCallback } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { db } from '@/lib/firebase';
-import { useAuthProfileId } from '@/hooks/useAuthProfileId';
-import { useAuth } from '@/lib/auth';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useAuth } from '@/lib/auth';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
-import {
-  patchDmConversationInCache,
-  patchLockedChatsCache,
-  removeDmConversationFromCache,
-} from '@/lib/dmInboxCachePatch';
-import { useHideConversation } from '@/hooks/useHiddenConversations';
-import { useLockConversation, useUnlockConversation } from '@/hooks/useLockedChats';
-import { useMarkConversationRead } from '@/hooks/useDMConversations';
-import { useDmMemberPreference } from '@/hooks/useDmMemberPreference';
+import { patchDmConversationInCache, patchLockedChatsCache, removeDmConversationFromCache, snapshotDmInbox } from '@/lib/dmInboxCachePatch';
+import { viewerDmMembership, isDmConversationForViewer } from '@/lib/dmAccountScope';
+import { getDocumentFromServer, updateDocument } from '@/lib/firebase/firestoreDb';
+import { useHideConversation } from './useHiddenConversations';
+import { useLockConversation, useUnlockConversation } from './useLockedChats';
+import { useMarkConversationRead } from './useDMConversations';
+import { useDmMemberPreference } from './useDmMemberPreference';
+import { useDmAccountMutation, dmPrivateKey, type DmActor } from './useDmAccountMutation';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 
 export function useDmInboxActions(conversation: LoadedDMConversation) {
-  const profileId = useAuthProfileId();
   const { profile } = useAuth();
-  const qc = useQueryClient();
-  const hideConversation = useHideConversation();
-  const lockConversation = useLockConversation();
-  const unlockConversation = useUnlockConversation();
+  const client = useQueryClient();
+  const hideConversation = useHideConversation({ quiet: true });
+  const lockConversation = useLockConversation(), unlockConversation = useUnlockConversation();
   const markConversationRead = useMarkConversationRead();
-
-  const memberDocId = profileId ? `${conversation.id}_${profileId}` : null;
-
   const togglePin = useDmMemberPreference(conversation, 'is_pinned');
   const toggleMute = useDmMemberPreference(conversation, 'is_muted');
-
-  const markUnread = useMutation({
-    mutationFn: async () => {
-      if (!memberDocId || !conversation.last_message?.created_at) return;
-      const lastAt = new Date(conversation.last_message.created_at);
-      lastAt.setSeconds(lastAt.getSeconds() - 1);
-      const { error } = await db
-        .from('conversation_members')
-        .update({ last_read_at: lastAt.toISOString() })
-        .eq('id', memberDocId);
-      if (error) throw error;
+  const snapshot = (actor: DmActor, row: LoadedDMConversation) => {
+    if (!isDmConversationForViewer(row, actor.profileId, actor.uid)) throw new Error('Refresh Messages before updating this chat.');
+    return snapshotDmInbox(client, actor.profileId, actor.session, row.id);
+  };
+  const failed = (actor: DmActor, restore: ReturnType<typeof snapshotDmInbox> | undefined, label: string) => {
+    restore?.restore(); invalidateConversationCaches(client, actor.profileId, actor.session); toast.error(label);
+  };
+  const markUnread = useDmAccountMutation({
+    capture: (_value: void) => conversation,
+    mutationFn: async ({ value: row, actor }) => {
+      const member = viewerDmMembership(row, actor.profileId, actor.uid);
+      const lastAt = Date.parse(row.last_message?.created_at || '');
+      if (!member || !Number.isFinite(lastAt)) throw new Error('Refresh Messages before marking unread');
+      const id = `${row.id}_${member.user_id}`;
+      const stored = await getDocumentFromServer('conversation_members', id); actor.guard();
+      if (!stored || stored.conversation_id !== row.id || stored.user_id !== member.user_id) throw new Error('Your chat membership could not be confirmed.');
+      await updateDocument('conversation_members', id, { last_read_at: new Date(lastAt - 1000).toISOString() }); actor.guard();
     },
-    onMutate: async () => {
-      if (!profileId) return;
-      patchDmConversationInCache(qc, profileId, conversation.id, {
-        unread_count: Math.max(1, conversation.unread_count || 1),
-        _hasUnread: true,
-      });
+    onMutate: ({ value: row, actor }) => {
+      const restore = snapshot(actor, row);
+      patchDmConversationInCache(client, actor.profileId, row.id, { unread_count: Math.max(1, row.unread_count || 1), _hasUnread: true }, actor.session);
+      restore.capture(); return restore;
     },
-    onSuccess: () => {
-      toast.success('Marked unread');
-    },
-    onError: () => {
-      if (profileId) invalidateConversationCaches(qc, profileId);
-      toast.error('Could not mark unread');
-    },
+    onSuccess: () => toast.success('Marked unread'),
+    onError: (_error, { actor }, restore) => failed(actor, restore, 'Could not mark unread'),
   });
-
-  const archive = useMutation({
-    mutationFn: async () => {
-      if (!profileId) throw new Error('Not signed in');
-      await hideConversation.mutateAsync(conversation.id);
+  const markRead = useDmAccountMutation({
+    capture: (_value: void) => conversation,
+    mutationFn: async ({ value: row, actor }) => { actor.guard(); await markConversationRead.mutateAsync(row.id); actor.guard(); },
+    onMutate: ({ value: row, actor }) => {
+      const restore = snapshot(actor, row);
+      patchDmConversationInCache(client, actor.profileId, row.id, { unread_count: 0, _hasUnread: false }, actor.session);
+      restore.capture(); return restore;
     },
-    onMutate: async () => {
-      if (!profileId) return;
-      removeDmConversationFromCache(qc, profileId, conversation.id);
+    onError: (_error, { actor }, restore) => failed(actor, restore, 'Could not mark read'),
+  });
+  const archive = useDmAccountMutation({
+    capture: (_value: void) => conversation,
+    mutationFn: async ({ value: row, actor }) => { actor.guard(); await hideConversation.mutateAsync(row.id); actor.guard(); },
+    onMutate: ({ value: row, actor }) => {
+      const restore = snapshot(actor, row); removeDmConversationFromCache(client, actor.profileId, row.id, actor.session); restore.capture(); return restore;
     },
     onSuccess: () => toast.success('Archived'),
-    onError: () => {
-      if (profileId) invalidateConversationCaches(qc, profileId);
-      toast.error('Could not archive');
+    onError: (_error, { actor }, restore) => failed(actor, restore, 'Could not archive'),
+  });
+  const toggleLock = useDmAccountMutation({
+    capture: (lock: boolean) => ({ row: conversation, lock }),
+    mutationFn: async ({ value: { row, lock }, actor }) => { actor.guard(); await (lock ? lockConversation : unlockConversation).mutateAsync(row.id); actor.guard(); },
+    onMutate: ({ value: { row, lock }, actor }) => {
+      const inbox = snapshot(actor, row), key = dmPrivateKey('locked-chats', actor), before = client.getQueryData(key);
+      patchLockedChatsCache(client, actor.profileId, row.id, lock, actor.session);
+      const after = client.getQueryData(key);
+      if (lock) removeDmConversationFromCache(client, actor.profileId, row.id, actor.session);
+      inbox.capture();
+      return { restore: () => { inbox.restore(); if (client.getQueryData(key) === after) { if (before === undefined) client.removeQueries({ queryKey: key, exact: true }); else client.setQueryData(key, before); } } };
+    },
+    onSuccess: (_data, { value: { lock } }) => toast.success(lock ? 'Chat locked' : 'Chat unlocked'),
+    onError: (_error, { actor }, restore) => {
+      restore?.restore(); invalidateConversationCaches(client, actor.profileId, actor.session);
+      void client.invalidateQueries({ queryKey: dmPrivateKey('locked-chats', actor), exact: true }); toast.error('Could not update lock');
     },
   });
-
-  const toggleLock = useMutation({
-    mutationFn: async (lock: boolean) => {
-      if (lock) await lockConversation.mutateAsync(conversation.id);
-      else await unlockConversation.mutateAsync(conversation.id);
-    },
-    onMutate: async (lock) => {
-      if (!profileId) return;
-      patchLockedChatsCache(qc, profileId, conversation.id, lock);
-      if (lock) removeDmConversationFromCache(qc, profileId, conversation.id);
-    },
-    onSuccess: (_, lock) => toast.success(lock ? 'Chat locked' : 'Chat unlocked'),
-    onError: () => {
-      if (profileId) {
-        invalidateConversationCaches(qc, profileId);
-        qc.invalidateQueries({ queryKey: ['locked-chats', profileId] });
-      }
-      toast.error('Could not update lock');
-    },
-  });
-
-  const markRead = useMutation({
-    mutationFn: async () => {
-      await markConversationRead.mutateAsync(conversation.id);
-    },
-    onMutate: async () => {
-      if (!profileId) return;
-      patchDmConversationInCache(qc, profileId, conversation.id, {
-        unread_count: 0,
-        _hasUnread: false,
-      });
-    },
-    onError: () => {
-      if (profileId) invalidateConversationCaches(qc, profileId);
-      toast.error('Could not mark read');
-    },
-  });
-
-  /** Right-swipe entry point — flips whichever read state the row is currently in. */
-  const toggleRead = useCallback(
-    (currentlyUnread: boolean) => {
-      if (currentlyUnread) markRead.mutate();
-      else markUnread.mutate();
-    },
-    [markRead, markUnread],
-  );
-
-  const isPinned = togglePin.value;
-  const isMuted = toggleMute.value;
-
-  return {
-    isPinned,
-    isMuted,
-    togglePin,
-    toggleMute,
-    markUnread,
-    markRead,
-    toggleRead,
-    archive,
-    toggleLock,
-    profileId: profile?.id ?? profileId,
-  };
+  const toggleRead = useCallback((currentlyUnread: boolean) => { if (currentlyUnread) markRead.mutate(); else markUnread.mutate(); }, [markRead, markUnread]);
+  return { isPinned: togglePin.value, isMuted: toggleMute.value, togglePin, toggleMute, markUnread, markRead, toggleRead, archive, toggleLock, profileId: profile?.id };
 }

@@ -7,7 +7,12 @@ import {
   getSessionAuthUid,
   markConversationReadForViewer,
 } from '@/lib/markConversationRead';
-import { findInQueryArray, readQueryArray } from '@/lib/persistedCollections';
+import { findInQueryArray } from '@/lib/persistedCollections';
+import { activeDmListKeys, ownedDmProfileId, viewerDmMembership } from '@/lib/dmAccountScope';
+import { snapshotDmInbox, patchDmConversationInCache } from '@/lib/dmInboxCachePatch';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
+import { reportAccountGuard, reportAccountSnapshot } from '@/lib/reportModerationService';
+import { isAppForeground, subscribeForegroundReadPhase } from '@/lib/foregroundReadPhase';
 
 /**
  * Mark conversation read + cross-device read sync.
@@ -15,95 +20,81 @@ import { findInQueryArray, readQueryArray } from '@/lib/persistedCollections';
  */
 
 export function useInstantReadClear(conversationId: string | undefined) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const session = useReportAccountSession();
+  const profileId = ownedDmProfileId(user?.id, profile);
   const queryClient = useQueryClient();
 
   const markAsRead = useCallback(async () => {
-    if (!conversationId || !profile?.id) return;
-
-    const convUnread =
-      findInQueryArray(
-        queryClient.getQueryData(['dm-conversations', profile.id]),
-        (c) => c.id === conversationId,
-      )?.unread_count ?? 0;
-
-    const markReadPatch = (old: unknown) => {
-      const list = readQueryArray(old);
-      if (!list.length) return list;
-      return list.map((conv) =>
-        conv.id === conversationId
-          ? { ...conv, unread_count: 0, _hasUnread: false }
-          : conv,
-      );
-    };
-
+    if (!conversationId || !profileId || !activeDmListKeys(profileId, session).length) return;
+    if (!isAppForeground()) return;
+    const accountGuard = reportAccountGuard(session.uid);
+    const guard = () => { accountGuard(); if (!activeDmListKeys(profileId, session).length) throw new Error('Your account session changed.'); };
+    const restore = snapshotDmInbox(queryClient, profileId, session, conversationId);
+    const lists = activeDmListKeys(profileId, session);
+    const convUnread = Math.max(0, ...lists.map(key => findInQueryArray(queryClient.getQueryData(key), c => c.id === conversationId)?.unread_count || 0));
     startTransition(() => {
-      queryClient.setQueryData<any[]>(['dm-conversations', profile.id], markReadPatch);
-      queryClient.setQueryData<any[]>(['conversations', profile.id], markReadPatch);
-      queryClient.setQueryData<any[]>(['conversations'], markReadPatch);
-      queryClient.setQueryData<number>(
-        ['unread-messages-count', profile.id],
-        (prev) => (typeof prev === 'number' ? Math.max(0, prev - convUnread) : 0),
-      );
+      guard(); patchDmConversationInCache(queryClient, profileId, conversationId, { unread_count: 0, _hasUnread: false }, session);
+      queryClient.setQueryData<number>(['unread-messages-count', profileId], prev => typeof prev === 'number' ? Math.max(0, prev - convUnread) : prev);
     });
-
-    const authUid = await getSessionAuthUid();
-    await markConversationReadForViewer(conversationId, profile.id, authUid);
-  }, [conversationId, profile?.id, queryClient]);
-
-  useEffect(() => {
-    if (conversationId && profile?.id) {
-      markAsRead();
+    restore.capture();
+    try {
+      const authUid = await getSessionAuthUid(); guard();
+      if (authUid !== session.uid) throw new Error('Your account session changed.');
+      await markConversationReadForViewer(conversationId, profileId, authUid, guard); guard();
+    } catch (error) {
+      try { guard(); } catch { return; }
+      restore.restore();
+      for (const key of lists) void queryClient.invalidateQueries({ queryKey: key, exact: true });
+      throw error;
+    } finally {
+      try { guard(); void queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profileId], exact: true }); } catch { /* retired session */ }
     }
-  }, [conversationId, profile?.id, markAsRead]);
+  }, [conversationId, profileId, session, queryClient]);
 
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && conversationId) {
-        markAsRead();
-      }
-    };
+    if (conversationId && profileId) {
+      void markAsRead().catch(() => {});
+    }
+  }, [conversationId, profileId, markAsRead]);
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  useEffect(() => {
+    return subscribeForegroundReadPhase(() => { if (isAppForeground() && conversationId) void markAsRead().catch(() => {}); });
   }, [conversationId, markAsRead]);
 
   return { markAsRead };
 }
 
 export function useCrossDeviceSync() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const session = useReportAccountSession();
+  const profileId = ownedDmProfileId(user?.id, profile);
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!profile?.id) return;
+    if (!profileId || !activeDmListKeys(profileId, session).length) return;
 
-    const channel = subscribePostgresChannel('cross-device-read-sync', [
-      {
-        event: 'UPDATE',
-        table: 'conversation_members',
-        filter: `user_id=eq.${profile.id}`,
-        callback: (payload) => {
-          const row: any = payload.new;
-          if (!row?.conversation_id) return;
-
-          const patch = (old: any[] | undefined) => {
-            if (!old) return old;
-            return old.map((c) =>
-              c.id === row.conversation_id
-                ? { ...c, unread_count: 0, _hasUnread: false }
-                : c,
-            );
-          };
-          queryClient.setQueryData<any[]>(['dm-conversations', profile.id], patch);
-          queryClient.setQueryData<any[]>(['conversations', profile.id], patch);
-          queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profile.id] });
-        },
-      },
-    ]);
+    const callback = (payload: { new: unknown }) => {
+      const current = reportAccountSnapshot();
+      if (current.uid !== session.uid || current.epoch !== session.epoch) return;
+      const row = payload.new as { conversation_id?: string; user_id?: string; last_read_at?: string };
+      if (!row || !row.conversation_id || ![profileId, session.uid].includes(row.user_id) || !row.last_read_at) return;
+      const readAt = Date.parse(row.last_read_at);
+      if (!Number.isFinite(readAt)) return;
+      for (const key of activeDmListKeys(profileId, session)) {
+        const conv = findInQueryArray(queryClient.getQueryData(key), c => c.id === row.conversation_id);
+        const lastAt = Date.parse(conv?.last_message?.created_at || '');
+        if (!conv || !Number.isFinite(lastAt) || readAt < lastAt || !viewerDmMembership(conv, profileId, session.uid)) continue;
+        queryClient.setQueryData(key, (old: unknown) => Array.isArray(old) ? old.map(item => item === conv ? { ...item, unread_count: 0, _hasUnread: false } : item) : old);
+      }
+      void queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profileId], exact: true });
+    };
+    const channel = subscribePostgresChannel('cross-device-read-sync', [...new Set([profileId, session.uid])].map(actor => ({
+      event: 'UPDATE' as const, table: 'conversation_members', filter: `user_id=eq.${actor}`, callback,
+    })));
 
     return () => {
       removeRealtimeChannel(channel);
     };
-  }, [profile?.id, queryClient]);
+  }, [profileId, session, queryClient]);
 }
