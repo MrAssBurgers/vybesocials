@@ -15,16 +15,30 @@ import type { FunctionInvokeResult } from '@/lib/firebase/types';
 type Mode = 'code' | 'approval' | 'options' | 'sms';
 
 export const LOGIN_CODE_WAIT_MS = 15_000;
-async function waitForCodeCheck<T>(request: PromiseLike<T>): Promise<T> {
+async function waitForCodeCheck<T>(request: PromiseLike<T>, onDelayed: () => void): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    return await Promise.race([
-      Promise.resolve(request),
-      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(Object.assign(
-        new Error('Code check is still pending'), { code: 'auth/code-check-pending' },
-      )), LOGIN_CODE_WAIT_MS); }),
-    ]);
+    // A slow response is still authoritative. Keep observing the original
+    // one-use request instead of requiring another tap to consume its reply.
+    timer = setTimeout(onDelayed, LOGIN_CODE_WAIT_MS);
+    return await request;
   } finally { clearTimeout(timer); }
+}
+
+/** Tick only the label, not the OTP, dialog and response effects every second. */
+function CodeExpiry({ expiresAt }: { expiresAt?: string }) {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!expiresAt) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [expiresAt]);
+  const expiry = expiresAt ? Date.parse(expiresAt) : NaN;
+  if (!Number.isFinite(expiry)) return <>It expires soon.</>;
+  const seconds = Math.max(0, Math.floor((expiry - now) / 1000));
+  if (!seconds) return <>This sign-in request has expired.</>;
+  return <>It expires in <span className="font-mono">{Math.floor(seconds / 60)}:{(seconds % 60).toString().padStart(2, '0')}</span>.</>;
 }
 
 interface SessionTokens { access_token: string; refresh_token: string }
@@ -65,7 +79,6 @@ export function LoginGateModal({
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
-  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [activeExpiresAt, setActiveExpiresAt] = useState(expiresAt);
   const [activeChallengeId, setActiveChallengeId] = useState(challengeId);
   const [phoneMasked, setPhoneMasked] = useState<string | null>(null);
@@ -74,7 +87,7 @@ export function LoginGateModal({
   const [codeAccepted, setCodeAccepted] = useState(false);
   const [verificationDelayed, setVerificationDelayed] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
-  // A delayed one-use request is resumed, never submitted a second time.
+  // A delayed one-use request stays observed, never submitted a second time.
   const pendingVerificationRef = useRef<{ context: object; request: PromiseLike<FunctionInvokeResult> } | null>(null);
   // Keep the accepted receipt only in this mounted challenge, never in storage.
   const acceptedRef = useRef<{ context: object; token: string | null; session: SessionTokens | null; confirmation?: { emailChallengeId: string }; expires: number } | null>(null);
@@ -117,17 +130,6 @@ export function LoginGateModal({
     pendingVerificationRef.current = null;
   }, [open, challengeId, mode, email, expiresAt]);
 
-
-  useEffect(() => {
-    if (!activeExpiresAt) { setSecondsLeft(null); return; }
-    const tick = () => {
-      const ms = new Date(activeExpiresAt).getTime() - Date.now();
-      setSecondsLeft(Math.max(0, Math.floor(ms / 1000)));
-    };
-    tick();
-    const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
-  }, [activeExpiresAt]);
 
   // Resend cooldown ticker
   useEffect(() => {
@@ -276,11 +278,19 @@ export function LoginGateModal({
       const pending = pendingVerificationRef.current;
       guard();
       if (pending.context !== captured) throw new Error('This sign-in view changed.');
-      const result = await waitForCodeCheck(pending.request);
+      const result = await waitForCodeCheck(pending.request, () => {
+        if (!current(captured)) return;
+        setVerificationDelayed(true);
+        setCode('');
+        // Let the person change accounts while the original check finishes.
+        // The running ref and context guard still prevent duplicate/stale work.
+        setBusy(false);
+      });
       const { payload, errorCode } = await parseEdgeInvokeResult(result);
       if (!current(captured)) return;
       pendingVerificationRef.current = null;
       setVerificationDelayed(false);
+      setBusy(true);
 
       if (result.error || errorCode || payload?.ok !== true) {
         const transportCode = String(result.error?.code || result.error?.name || '').replace(/^functions\//, '');
@@ -312,13 +322,6 @@ export function LoginGateModal({
       submittedRef.current = false;
     } catch (error) {
       if (!current(captured)) return;
-      if ((error as { code?: string })?.code === 'auth/code-check-pending') {
-        setVerificationDelayed(true);
-        setCode('');
-        submittedRef.current = false;
-        fail('Your code is still being checked. Tap Continue verification to resume without entering it again.');
-        return;
-      }
       if (acceptedRef.current?.context === captured) {
         fail('Code accepted, but sign-in could not finish. Check your connection and tap Finish signing in.');
         return;
@@ -470,14 +473,6 @@ export function LoginGateModal({
 
 
 
-  const expiryLabel = useMemo(() => {
-    if (secondsLeft == null) return null;
-    if (secondsLeft <= 0) return 'expired';
-    const m = Math.floor(secondsLeft / 60);
-    const s = secondsLeft % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  }, [secondsLeft]);
-
   // Lock dismissal while a verify/poll is in flight or while we're handling a
   // submission, so users can't accidentally drop the gate by tapping outside.
   const lockDismiss = busy || optionBusy !== null;
@@ -509,10 +504,10 @@ export function LoginGateModal({
           <DialogDescription>
             {codeAccepted && <>Code accepted. We’re finishing your secure sign-in.</>}
             {currentMode === 'code' && !codeAccepted && (
-              <>We sent a 6-digit code to <span className="font-medium text-foreground">{currentEmail}</span>. It expires {expiryLabel ? <>in <span className="font-mono">{expiryLabel}</span></> : 'soon'}.</>
+              <>We sent a 6-digit code to <span className="font-medium text-foreground">{currentEmail}</span>. <CodeExpiry expiresAt={activeExpiresAt} /></>
             )}
             {currentMode === 'sms' && !codeAccepted && (
-              <>We texted a 6-digit code to <span className="font-medium text-foreground">{phoneMasked || 'your phone'}</span>. It expires {expiryLabel ? <>in <span className="font-mono">{expiryLabel}</span></> : 'soon'}.</>
+              <>We texted a 6-digit code to <span className="font-medium text-foreground">{phoneMasked || 'your phone'}</span>. <CodeExpiry expiresAt={activeExpiresAt} /></>
             )}
             {currentMode === 'approval' && (
               <>We sent a login request to your other device. Open VYBE there and tap <span className="font-medium text-foreground">Approve</span> to continue.</>
@@ -556,6 +551,7 @@ export function LoginGateModal({
             )}
 
             {feedback && <p role="alert" className="text-sm leading-relaxed text-muted-foreground">{feedback}</p>}
+            {verificationDelayed && <p role="status" className="text-sm leading-relaxed text-muted-foreground">Your connection is taking longer. We’ll continue automatically when your code is checked. You can leave this screen to change accounts.</p>}
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
               {!codeAccepted && !verificationDelayed ? (
                 <Button
@@ -571,14 +567,14 @@ export function LoginGateModal({
                 <Button variant="ghost" disabled={busy} onClick={onCancel}>
                   Change account
                 </Button>
-                <Button
+                {!verificationDelayed && <Button
                   disabled={busy || optionBusy !== null || (!codeAccepted && !verificationDelayed && code.length !== 6)}
                   onClick={() => verifyCode(code)}
                 >
                   {busy
                     ? <Loader2 className="w-4 h-4 animate-spin" />
-                    : <><ShieldCheck className="w-4 h-4 mr-1.5" /> {codeAccepted ? 'Finish signing in' : verificationDelayed ? 'Continue verification' : 'Verify'}</>}
-                </Button>
+                    : <><ShieldCheck className="w-4 h-4 mr-1.5" /> {codeAccepted ? 'Finish signing in' : 'Verify'}</>}
+                </Button>}
               </div>
             </div>
           </div>
@@ -621,7 +617,7 @@ export function LoginGateModal({
                   </div>
                 )}
                 {approvalLocation?.ip && <div className="font-mono text-xs">{approvalLocation.ip}</div>}
-                {expiryLabel && <div>Expires in <span className="font-mono">{expiryLabel}</span></div>}
+                {activeExpiresAt && <div><CodeExpiry expiresAt={activeExpiresAt} /></div>}
               </div>
             </div>
 

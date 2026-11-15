@@ -57,6 +57,23 @@
 }
 @keyframes auth-light-drift { from { transform: translate3d(-4%, -6%, 0) scale(.94); } to { transform: translate3d(8%, 6%, 0) scale(1.08); } }
 @keyframes auth-spark-turn { to { transform: rotate(360deg); } }
+@keyframes auth-wave-out-compact {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.4); }
+  20% { opacity: .45; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(2.4); }
+}
+/* A single small ring keeps feedback without three screen-sized textures.
+   Pause button color layers while the keyboard is in use. */
+@media (pointer: coarse), (max-width: 600px) {
+  .auth-wave { background: none; box-shadow: none; animation-name: auth-wave-out-compact; }
+  .auth-wave-working { width: min(46vw, 180px); }
+  .auth-wave-working:nth-child(n + 2) { display: none; }
+  html:root [data-auth-shell]:focus-within .vybe-liquid-button::before,
+  html:root [data-auth-shell]:focus-within .vybe-liquid-button::after {
+    animation-play-state: paused !important;
+    will-change: auto;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .auth-light, .auth-submit-spark, .auth-wave { animation: none; transition: none; }
   .auth-wave-field { display: none; }
