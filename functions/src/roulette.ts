@@ -4,7 +4,7 @@ import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js
 import { createTokenAccountLookup } from './_shared/tokenAccountAdmission.js';
 import { manageRoulette } from './_shared/rouletteAuthority.js';
 
-export const findRouletteMatch = onCall({ region: 'us-central1', memory: '256MiB', timeoutSeconds: 60, cors: true, invoker: 'public' }, async request => {
+export const findRouletteMatch = onCall({ region: 'us-central1', memory: '256MiB', timeoutSeconds: 60, maxInstances: 3, cpu: 'gcf_gen1', concurrency: 1, cors: true, invoker: 'public' }, async request => {
   const uid = requireAuth(request);
   enforceRateLimit(await rateLimit(`roulette:${uid}`, 90, 60));
   const app = getApp();
