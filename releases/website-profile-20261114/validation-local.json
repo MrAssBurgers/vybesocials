@@ -1,16 +1,16 @@
 {
-  "checkedAt": "2026-11-15T02:22:41.198Z",
-  "commit": "af91038fc4f87f3fe8139c310919c9b0873995d1",
-  "sourceSha256": "813395150f7abbca24dc1694233fc87a96f9545e13644dd20e6059dc471f9f7d",
+  "checkedAt": "2026-11-15T02:26:45.206Z",
+  "commit": "61cf944718e2391c9c1c660c8841b97ad4a3dd31",
+  "sourceSha256": "36a20f7c161e7a2685dff31a23a30ae15600ca9111505e82e88d5ec1166ad3ad",
   "sourceFiles": 2666,
   "fullSuite": {
-    "session": 30415,
+    "session": 13930,
     "exitCode": 0,
     "filesPassed": 543,
     "filesSkipped": 1,
-    "testsPassed": 5251,
+    "testsPassed": 5253,
     "testsSkipped": 6,
-    "durationSeconds": 251.2
+    "durationSeconds": 121.55
   },
   "focusedCases": 26,
   "checks": [
@@ -22,7 +22,7 @@
     "CSS validation",
     "bundle budget"
   ],
-  "buildSession": 40085,
+  "buildSession": 48905,
   "buildExitCode": 0,
   "scope": "Client-only website navigation/support and profile clip viewer. Synthetic-layout checks do not certify video decoding; real published playback and native adoption remain separate."
 }

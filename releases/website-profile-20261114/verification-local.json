@@ -1,6 +1,6 @@
 {
   "source_schema": "vybe-client-source-v2",
-  "source_sha256": "813395150f7abbca24dc1694233fc87a96f9545e13644dd20e6059dc471f9f7d",
+  "source_sha256": "36a20f7c161e7a2685dff31a23a30ae15600ca9111505e82e88d5ec1166ad3ad",
   "source_files": 2666,
   "source_parts": {
     "config": {
@@ -16,7 +16,7 @@
       "files": 180
     },
     "src": {
-      "sha256": "1643f7ba874c7bf41da0995185a1ce62459339a2d0e136cb7e0927f3e0e05fd0",
+      "sha256": "c2eee98badce28dac972756b6eaa6c01068ef6a6647c9a3c084fdd9ca90c64e7",
       "files": 2362
     }
   },
@@ -160,9 +160,9 @@
     "@capacitor/cli": "8.4.3"
   },
   "app_version": "0.0.0",
-  "commit": "af91038fc4f87f3fe8139c310919c9b0873995d1",
-  "commit_short": "af91038",
-  "built_at": "2026-11-15T02:18:50.142Z",
-  "entry": "/assets/app-DGAmiboj.js",
-  "entry_sha256": "9bd3a9a342757825ecf615be9613b6252701bda2c52d066aa71ff710128735e7"
+  "commit": "61cf944718e2391c9c1c660c8841b97ad4a3dd31",
+  "commit_short": "61cf944",
+  "built_at": "2026-11-15T02:24:56.421Z",
+  "entry": "/assets/app-Bo5F4ws1.js",
+  "entry_sha256": "a1b62364757f3c0149d3a3ee3b513dc4fe1b9271864a5124b62df37f299e6497"
 }

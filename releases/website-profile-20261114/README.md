@@ -30,3 +30,7 @@ Final repaired-source layout checks at320x568 and390x844 show all three toolbar 
 Final source af91038 passed the complete suite again: 543 files and 5,251 tests passed, one file/six checks skipped, 251.20 seconds, exit 0. Types, lint, production build, boot/native entry, CSS and bundle budget pass; lint reports zero errors or warnings. Main entry app-DGAmiboj.js is 858.8 KB raw/262.0 KB gzip. Source fingerprint: 813395150f7abbca24dc1694233fc87a96f9545e13644dd20e6059dc471f9f7d, 2,666 files. No runtime change followed these checks.
 
 Browser test tabs were closed and temporary viewport overrides reset. Screenshots and synthetic fixture files remain in ignored `work/`, outside the shipped source. Final public delivery and real player checks are recorded after publishing the exact final candidate.
+
+## Combined release candidate
+
+Merge 61cf944 preserves newer sign-in recovery main e16b32d and the unchanged caption-safe toolbar. The final combined suite passes 543 files and 5,253 tests, with one file/six checks skipped, in 121.55 seconds using eight workers. Types/lint/build/boot/native entry/CSS/budget checks pass with zero lint errors/warnings. Source fingerprint 36a20f7c161e7a2685dff31a23a30ae15600ca9111505e82e88d5ec1166ad3ad covers 2,666 files; local entry app-Bo5F4ws1.js is 858.8 KB raw/262.0 KB gzip. No runtime edit follows these checks. This supersedes the toolbar-only candidate's release identity while retaining its layout evidence.

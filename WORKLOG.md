@@ -1,3 +1,13 @@
+## ACTIVE (2026-11-14) - Combined sign-in and profile player verified; publication pending
+
+- Preserved the newer sign-in recovery main e16b32d in merge 61cf944. Resolved only overlapping work-log notes, retaining both histories; the final toolbar source is unchanged. The inherited login CSS remains scoped to authentication surfaces. No Functions, Rules, Auth/provider configuration or real account mutation was performed.
+- Final combined check 13930 exits 0: 543 files passed/one skipped, 5,253 tests passed/six skipped, 121.55 seconds with eight workers. Types/lint/build 48905 exit 0, zero lint errors/warnings; boot/native entry, CSS and bundle budget pass. Source 36a20f7c161e7a2685dff31a23a30ae15600ca9111505e82e88d5ec1166ad3ad/2,666 files, entry app-Bo5F4ws1.js, 858.8 KB raw/262.0 KB gzip. No runtime edit after combined checks. The previous 5,251-test/81339515 toolbar-only checkpoint is superseded for publication.
+
+### Next three tasks
+1. Publish this exact combined source, verify public/native delivery and repeat the real player geometry/navigation/playback checks.
+2. Continue CommunityCard keyboard entry, community search naming and synthetic member/channel journeys.
+3. Continue remaining existing service, account cleanup, history/media, provider and physical-device journeys. The entire-app goal remains active.
+
 ## ACTIVE (2026-11-14) - Final profile toolbar verified; publication pending
 
 - Initial source3183b8b was published through Lovableb1843123-3292-41ec-9453-e4f44bcfa857. The exact bc580558 source/runtime/entry, fourteen route shells and709native assets passed. Real390x844 playback had one480x872 video, readyState4/errornull, fullscreen0,0 and visible44px close. Escape returned focus correctly. That actual phone check caught bottom-left navigation overlapping the caption; final sourceaf91038 moves this toolbar to the top. No playback/media/authority logic changed.
