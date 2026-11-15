@@ -14,7 +14,7 @@ Production web hosting is **Lovable**, with custom domain **`vybehub.app`**. Lov
 
 ## Existing Home announcement recovery (2026-11-14)
 
-The newest-active announcement index is READY and its exact production query succeeds. Only the 25-line personal dismissal preference addition to the exact live baseline was activated. **Current Firestore baseline:** ruleset `11329c9e-47f8-4192-9f0a-d7dbf197c669`, SHA256 `1aaf28af3e57a6a5ba445c9b35a739ed110b177465a5fb63dc7dfa9b1074c222`. All unrelated prior Rules bytes are preserved. Actual local Auth/Firestore SDK checks pass28, including owner upsert/replay and cross-account rejection. The matched client is still unpublished pending actual interface checks. See [the exact release record](releases/announcement-interactions-20261114/README.md). Do not deploy the broader root Rules, Functions or indexes.
+The newest-active announcement index is READY and its exact production query succeeds. Only the 25-line personal dismissal preference addition to the exact live baseline was activated. **Current Firestore baseline:** ruleset `11329c9e-47f8-4192-9f0a-d7dbf197c669`, SHA256 `1aaf28af3e57a6a5ba445c9b35a739ed110b177465a5fb63dc7dfa9b1074c222`. All unrelated prior Rules bytes are preserved. Actual local Auth/Firestore SDK checks pass28, including owner upsert/replay and cross-account rejection. The matched client e5dfab5 is published and exact public source/runtime/entry/native delivery is verified; actual local interface checks passed at320/390/840px. Physical adoption remains unverified. See [the exact release record](releases/announcement-interactions-20261114/README.md). Do not deploy the broader root Rules, Functions or indexes.
 
 ## Community account binding release (2026-11-14)
 

@@ -1,0 +1,30 @@
+{
+  "checkedAt": "2026-11-15T05:15:58.131Z",
+  "commit": "e5dfab5ffda549529d516494ae18d28502f583db",
+  "sourceSha256": "8daaa749bb55876c74d9bf2d4b58e741d797f0483eb2c8cea649c0c09c9d3b12",
+  "sourceFiles": 2681,
+  "entry": "/assets/app-cAF7BFiD.js",
+  "entrySha256": "33825ee078a98d46aff1a7a42ac62e6b43b15b66f764f67e1c61d37934267df4",
+  "builtAt": "2026-11-15T05:15:14.527Z",
+  "routes": [
+    "/",
+    "/login",
+    "/signup",
+    "/home",
+    "/profile",
+    "/messages",
+    "/community",
+    "/map",
+    "/explore",
+    "/clips",
+    "/settings",
+    "/about",
+    "/contact",
+    "/faq",
+    "/delete-account"
+  ],
+  "assets": 709,
+  "nativeDeployedAt": "1794719713763",
+  "failures": [],
+  "scope": "Exact public source/runtime/entry integrity, fifteen route shells and native manifest delivery. Not a certification of signed-in transactions, provider integrations, native adoption, GPS, calling or sustained media/animation performance."
+}

@@ -1,0 +1,16 @@
+{
+  "submittedAt": "2026-11-15T05:14:36.443Z",
+  "sourceCommit": "e5dfab5ffda549529d516494ae18d28502f583db",
+  "projectId": "416714c8-d013-4aff-984d-522418a9bbc7",
+  "workspaceId": "e4UodcBXqLcZWBo3Ik8V",
+  "deploymentId": "10f0d465-1de4-4a59-a31c-ba494070e44a",
+  "initialStatus": "pending",
+  "gitSyncVerified": true,
+  "ready": true,
+  "agentFinished": true,
+  "scope": "Submitted once through existing Lovable publication. Pending is not success; wait for exact public source/runtime/entry/native manifest verification. No Firebase redeployment.",
+  "verifiedAt": "2026-11-15T05:15:58.131Z",
+  "status": "verified-public",
+  "publicSourceSha256": "8daaa749bb55876c74d9bf2d4b58e741d797f0483eb2c8cea649c0c09c9d3b12",
+  "nativeDeployedAt": "1794719713763"
+}
