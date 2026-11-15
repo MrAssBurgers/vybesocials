@@ -13,7 +13,6 @@ import { ensureAccountProfileForUid } from './_shared/accountProfileAuthority.js
 import { gateKnownSession, shouldExpireStaleLoginChallenge } from './_shared/loginNotifyGuards.js';
 import { loginDeviceVersion, registerLoginDevice, withCurrentLoginDevice } from './_shared/loginDeviceAuthority.js';
 import { renderAuthEmail, AUTH_EMAIL_SUBJECTS } from './_shared/emailTemplates/index.js';
-import { premiumStatusForRequest } from './_shared/premiumAuthority.js';
 import { exportAccountPage } from './_shared/accountExportAuthority.js';
 import { accountDeletionRequest } from './_shared/accountDeletionAuthority.js';
 
@@ -1970,10 +1969,7 @@ export const getAuthUsersCount = onCall({ cors: true }, async (request) => {
   return total;
 });
 
-/** check-premium-subscription — shared server-owned subscription/gift authority. */
-export const checkPremiumSubscription = onCall(async (request) => {
-  return premiumStatusForRequest(request);
-});
+export { checkPremiumSubscription } from './premiumStatus.js';
 
 /** check-debug-secrets — admin-only runtime secret probe (requires secret bindings). */
 export const checkDebugSecrets = onCall(

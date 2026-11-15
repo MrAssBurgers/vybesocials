@@ -1,4 +1,5 @@
 import { db, getFirebaseAuth } from '@/lib/firebase';
+import { reportAccountGuard } from '@/lib/reportModerationService';
 
 export interface PremiumGift {
   id: string;
@@ -22,9 +23,16 @@ function assertAccount(uid: string): void {
   const error = new Error('Your account changed. Please try again.'); error.name = 'PremiumAccountChanged'; throw error;
 }
 async function invoke<T>(uid: string, name: string, body: Record<string, unknown>): Promise<T> {
-  assertAccount(uid);
+  const accountGuard = reportAccountGuard(uid);
+  const current = () => {
+    assertAccount(uid);
+    try { accountGuard(); } catch {
+      const error = new Error('Your account changed. Please try again.'); error.name = 'PremiumAccountChanged'; throw error;
+    }
+  };
+  current();
   const { data, error } = await db.functions.invoke<T>(name, { body });
-  assertAccount(uid);
+  current();
   if (error) throw new Error(error.message || 'This service is temporarily unavailable.');
   if (!data || typeof data !== 'object') throw new Error('The service returned an incomplete response.');
   return data;

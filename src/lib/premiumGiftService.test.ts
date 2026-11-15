@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const state = vi.hoisted(() => ({ uid: 'alice' as string | null, invoke: vi.fn() }));
+const state = vi.hoisted(() => ({ uid: 'alice' as string | null, invoke: vi.fn(), listener: null as null | ((user: { uid: string } | null) => void) }));
+const auth = vi.hoisted(() => ({ get currentUser() { return state.uid ? { uid: state.uid } : null; }, onAuthStateChanged(listener: typeof state.listener) { state.listener = listener; return () => {}; } }));
+vi.mock('@/lib/firebase/authService', () => ({ getFirebaseAuth: () => auth }));
+vi.mock('@/lib/firebase/functionsService', () => ({ invokeFunction: vi.fn() }));
 vi.mock('@/lib/firebase', () => ({ db: { functions: { invoke: state.invoke } }, getFirebaseAuth: () => ({ currentUser: state.uid ? { uid: state.uid } : null }) }));
 import { acceptPremiumGift, createPremiumGift, listPremiumGifts, pendingPremiumGift, revokePremiumGift, verifiedPremiumStatus } from './premiumGiftService';
 const gift = (extra = {}) => ({ id: 'grant-1', user_id: 'alice', gifted_by: 'staff', status: 'pending', is_active: false, is_expired: false, ...extra });
@@ -28,6 +31,15 @@ describe('premium gift service confirmations', () => {
     state.uid = 'bob'; await expect(acceptPremiumGift('alice', 'grant-1')).rejects.toMatchObject({ name: 'PremiumAccountChanged' }); expect(state.invoke).not.toHaveBeenCalled();
     state.uid = 'alice'; state.invoke.mockImplementation(async () => { state.uid = 'bob'; return { data: { gift: null } }; });
     await expect(pendingPremiumGift('alice')).rejects.toMatchObject({ name: 'PremiumAccountChanged' });
+  });
+  it('rejects an old status response after signing out and back into the same account', async () => {
+    state.invoke.mockImplementation(async () => {
+      state.uid = null; state.listener?.(null);
+      state.uid = 'alice'; state.listener?.({ uid: 'alice' });
+      return { data: { active: true, gift_active: false, is_owner: true, can_manage_gifts: true, expires_at: null } };
+    });
+    await expect(verifiedPremiumStatus('alice')).rejects.toMatchObject({ name: 'PremiumAccountChanged' });
+    expect(state.invoke).toHaveBeenCalledOnce();
   });
   it('does not return another account pending gift', async () => { state.invoke.mockResolvedValue({ data: { gift: { id: 'grant-1', user_id: 'bob', gifterUsername: 'staff' } } }); await expect(pendingPremiumGift('alice')).rejects.toThrow('unavailable'); });
   it('does not claim a revoked create replay was a new success', async () => { state.invoke.mockResolvedValue({ data: { ok: true, gift: gift({ status: 'revoked' }) } }); await expect(createPremiumGift('alice', 'alice', 'request-1')).rejects.toThrow('changed'); });

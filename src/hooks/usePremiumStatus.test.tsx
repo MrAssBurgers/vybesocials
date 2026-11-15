@@ -2,14 +2,15 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PropsWithChildren } from 'react';
-const state = vi.hoisted(() => ({ uid: 'alice' as string | null, status: vi.fn() }));
+const state = vi.hoisted(() => ({ uid: 'alice' as string | null, epoch: 1, status: vi.fn() }));
+vi.mock('./useReportAccountSession', () => ({ useReportAccountSession: () => ({ uid: state.uid, epoch: state.epoch }) }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: state.uid ? { id: state.uid } : null }) }));
 vi.mock('./useRevenueCat', () => ({ useRevenueCat: () => ({ isEntitled: () => false, isLoading: false, customerInfo: null }) }));
 vi.mock('@/lib/premiumGiftService', () => ({ verifiedPremiumStatus: state.status }));
 import { usePremiumStatus } from './usePremiumStatus';
 const ordinary = { active: false, gift_active: false, is_owner: false, can_manage_gifts: false, expires_at: null as string | null };
 function fixture() { const client = new QueryClient({ defaultOptions: { queries: { retry: false } } }); return renderHook(usePremiumStatus, { wrapper: ({ children }: PropsWithChildren) => <QueryClientProvider client={client}>{children}</QueryClientProvider> }); }
-beforeEach(() => { vi.clearAllMocks(); state.uid = 'alice'; state.status.mockResolvedValue(ordinary); });
+beforeEach(() => { vi.clearAllMocks(); state.uid = 'alice'; state.epoch = 1; state.status.mockResolvedValue(ordinary); });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 describe('premium cosmetics and free-feature policy', () => {
   it('keeps core features free when premium verification is unavailable', async () => { state.status.mockRejectedValue(new Error('Unavailable')); const { result } = fixture(); await waitFor(() => expect(result.current.isLoading).toBe(false)); expect(result.current.isPremium).toBe(true); expect(result.current.hasPremiumCosmetics).toBe(false); });
@@ -29,5 +30,15 @@ describe('premium cosmetics and free-feature policy', () => {
     state.uid = 'bob'; rerender(); await waitFor(() => expect(state.status).toHaveBeenCalledWith('bob'));
     await act(async () => finish({ ...ordinary, is_owner: true })); await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.isOwner).toBe(false); expect(result.current.hasPremiumCosmetics).toBe(false); expect(result.current.isPremium).toBe(true);
+  });
+  it('does not reuse owner capability from an earlier session of the same account', async () => {
+    state.status.mockResolvedValueOnce({ ...ordinary, is_owner: true, can_manage_gifts: true }).mockResolvedValue(ordinary);
+    const { result, rerender } = fixture();
+    await waitFor(() => expect(result.current.canManageGifts).toBe(true));
+    state.epoch += 2; rerender();
+    expect(result.current.isOwner).toBe(false); expect(result.current.canManageGifts).toBe(false);
+    await waitFor(() => expect(state.status).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.hasPremiumCosmetics).toBe(false);
   });
 });
