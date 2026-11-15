@@ -1,0 +1,48 @@
+{
+  "checkedAt": "2026-11-15T03:55:03.721Z",
+  "runtime": "v22.23.5",
+  "scope": "Actual baseline/candidate HTTP callables, real demo Auth/Firestore and email proof/custom token. Geo/mail synthetic;120ms injected per transaction. Local timings do not establish production speed.",
+  "results": [
+    {
+      "name": "guest cannot reach device mutation"
+    },
+    {
+      "name": "real baseline confirms trust with three transactions",
+      "ms": 788,
+      "transactions": 3,
+      "authReads": 7
+    },
+    {
+      "name": "candidate returns the committed owned receipt with two transactions",
+      "ms": 511,
+      "transactions": 2,
+      "authReads": 5
+    },
+    {
+      "name": "same current device can repeat completion without creating another session"
+    },
+    {
+      "name": "wrong token claim cannot borrow a consumed challenge"
+    },
+    {
+      "name": "retire-binding before final commit cannot return success or trust the device",
+      "status": 401
+    },
+    {
+      "name": "disable-account before final commit cannot return success or trust the device",
+      "status": 401
+    },
+    {
+      "name": "invalidate-proof before final commit cannot return success or trust the device",
+      "status": 400
+    },
+    {
+      "name": "revoke-device before final commit cannot return success or trust the device",
+      "status": 401
+    },
+    {
+      "name": "fail-commit before final commit cannot return success or trust the device",
+      "status": 503
+    }
+  ]
+}

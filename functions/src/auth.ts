@@ -525,9 +525,13 @@ export async function runAuthLoginNotify(request: CallableRequest, providers = {
     const finish = (result: Record<string, unknown>) => withCurrentLoginDevice(db, auth, registered, sessionHash!, () => ({ ...receipt, ...result }), Date.now(), { confirmation: result.requiresApproval ? 'pending' : 'trusted' });
 
     if (registered.emailConfirmation) {
-      await updateDevice({ trusted: true, pending_approval: false, email_confirmation_id: registered.emailConfirmation.challengeId }, 'email-confirmed');
-      return finish({ ok: true, sessionId: sessionRef.id, notified: false, requiresApproval: false,
-        reason: 'email_confirmed', confirmedEmailChallengeId: registered.emailConfirmation.challengeId });
+      // Commit trust and its receipt together. A second read-only transaction
+      // repeats the same ownership/proof checks and adds a network round trip.
+      return withCurrentLoginDevice(db, auth, registered, sessionHash!, (tx, ref) => {
+        tx.update(ref, { trusted: true, pending_approval: false, email_confirmation_id: registered.emailConfirmation!.challengeId });
+        return { ...receipt, ok: true, sessionId: sessionRef.id, notified: false, requiresApproval: false,
+          reason: 'email_confirmed', confirmedEmailChallengeId: registered.emailConfirmation!.challengeId };
+      }, Date.now(), { trust: 'email-confirmed' });
     }
 
     // Known session on this device. Trusted installs may heartbeat normally,

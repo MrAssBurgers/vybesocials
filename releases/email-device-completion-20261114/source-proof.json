@@ -1,0 +1,114 @@
+{
+  "baselineArchiveSha256": "b0148c4a4963d5f68567d32958c4a4177e70ca2f715330990e2eaaf982bfa135",
+  "files": [
+    {
+      "path": "index.js",
+      "sha256": "e1f1c9033976ccf77badf94a4ffb6ea092de25d147c1b4f7976122c1577eb78c"
+    },
+    {
+      "path": "lib/auth.js",
+      "sha256": "a59766dc179a0f90bfdbc028ad9bf7c00795b83283f6deb830d295780f9344a7"
+    },
+    {
+      "path": "lib/_shared/accountProfileAuthority.js",
+      "sha256": "57f48d5c16f3b201f7966419187f17dba7a90cafb1fd0d52895e10d3659860b7"
+    },
+    {
+      "path": "lib/_shared/admin.js",
+      "sha256": "fb1043730c28992de8109eb5e3f880d1e67a31a7c251a1cd049ede1eb85b2894"
+    },
+    {
+      "path": "lib/_shared/emailChallengeAuthority.js",
+      "sha256": "8f6acd9fbce6e60321ad33e695634c1f7d9005e07f2640438cfee2b683c58c25"
+    },
+    {
+      "path": "lib/_shared/emailDeviceConfirmation.js",
+      "sha256": "e299cdfb138b5e7d1c1e2e08895750792863207760beacce199f23474beebcd4"
+    },
+    {
+      "path": "lib/_shared/emailTemplates/email-change.html",
+      "sha256": "354923141f44f98d77dca3fe146b73c17d945153758060b99837f41d9f66a196"
+    },
+    {
+      "path": "lib/_shared/emailTemplates/index.js",
+      "sha256": "da13f0afb01475e3469c4a5f41d4c95abb87c6ceef89732021bcc98d4ac901db"
+    },
+    {
+      "path": "lib/_shared/emailTemplates/invite.html",
+      "sha256": "aed17bef93fa11d8aaf462d8a5392407861fc25262fe4935b5a9fe67eb5e0573"
+    },
+    {
+      "path": "lib/_shared/emailTemplates/magic-link.html",
+      "sha256": "c778da7fe737530caaa9a25fe0bbee6bb988dd2e1562359fcd074c2b97ab1d62"
+    },
+    {
+      "path": "lib/_shared/emailTemplates/reauthentication.html",
+      "sha256": "dffd4be6c3630953758b8c4a7b221dae318f5f24b6a2032ec84ed3d69c74973e"
+    },
+    {
+      "path": "lib/_shared/emailTemplates/recovery.html",
+      "sha256": "8aa0b37d7d80118db1c87b88d99bc447e0ed954592817669a4c82250b92b7726"
+    },
+    {
+      "path": "lib/_shared/emailTemplates/signup.html",
+      "sha256": "5f8ac5ff60cfc5d44444c4d2c14e221cd01d6388d397b519ec7ca8a6c2f957c9"
+    },
+    {
+      "path": "lib/_shared/loginDeviceAuthority.js",
+      "sha256": "73c873d161d9ddcd6190607cf9f3558dd7e06001563e5d3546a60121b54fd567"
+    },
+    {
+      "path": "lib/_shared/loginGeo.js",
+      "sha256": "58ab4d53820b0cb0cdfaba275e79d638b2370e53a652f4b1a78e5492fdec4242"
+    },
+    {
+      "path": "lib/_shared/loginNotifyGuards.js",
+      "sha256": "31efc18032dc45f6d5a717f47425fa4369ce1b923e2cee543a54c91f826e138b"
+    },
+    {
+      "path": "lib/_shared/onesignalPush.js",
+      "sha256": "cbf31a9b821fb2f41e8268c442217469c0eb2f22bd2b52b1360420d512e17826"
+    },
+    {
+      "path": "lib/_shared/passwordReset.js",
+      "sha256": "c42843bc7a1ce816419dc85dcb1c0b14fc9a9684ba0faa5ec148db79f3b1d71c"
+    },
+    {
+      "path": "lib/_shared/passwordResetEmail.js",
+      "sha256": "443d7c6697d29ee6bfadb7c5a448c9ea4335f3ff5e2a51d68f54c6ef78254a95"
+    },
+    {
+      "path": "lib/_shared/phoneVerificationAuthority.js",
+      "sha256": "4aa9dbd8f03c66f09db350fdf5815f0707c9144b29e5cf23c9364034c38d5621"
+    },
+    {
+      "path": "lib/_shared/premiumAuthority.js",
+      "sha256": "9450a23ff2ecbeb9116dfedbc85299f1be2fee8dce6daa595c5f9b81ec18956b"
+    },
+    {
+      "path": "lib/_shared/profileAudienceAuthority.js",
+      "sha256": "6adab5bf15fd5ea6b0bc4d65eda1413edda671dd3500c2a28f9b2e91e27cbea9"
+    },
+    {
+      "path": "lib/_shared/sessionRevocationAuthority.js",
+      "sha256": "7c2f2119bcc675900dd3bfc59a83a10fa04aa8822ba9d49c3073806b897088a1"
+    },
+    {
+      "path": "lib/_shared/signInPreferencesAuthority.js",
+      "sha256": "d584258aa47326170039f5e605c77c1d7f44e8f841e7f2ee996a121fa321add2"
+    },
+    {
+      "path": "lib/_shared/twilioVerify.js",
+      "sha256": "c647f9188e8af3e955b0a86ec31c4d380667bbf61c4a7a0159ddcbd60a80c5b4"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "5594aa942e9ccc1a2250170595eac6c38d5734aa32db7329e78a7c12225588f8"
+    },
+    {
+      "path": "package.json",
+      "sha256": "f23b8b3ce753ae0f11e29326eb81c58572abf895e22a8fe648ebdc9cafe8031d"
+    }
+  ],
+  "scope": "Only the email-confirmed branch in auth.js changes. All shared modules, package manifests, lockfile, single-export entry and Node22 runtime preserved byte for byte."
+}
