@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import type { Auth } from 'firebase-admin/auth';
 import { FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
@@ -20,7 +20,9 @@ function challengeId(value: unknown): string {
 async function currentAccount(auth: EmailAuth, uid: string) {
   const user = await auth.getUser(uid).catch(() => { throw invalid(); });
   if (user.disabled || !user.email || !user.metadata.creationTime) throw invalid();
-  return { uid, email: user.email, created: user.metadata.creationTime };
+  const validSince = user.tokensValidAfterTime ? Date.parse(user.tokensValidAfterTime) : 0;
+  if (!Number.isSafeInteger(validSince) || validSince < 0) throw invalid();
+  return { uid, email: user.email, created: user.metadata.creationTime, validSince };
 }
 
 function sameAccount(row: FirebaseFirestore.DocumentData, account: Awaited<ReturnType<typeof currentAccount>>) {
@@ -118,11 +120,29 @@ export async function requestEmailChallenge(
 
 export async function verifyEmailChallenge(
   db: Firestore, auth: EmailAuth, callerUid: string | null,
-  input: { challengeId?: unknown; code?: unknown },
+  input: { challengeId?: unknown; code?: unknown; verificationKey?: unknown },
 ) {
   const id = challengeId(input.challengeId);
   if (typeof input.code !== 'string' || !/^\d{6}$/.test(input.code)) throw new HttpsError('invalid-argument', 'Enter the full six-digit code.');
   const provided = input.code;
+  // A browser-owned 256-bit key lets only that attempt recover a lost reply.
+  // Neither the key, the code nor a custom token is stored in plaintext.
+  if (input.verificationKey !== undefined && (typeof input.verificationKey !== 'string' || !/^[a-f0-9]{64}$/.test(input.verificationKey))) {
+    throw new HttpsError('invalid-argument', 'Invalid verification attempt.');
+  }
+  const keyHash = typeof input.verificationKey === 'string' ? createHash('sha256').update(input.verificationKey).digest('hex') : null;
+  const recovered = (row: FirebaseFirestore.DocumentData | undefined, secret: FirebaseFirestore.DocumentData | undefined, account: Awaited<ReturnType<typeof currentAccount>>, now: number) => {
+    if (!keyHash || !secret || !sameAccount(secret, account) || secret.version !== 1 || secret.status !== 'consumed'
+      || !/^[a-f0-9]{64}$/.test(secret.verification_key_hash || '')
+      || !timingSafeEqual(Buffer.from(keyHash, 'hex'), Buffer.from(secret.verification_key_hash, 'hex'))
+      || secret.verification_valid_since_ms !== account.validSince
+      || !Number.isSafeInteger(secret.consumed_at) || secret.consumed_at <= 0 || secret.consumed_at > now + 1000
+      || now - secret.consumed_at >= CODE_LIFETIME || typeof secret.expires_at !== 'number' || secret.expires_at <= secret.consumed_at
+      || !/^[a-f0-9]{48}$/.test(secret.revision || '') || !row || row.user_id !== account.uid || row.status !== 'approved'
+      || row.channel !== 'email' || !['email_2fa', 'login_approval'].includes(row.challenge_type)
+      || row.email_revision !== secret.revision || row.metadata?.switched_to !== 'email_code') throw invalid();
+    return { matches: true, revision: secret.revision, consumedAt: secret.consumed_at as number };
+  };
   const publicRef = db.doc(`auth_challenges/${id}`), secretRef = db.doc(`_auth_email_challenges/${id}`);
   const initial = (await secretRef.get()).data();
   if (!initial || typeof initial.owner_uid !== 'string' || (callerUid && callerUid !== initial.owner_uid)) throw invalid();
@@ -130,6 +150,7 @@ export async function verifyEmailChallenge(
   const checked = await db.runTransaction(async tx => {
     const [publicSnap, secretSnap] = await tx.getAll(publicRef, secretRef);
     const row = publicSnap.data(), secret = secretSnap.data(), now = Date.now();
+    if (secret?.status === 'consumed') return recovered(row, secret, account, now);
     pending(row, account.uid, now);
     if (!secret || !sameAccount(secret, account) || secret.status !== 'pending' || secret.version !== 1
       || secret.expires_at <= now || millis(row!.expires_at) <= now || secret.attempts >= 10
@@ -138,26 +159,35 @@ export async function verifyEmailChallenge(
       || !/^[a-f0-9]{64}$/.test(secret.code_salt || '')) throw invalid();
     const matches = timingSafeEqual(Buffer.from(secret.code_hash, 'hex'), Buffer.from(hash(provided, secret.code_salt), 'hex'));
     tx.update(secretRef, { attempts: secret.attempts + 1 });
-    return { matches, revision: secret.revision };
+    return { matches, revision: secret.revision, consumedAt: null };
   });
   if (!checked.matches) throw new HttpsError('permission-denied', 'Incorrect code.');
   // Minting grants nothing to the caller until the one-use transaction commits.
   // No custom token is ever stored in a client-readable document.
   const token = await auth.createCustomToken(account.uid, { email_2fa: id });
   const fresh = await currentAccount(auth, account.uid);
-  await db.runTransaction(async tx => {
+  const consumedAt = await db.runTransaction(async tx => {
     const [publicSnap, secretSnap] = await tx.getAll(publicRef, secretRef);
     const row = publicSnap.data(), secret = secretSnap.data(), now = Date.now();
+    if (secret?.status === 'consumed') {
+      const proof = recovered(row, secret, fresh, now);
+      if (proof.revision !== checked.revision || (checked.consumedAt !== null && proof.consumedAt !== checked.consumedAt)) throw invalid();
+      return proof.consumedAt;
+    }
+    if (checked.consumedAt !== null || fresh.validSince !== account.validSince) throw invalid();
     pending(row, account.uid, now);
     if (!secret || !sameAccount(secret, fresh) || secret.revision !== checked.revision
       || secret.status !== 'pending' || secret.expires_at <= now || millis(row!.expires_at) <= now
       || row!.email_revision !== checked.revision || row!.channel !== 'email'
       || row!.metadata?.switched_to !== 'email_code') throw invalid();
-    tx.update(secretRef, { status: 'consumed', consumed_at: now, code_hash: FieldValue.delete(), code_salt: FieldValue.delete() });
+    tx.update(secretRef, { status: 'consumed', consumed_at: now, code_hash: FieldValue.delete(), code_salt: FieldValue.delete(),
+      ...(keyHash ? { verification_key_hash: keyHash, verification_valid_since_ms: fresh.validSince } : {}),
+    });
     tx.update(publicRef, {
       status: 'approved', resolved_at: new Date(now).toISOString(), metadata: cleanMetadata(row!),
       code_hash: FieldValue.delete(), code_salt: FieldValue.delete(),
     });
+    return now;
   });
-  return { ok: true, status: 'approved', customToken: token };
+  return { ok: true, status: 'approved', customToken: token, completionExpiresAt: new Date(consumedAt + CODE_LIFETIME).toISOString() };
 }

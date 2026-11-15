@@ -99,6 +99,12 @@
   [data-auth-shell] .auth-light-rose { display: none; }
   [data-auth-shell]:focus-within .auth-light { animation-play-state: paused; }
   [data-auth-shell] .auth-wave { box-shadow: none; }
+  html:root [data-auth-shell] .vybe-liquid-button::before,
+  html:root [data-auth-shell] .vybe-liquid-button::after {
+    animation: none !important;
+    will-change: auto;
+  }
+  [data-auth-shell] .liquid-glass-card { transition: none; }
 }
 /* Native shells can report a fine pointer when a mouse is attached. */
 .platform-android [data-auth-shell] .liquid-glass-card,
@@ -116,3 +122,8 @@
 .platform-android [data-auth-shell] .vybe-liquid-text__shimmer,
 .platform-ios [data-auth-shell] .vybe-liquid-text__stream,
 .platform-ios [data-auth-shell] .vybe-liquid-text__shimmer { animation: none !important; }
+html:root:is(.platform-android, .platform-ios) [data-auth-shell] .vybe-liquid-button::before,
+html:root:is(.platform-android, .platform-ios) [data-auth-shell] .vybe-liquid-button::after {
+  animation: none !important;
+  will-change: auto;
+}

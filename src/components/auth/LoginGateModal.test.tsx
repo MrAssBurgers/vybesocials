@@ -173,6 +173,31 @@ it('does not label a Firebase network failure as an invalid code', async () => {
   await waitFor(() => expect(mock.error).toHaveBeenCalledWith('Verification is unavailable — check your connection and try again'));
   expect(mock.invoke).toHaveBeenCalledTimes(1);
 });
+it('retries a lost code-check response with the same private attempt key without asking for the code again', async () => {
+  mock.invoke.mockResolvedValueOnce({ data: null, error: { name: 'unavailable' } })
+    .mockResolvedValueOnce({ data: { ok: true, customToken: 'recovered-token' }, error: null });
+  const p = props(); render(<LoginGateModal {...p} />);
+  fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } });
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Retry code check' })).toBeEnabled());
+  const first = mock.invoke.mock.calls[0][1].body;
+  expect(first.verificationKey).toMatch(/^[a-f0-9]{64}$/);
+  fireEvent.click(screen.getByRole('button', { name: 'Retry code check' }));
+  await waitFor(() => expect(p.onSuccess).toHaveBeenCalledOnce());
+  expect(mock.invoke.mock.calls[1][1].body).toEqual(first);
+  expect(localStorage.length).toBe(0); expect(sessionStorage.length).toBe(0);
+});
+it('does not offer recovery for an incorrect code or carry its key into a replacement challenge', async () => {
+  mock.invoke.mockResolvedValue({ data: null, error: { name: 'permission-denied' } });
+  const p = props(), ui = render(<LoginGateModal {...p} />);
+  fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } });
+  await waitFor(() => expect(mock.error).toHaveBeenCalledOnce());
+  expect(screen.queryByRole('button', { name: 'Retry code check' })).toBeNull();
+  const first = mock.invoke.mock.calls[0][1].body.verificationKey;
+  ui.rerender(<LoginGateModal {...p} challengeId="replacement" />);
+  fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } });
+  await waitFor(() => expect(mock.invoke).toHaveBeenCalledTimes(2));
+  expect(mock.invoke.mock.calls[1][1].body.verificationKey).not.toBe(first);
+});
 it('a failed deny does not dismiss the gate or report success', async () => {
   mock.invoke.mockImplementation((_name, request) => Promise.resolve(request.body.action === 'poll' ? { data: { status: 'pending' }, error: null } : { data: null, error: { code: 'unavailable' } }));
   const p = props(); render(<LoginGateModal {...p} mode="approval" />);

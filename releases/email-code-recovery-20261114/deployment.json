@@ -1,0 +1,18 @@
+{
+  "verifiedAt": "2026-11-15T05:31:32.460Z",
+  "target": "auth2faVerify",
+  "operation": "projects/vybe-daaab/locations/us-central1/operations/operation-1794720639711-66049f6337a67-d889f699-ef13081d",
+  "state": "ACTIVE",
+  "runtime": "nodejs22",
+  "updateTime": "2026-11-15T05:31:26.041183476Z",
+  "archiveSha256": "2b89cd8186ed828c6f87ccc39e7696289b073ef9c72a76a462ec599d5211c437",
+  "serviceConfigurationPreserved": true,
+  "iamBindingsPreserved": true,
+  "probe": {
+    "options": 204,
+    "origin": "https://vybehub.app",
+    "post": 400,
+    "code": "INVALID_ARGUMENT"
+  },
+  "scope": "Only named verification service replaced with frozen tested single-export package; no other service, Rules, Auth/provider settings, IAM or secret update. Real production email/account sign-in and physical performance remain unverified."
+}

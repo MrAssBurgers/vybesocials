@@ -88,6 +88,8 @@ export function LoginGateModal({
   const [verificationDelayed, setVerificationDelayed] = useState(false);
   const [completionDelayed, setCompletionDelayed] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [retryVerification, setRetryVerification] = useState(false);
+  const verificationAttemptRef = useRef<{ context: object; challenge: string; code: string; key: string } | null>(null);
   // A delayed one-use request stays observed, never submitted a second time.
   const pendingVerificationRef = useRef<{ context: object; request: PromiseLike<FunctionInvokeResult> } | null>(null);
   // Keep the accepted receipt only in this mounted challenge, never in storage.
@@ -106,6 +108,7 @@ export function LoginGateModal({
       if (contextRef.current === context) contextRef.current = null;
       if (acceptedRef.current?.context === context) acceptedRef.current = null;
       if (pendingVerificationRef.current?.context === context) pendingVerificationRef.current = null;
+      if (verificationAttemptRef.current?.context === context) verificationAttemptRef.current = null;
     };
   }, [context]);
   const current = useCallback((captured: object) => open && contextRef.current === captured, [open]);
@@ -130,6 +133,8 @@ export function LoginGateModal({
     setCompletionDelayed(false);
     setFeedback(null);
     pendingVerificationRef.current = null;
+    verificationAttemptRef.current = null;
+    setRetryVerification(false);
   }, [open, challengeId, mode, email, expiresAt]);
 
 
@@ -248,7 +253,9 @@ export function LoginGateModal({
   // ── Verify code (email or sms) ───────────────────────────
   const verifyCode = useCallback(async (codeStr: string) => {
     if (busy || optionBusy || verificationRunningRef.current || (submittedRef.current && !acceptedRef.current)) return;
-    if (!acceptedRef.current && !pendingVerificationRef.current && !/^\d{6}$/.test(codeStr)) return;
+    const retry = retryVerification && !codeStr ? verificationAttemptRef.current : null;
+    const submittedCode = retry?.context === context && retry.challenge === activeChallengeId ? retry.code : codeStr;
+    if (!acceptedRef.current && !pendingVerificationRef.current && !/^\d{6}$/.test(submittedCode)) return;
     const captured = context;
     const guard = () => { if (!current(captured)) throw new Error('This sign-in view changed.'); };
     submittedRef.current = true;
@@ -281,9 +288,17 @@ export function LoginGateModal({
         return;
       }
       const fn = currentMode === 'sms' ? 'auth-2fa-verify-phone' : 'auth-2fa-verify';
+      if (currentMode === 'code' && (!verificationAttemptRef.current || verificationAttemptRef.current.context !== captured
+        || verificationAttemptRef.current.challenge !== activeChallengeId || verificationAttemptRef.current.code !== submittedCode)) {
+        const bytes = crypto.getRandomValues(new Uint8Array(32));
+        verificationAttemptRef.current = { context: captured, challenge: activeChallengeId, code: submittedCode,
+          key: Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('') };
+      }
       if (!pendingVerificationRef.current) pendingVerificationRef.current = {
         context: captured,
-        request: db.functions.invoke(fn, { body: { challengeId: activeChallengeId, code: codeStr } }),
+        request: db.functions.invoke(fn, { body: { challengeId: activeChallengeId, code: submittedCode,
+          ...(currentMode === 'code' ? { verificationKey: verificationAttemptRef.current!.key } : {}),
+        } }),
       };
       const pending = pendingVerificationRef.current;
       guard();
@@ -304,6 +319,9 @@ export function LoginGateModal({
 
       if (result.error || errorCode || payload?.ok !== true) {
         const transportCode = String(result.error?.code || result.error?.name || '').replace(/^functions\//, '');
+        const recoverable = currentMode === 'code' && ['unavailable', 'deadline-exceeded', 'internal', 'network-request-failed', 'auth/network-request-failed'].includes(errorCode || transportCode);
+        setRetryVerification(recoverable);
+        if (!recoverable) verificationAttemptRef.current = null;
         fail(gateVerifyErrorMessage(errorCode || transportCode));
         setCode('');
         submittedRef.current = false;
@@ -321,8 +339,14 @@ export function LoginGateModal({
         // Code expiry only gates server verification. A code consumed just
         // before expiry still has its own bounded device-completion window.
         // The server revalidates the consumed proof on every completion.
-        const accepted = { context: captured, token: customToken, session: receiptSession, confirmation, expires: Date.now() + 600_000 };
+        const completionExpiry = typeof payload.completionExpiresAt === 'string' ? Date.parse(payload.completionExpiresAt) : Date.now() + 600_000;
+        if (!Number.isFinite(completionExpiry) || completionExpiry <= Date.now() || completionExpiry > Date.now() + 660_000) {
+          throw new Error('This sign-in receipt expired. Please sign in again.');
+        }
+        const accepted = { context: captured, token: customToken, session: receiptSession, confirmation, expires: Math.min(completionExpiry, Date.now() + 600_000) };
         acceptedRef.current = accepted;
+        verificationAttemptRef.current = null;
+        setRetryVerification(false);
         setCodeAccepted(true);
         setCode('');
         await finish(accepted);
@@ -341,13 +365,14 @@ export function LoginGateModal({
       }
       pendingVerificationRef.current = null;
       setVerificationDelayed(false);
+      setRetryVerification(currentMode === 'code' && verificationAttemptRef.current?.context === captured);
       fail('Verification failed — check your connection and try again.');
       setCode('');
       submittedRef.current = false;
     } finally {
       if (current(captured)) { verificationRunningRef.current = false; setBusy(false); setCompletionDelayed(false); }
     }
-  }, [busy, activeChallengeId, activeExpiresAt, onSuccess, currentMode, context, current, optionBusy]);
+  }, [busy, activeChallengeId, activeExpiresAt, onSuccess, currentMode, context, current, optionBusy, retryVerification]);
 
   // Auto-submit when all 6 digits are filled
   useEffect(() => {
@@ -363,6 +388,8 @@ export function LoginGateModal({
       await switchToSms();
       return;
     }
+    verificationAttemptRef.current = null;
+    setRetryVerification(false);
     try {
       setBusy(true);
       const { data, error } = await db.functions.invoke('auth-2fa-request', {
@@ -582,12 +609,12 @@ export function LoginGateModal({
                   Change account
                 </Button>
                 {!verificationDelayed && <Button
-                  disabled={busy || optionBusy !== null || (!codeAccepted && !verificationDelayed && code.length !== 6)}
+                  disabled={busy || optionBusy !== null || (!codeAccepted && !(retryVerification && !code) && code.length !== 6)}
                   onClick={() => verifyCode(code)}
                 >
                   {busy
                     ? <Loader2 className="w-4 h-4 animate-spin" />
-                    : <><ShieldCheck className="w-4 h-4 mr-1.5" /> {codeAccepted ? 'Finish signing in' : 'Verify'}</>}
+                    : <><ShieldCheck className="w-4 h-4 mr-1.5" /> {codeAccepted ? 'Finish signing in' : retryVerification && !code ? 'Retry code check' : 'Verify'}</>}
                 </Button>}
               </div>
             </div>
