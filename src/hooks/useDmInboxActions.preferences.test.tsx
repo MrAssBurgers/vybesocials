@@ -7,7 +7,10 @@ const auth = vi.hoisted(() => ({ get currentUser() { return { uid: state.uid }; 
 vi.mock('@/lib/firebase/authService', () => ({ getFirebaseAuth: () => auth }));
 vi.mock('@/lib/firebase/functionsService', () => ({ invokeFunction: vi.fn() }));
 vi.mock('@/lib/firebase/firestoreDb', () => ({ getDocumentFromServer: state.read, updateDocument: state.write }));
-vi.mock('@/lib/firebase', () => ({ db: { from: () => ({ update: (patch: unknown) => ({ eq: async (_key: string, id: string) => { await state.write('conversation_members', id, patch); return { error: null }; } }) }) } }));
+vi.mock('@/lib/firebase', () => ({ db: { from: (table: string) => ({
+  update: (patch: unknown) => ({ eq: async (_key: string, id: string) => { await state.write('conversation_members', id, patch); return { error: null }; } }),
+  insert: async (payload: unknown) => { await state.write(table, '', payload); return { error: null }; },
+}) } }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: state.uid }, profile: { id: `profile-${state.uid}`, user_id: state.uid }, authReady: true }) }));
 vi.mock('@/hooks/useAuthProfileId', () => ({ useAuthProfileId: () => `profile-${state.uid}` }));
 vi.mock('@/hooks/useHiddenConversations', () => ({ useHideConversation: () => ({ mutateAsync: vi.fn() }) }));
@@ -43,6 +46,24 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe('existing inbox pin and mute actions', () => {
+  it('optimistically excludes an archived chat from projection and legacy lists', async () => {
+    const { client, key, hook } = setup();
+    client.setQueryData(['hidden-conversations', 'profile-alice'], new Set(['other']));
+    await act(async () => { await hook.result.current.archive.mutateAsync(); });
+    expect([...client.getQueryData<Set<string>>(['hidden-conversations', 'profile-alice'])!]).toEqual(['other', 'chat']);
+    expect(client.getQueryData(key)).toEqual([]);
+    expect(state.write).toHaveBeenCalledWith('hidden_conversations', '', { user_id: 'profile-alice', conversation_id: 'chat' });
+    client.clear();
+  });
+  it('restores the prior hidden IDs and row when archiving fails', async () => {
+    const { client, key, hook } = setup();
+    client.setQueryData(['hidden-conversations', 'profile-alice'], new Set(['other']));
+    state.write.mockRejectedValueOnce(new Error('offline'));
+    await act(async () => { await hook.result.current.archive.mutateAsync().catch(() => {}); });
+    expect([...client.getQueryData<Set<string>>(['hidden-conversations', 'profile-alice'])!]).toEqual(['other']);
+    expect(client.getQueryData(key)).toEqual([conversation]);
+    client.clear();
+  });
   it('keeps a late unread action bound to its original session after a hook rerender', async () => {
     const { client, hook } = setup();
     let resolve!: () => void;

@@ -54,6 +54,13 @@ export function resolveInboxDisplayRows(
   const stableHasRows = lastStableRows.length > 0;
   const guardPartial = isFetching || projectionHydrating;
 
+  // A successful settled result can be empty after archiving the last chat or
+  // selecting a category with no matches. Stability must not resurrect it.
+  if (!incomingHasRows && fetchSettled && !guardPartial && !tabLoading) {
+    return { displayRows: [], showSkeleton: false, showEmpty: true,
+      listPhase: 'empty', lastStableRows: [], rejectedPartial: false };
+  }
+
   let displayRows = rows;
   let rejectedPartial = false;
 

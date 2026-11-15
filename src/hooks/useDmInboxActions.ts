@@ -10,6 +10,7 @@ import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 import { activeDmListKeys, isDmConversationForViewer, ownedDmProfileId, viewerDmMembership } from '@/lib/dmAccountScope';
 import { getSessionAuthUid, markConversationReadForViewer } from '@/lib/markConversationRead';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
+import { normalizePersistedSet } from '@/lib/persistedCollections';
 
 /** Carry the initiating identity through queued dispatch, optimism and callbacks. */
 export function useDmInboxActions(conversation: LoadedDMConversation) {
@@ -90,8 +91,21 @@ export function useDmInboxActions(conversation: LoadedDMConversation) {
     },
     onMutate: (operation: Operation) => {
       const rollback = snapshot(operation);
+      const key = ['hidden-conversations', operation.profileId];
+      const before = client.getQueryData(key);
+      const hidden = new Set(normalizePersistedSet(before));
+      hidden.add(operation.conversationId);
+      client.setQueryData(key, hidden);
+      const after = client.getQueryData(key);
       removeDmConversationFromCache(client, operation.profileId, operation.conversationId, operation.session);
-      rollback.capture(); return rollback;
+      rollback.capture();
+      return { restore: () => {
+        operation.guard(); rollback.restore();
+        if (client.getQueryData(key) === after) {
+          if (before === undefined) client.removeQueries({ queryKey: key, exact: true });
+          else client.setQueryData(key, before);
+        }
+      } };
     },
     onSuccess: (_result, operation) => {
       try { operation.guard(); } catch { return; }
@@ -99,7 +113,11 @@ export function useDmInboxActions(conversation: LoadedDMConversation) {
       invalidateConversationCaches(client, operation.profileId, operation.session);
       succeeded(operation, 'Archived');
     },
-    onError: (_error, operation, rollback) => failed(operation, rollback, 'Could not archive'),
+    onError: (_error, operation, rollback) => {
+      failed(operation, rollback, 'Could not archive');
+      try { operation.guard(); } catch { return; }
+      void client.invalidateQueries({ queryKey: ['hidden-conversations', operation.profileId], exact: true });
+    },
   });
   type LockOperation = Operation & { locked: boolean };
   const lockMutation = useMutation({

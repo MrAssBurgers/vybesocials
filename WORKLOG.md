@@ -1,3 +1,17 @@
+## ACTIVE (2026-11-14) - Follow-up inbox browser failures repaired
+
+- Initial whole-app QA client4185e9c is live through Lovable deployment42bb4262-5c75-482e-80a3-c5b9a03f8a7b. Exact public fingerprint0fb931dabcb2252b48ec49e1ceaac6cb028700776a173720266c6aa57cdae0ea/2655files, source/runtime/entry integrity, ten route shells and709native assets verified. Both scoped backend rules repairs remain live.
+- Continuing UI walkthrough reproduced duplicate “You:” projection text and an archived final chat that remained visible. Corrected explicit formatted-preview handling, confirmed-empty display, hidden/trash/lock exclusions and guarded archive rollback. Raw literal message text is preserved.
+- Retained/deferred inbox state and projection callbacks now follow the user/profile/session epoch; foreign projection rows and late old-session/initial-fetch responses cannot replace current results. Four empty/account regressions and two formatting regressions failed before their fixes.
+- Final full suite:537files pass/one skip,5204tests pass/six skip,212.08s. Types/lint/build/boot/CSS/budget pass; entryapp-Bm1quQse.js857.8KB raw261.6KB gzip. Only a trailing blank line was normalized after that test start; no runtime change followed checks.
+- Real local Auth/message send/server projection rebuild plus actual Search showed one sender prefix. Archive with projection enabled removed the last row and showed No chats yet. Production read-only mobile browser played two consecutive clips; off-screen media paused and the390px document did not overflow.
+- See [follow-up record](releases/inbox-polish-20261114/README.md). Current client publication is pending this checkpoint. No further backend, production content/settings, provider or native binary changes.
+
+### Next three tasks
+1. Publish this verified follow-up client and record exact public source/native delivery.
+2. Test UID/profile alias pin/mute reconciliation across server projection rebuild/reload; synthetic dual-alias fixture surfaced a concern. Review remaining current premium403/marketplace404 gaps with matched authority prerequisites.
+3. Continue all remaining feature/provider/device journeys; whole-app perfection is not certified and the goal remains active.
+
 ## ACTIVE (2026-11-14) - Whole-app audit: inbox, titles and live read failures repaired
 
 ### What changed

@@ -12,6 +12,12 @@ Production web hosting is **Lovable**, with custom domain **`vybehub.app`**. Lov
 | Firebase Hosting staging frontend | https://vybe-daaab.web.app — shares the production Firebase project; not an isolated data environment |
 | Isolated local QA | `demo-vybe-preview`; follow [LOCAL_PREVIEW_QA.md](docs/LOCAL_PREVIEW_QA.md). Never deploy its configuration or fixtures. |
 
+## Existing inbox read recovery (2026-11-14)
+
+Two exact live-baseline read optimizations are active: [conversation members](releases/dm-member-read-20261114/README.md) and [call history](releases/call-history-read-20261114/README.md). Current verified Firestore ruleset is `dbfd3859-7910-4f74-adf3-5ffe78800fd9`, SHA256 `705f82b84f2795bc29d883cce4b0b84f73621f25cf3719780671cd165ff6957f`. These preserve every unrelated prior live rule. The root rules still include unrelated pending work and were not deployed. Saved older baselines are rollback evidence; verify current release/source before any activation.
+
+No Functions, indexes, Storage rules, IAM, Auth settings, providers, real-user data or native binary were changed. Initial client4185e9c publication is verified in [the whole-app QA record](releases/full-app-qa-20261114/README.md); [the inbox follow-up](releases/inbox-polish-20261114/README.md) records later client verification/publication status. This is an ongoing audit, not whole-app or physical-phone certification.
+
 ## Shared theme service recovery (2026-10-06)
 
 Scoped existing-flow client release is live: [readiness release](releases/readiness-client-20261006/README.md), source `2a56bf63196261f29c5e1dafee0e7b41bd8e00c1` on `release/readiness-20261006`, deployment `cad160d0-f3e4-42bd-af0d-21d966639bb1`. It starts from verified live1213702 and includes only tested auth/profile/post/GPS/Clips client fixes. Production source fingerprint7acb3cd0f310809a42b67752ee7f36f613659232c254615a55a379aa6ddd51fb and entry/assets/app-lUua0SI4.js match; nine route shells and all628phone manifest assets verified. GitSync temporarily selected the reviewed release branch for publication and has returned to main for development. Do not use main as this release's source identity: pending parental/safety/export/deletion protocols are excluded and still need coordinated rollout. Firebase services/Rules/IAM/data/dependencies/native shell unchanged; actual installed adoption and signed-in user flows remain open.

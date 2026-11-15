@@ -1,0 +1,25 @@
+{
+  "checkedAt": "2026-11-15T00:35:16.069Z",
+  "commit": "4185e9cf556663317f2247a1e206936ae9a3e295",
+  "sourceSha256": "0fb931dabcb2252b48ec49e1ceaac6cb028700776a173720266c6aa57cdae0ea",
+  "sourceFiles": 2655,
+  "entry": "/assets/app-Xw0w-F9K.js",
+  "entrySha256": "89ea0195d73ed095e6148ab4ac4e8ae494dd534df473157f23d57d0c0dafe5dd",
+  "builtAt": "2026-11-15T00:34:28.291Z",
+  "routes": [
+    "/",
+    "/login",
+    "/signup",
+    "/home",
+    "/profile",
+    "/messages",
+    "/map",
+    "/explore",
+    "/clips",
+    "/settings"
+  ],
+  "assets": 709,
+  "nativeDeployedAt": "1794702867670",
+  "failures": [],
+  "scope": "Exact public source/runtime/entry integrity, ten route shells and native manifest delivery. Not a certification of signed-in transactions, provider integrations, native adoption, GPS, calling or sustained media/animation performance."
+}

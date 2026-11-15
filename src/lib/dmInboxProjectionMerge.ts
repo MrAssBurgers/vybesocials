@@ -59,11 +59,14 @@ export function mergeLegacyAndProjection(
 ): LoadedDMConversation[] {
   const {
     legacy,
-    projectionEntries,
+    projectionEntries: incomingProjection,
     lockedIds,
     projectionReadEnabled,
     projectionReady,
   } = input;
+  const projectionEntries = incomingProjection.filter(entry =>
+    (!input.viewerId && !input.viewerAuthUid)
+    || entry.viewer_id === input.viewerId || entry.viewer_id === input.viewerAuthUid);
 
   const filteredLegacy = legacy.filter((c) => !lockedIds.has(c.id));
   if (!projectionReadEnabled || !projectionReady || !projectionEntries.length) {

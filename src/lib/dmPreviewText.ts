@@ -40,6 +40,9 @@ export function dmConversationPreviewText(opts: {
   const { lastMessage, isGroup, profileId, authUid, otherProfileId, recentNewFriendIds, previewMaxLen = 56 } = opts;
 
   if (lastMessage) {
+    if (typeof lastMessage._inboxPreviewText === 'string') {
+      return lastMessage._inboxPreviewText.slice(0, previewMaxLen);
+    }
     try {
       const senderId = lastMessage.sender_id;
       const isOwn = Boolean(

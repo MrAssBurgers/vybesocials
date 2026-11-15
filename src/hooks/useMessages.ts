@@ -68,6 +68,8 @@ export interface Message {
   vybe_replay_exhausted?: boolean;
   /** Stable React key while optimistic temp id is swapped for server id. */
   _clientKey?: string;
+  /** Display-only server projection text, already formatted for its inbox viewer. */
+  _inboxPreviewText?: string;
 }
 
 export interface Conversation {
