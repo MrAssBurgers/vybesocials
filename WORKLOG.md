@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 ## ACTIVE (2026-11-14) - Announcement backend live; actual interface checks pass
 
 - Fresh supported native observation recovered Chrome18810432 on the known local fixture without reset/bypass. Actual source imports/CSS were checked at320/390/840x844: named keyboard opener/dialog, Tab/Enter/Space, Escape/focus return and Close; long title/body scroll with reachable controls; pending/failure/acknowledged dismissal; newer arrival preserves selected ID, success submits news and retains newer row; account switch retires open view; failed read Retry; actual192px image,320x180GIF with distinct frames, actualWebM readyState4/errornull/replayed native controls; failed media Retry and live changed-URL recovery. Synthetic query/account/write/media setup is explicitly separate from the real28SDK checks. No real production domain/account action.
@@ -30,7 +29,7 @@
 1. Observe the additive announcement index job, verify the exact query becomes compatible, and complete independent demo cleanup audit.
 2. Complete actual native phone/wide announcement UI/error/keyboard/media checks and final combined tests/build/lint; preserve current main. Then release only the matched exact live-baseline Rules addition and client, not root Rules/Functions.
 3. Continue remaining entire-app/provider/history/account/marketplace and physical-device journeys. Optional device-target question remains pending; goal active, no completion or blocker claim.
-=======
+
 ## ACTIVE (2026-11-14) - Durable ledger ownership prepared; two prerequisite indexes verified live
 
 - Prepared exact Auth-creation/profile/binding ownership for empty private token ledgers. Existing unbound private monetary/reward records require review and remain preserved; no automatic adoption/reset/TTL. Updated helper actors, replay paths and interactive challenge writers check ownership; pre-account activity is excluded. Positive staff-award target admission and per-record stamps/read validation remain required. A context-free updated helper is not a genuinely older deployed binary; the root ownership record alone does not prevent trusting late unscoped writes by that binary.
@@ -56,7 +55,6 @@
 1. Add durable exact Auth-creation/profile ownership to UID-only wallets, inventory, boosts, XP and replay/credit receipts; preserve and reconcile legitimate history instead of silently adopting or zeroing an earlier account's records.
 2. Match challenge/badge/XP writers to the same account lifetime, verify deployed indexes, and test the complete real demo Auth/HTTP/UI purchase/equip/earning flow before release.
 3. Coordinate only the reviewed named services and exact-baseline Rules candidate, then continue remaining posts/messages/media/profile/mobile/provider readiness; this prerequisite is not a whole-app certificate.
->>>>>>> origin/main
 
 ## ACTIVE (2026-11-14) - Final community keyboard release published and verified
 
