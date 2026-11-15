@@ -4,11 +4,13 @@ Server-generated inbox previews omitted the conversation ID on embedded membersh
 
 A stale projection also replaced an acknowledged preference in the legacy cache. Merging now preserves correctly scoped physical memberships, roles and preferences while refreshing projected peer profiles. A synthetic canonical member cannot shadow an existing UID membership. Projection-only conversations retain their existing fallback. No membership, role or server permission is created by this client change.
 
+Current main `2f6e230` was merged before publication, preserving the separately verified deployed premium reader and its client account-session guards. This release makes no additional backend operation; the earlier premium deployment/read receipts remain in [premium-status-20261114](../premium-status-20261114/README.md).
+
 ## Verification
 
 - The actual action-hook regression failed before repair: a pinned/muted projected row reported false. Both canonical and legacy-UID merge regressions also failed before repair. The exclusion test confirms that a participant list omitting the viewer cannot dispatch the preference write.
-- Final full suite: 540 test files passed, one skipped; 5,233 tests passed, six skipped; 205.57 seconds with four workers.
-- Typecheck and lint passed with zero warnings/errors. Production build, boot/native entry, CSS and bundle budget passed. Local entry app-Cb8WYRvf.js: 858.6 KB raw / 261.9 KB gzip.
+- Final combined full suite: 540 test files passed, one skipped; 5,235 tests passed, six skipped; 204.84 seconds with four workers.
+- Typecheck and lint passed with zero warnings/errors. Production build, boot/native entry, CSS and bundle budget passed. Local entry app-V5X68S0y.js: 858.8 KB raw / 262.0 KB gzip.
 - Actual isolated browser plus Firebase SDK: loaded saved Unpin/Unmute controls; switched both off; confirmed exact physical membership writes; ran the actual server rebuildConversationInbox; fully reloaded and saw Pin/Mute. Switched both on, rebuilt and reloaded again, then saw Unpin/Unmute. Immediate feedback is also correct before the projection catches up.
 - Both real server rebuilds preserve the other UID alias and peer preference records. Test preferences finish at their original values and the demo rollout configuration was restored. See roundtrip.json. Screenshot remains local at ignored work/preferences-persisted.jpg; no real account preference was changed.
 

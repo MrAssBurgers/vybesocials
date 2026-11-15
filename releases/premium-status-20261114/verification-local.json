@@ -1,0 +1,31 @@
+{
+  "checkedAt": "2026-11-15T01:19:27.271Z",
+  "mergeCommit": "1474aeec3328a92f97ef8792262b73fe8c5fc740",
+  "sourceSha256": "7edc97fdf83ce4d2cfe7dbc213d31d4888ef55654a7744b0ae7b7a24ddf84c2a",
+  "unit": {
+    "filesPassed": 540,
+    "filesSkipped": 1,
+    "testsPassed": 5231,
+    "testsSkipped": 6,
+    "durationSeconds": 120.92
+  },
+  "checks": {
+    "typecheck": "pass",
+    "lint": "zero warnings/errors",
+    "build": "pass",
+    "functionsBuild": "pass",
+    "boot": "pass",
+    "native": "pass",
+    "bundleBudget": "pass"
+  },
+  "localEntry": {
+    "entry": "/assets/app-DSWQlHxz.js",
+    "rawKb": 858.8,
+    "gzipKb": 262
+  },
+  "manual": {
+    "scopedAccountStatus": "actual hook, service and account-session store; synthetic transport; stale owner response cannot change replacement session",
+    "liveBackend": "actual signed-in Settings Subscription shows Owner preview and no new captured console warnings/errors"
+  },
+  "limits": "No physical-phone, new-password/code, purchase, gift provisioning or whole-app certification"
+}

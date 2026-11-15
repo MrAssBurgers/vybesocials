@@ -1,8 +1,8 @@
 {
-  "checkedAt": "2026-11-15T01:25:56.782Z",
+  "checkedAt": "2026-11-15T01:32:04.751Z",
   "source_schema": "vybe-client-source-v2",
-  "source_sha256": "29cea51ee6138d4ed254eb69cc1112bf045e752bbe22e976b52dd5029133b5da",
-  "source_files": 2661,
+  "source_sha256": "96d9b4d0e48d5127361cd6bd4e60813549ce8fc5027d446e35eedee54ee62378",
+  "source_files": 2662,
   "source_parts": {
     "config": {
       "sha256": "95c775b687fa4ad7afebdda0826673040c92ac7deb622c9e92c3b77fd7ff77c2",
@@ -13,11 +13,11 @@
       "files": 113
     },
     "scripts": {
-      "sha256": "eb989a95f5826bb708c315624f3afcfffc81bbbe032500cb96947c3bb9e8ce50",
-      "files": 178
+      "sha256": "29558ac788ba7f7d43097b732ebeaa72a008e091de65d772b2de33c76479b8ca",
+      "files": 179
     },
     "src": {
-      "sha256": "d90a4b95c8b42e7413914c9e739a795af58375476fa80da5d5adc34c6f586fbc",
+      "sha256": "76f0cf0ee2b7cb153561ae8e89a376fb6cfedc3e077d3de3a3aff7bd960994f7",
       "files": 2359
     }
   },
@@ -160,12 +160,12 @@
     "@capacitor/core": "8.4.3",
     "@capacitor/cli": "8.4.3"
   },
-  "entry": "/assets/app-Cb8WYRvf.js",
-  "entry_sha256": "dd0058ba5b302cc834ca51ca3d3d72d3dc667c9f08c64cddf3edc10af8bd5c02",
+  "entry": "/assets/app-V5X68S0y.js",
+  "entry_sha256": "e2d216c50ff3c08cfd729916c7b78a23f9c693af82f3e451c813392c5b43eb82",
   "tests": {
     "filesPassed": 540,
     "filesSkipped": 1,
-    "passed": 5233,
+    "passed": 5235,
     "skipped": 6
   },
   "checks": [
@@ -176,5 +176,6 @@
     "validate:css",
     "check:bundle-budget"
   ],
-  "publication": "pending"
+  "publication": "pending",
+  "scope": "Final combined client retaining current main2f6e230 and preference persistence repair"
 }

@@ -1,0 +1,37 @@
+{
+  "target": "checkPremiumSubscription",
+  "runtime": "nodejs22",
+  "dependencies": {
+    "firebase-admin": "13.10.0",
+    "firebase-functions": "6.6.0"
+  },
+  "files": [
+    {
+      "path": "lib/premiumStatus.js",
+      "sha256": "8167659c2c35925d7de6f39a77a5884d8c1e9ecf07d1248489b5c4da190a8a7c"
+    },
+    {
+      "path": "lib/_shared/admin.js",
+      "sha256": "fb1043730c28992de8109eb5e3f880d1e67a31a7c251a1cd049ede1eb85b2894"
+    },
+    {
+      "path": "lib/_shared/premiumAuthority.js",
+      "sha256": "9450a23ff2ecbeb9116dfedbc85299f1be2fee8dce6daa595c5f9b81ec18956b"
+    }
+  ],
+  "scope": "Existing read-only callable only; no auth/email/provider/mutation export",
+  "sourceFiles": [
+    {
+      "path": "functions/src/premiumStatus.ts",
+      "sha256": "23dc12f6542c0abc4d8e1d1b6542e6e598c4a5e91fd62ac1dd8b080e71e2bf86"
+    },
+    {
+      "path": "functions/src/_shared/admin.ts",
+      "sha256": "05575c67301fa8ac2f033569f38d372d85c7612c631a72f435c27c12fe92cc4a"
+    },
+    {
+      "path": "functions/src/_shared/premiumAuthority.ts",
+      "sha256": "42ad34eb520dc618c47f7ede7f4b39475294114cab2b482eb4fc995a8f760cfc"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "verifiedAt": "2026-11-15T01:12:20.639Z",
+  "target": "checkPremiumSubscription",
+  "operation": "projects/vybe-daaab/locations/us-central1/operations/operation-1794705070795-660465638ab96-e07277ce-b74b41b7",
+  "runtime": "nodejs22",
+  "state": "ACTIVE",
+  "updateTime": "2026-11-15T01:11:51.881615659Z",
+  "archiveSha256": "6823755d56c7986b57e81f79bfd4fff9e6257f231c69e83d26f4677acfa0d9b2",
+  "serviceConfigurationPreserved": true,
+  "publicTransportInvoker": true,
+  "probe": {
+    "options": 204,
+    "origin": "https://vybehub.app",
+    "post": 401,
+    "code": "UNAUTHENTICATED"
+  },
+  "scope": "One existing read-only callable. No Rules, other Functions, secrets, Auth/provider configuration, gifts, subscriptions or balances changed."
+}

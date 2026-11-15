@@ -3,6 +3,7 @@ import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
 import { verifiedPremiumStatus } from '@/lib/premiumGiftService';
 import { useEffect, useState } from 'react';
+import { useReportAccountSession } from './useReportAccountSession';
 
 const PREMIUM_ENTITLEMENT_ID = 'Vybe Social Pro';
 
@@ -21,15 +22,16 @@ const PREMIUM_ENTITLEMENT_ID = 'Vybe Social Pro';
 export function usePremiumStatus() {
   const { isEntitled, isLoading: rcLoading, customerInfo } = useRevenueCat();
   const { user } = useAuth();
+  const session = useReportAccountSession();
 
   // Check if user is owner or has gifted premium via DB
   const { data: dbPremium, isLoading: dbLoading, isError: dbError, refetch } = useQuery({
-    queryKey: ['db-premium-status', user?.id],
+    queryKey: ['db-premium-status', user?.id, session.epoch],
     queryFn: async () => {
       if (!user?.id) return { is_owner: false, gift_active: false, active: false, can_manage_gifts: false, expires_at: null };
       return verifiedPremiumStatus(user.id);
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && session.uid === user.id,
     staleTime: 60 * 1000,
     refetchInterval: query => query.state.data?.active || query.state.data?.is_owner || query.state.data?.can_manage_gifts ? 60_000 : false,
   });
