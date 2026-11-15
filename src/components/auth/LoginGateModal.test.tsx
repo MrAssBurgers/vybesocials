@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
-const mock = vi.hoisted(() => ({ invoke: vi.fn(), success: vi.fn(), error: vi.fn() }));
+const mock = vi.hoisted(() => ({ invoke: vi.fn(), success: vi.fn(), error: vi.fn(), inputRenders: 0 }));
 vi.mock('@/lib/firebase', () => ({ db: { functions: { invoke: mock.invoke }, channel: () => ({ on() { return this; }, subscribe() { return this; } }), removeChannel: vi.fn() } }));
 vi.mock('@/lib/firebase/firestoreDb', () => ({ getDocumentFromServer: vi.fn() }));
 vi.mock('@/lib/firebase/functionsService', () => ({ invokeFunction: vi.fn() }));
@@ -14,12 +14,12 @@ vi.mock('@/components/ui/dialog', () => ({
   DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
 }));
 vi.mock('@/components/ui/input-otp', () => ({
-  InputOTP: ({ value, onChange, disabled }: { value: string; onChange: (value: string) => void; disabled: boolean }) => <input aria-label="Code" value={value} onChange={event => onChange(event.target.value)} disabled={disabled} />,
+  InputOTP: ({ value, onChange, disabled }: { value: string; onChange: (value: string) => void; disabled: boolean }) => { mock.inputRenders++; return <input aria-label="Code" value={value} onChange={event => onChange(event.target.value)} disabled={disabled} />; },
   InputOTPGroup: () => null, InputOTPSlot: () => null,
 }));
 import { LoginGateModal, LOGIN_CODE_WAIT_MS } from './LoginGateModal';
 const props = () => ({ open: true, mode: 'code' as const, email: 'a***@example.test', challengeId: 'challenge-one', expiresAt: new Date(Date.now() + 600_000).toISOString(), onSuccess: vi.fn(), onCancel: vi.fn() });
-beforeEach(() => { vi.clearAllMocks(); mock.invoke.mockResolvedValue({ data: { ok: true }, error: null }); });
+beforeEach(() => { vi.clearAllMocks(); mock.inputRenders = 0; mock.invoke.mockResolvedValue({ data: { ok: true }, error: null }); });
 afterEach(cleanup);
 it('retries completion after an accepted code without verifying the one-use code again', async () => {
   mock.invoke.mockResolvedValue({ data: { ok: true, customToken: 'synthetic-token' }, error: null });
@@ -146,7 +146,7 @@ it('a failed deny does not dismiss the gate or report success', async () => {
   expect(p.onCancel).not.toHaveBeenCalled(); expect(mock.success).not.toHaveBeenCalled();
 });
 
-it('resumes a delayed one-use check without submitting the code again', async () => {
+it('automatically completes a delayed one-use check without another tap or submission', async () => {
   vi.useFakeTimers();
   try {
     let finish!: (value: unknown) => void;
@@ -154,16 +154,47 @@ it('resumes a delayed one-use check without submitting the code again', async ()
     const p = props(); render(<LoginGateModal {...p} />);
     await act(async () => { fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } }); });
     await act(async () => { await vi.advanceTimersByTimeAsync(LOGIN_CODE_WAIT_MS); });
-    expect(screen.getByRole('alert')).toHaveTextContent('still being checked');
-    expect(screen.getByRole('button', { name: 'Continue verification' })).toBeEnabled();
+    expect(screen.getByRole('status')).toHaveTextContent('automatically');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Change account' })).toBeEnabled();
     expect(p.onSuccess).not.toHaveBeenCalled(); expect(mock.invoke).toHaveBeenCalledOnce();
     // The server response can arrive while the user is deciding to continue.
     await act(async () => finish({ data: { ok: true, customToken: 'synthetic-delayed-token' }, error: null }));
-    expect(p.onSuccess).not.toHaveBeenCalled();
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Continue verification' })); });
     expect(mock.invoke).toHaveBeenCalledOnce();
     expect(p.onSuccess).toHaveBeenCalledWith(null, 'synthetic-delayed-token', { emailChallengeId: p.challengeId }, expect.any(Function));
+    expect(p.onSuccess).toHaveBeenCalledOnce();
+    expect(mock.error).not.toHaveBeenCalled();
+  } finally { vi.useRealTimers(); }
+});
+
+it('ticks the expiry without rerendering the code input', async () => {
+  vi.useFakeTimers();
+  try {
+    render(<LoginGateModal {...props()} />);
+    fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123' } });
+    const before = mock.inputRenders;
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+    expect(screen.getByText('9:55')).toBeInTheDocument();
+    expect(mock.inputRenders).toBe(before);
+    expect(screen.getByLabelText('Code')).toHaveValue('123');
+  } finally { vi.useRealTimers(); }
+});
+
+it('ignores a delayed result after closing and reopening the same challenge', async () => {
+  vi.useFakeTimers();
+  try {
+    let finish!: (value: unknown) => void;
+    mock.invoke.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    const p = props(), ui = render(<LoginGateModal {...p} />);
+    await act(async () => { fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } }); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(LOGIN_CODE_WAIT_MS); });
+    ui.rerender(<LoginGateModal {...p} open={false} />);
+    ui.rerender(<LoginGateModal {...p} />);
+    await act(async () => finish({ data: { ok: true, customToken: 'retired-token' }, error: null }));
+    expect(p.onSuccess).not.toHaveBeenCalled();
+    expect(mock.error).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Code')).toBeEnabled();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   } finally { vi.useRealTimers(); }
 });
 
@@ -192,7 +223,6 @@ it('shows the original delayed rejection inline and allows a corrected code', as
     await act(async () => { fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } }); });
     await act(async () => { await vi.advanceTimersByTimeAsync(LOGIN_CODE_WAIT_MS); });
     await act(async () => finish({ data: null, error: { name: 'permission-denied' } }));
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Continue verification' })); });
     expect(screen.getByRole('alert')).toHaveTextContent('Incorrect code');
     expect(screen.getByLabelText('Code')).toHaveValue(''); expect(mock.invoke).toHaveBeenCalledOnce();
     mock.invoke.mockResolvedValue({ data: { ok: true, customToken: 'corrected-token' }, error: null });
