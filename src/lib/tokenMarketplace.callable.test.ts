@@ -1,18 +1,26 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ db: {}, requireAuth: vi.fn(), rateLimit: vi.fn(), resolve: vi.fn(), state: vi.fn(), purchase: vi.fn(), activate: vi.fn(), equip: vi.fn(), earn: vi.fn() }));
+const mocks = vi.hoisted(() => ({ db: {}, account: vi.fn(), requireAuth: vi.fn(), rateLimit: vi.fn(), resolve: vi.fn(), state: vi.fn(), purchase: vi.fn(), activate: vi.fn(), equip: vi.fn(), earn: vi.fn() }));
+vi.mock('../../functions/src/_shared/tokenAccountAdmission', () => ({ currentTokenAccount: mocks.account }));
 vi.mock('../../functions/src/_shared/admin', () => ({ db: mocks.db, requireAuth: mocks.requireAuth, rateLimit: mocks.rateLimit,
   enforceRateLimit: (allowed: boolean) => { if (!allowed) throw Object.assign(new Error('Rate limited'), { code: 'resource-exhausted' }); } }));
 vi.mock('../../functions/src/_shared/tokenMarketplaceAuthority', () => ({ resolveTokenActor: mocks.resolve, tokenMarketplaceState: mocks.state, purchaseTokenItem: mocks.purchase, activateTokenBoost: mocks.activate, equipTokenItem: mocks.equip }));
 vi.mock('../../functions/src/_shared/tokenCreditAuthority', () => ({ claimTokenCredit: mocks.earn }));
 import { tokenMarketplace } from '../../functions/src/tokenMarketplace';
 const actor = { authUid: 'caller', profileId: 'legacy' };
+const account = { uid: 'caller', authTime: 1, createdAtMs: 1 };
 const call = (data: unknown) => tokenMarketplace.run({ data, auth: { uid: 'caller', token: {} } } as never);
 beforeEach(() => {
-  vi.clearAllMocks(); mocks.requireAuth.mockReturnValue('caller'); mocks.rateLimit.mockResolvedValue(true); mocks.resolve.mockResolvedValue(actor);
+  vi.clearAllMocks(); mocks.account.mockReset(); mocks.account.mockResolvedValue(account); mocks.requireAuth.mockReturnValue('caller'); mocks.rateLimit.mockResolvedValue(true); mocks.resolve.mockResolvedValue(actor);
   for (const handler of [mocks.state, mocks.purchase, mocks.activate, mocks.equip, mocks.earn]) handler.mockResolvedValue({ success: true });
 });
 describe('marketplace authenticated callable', () => {
+  it.each(['state', 'purchase', 'activate', 'equip', 'earn'])('rejects a retired Auth admission before %s reaches the ledger', async action => {
+    mocks.account.mockRejectedValue(Object.assign(new Error('Credentials revoked'), { code: 'unauthenticated' }));
+    await expect(call({ action })).rejects.toMatchObject({ code: 'unauthenticated' });
+    expect(mocks.resolve).not.toHaveBeenCalled();
+    for (const handler of [mocks.state, mocks.purchase, mocks.activate, mocks.equip, mocks.earn]) expect(handler).not.toHaveBeenCalled();
+  });
   it('requires authentication before rate/database access', async () => {
     mocks.requireAuth.mockImplementation(() => { throw Object.assign(new Error('Sign in'), { code: 'unauthenticated' }); });
     await expect(call({ action: 'state' })).rejects.toMatchObject({ code: 'unauthenticated' });
@@ -30,9 +38,10 @@ describe('marketplace authenticated callable', () => {
     await expect(call({ action: 'purchase' })).rejects.toMatchObject({ code: 'resource-exhausted' }); expect(mocks.purchase).not.toHaveBeenCalled();
   });
   it.each([['purchase', 'purchase'], ['activate', 'activate'], ['equip', 'equip']] as const)('routes %s with the resolved caller identity only', async (action, handler) => {
-    const data = { action, user_id: 'victim', profileId: 'victim', itemId: 'xp_boost_2x', requestId: 'request', expectedCost: 75 };
+    const data = { action, user_id: 'victim', profileId: 'victim', account: { uid: 'victim', createdAtMs: 1 }, itemId: 'xp_boost_2x', requestId: 'request', expectedCost: 75 };
     await call(data);
-    expect(mocks.resolve).toHaveBeenCalledWith(mocks.db, 'caller');
+    expect(mocks.account).toHaveBeenCalledWith('caller', {});
+    expect(mocks.resolve).toHaveBeenCalledWith(mocks.db, 'caller', account);
     expect(mocks[handler]).toHaveBeenCalledWith(mocks.db, actor, data);
     expect(mocks.rateLimit).toHaveBeenCalledWith('token-marketplace-mutation:caller', 30, 60);
   });

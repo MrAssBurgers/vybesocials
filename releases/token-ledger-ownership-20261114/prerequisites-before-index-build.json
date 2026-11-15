@@ -1,0 +1,39 @@
+{
+  "checkedAt": "2026-11-15T04:40:59.643Z",
+  "indexes": [
+    {
+      "collection": "token_events",
+      "expected": [
+        {
+          "fieldPath": "user_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "created_at",
+          "order": "DESCENDING"
+        }
+      ],
+      "matches": []
+    },
+    {
+      "collection": "_challenge_reward_authority",
+      "expected": [
+        {
+          "fieldPath": "auth_uid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "badge_id",
+          "order": "ASCENDING"
+        }
+      ],
+      "matches": []
+    }
+  ],
+  "candidateRules": {
+    "sha256": "95021de9bd76ea39d3bfbc07c2907b3d8a7ddfc182f5dd8e16fe5641d4f14cc7",
+    "errors": 0,
+    "warnings": 12
+  },
+  "scope": "Read-only index metadata and compile-only Rules test. No index creation, Rules release or domain-data mutation."
+}

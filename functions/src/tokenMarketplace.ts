@@ -2,6 +2,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import { resolveTokenActor, tokenMarketplaceState, purchaseTokenItem, activateTokenBoost, equipTokenItem } from './_shared/tokenMarketplaceAuthority.js';
 import { claimTokenCredit } from './_shared/tokenCreditAuthority.js';
+import { currentTokenAccount } from './_shared/tokenAccountAdmission.js';
 
 export const tokenMarketplace = onCall({ region: 'us-central1', memory: '256MiB', timeoutSeconds: 60, cors: true, invoker: 'public' }, async request => {
   const uid = requireAuth(request);
@@ -11,7 +12,8 @@ export const tokenMarketplace = onCall({ region: 'us-central1', memory: '256MiB'
   }
   enforceRateLimit(await rateLimit(`token-marketplace:${uid}`, 60, 60));
   if (input.action !== 'state') enforceRateLimit(await rateLimit(`token-marketplace-mutation:${uid}`, 30, 60));
-  const actor = await resolveTokenActor(db, uid);
+  const account = await currentTokenAccount(uid, request.auth!.token);
+  const actor = await resolveTokenActor(db, uid, account);
   switch (input.action) {
     case 'state': return tokenMarketplaceState(db, actor);
     case 'purchase': return purchaseTokenItem(db, actor, input);

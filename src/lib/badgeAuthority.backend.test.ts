@@ -59,6 +59,16 @@ beforeEach(() => {
 });
 
 describe('staff badge authority', () => {
+  it('blocks an old positive award writer in an anchored ledger while retaining negative revocation', async () => {
+    const owner = { schema_version: 1, owner_uid: 'target-auth', marker: 'retained' };
+    rows.set('_token_account_authority/target-auth', owner);
+    await expect(change('award')).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(rows.has(grantPath)).toBe(false);
+    rows.set(grantPath, { user_id: 'target-auth', badge_id: 'special' });
+    await expect(change('revoke')).resolves.toMatchObject({ success: true });
+    expect(rows.has(grantPath)).toBe(false); expect(rows.get(proofPath)?.active).toBe(false);
+    expect(rows.get('_token_account_authority/target-auth')).toEqual(owner);
+  });
   it.each([awardBadge, revokeBadge])('rejects non-admin callers before reading targets', async callable => {
     auth.requireAdmin.mockRejectedValue(Object.assign(new Error('Admin only'), { code: 'permission-denied' }));
     await expect(callable.run({ data: input } as never)).rejects.toMatchObject({ code: 'permission-denied' });

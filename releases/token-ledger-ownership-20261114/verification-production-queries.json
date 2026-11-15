@@ -1,0 +1,16 @@
+{
+  "checkedAt": "2026-11-15T04:49:28.957Z",
+  "results": [
+    {
+      "collection": "token_events",
+      "status": 200,
+      "documents": 0
+    },
+    {
+      "collection": "_challenge_reward_authority",
+      "status": 200,
+      "documents": 0
+    }
+  ],
+  "scope": "Exact production query shapes using random nonexistent owners; returned no documents. Query/index admission only, not authenticated shop functionality."
+}

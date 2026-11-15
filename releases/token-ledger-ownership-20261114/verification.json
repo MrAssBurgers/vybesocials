@@ -1,0 +1,33 @@
+{
+  "full": {
+    "passed": 5368,
+    "skipped": 6,
+    "filesPassed": 548,
+    "filesSkipped": 1,
+    "seconds": 120.54,
+    "session": 70520
+  },
+  "typesLintBuild": {
+    "passed": true,
+    "session": 20543
+  },
+  "functionsBuild": true,
+  "sdkAuthenticatedCases": 15,
+  "legacyDirectHelperCases": 27,
+  "rulesSdkCases": 287,
+  "rulesCandidateSha256": "95021de9bd76ea39d3bfbc07c2907b3d8a7ddfc182f5dd8e16fe5641d4f14cc7",
+  "rulesCompileErrors": 0,
+  "rulesCompileWarnings": 12,
+  "clientSourceSha256": "5dade1c2c4a6e7e0961c2a54f12afd3e3ed770962e8f124d3da521ab3f0d7b75",
+  "clientSourceFiles": 2677,
+  "entry": "/assets/app-DGXisj8z.js",
+  "runtimeChangesAfterFinalChecks": false,
+  "productionChanges": "Only the two already-declared composite indexes; both verified READY and exact query shapes HTTP200 with no documents",
+  "noFunctionRulesOrClientDeploy": true,
+  "limits": [
+    "Per-record stamps needed for genuinely older deployed writers",
+    "Positive staff-award target lane not yet matched",
+    "Historical protected rewards and legacy balances need reconciliation",
+    "Physical installed behavior and whole-app readiness unverified"
+  ]
+}

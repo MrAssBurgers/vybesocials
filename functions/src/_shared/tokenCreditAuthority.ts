@@ -3,9 +3,11 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { createHash } from 'node:crypto';
 import { resolveIdentity } from './profileAudienceAuthority.js';
 import { validPostPublication } from './postPublicationProof.js';
+import { tokenAccountTransaction, type TokenAccountContext } from './tokenAccountAdmission.js';
+import { assertTokenLedgerOwner } from './tokenLedgerOwnership.js';
 
 type Row = Record<string, unknown>;
-export type TokenActor = { authUid: string; profileId: string };
+export type TokenActor = { authUid: string; profileId: string; account?: TokenAccountContext };
 export const tokenAuthorityId = (parts: string[]) => createHash('sha256').update(JSON.stringify(parts)).digest('hex');
 const DAY = 86_400_000;
 const rates = {
@@ -59,6 +61,7 @@ export async function resolveTokenActorIdentity(tx: Transaction, db: Firestore, 
 
 export async function assertTokenActor(tx: Transaction, db: Firestore, actor: TokenActor): Promise<void> {
   await resolveTokenActorIdentity(tx, db, actor.authUid, actor.profileId);
+  await assertTokenLedgerOwner(tx, db, actor);
 }
 
 /** Only the protected canonical grant is eligible. Invalid/legacy grants give no multiplier. */
@@ -97,6 +100,7 @@ async function verifySource(tx: Transaction, db: Firestore, actor: TokenActor, t
       || typeof row.requirement_count !== 'number' || !Number.isSafeInteger(row.requirement_count) || row.requirement_count < 1 || row.requirement_count > 200) {
       throw new HttpsError('failed-precondition', 'A newly verified, claimed challenge is required');
     }
+    if (actor.account && (claimed < actor.account.createdAtMs || !source.createTime || source.createTime.toMillis() < actor.account.createdAtMs)) throw review();
     return;
   }
   const collection = type === 'comment_added' ? 'comments' : 'posts';
@@ -105,6 +109,7 @@ async function verifySource(tx: Transaction, db: Firestore, actor: TokenActor, t
   const ownerField = type === 'comment_added' && row && Object.hasOwn(row, 'user_id') ? 'user_id' : 'author_id';
   if (!row || !ownsSource(row, actor, ownerField)) throw new HttpsError('permission-denied', 'Activity must belong to your account');
   if (!live(row) || !content(row) || created == null || !Number.isFinite(created) || created < start || created > now) throw new HttpsError('failed-precondition', 'A current, published activity is required');
+  if (actor.account && created < actor.account.createdAtMs) throw review();
   if (type === 'post_created') {
     const owner = await resolveIdentity(db, tx, actor.authUid), proof = (await tx.get(db.collection('_post_publications').doc(referenceId))).data();
     if (!owner || owner.profileId !== actor.profileId || !validPostPublication(row, proof, owner, referenceId)) throw new HttpsError('failed-precondition', 'Review and share this post before claiming its reward.');
@@ -126,7 +131,7 @@ export async function claimTokenCredit(db: Firestore, actor: TokenActor, input: 
   const walletRef = db.collection('token_wallets').doc(actor.authUid);
   const quotaRef = db.collection('_token_credit_day_limits').doc(actor.authUid);
   const eventRef = db.collection('token_events').doc(key);
-  return db.runTransaction(async tx => {
+  return tokenAccountTransaction(db, actor, async tx => {
     await assertTokenActor(tx, db, actor);
     const [receiptSnap, walletSnap, quotaSnap, boostSnap, eventSnap] = await Promise.all([
       tx.get(receiptRef), tx.get(walletRef), tx.get(quotaRef),

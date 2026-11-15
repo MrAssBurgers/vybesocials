@@ -18,7 +18,7 @@ try{
  await env.clearFirestore();
  const equipped=Object.fromEntries(['title','effect','frame','name_color','profile_theme','badge_id'].map(key=>['equipped_'+key,'verified-'+key]));
  await seed('profiles','legacy-alice',{user_id:'token-alice',...equipped,bio:'Hello'});await seed('profiles','token-bob',{user_id:'token-bob'});await seed('user_auth_index','token-alice',{profile_id:'legacy-alice'});
- for(const table of['token_wallets','token_entitlements','token_boosts','token_events','_token_purchase_requests','_token_credit_receipts','_token_credit_day_limits','_verified_xp_authority','_badge_grant_authority','_challenge_reward_authority']){
+ for(const table of['_token_account_authority','token_wallets','token_entitlements','token_boosts','token_events','_token_purchase_requests','_token_credit_receipts','_token_credit_day_limits','_verified_xp_authority','_badge_grant_authority','_challenge_reward_authority']){
   await seed(table,'token-alice',{user_id:'token-alice',schema_version:1,balance:10,active:true});
   for(const[label,client]of[['owner',alice],['outsider',bob],['staff',staff],['guest',guest]]){
    await no(`${label} get ${table}`,()=>getDoc(doc(client,table,'token-alice')));
@@ -45,4 +45,4 @@ try{
  await yes('free appearance settings remain editable',()=>setDoc(doc(alice,'profiles','legacy-alice','settings','appearance'),{accent:'purple'}));
  await no('profile replacement cannot strip equipment',()=>setDoc(doc(alice,'profiles','legacy-alice'),{user_id:'token-alice'}));
  console.log(`PASS ${checks} exact-candidate marketplace Rules SDK checks; unrelated post/comment publication protocols are outside this Rules slice`);
-}finally{await env.cleanup();}
+}finally{await env.clearFirestore();await env.cleanup();}

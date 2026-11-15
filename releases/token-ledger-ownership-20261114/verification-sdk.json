@@ -1,0 +1,67 @@
+{
+  "checkedAt": "2026-11-15T04:37:17.458Z",
+  "runtime": "v22.23.5",
+  "results": [
+    {
+      "name": "guest has no account or ledger lookup",
+      "pass": true
+    },
+    {
+      "name": "real JWT and precise current Auth admit state and one daily credit",
+      "pass": true
+    },
+    {
+      "name": "disabled account cannot read token state",
+      "pass": true
+    },
+    {
+      "name": "deleted account cannot read token state",
+      "pass": true
+    },
+    {
+      "name": "disable-before-commit rolls back the actual earning transaction",
+      "pass": true
+    },
+    {
+      "name": "replace-before-commit rolls back the actual earning transaction",
+      "pass": true
+    },
+    {
+      "name": "fail-commit rolls back the actual earning transaction",
+      "pass": true
+    },
+    {
+      "name": "precise Auth lookup detects same-second replacement hidden by Admin metadata",
+      "pass": true
+    },
+    {
+      "name": "current account owns exactly-once purchases, equipment and boost activation",
+      "pass": true
+    },
+    {
+      "name": "a fresh request after same-second UID recreation cannot inherit balance or purchase replay",
+      "pass": true
+    },
+    {
+      "name": "unbound private reward history is preserved for review rather than reset or adopted",
+      "pass": true
+    },
+    {
+      "name": "missing owner record cannot silently reinitialize a nonempty ledger",
+      "pass": true
+    },
+    {
+      "name": "disabled admission before owner commit leaves no partial owner record",
+      "pass": true
+    },
+    {
+      "name": "first owner initialization and an old writer cannot both succeed under contention",
+      "pass": true
+    },
+    {
+      "name": "matched authenticated challenge sync, XP claim and token credit share the durable owner",
+      "pass": true
+    }
+  ],
+  "scope": "Actual callables, real demo JWT/Auth/Firestore. Durable owner, replay, contention, financial and interactive reward paths. Historical reconciliation, staff award cutover and production readiness remain separate."
+}

@@ -1,0 +1,24 @@
+{
+  "full": {
+    "passed": 5343,
+    "skipped": 6,
+    "filesPassed": 548,
+    "filesSkipped": 1,
+    "seconds": 119.3,
+    "session": 64791
+  },
+  "buildTypesLint": {
+    "passed": true,
+    "session": 13494
+  },
+  "functionsBuild": true,
+  "runtimeEditAfterChecks": false,
+  "clientSourceSha256": "fd5f42060283ea14f0fe539a28d8d6a0cf81f013c1a1913eacc650fc0b13b05f",
+  "clientSourceFiles": 2677,
+  "localEntry": "/assets/app-DGXisj8z.js",
+  "sdkCases": 8,
+  "sdkRuntime": "v22.23.5",
+  "liveServiceStatus": 404,
+  "productionChanges": false,
+  "remaining": "Durable ledger incarnation ownership, matched reward writers, indexes and coordinated Rules/backend cutover"
+}

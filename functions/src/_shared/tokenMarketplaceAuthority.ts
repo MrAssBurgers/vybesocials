@@ -2,10 +2,12 @@ import { createHash } from 'node:crypto';
 import type { Firestore, Transaction, DocumentSnapshot } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { isActivePremiumGrant, unexpired } from './premiumAuthority.js';
-import { resolveTokenActorIdentity } from './tokenCreditAuthority.js';
+import { resolveTokenActorIdentity, assertTokenActor } from './tokenCreditAuthority.js';
+import { tokenAccountTransaction, type TokenAccountContext } from './tokenAccountAdmission.js';
+import { initializeTokenLedgerOwner } from './tokenLedgerOwnership.js';
 
 type Row = Record<string, unknown>;
-export type TokenActor = { authUid: string; profileId: string };
+export type TokenActor = { authUid: string; profileId: string; account?: TokenAccountContext };
 export const tokenTupleId = (...parts: string[]) => createHash('sha256').update(JSON.stringify(parts)).digest('hex');
 const review = () => new HttpsError('failed-precondition', 'This account or item needs verification. Historical balances and purchases have not been imported.');
 const MAX_INVENTORY = 100;
@@ -38,15 +40,17 @@ export function tokenRequestId(value: unknown): string {
   return value;
 }
 
-export async function resolveTokenActor(database: Firestore, uid: string): Promise<TokenActor> {
-  return database.runTransaction(async tx => {
+export async function resolveTokenActor(database: Firestore, uid: string, account?: TokenAccountContext): Promise<TokenActor> {
+  return tokenAccountTransaction(database, { authUid: uid, account }, async tx => {
     const identity = await resolveTokenActorIdentity(tx, database, uid);
-    return { authUid: uid, profileId: identity.profileId };
+    const actor = Object.freeze({ authUid: uid, profileId: identity.profileId, ...(account ? { account } : {}) });
+    await initializeTokenLedgerOwner(tx, database, actor);
+    return actor;
   });
 }
 
 async function readActor(tx: Transaction, database: Firestore, actor: TokenActor) {
-  await resolveTokenActorIdentity(tx, database, actor.authUid, actor.profileId);
+  await assertTokenActor(tx, database, actor);
   return tx.get(database.collection('profiles').doc(actor.profileId));
 }
 
@@ -92,7 +96,7 @@ export async function purchaseTokenItem(database: Firestore, actor: TokenActor, 
   const walletRef = database.collection('token_wallets').doc(actor.authUid);
   const inventoryRef = database.collection('token_entitlements').doc(tokenTupleId(actor.authUid, item.id));
   const eventRef = database.collection('token_events').doc(tokenTupleId(actor.authUid, 'purchase', requestId));
-  return database.runTransaction(async tx => {
+  return tokenAccountTransaction(database, actor, async tx => {
     const [, request, walletSnap, inventorySnap, event] = await Promise.all([
       readActor(tx, database, actor), tx.get(requestRef), tx.get(walletRef), tx.get(inventoryRef), tx.get(eventRef),
     ]);
@@ -123,7 +127,7 @@ export async function activateTokenBoost(database: Firestore, actor: TokenActor,
   const requestRef = database.collection('_token_purchase_requests').doc(tokenTupleId(actor.authUid, requestId));
   const inventoryRef = database.collection('token_entitlements').doc(tokenTupleId(actor.authUid, item.id));
   const boostRef = database.collection('token_boosts').doc(tokenTupleId(actor.authUid, type));
-  return database.runTransaction(async tx => {
+  return tokenAccountTransaction(database, actor, async tx => {
     const [, request, inventory, active] = await Promise.all([readActor(tx, database, actor), tx.get(requestRef), tx.get(inventoryRef), tx.get(boostRef)]);
     const prior = replay(request, actor, requestId, fingerprint); if (prior) return prior;
     const owned = entitlement(inventory.data(), actor, item), oldBoost = boostRow(active.data(), actor.authUid, type);
@@ -140,7 +144,7 @@ export async function activateTokenBoost(database: Firestore, actor: TokenActor,
 }
 
 export async function tokenMarketplaceState(database: Firestore, actor: TokenActor, nowMs = Date.now()) {
-  return database.runTransaction(async tx => {
+  return tokenAccountTransaction(database, actor, async tx => {
     const ownerIds = [...new Set([actor.authUid, actor.profileId])];
     const [, wallet, inventory, boosts, events, legacy, verifiedXp] = await Promise.all([
       readActor(tx, database, actor), tx.get(database.collection('token_wallets').doc(actor.authUid)),
@@ -180,7 +184,7 @@ export async function equipTokenItem(database: Firestore, actor: TokenActor, inp
     throw new HttpsError('invalid-argument', 'Invalid cosmetic selection');
   }
   const type = input.type as keyof typeof EQUIP_FIELDS, value = input.value as string | null, field = EQUIP_FIELDS[type];
-  return database.runTransaction(async tx => {
+  return tokenAccountTransaction(database, actor, async tx => {
     const profile = await readActor(tx, database, actor);
     if (value === null && profile.data()?.[field] === null) return { success: true, type, value };
     if (value !== null) {

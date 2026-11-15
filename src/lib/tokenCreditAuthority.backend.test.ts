@@ -3,6 +3,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { claimTokenCredit, tokenAuthorityId, validatedTokenBoostMultiplier } from '../../functions/src/_shared/tokenCreditAuthority';
 import { postSourceFingerprint } from '../../functions/src/_shared/postPublicationProof';
+import { captureTokenAccount } from '../../functions/src/_shared/tokenAccountAdmission';
 
 type Row = Record<string, unknown>;
 const now = Date.parse('2026-10-03T12:00:00Z');
@@ -125,6 +126,33 @@ beforeEach(() => {
   rows.set('profiles/other-profile', { user_id: 'other-auth' });
   rows.set('posts/target', { author_id: 'other-profile', caption: 'Another person’s post' });
   publication('target', 'other-auth', 'other-profile');
+});
+
+describe('anchored reward source ownership', () => {
+  it('a delayed previous-day credit cannot reset the current account daily cap', async () => {
+    const creation = now - 10_000 + 123, revision = 'a'.repeat(48), tomorrow = now + 86_400_000;
+    const account = await captureTokenAccount(actor.authUid, { auth_time: Math.floor(now / 1000) }, async () => ({ uid: actor.authUid, createdAtMs: creation, validSince: 0, disabled: false }), () => now);
+    const scoped = { ...actor, account };
+    rows.set(`_account_profile_bindings/${actor.authUid}`, { version: 1, status: 'active', owner_uid: actor.authUid, profile_id: actor.profileId, auth_created_at_ms: Math.floor(creation / 1000) * 1000, revision });
+    rows.set(`_token_account_authority/${actor.authUid}`, { schema_version: 1, owner_uid: actor.authUid, profile_id: actor.profileId, auth_created_at_ms: creation, binding_revision: revision, created_at: new Date(now).toISOString() });
+    for (let i = 0; i < 3; i++) await claimTokenCredit(database, scoped, { type: 'post_created', referenceId: post(`tomorrow-${i}`, {}, tomorrow) }, tomorrow);
+    await expect(claimTokenCredit(database, scoped, { type: 'post_created', referenceId: post('delayed-yesterday', {}, now) }, now)).rejects.toMatchObject({ code: 'failed-precondition' });
+    await expect(claimTokenCredit(database, scoped, { type: 'post_created', referenceId: post('tomorrow-over-cap', {}, tomorrow) }, tomorrow)).rejects.toMatchObject({ code: 'resource-exhausted' });
+    expect(rows.get(walletPath)?.balance).toBe(30);
+  });
+  it.each(['post_created', 'comment_added', 'challenge_completed'])('does not credit %s from before the current Auth account existed', async type => {
+    const creation = now - 10_000 + 123, revision = 'a'.repeat(48);
+    const account = await captureTokenAccount(actor.authUid, { auth_time: Math.floor(now / 1000) }, async () => ({ uid: actor.authUid, createdAtMs: creation, validSince: 0, disabled: false }), () => now);
+    const scoped = { ...actor, account };
+    rows.set(`_account_profile_bindings/${actor.authUid}`, { version: 1, status: 'active', owner_uid: actor.authUid, profile_id: actor.profileId, auth_created_at_ms: Math.floor(creation / 1000) * 1000, revision });
+    rows.set(`_token_account_authority/${actor.authUid}`, { schema_version: 1, owner_uid: actor.authUid, profile_id: actor.profileId, auth_created_at_ms: creation, binding_revision: revision, created_at: new Date(now).toISOString() });
+    const reference = type === 'post_created' ? post('old-source', {}, creation - 1) : type === 'comment_added' ? comment('old-source', {}, creation - 1) : challenge('old-source');
+    if (type === 'challenge_completed') created.set(`_challenge_reward_authority/${tokenAuthorityId([actor.authUid, reference])}`, creation - 1);
+    await expect(claimTokenCredit(database, scoped, { type, referenceId: reference }, now)).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(rows.has(walletPath)).toBe(false); expect(rows.has(receiptPath(type, reference))).toBe(false);
+    const current = type === 'post_created' ? post('current-source') : type === 'comment_added' ? comment('current-source') : challenge('current-source');
+    expect((await claimTokenCredit(database, scoped, { type, referenceId: current }, now)).credited).toBe(type === 'post_created' ? 10 : type === 'comment_added' ? 2 : 25);
+  });
 });
 
 describe('post publication reward provenance', () => {
