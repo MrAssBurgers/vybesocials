@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mergeLegacyAndProjection } from './dmInboxProjectionMerge';
+import { mapInboxEntryDoc } from './dmInboxProjection';
+import { viewerDmMembership } from './dmAccountScope';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import type { DmInboxEntryDoc } from '@/features/dms/dm.types';
 
@@ -24,6 +26,21 @@ function projectionEntry(id: string): DmInboxEntryDoc {
 }
 
 describe('mergeLegacyAndProjection', () => {
+  it.each(['viewer', 'auth-viewer'])('retains an acknowledged %s membership preference over an older projection', identity => {
+    const stored = { ...legacy('a'), member_ids: ['viewer', 'peer'],
+      members: [{ conversation_id: 'a', user_id: identity, role: 'owner', is_pinned: false, is_muted: false }] } as LoadedDMConversation;
+    const result = mergeLegacyAndProjection({
+      legacy: [stored], projectionEntries: [mapInboxEntryDoc('viewer_a', {
+        viewer_id: 'viewer', conversation_id: 'a', member_ids: ['viewer', 'peer'],
+        is_pinned: true, is_muted: true, other_profile_id: 'peer', display_name: 'Updated peer',
+      })], lockedIds: new Set(), projectionReadEnabled: true, projectionReady: true,
+      viewerId: 'viewer', viewerAuthUid: 'auth-viewer',
+    });
+    expect(viewerDmMembership(result[0], 'viewer', 'auth-viewer')).toMatchObject({
+      user_id: identity, role: 'owner', is_pinned: false, is_muted: false,
+    });
+    expect(result[0].members?.find(member => member.user_id === 'peer')?.profile?.display_name).toBe('Updated peer');
+  });
   it('rejects another viewer projection even when its conversation ID matches', () => {
     const result = mergeLegacyAndProjection({
       legacy: [legacy('a')], projectionEntries: [{ ...projectionEntry('foreign'), viewer_id: 'bob' }],

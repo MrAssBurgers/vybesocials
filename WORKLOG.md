@@ -1,3 +1,17 @@
+## ACTIVE (2026-11-14) - Pin/mute persistence verified; client release pending
+
+- Revalidated clean maina27b363 and retained local demo services before acting. The saved canonical pin/mute values were intact. Projected member rows omitted conversation_id, so strict action guards reported false/rejected controls. The adapter now carries the stored participant list and scoped member tuples with the required display shape.
+- A stale projected membership also overwrote acknowledged preferences. Merge preserves physical membership roles/preferences and known UID write targets while refreshing peer profiles. It does not invent membership or relax the server read/write checks.
+- One actual action-hook case and two canonical/UID merge cases failed before their respective fixes. Final full suite540files pass/one skip,5233tests pass/six skip,205.57s. Types/lint zero warnings/errors; build/boot/native entry/CSS/budget pass; localapp-Cb8WYRvf.js858.6KB raw261.9KB gzip. No runtime change after checks.
+- Real demo browser/Firebase writes, actual server projection rebuilds and full reloads verified both off and on directions, plus immediate labels. Other aliases/peer preference flags stayed unchanged. Original preference values and rollout config restored; QA tab closed and viewport reset. Screenshotwork/preferences-persisted.jpg remains local.
+- Current production read-only probes showcheckPremiumSubscription OPTIONS204 and POST401 UNAUTHENTICATED with proper origin; the earlier403 no longer reproduces. No premium/IAM change was made here. tokenMarketplace remains404/absent from current inventory. Authenticated entitlement/payment behavior is not certified.
+- See [preference release record](releases/inbox-preferences-20261114/README.md). This is a client-only repair; no backend, production preference/content, provider, permission, billing or native binary update.
+
+### Next three tasks
+1. Publish the verified preference client and confirm exact public source/native delivery.
+2. Review the marketplace service's matched authority, indexes and rules prerequisites; verify the now-reachable premium service through an actual permitted signed-in read.
+3. Continue remaining app/website/provider and physical-device performance/lifecycle journeys. The original whole-app goal remains active.
+
 ## ACTIVE (2026-11-14) - Combined inbox follow-up published and verified
 
 - Reconciled concurrent main3dab96c before pushing. Preserved its verified login recovery, lighter mobile rendering, shared captured mutation wrapper, exact four-part private keys and acknowledged read/membership checks. Archive optimism/rollback uses that same captured actor and hidden cache key; no security or login work was overwritten.

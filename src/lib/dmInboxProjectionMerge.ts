@@ -2,6 +2,7 @@ import type { DmInboxEntryDoc } from '@/features/dms/dm.types';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import { projectionToLoadedConversation } from '@/lib/dmInboxProjection';
 import { pickNewerMessageClock } from '@/lib/sortInboxConversations';
+import { safeDmMembers } from '@/lib/persistedCollections';
 
 export interface MergeLegacyProjectionInput {
   legacy: LoadedDMConversation[];
@@ -21,6 +22,7 @@ export interface MergeLegacyProjectionInput {
 export function patchProjectionOntoLegacy(
   legacy: LoadedDMConversation,
   projected: LoadedDMConversation,
+  viewerAliases: Array<string | null | undefined> = [],
 ): LoadedDMConversation {
   const legacyMsgAt = legacy.last_message?.created_at;
   const projectedMsgAt = projected.last_message?.created_at;
@@ -33,13 +35,30 @@ export function patchProjectionOntoLegacy(
   const last_message = useProjectedMessage
     ? projected.last_message
     : legacy.last_message ?? projected.last_message;
+  const storedMembers = safeDmMembers(legacy.members)
+    .filter(member => member.conversation_id === legacy.id);
+  const storedById = new Map(storedMembers.map(member => [member.user_id, member]));
+  const hasStoredViewer = storedMembers.some(member => viewerAliases.includes(member.user_id));
+  const previewMembers = safeDmMembers(projected.members)
+    // A derived canonical stub must not shadow an existing physical UID tuple.
+    .filter(member => !hasStoredViewer || !viewerAliases.includes(member.user_id) || storedById.has(member.user_id));
+  const previewIds = new Set(previewMembers.map(member => member.user_id));
+  const members = [
+    ...previewMembers.map(member => {
+      const stored = storedById.get(member.user_id);
+      // Membership is the write target and preference source. A projection may
+      // refresh the peer profile, but cannot undo an acknowledged local change.
+      return stored ? { ...member, ...stored, profile: member.profile ?? stored.profile } : member;
+    }),
+    ...storedMembers.filter(member => !previewIds.has(member.user_id)),
+  ] as LoadedDMConversation['members'];
 
   return {
     ...legacy,
     name: projected.name ?? legacy.name,
     unread_count: projected.unread_count ?? legacy.unread_count,
     _hasUnread: projected._hasUnread ?? legacy._hasUnread,
-    members: projected.members?.length ? projected.members : legacy.members,
+    members,
     last_message,
     // Sort clock follows real message only — never projection.updated_at.
     _sortTime: last_message?.created_at || legacy.created_at || '',
@@ -84,7 +103,7 @@ export function mergeLegacyAndProjection(
   for (const conversation of filteredLegacy) {
     if (seen.has(conversation.id)) continue;
     const projected = projectionById.get(conversation.id);
-    const row = projected ? patchProjectionOntoLegacy(conversation, projected) : conversation;
+    const row = projected ? patchProjectionOntoLegacy(conversation, projected, [input.viewerId, input.viewerAuthUid]) : conversation;
     ordered.push(row);
     seen.add(conversation.id);
   }

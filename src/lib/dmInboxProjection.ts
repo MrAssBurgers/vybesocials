@@ -187,14 +187,18 @@ export function projectionToLoadedConversation(
 
   return {
     id: entry.conversation_id,
+    ...(entry.member_ids?.length ? { member_ids: [...entry.member_ids] } : {}),
     is_group: entry.conversation_type === 'group',
     name: entry.display_name,
+    avatar_url: entry.avatar_url ?? null,
+    created_at: '',
     // Display-only updated_at; sort uses last_message.created_at exclusively.
     updated_at: messageAt || entry.updated_at || '',
     unread_count: entry.unread_count,
     last_message: lastMessage as LoadedDMConversation['last_message'],
     members: [
       {
+        conversation_id: entry.conversation_id,
         user_id: entry.viewer_id,
         role: 'member',
         is_muted: entry.is_muted,
@@ -205,6 +209,7 @@ export function projectionToLoadedConversation(
       ...(entry.other_profile_id
         ? [
             {
+              conversation_id: entry.conversation_id,
               user_id: entry.other_profile_id,
               role: 'member' as const,
               is_muted: false,

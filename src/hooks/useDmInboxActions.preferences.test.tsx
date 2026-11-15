@@ -19,6 +19,7 @@ vi.mock('@/hooks/useDMConversations', () => ({ useMarkConversationRead: () => ({
 vi.mock('sonner', () => ({ toast: { success: state.success, error: state.error } }));
 import { useDmInboxActions } from './useDmInboxActions';
 import { dmListQueryKey, dmPrivateKey } from '@/lib/dmAccountScope';
+import { mapInboxEntryDoc, projectionToLoadedConversation } from '@/lib/dmInboxProjection';
 import { reportAccountSnapshot } from '@/lib/reportModerationService';
 import { setActiveAuthUserId, setCachedCurrentProfile } from '@/lib/profileCache';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
@@ -46,6 +47,38 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe('existing inbox pin and mute actions', () => {
+  it('does not use a projected member when the stored participant list excludes the viewer', async () => {
+    const projected = projectionToLoadedConversation(mapInboxEntryDoc('profile-alice_chat', {
+      viewer_id: 'profile-alice', conversation_id: 'chat',
+      member_ids: ['profile-bob', 'profile-charlie'], is_pinned: true,
+    }));
+    const client = new QueryClient();
+    const wrapper = ({ children }: PropsWithChildren) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const hook = renderHook(() => useDmInboxActions(projected), { wrapper });
+    await expect(hook.result.current.togglePin.mutateAsync(false)).rejects.toThrow('Refresh Messages');
+    expect(state.read).not.toHaveBeenCalled();
+    expect(state.write).not.toHaveBeenCalled();
+    client.clear();
+  });
+  it('keeps saved preferences usable after a server inbox projection replaces the legacy row', async () => {
+    const projected = projectionToLoadedConversation(mapInboxEntryDoc('profile-alice_chat', {
+      viewer_id: 'profile-alice', conversation_id: 'chat',
+      member_ids: ['profile-alice', 'profile-bob', 'alice', 'bob'],
+      other_profile_id: 'profile-bob', is_pinned: true, is_muted: true,
+    }));
+    const client = new QueryClient();
+    client.setQueryData(dmListQueryKey('profile-alice'), [projected]);
+    const wrapper = ({ children }: PropsWithChildren) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const hook = renderHook(() => useDmInboxActions(projected), { wrapper });
+    expect(hook.result.current.isPinned).toBe(true);
+    expect(hook.result.current.isMuted).toBe(true);
+    state.read.mockResolvedValue({ conversation_id: 'chat', user_id: 'profile-alice' });
+    await act(async () => { await hook.result.current.togglePin.mutateAsync(false); });
+    await act(async () => { await hook.result.current.toggleMute.mutateAsync(false); });
+    expect(state.write).toHaveBeenCalledWith('conversation_members', 'chat_profile-alice', { is_pinned: false });
+    expect(state.write).toHaveBeenCalledWith('conversation_members', 'chat_profile-alice', { is_muted: false });
+    client.clear();
+  });
   it('optimistically excludes an archived chat from projection and legacy lists', async () => {
     const { client, key, hook } = setup();
     client.setQueryData(hiddenKey(), new Set(['other']));

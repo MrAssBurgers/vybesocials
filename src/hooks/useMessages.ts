@@ -75,16 +75,19 @@ export interface Message {
 
 export interface Conversation {
   id: string;
+  member_ids?: string[];
   is_group: boolean;
   name: string | null;
   avatar_url: string | null;
   created_at: string;
   updated_at: string;
   members?: {
+    conversation_id?: string;
     user_id: string;
     role: string;
     is_muted: boolean;
     is_pinned: boolean;
+    pin_order?: number;
     last_read_at: string | null;
     profile?: {
       id: string;

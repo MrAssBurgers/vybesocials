@@ -1,0 +1,22 @@
+{
+  "checkedAt": "2026-11-15T01:21:44.654Z",
+  "scope": "Unauthenticated browser preflight only; no account/provider mutation",
+  "rows": [
+    {
+      "name": "checkPremiumSubscription",
+      "status": 204,
+      "allowOrigin": "https://vybehub.app"
+    },
+    {
+      "name": "tokenMarketplace",
+      "status": 404,
+      "allowOrigin": null
+    }
+  ],
+  "premiumUnauthenticatedPost": {
+    "checkedAt": "2026-11-15T01:24:44.662Z",
+    "status": 401,
+    "allowOrigin": "https://vybehub.app",
+    "errorStatus": "UNAUTHENTICATED"
+  }
+}
