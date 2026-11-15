@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { Firestore, Transaction, DocumentSnapshot } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { isActivePremiumGrant, unexpired } from './premiumAuthority.js';
+import { resolveTokenActorIdentity } from './tokenCreditAuthority.js';
 
 type Row = Record<string, unknown>;
 export type TokenActor = { authUid: string; profileId: string };
@@ -32,31 +33,21 @@ const safeInt = (value: unknown, max = Number.MAX_SAFE_INTEGER): number => {
   return value;
 };
 const isoDate = (value: unknown): value is string => typeof value === 'string' && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
-const liveProfile = (row: Row) => !row.deleted_at && row.is_deleted !== true;
 export function tokenRequestId(value: unknown): string {
   if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(value)) throw new HttpsError('invalid-argument', 'Invalid request ID');
   return value;
 }
 
 export async function resolveTokenActor(database: Firestore, uid: string): Promise<TokenActor> {
-  const [profiles, index] = await Promise.all([
-    database.collection('profiles').where('user_id', '==', uid).limit(2).get(),
-    database.collection('user_auth_index').doc(uid).get(),
-  ]);
-  if (profiles.size !== 1 || !liveProfile(profiles.docs[0].data())) throw review();
-  const profileId = profiles.docs[0].id;
-  if (index.exists && index.data()?.profile_id !== profileId) throw review();
-  return { authUid: uid, profileId };
+  return database.runTransaction(async tx => {
+    const identity = await resolveTokenActorIdentity(tx, database, uid);
+    return { authUid: uid, profileId: identity.profileId };
+  });
 }
 
 async function readActor(tx: Transaction, database: Firestore, actor: TokenActor) {
-  const [profile, index, profiles] = await Promise.all([
-    tx.get(database.collection('profiles').doc(actor.profileId)), tx.get(database.collection('user_auth_index').doc(actor.authUid)),
-    tx.get(database.collection('profiles').where('user_id', '==', actor.authUid).limit(2)),
-  ]);
-  if (!profile.exists || profile.data()?.user_id !== actor.authUid || !liveProfile(profile.data()!) || profiles.size !== 1 || profiles.docs[0].id !== actor.profileId
-    || (index.exists && index.data()?.profile_id !== actor.profileId)) throw review();
-  return profile;
+  await resolveTokenActorIdentity(tx, database, actor.authUid, actor.profileId);
+  return tx.get(database.collection('profiles').doc(actor.profileId));
 }
 
 export function verifiedTokenWallet(row: Row | undefined, uid: string, now: string) {

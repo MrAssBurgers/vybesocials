@@ -144,6 +144,15 @@ describe('post publication reward provenance', () => {
 });
 
 describe('server verified token credits', () => {
+  it.each(['uid-collision', 'profile-collision', 'retired-binding'])('does not issue a daily reward for %s', async issue => {
+    if (issue === 'uid-collision') rows.set(`profiles/${actor.authUid}`, { user_id: 'foreign-owner' });
+    if (issue === 'profile-collision') rows.set('profiles/foreign-profile', { user_id: actor.profileId });
+    if (issue === 'retired-binding') rows.set(`_account_profile_bindings/${actor.authUid}`, { version: 1, status: 'retired', owner_uid: actor.authUid, profile_id: actor.profileId });
+    await expect(claim()).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(rows.has(walletPath)).toBe(false);
+    expect(rows.has(quotaPath)).toBe(false);
+    expect(rows.has(receiptPath('daily_login', '2026-10-03'))).toBe(false);
+  });
   it.each(['missing', 'foreign', 'duplicate', 'index-conflict', 'deleted'])('rejects stale or ambiguous caller profile binding: %s', async scenario => {
     const path = `profiles/${actor.profileId}`;
     if (scenario === 'missing') rows.delete(path);

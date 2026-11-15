@@ -104,6 +104,30 @@ beforeEach(() => {
 });
 
 describe('marketplace identity and authority state', () => {
+  it.each(['uid-is-foreign-profile', 'profile-is-foreign-uid'])('rejects ambiguous account aliases before state or purchase: %s', async collision => {
+    wallet();
+    if (collision === 'uid-is-foreign-profile') rows.set(`profiles/${actor.authUid}`, { user_id: 'foreign-account' });
+    else rows.set('profiles/foreign-profile', { user_id: actor.profileId });
+    await expect(resolveTokenActor(database, actor.authUid)).rejects.toMatchObject({ code: 'failed-precondition' });
+    await expect(state()).rejects.toMatchObject({ code: 'failed-precondition' });
+    await expect(buy()).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(rows.has(requestPath('buy'))).toBe(false);
+  });
+  it('rejects a retired binding even when the former profile/index still appear owned', async () => {
+    wallet(); rows.set(`_account_profile_bindings/${actor.authUid}`, { version: 1, owner_uid: actor.authUid, profile_id: actor.profileId, status: 'retired' });
+    await expect(resolveTokenActor(database, actor.authUid)).rejects.toMatchObject({ code: 'failed-precondition' });
+    await expect(buy()).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(rows.has(requestPath('buy'))).toBe(false);
+  });
+  it('rechecks retirement after transaction contention without debiting or granting inventory', async () => {
+    wallet();
+    rows.set(`_account_profile_bindings/${actor.authUid}`, { version: 1, owner_uid: actor.authUid, profile_id: actor.profileId, status: 'active' });
+    beforeCommit = () => rows.set(`_account_profile_bindings/${actor.authUid}`, { version: 1, owner_uid: actor.authUid, profile_id: actor.profileId, status: 'retired' });
+    await expect(buy()).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(rows.get(walletPath)?.balance).toBe(1000);
+    expect(rows.has(inventoryPath('xp_boost_2x'))).toBe(false);
+    expect(rows.has(requestPath('buy'))).toBe(false);
+  });
   it('resolves one migrated profile and rejects inconsistent indexes or duplicate owners', async () => {
     expect(await resolveTokenActor(database, actor.authUid)).toEqual(actor);
     rows.set(`user_auth_index/${actor.authUid}`, { profile_id: 'other' });

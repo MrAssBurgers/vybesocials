@@ -7,7 +7,7 @@ assert.match(projectId || '', /^demo-[a-z0-9-]+$/);
 assert.match(process.env.FIRESTORE_EMULATOR_HOST || '', /^(127\.0\.0\.1|localhost):\d+$/);
 const { db } = await import('../functions/lib/_shared/admin.js');
 const { tokenMarketplace } = await import('../functions/lib/tokenMarketplace.js');
-const { purchaseTokenItem, activateTokenBoost, tokenMarketplaceState, equipTokenItem, tokenTupleId } = await import('../functions/lib/_shared/tokenMarketplaceAuthority.js');
+const { purchaseTokenItem, activateTokenBoost, tokenMarketplaceState, equipTokenItem, tokenTupleId, resolveTokenActor } = await import('../functions/lib/_shared/tokenMarketplaceAuthority.js');
 const { claimTokenCredit } = await import('../functions/lib/_shared/tokenCreditAuthority.js');
 const { reconcileChallenge, consumeChallengeReward, rewardAuthorityId } = await import('../functions/lib/_shared/challengeRewardAuthority.js');
 const { changeBadgeGrant, badgeAuthorityId } = await import('../functions/lib/badgeAuthority.js');
@@ -31,6 +31,18 @@ try {
   const reset = await fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST}/emulator/v1/projects/${projectId}/databases/(default)/documents`, { method: 'DELETE' });
   assert.ok(reset.ok, 'Demo reset succeeded');
   const alice = await actor('alice'); const bob = await actor('bob');
+  for (const issue of ['uid-collision', 'profile-collision', 'retired-binding']) await check(`ambiguous or retired identity cannot spend, equip, read or earn: ${issue}`, async () => {
+    const player = await actor(issue); await wallet(player, 500);
+    if (issue === 'uid-collision') await db.doc(`profiles/${player.authUid}`).set({ user_id: `foreign-${issue}` });
+    if (issue === 'profile-collision') await db.doc(`profiles/foreign-${issue}`).set({ user_id: player.profileId });
+    if (issue === 'retired-binding') await db.doc(`_account_profile_bindings/${player.authUid}`).set({ version: 1, status: 'retired', owner_uid: player.authUid, profile_id: player.profileId });
+    for (const operation of [() => resolveTokenActor(db, player.authUid), () => tokenMarketplaceState(db, player),
+      () => purchase(player, 'theme_neon', `denied-${issue}`, 200), () => equipTokenItem(db, player, { type: 'profile_theme', value: null }),
+      () => claimTokenCredit(db, player, { type: 'daily_login' })]) await assert.rejects(operation(), { code: 'failed-precondition' });
+    assert.equal((await walletRef(player).get()).data().balance, 500);
+    assert.equal((await inventoryRef(player, 'theme_neon').get()).exists, false);
+    assert.equal((await db.collection('token_events').where('user_id', '==', player.authUid).get()).empty, true);
+  });
   await check('callable rejects guests and ignores caller-supplied wallet owner', async () => {
     await assert.rejects(call(null, { action: 'state' }), { code: 'unauthenticated' });
     await wallet(bob, 999);
