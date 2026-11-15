@@ -1,0 +1,23 @@
+{
+  "checkedAt": "2026-11-15T01:53:41.530Z",
+  "commit": "18b5b9e8dad5669fce2ce24a6dc5a422e701d102",
+  "sourceSha256": "8f96b76b4ba6333ee6016d07925803826c7f7009050a70973ed35f093ac79c98",
+  "entry": "/assets/app-BwjDIV9E.js",
+  "entrySha256": "2ad707f7daa95c89d077f06dd33e2f23c5d4099c2f5b009aea354b7481e64f19",
+  "builtAt": "2026-11-15T01:52:56.347Z",
+  "routes": [
+    "/",
+    "/login",
+    "/signup",
+    "/home",
+    "/profile",
+    "/messages",
+    "/map",
+    "/explore",
+    "/clips",
+    "/settings"
+  ],
+  "assets": 709,
+  "nativeDeployedAt": "1794707575900",
+  "scope": "Source/entry integrity, route shells and native asset delivery. Does not prove real account writes, physical mobile adoption, GPS or video performance."
+}

@@ -10,10 +10,13 @@ function identifier(value: unknown, label: string): string {
 
 function publicGrant(row: Record<string, any>, uid: string) {
   if (!validPremiumGrant(row, uid)) throw new HttpsError('failed-precondition', 'This gift needs verification. Contact support.');
-  return { ...row, id: row.grant_id, is_expired: !unexpired(row.expires_at) };
+  return { id: row.grant_id, user_id: row.user_id, gifted_by: row.gifted_by,
+    status: row.status, is_active: row.is_active, created_at: row.created_at,
+    accepted_at: row.accepted_at, revoked_at: row.revoked_at, expires_at: row.expires_at,
+    is_expired: !unexpired(row.expires_at) };
 }
 
-export const premiumGiftManage = onCall(async request => {
+export const premiumGiftManage = onCall({ cors: true, invoker: 'public' }, async request => {
   const uid = requireAuth(request);
   const data = request.data || {};
   const action = data.action;
@@ -21,7 +24,7 @@ export const premiumGiftManage = onCall(async request => {
     const row = (await db.collection('premium_grants').doc(uid).get()).data();
     if (!row || !validPremiumGrant(row, uid) || row.status !== 'pending' || row.revoked_at !== null || !unexpired(row.expires_at)) return { gift: null };
     const gifter = await premiumIdentity(row.gifted_by);
-    const profile = gifter ? await db.collection('profiles').doc(gifter.profileId).get() : null;
+    const profile = gifter?.uid === row.gifted_by ? await db.collection('profiles').doc(gifter.profileId).get() : null;
     return { gift: { id: row.grant_id, user_id: uid, gifterUsername: profile?.data()?.username || 'VYBE', expires_at: row.expires_at } };
   }
   if (action === 'accept') {

@@ -1,0 +1,23 @@
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { afterEach, expect, it, vi } from 'vitest';
+const state = vi.hoisted(() => ({ epoch: 1, list: vi.fn(), from: vi.fn(), success: vi.fn() }));
+vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 'staff' } }) }));
+vi.mock('@/hooks/usePremiumStatus', () => ({ usePremiumStatus: () => ({ canManageGifts: true }) }));
+vi.mock('@/hooks/useReportAccountSession', () => ({ useReportAccountSession: () => ({ uid: 'staff', epoch: state.epoch }) }));
+vi.mock('@/lib/firebase', () => ({ db: { from: state.from } }));
+vi.mock('@/lib/premiumGiftService', () => ({ listPremiumGifts: state.list, createPremiumGift: vi.fn(), revokePremiumGift: vi.fn(), capturePremiumAccountGuard: () => { const epoch = state.epoch; return () => { if (epoch !== state.epoch) throw Error('Account changed'); }; } }));
+vi.mock('sonner', () => ({ toast: { success: state.success, error: vi.fn() } }));
+import { GiftPremiumSection } from './GiftPremiumSection';
+afterEach(cleanup);
+it('does not continue an old staff listing into profile reads after same-account reentry', async () => {
+  let finish!: (value: unknown[]) => void; state.epoch = 1; state.from.mockReset();
+  state.list.mockReset().mockReturnValueOnce(new Promise(resolve => { finish = resolve; })).mockResolvedValue([]);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const view = () => <QueryClientProvider client={client}><GiftPremiumSection /></QueryClientProvider>;
+  const rendered = render(view()); await waitFor(() => expect(state.list).toHaveBeenCalledOnce());
+  state.epoch += 2; rendered.rerender(view()); await waitFor(() => expect(state.list).toHaveBeenCalledTimes(2));
+  await act(async () => finish([{ id: 'retired-gift', user_id: 'old-recipient', status: 'pending', is_expired: false }]));
+  expect(state.from).not.toHaveBeenCalled(); expect(screen.queryByText('old-recipient')).not.toBeInTheDocument();
+  expect(state.success).not.toHaveBeenCalled(); client.clear();
+});

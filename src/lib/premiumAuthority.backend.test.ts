@@ -98,6 +98,17 @@ describe('server-owned premium gifts', () => {
 });
 
 describe('premium entitlement resolution', () => {
+  it('never returns internal grant fields through a recipient acknowledgement or staff listing', async () => {
+    state.rows.set('premium_grants/alice', grant({ internal_note: 'private operator metadata', receipt_secret: 'private receipt' }));
+    const accepted = await invoke('alice', { action: 'accept', grantId: 'grant-1' });
+    expect(accepted.gift).not.toHaveProperty('internal_note'); expect(accepted.gift).not.toHaveProperty('receipt_secret');
+    const list = await invoke('staff', { action: 'list', userIds: ['alice'] }, true);
+    expect(list.gifts[0]).not.toHaveProperty('internal_note'); expect(list.gifts[0]).not.toHaveProperty('receipt_secret');
+  });
+  it('does not misidentify a gifter when a profile ID collides with its auth UID', async () => {
+    state.rows.set('premium_grants/alice', grant()); state.rows.set('profiles/staff', { user_id: 'unrelated', username: 'unrelated-person' });
+    expect((await invoke('alice', { action: 'pending' })).gift.gifterUsername).toBe('VYBE');
+  });
   it('separates migrated owner cosmetic preview from callable management capability', async () => {
     state.rows.set('profiles/legacy-alice', { user_id: 'alice' }); state.rows.set('user_roles_auth/owner', { user_id: 'legacy-alice', role: 'owner' });
     const request = { auth: { uid: 'alice', token: {} }, data: {} } as Parameters<typeof premiumStatusForRequest>[0];

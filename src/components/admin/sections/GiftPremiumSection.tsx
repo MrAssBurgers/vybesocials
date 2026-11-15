@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Crown, Gift, Loader2, Search, X, Check, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,8 @@ import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
-import { createPremiumGift, revokePremiumGift, listPremiumGifts, isPremiumAccountCurrent } from '@/lib/premiumGiftService';
+import { createPremiumGift, revokePremiumGift, listPremiumGifts, capturePremiumAccountGuard } from '@/lib/premiumGiftService';
+import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,10 +34,13 @@ interface SearchResult {
 export function GiftPremiumSection() {
   const { user } = useAuth();
   const { canManageGifts } = usePremiumStatus();
-  return user && canManageGifts ? <GiftPremiumSectionForAccount key={user.id} uid={user.id} /> : null;
+  const session = useReportAccountSession();
+  const guard = useMemo(() => capturePremiumAccountGuard(user?.id || ''), [user?.id, session.epoch]);
+  return user && canManageGifts && session.uid === user.id ? <GiftPremiumSectionForAccount key={`${user.id}:${session.epoch}`} uid={user.id} epoch={session.epoch} guard={guard} /> : null;
 }
 
-function GiftPremiumSectionForAccount({ uid }: { uid: string }) {
+function GiftPremiumSectionForAccount({ uid, epoch, guard }: { uid: string; epoch: number; guard: () => void }) {
+  const current = () => { try { guard(); return true; } catch { return false; } };
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [selectedUser, setSelectedUser] = useState<SearchResult | null>(null);
@@ -45,9 +49,10 @@ function GiftPremiumSectionForAccount({ uid }: { uid: string }) {
 
   // Search users
   const { data: results = [], isLoading: searching, error: searchError } = useQuery({
-    queryKey: ['gift-premium-search', uid, search],
+    queryKey: ['gift-premium-search', uid, epoch, search],
     queryFn: async () => {
       if (search.length < 2) return [];
+      guard();
       const { data, error } = await db
         .from('profiles')
         .select('id, user_id, username, display_name, avatar_url')
@@ -55,12 +60,13 @@ function GiftPremiumSectionForAccount({ uid }: { uid: string }) {
         .or(`username.ilike.%${search}%,display_name.ilike.%${search}%`)
         .limit(8);
 
-      if (error) throw error;
+      guard(); if (error) throw error;
       if (!data || data.length === 0) return [];
 
       // Check which ones already have premium
       const userIds = data.map(d => d.user_id);
       const giftedData = await listPremiumGifts(uid, userIds);
+      guard();
       const giftedMap = new Map(giftedData.filter(g => !g.is_expired && g.status !== 'revoked').map(g => [g.user_id, g]));
 
       return data.map(d => ({
@@ -78,9 +84,11 @@ function GiftPremiumSectionForAccount({ uid }: { uid: string }) {
 
   // Recent gifts
   const { data: recentGifts = [], error: recentError, refetch: retryRecent } = useQuery({
-    queryKey: ['recent-premium-gifts', uid],
+    queryKey: ['recent-premium-gifts', uid, epoch],
     queryFn: async () => {
+      guard();
       const data = (await listPremiumGifts(uid)).filter(g => !g.is_expired && g.status !== 'revoked').slice(0, 5);
+      guard();
 
       if (!data || data.length === 0) return [];
 
@@ -90,7 +98,7 @@ function GiftPremiumSectionForAccount({ uid }: { uid: string }) {
         .select('user_id, username, avatar_url')
         .in('user_id', userIds);
       if (error) throw error;
-      if (!isPremiumAccountCurrent(uid)) throw new Error('Your account changed.');
+      guard();
 
       const profileMap = new Map<string, any>((profiles || []).map((p: any) => [p.user_id, p]));
 
@@ -103,33 +111,33 @@ function GiftPremiumSectionForAccount({ uid }: { uid: string }) {
   });
 
   const handleGift = async () => {
-    if (!selectedUser || !isPremiumAccountCurrent(uid)) return;
+    if (!selectedUser || !current()) return;
     setGifting(true);
     try {
       await createPremiumGift(uid, selectedUser.user_id, crypto.randomUUID());
-      if (!isPremiumAccountCurrent(uid)) return;
+      if (!current()) return;
       toast.success(`Gift ready for @${selectedUser.username} to review in Settings.`);
       setSelectedUser(null);
       setSearch('');
       queryClient.invalidateQueries({ queryKey: ['recent-premium-gifts'] });
       queryClient.invalidateQueries({ queryKey: ['gift-premium-search'] });
     } catch (err: any) {
-      if (isPremiumAccountCurrent(uid)) toast.error(err.message || 'Failed to gift premium');
+      if (current()) toast.error(err.message || 'Failed to gift premium');
     } finally {
-      setGifting(false);
-      setConfirmOpen(false);
+      if (current()) { setGifting(false); setConfirmOpen(false); }
     }
   };
 
   const handleRevoke = async (giftId: string, recipientUid: string, username: string) => {
     try {
+      guard();
       await revokePremiumGift(uid, recipientUid, giftId);
-      if (!isPremiumAccountCurrent(uid)) return;
+      if (!current()) return;
       toast.success(`Premium revoked from @${username}`);
       queryClient.invalidateQueries({ queryKey: ['recent-premium-gifts'] });
       queryClient.invalidateQueries({ queryKey: ['db-premium-status'] });
     } catch {
-      if (isPremiumAccountCurrent(uid)) toast.error('Failed to revoke');
+      if (current()) toast.error('Failed to revoke');
     }
   };
 

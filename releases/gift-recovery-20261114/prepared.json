@@ -1,0 +1,10 @@
+{
+  "checkedAt": "2026-11-15T01:32:51.089Z",
+  "functionAbsent": true,
+  "baselineRuleset": "projects/vybe-daaab/rulesets/dbfd3859-7910-4f74-adf3-5ffe78800fd9",
+  "baselineSha256": "705f82b84f2795bc29d883cce4b0b84f73621f25cf3719780671cd165ff6957f",
+  "candidateSha256": "5e089eb26cc72314e1eff017a70166aa5040fb1f172e01125164b5050945e4e3",
+  "compiled": true,
+  "warnings": 12,
+  "scope": "Legacy gift browser writes denied; all other live Rules preserved. Existing default-denied private grant/subscription namespaces unchanged."
+}

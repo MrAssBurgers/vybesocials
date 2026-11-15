@@ -22,7 +22,7 @@ function assertAccount(uid: string): void {
   if (isPremiumAccountCurrent(uid)) return;
   const error = new Error('Your account changed. Please try again.'); error.name = 'PremiumAccountChanged'; throw error;
 }
-async function invoke<T>(uid: string, name: string, body: Record<string, unknown>): Promise<T> {
+export function capturePremiumAccountGuard(uid: string): () => void {
   const accountGuard = reportAccountGuard(uid);
   const current = () => {
     assertAccount(uid);
@@ -30,6 +30,10 @@ async function invoke<T>(uid: string, name: string, body: Record<string, unknown
       const error = new Error('Your account changed. Please try again.'); error.name = 'PremiumAccountChanged'; throw error;
     }
   };
+  return current;
+}
+async function invoke<T>(uid: string, name: string, body: Record<string, unknown>): Promise<T> {
+  const current = capturePremiumAccountGuard(uid);
   current();
   const { data, error } = await db.functions.invoke<T>(name, { body });
   current();
