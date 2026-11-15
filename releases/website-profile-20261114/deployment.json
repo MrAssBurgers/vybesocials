@@ -1,0 +1,10 @@
+{
+  "deploymentId": "1a2163ea-42fa-4def-ae73-9c9b0b128f71",
+  "publishedCommit": "16a2040d3b5363ed3c00d7656a628bd6dce94301",
+  "status": "public-source-and-assets-verified",
+  "verifiedAt": "2026-11-15T02:29:20.803Z",
+  "url": "https://vybehub.app",
+  "sourceSha256": "36a20f7c161e7a2685dff31a23a30ae15600ca9111505e82e88d5ec1166ad3ad",
+  "nativeDeployedAt": "1794709719421",
+  "scope": "Published web/native asset delivery and actual Chrome player checks; not physical device adoption or complete app readiness."
+}

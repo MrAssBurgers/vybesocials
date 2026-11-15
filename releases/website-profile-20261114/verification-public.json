@@ -1,11 +1,11 @@
 {
-  "checkedAt": "2026-11-15T02:15:05.657Z",
-  "commit": "3183b8bd834613984590aa8c1443b8978bd6dbc5",
-  "sourceSha256": "bc5805580e6dc10ee535a9e965f79a7b60eb6c417a451845972b7ae98af58f9b",
+  "checkedAt": "2026-11-15T02:29:20.803Z",
+  "commit": "16a2040d3b5363ed3c00d7656a628bd6dce94301",
+  "sourceSha256": "36a20f7c161e7a2685dff31a23a30ae15600ca9111505e82e88d5ec1166ad3ad",
   "sourceFiles": 2666,
-  "entry": "/assets/app-2aUn6ysU.js",
-  "entrySha256": "a626f7d8bdaa0b92a7f504cddf28873d98925b13f8671b39926f1149eedbcb4f",
-  "builtAt": "2026-11-15T02:14:22.241Z",
+  "entry": "/assets/app-Cd3211Xy.js",
+  "entrySha256": "8aafe9bad659ef19bec5a7fd1320e68fdd1ece0bd19fc4ec57a335e3241a3fd0",
+  "builtAt": "2026-11-15T02:28:40.024Z",
   "routes": [
     "/",
     "/login",
@@ -23,7 +23,7 @@
     "/delete-account"
   ],
   "assets": 709,
-  "nativeDeployedAt": "1794708861768",
+  "nativeDeployedAt": "1794709719421",
   "failures": [],
   "scope": "Exact public source/runtime/entry integrity, fourteen route shells and native manifest delivery. Not a certification of signed-in transactions, provider integrations, native adoption, GPS, calling or sustained media/animation performance."
 }

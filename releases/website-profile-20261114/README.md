@@ -34,3 +34,9 @@ Browser test tabs were closed and temporary viewport overrides reset. Screenshot
 ## Combined release candidate
 
 Merge 61cf944 preserves newer sign-in recovery main e16b32d and the unchanged caption-safe toolbar. The final combined suite passes 543 files and 5,253 tests, with one file/six checks skipped, in 121.55 seconds using eight workers. Types/lint/build/boot/native entry/CSS/budget checks pass with zero lint errors/warnings. Source fingerprint 36a20f7c161e7a2685dff31a23a30ae15600ca9111505e82e88d5ec1166ad3ad covers 2,666 files; local entry app-Bo5F4ws1.js is 858.8 KB raw/262.0 KB gzip. No runtime edit follows these checks. This supersedes the toolbar-only candidate's release identity while retaining its layout evidence.
+
+## Final publication and real player verification
+
+Published main 16a2040 through Lovable deployment 1a2163ea-42fa-4def-ae73-9c9b0b128f71. `verification-public.json` proves matching source/runtime metadata, entry digest, fourteen route shells and all 709 native manifest assets at 02:29:20.803Z. Hosted entry app-Cd3211Xy.js has SHA256 8aafe9bad659ef19bec5a7fd1320e68fdd1ece0bd19fc4ec57a335e3241a3fd0. Physical installed adoption remains unverified.
+
+`verification-player.json` records actual signed-in playback at 1280x900 and 390x844, both positioned at 0,0, with 44px top toolbar controls clear of captions. Enter opens, previous/next change the actual clip and counter, reverse Tab remains trapped, and Escape/Close return focus to the original thumbnail. One error-free 480x872 video advances from 0.007658 to 6.587423 seconds at readyState4. Closing removes both player and video. No captured warning/error was observed. The final screenshot is ignored `work/profile-clips-live-repaired.jpg`. No social action or setting was submitted; normal view telemetry may occur. Browser cleanup and viewport reset were confirmed.

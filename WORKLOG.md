@@ -1,11 +1,13 @@
-## ACTIVE (2026-11-14) - Combined sign-in and profile player verified; publication pending
+## ACTIVE (2026-11-14) - Combined sign-in and profile player published and live-verified
 
 - Preserved the newer sign-in recovery main e16b32d in merge 61cf944. Resolved only overlapping work-log notes, retaining both histories; the final toolbar source is unchanged. The inherited login CSS remains scoped to authentication surfaces. No Functions, Rules, Auth/provider configuration or real account mutation was performed.
 - Final combined check 13930 exits 0: 543 files passed/one skipped, 5,253 tests passed/six skipped, 121.55 seconds with eight workers. Types/lint/build 48905 exit 0, zero lint errors/warnings; boot/native entry, CSS and bundle budget pass. Source 36a20f7c161e7a2685dff31a23a30ae15600ca9111505e82e88d5ec1166ad3ad/2,666 files, entry app-Bo5F4ws1.js, 858.8 KB raw/262.0 KB gzip. No runtime edit after combined checks. The previous 5,251-test/81339515 toolbar-only checkpoint is superseded for publication.
+- Published combined main 16a2040 through Lovable deployment 1a2163ea-42fa-4def-ae73-9c9b0b128f71. At 02:29:20.803Z, exact public source/runtime/entry, fourteen route shells and all 709 native manifest assets pass; entry app-Cd3211Xy.js/SHA 8aafe9bad659ef19bec5a7fd1320e68fdd1ece0bd19fc4ec57a335e3241a3fd0. Native deployed_at 1794709719421. This is hosted delivery, not physical installed adoption.
+- Real final published player fills 1280x900 and 390x844 at 0,0. All close/previous/next targets measure 44px, at the top and clear of captions. Enter opens; Space previous and click Next change the actual clip/counter; Escape and phone Close return focus to the original thumbnail. Reverse Tab stays inside the player. One error-free 480x872 video progresses from 0.007658 to 6.587423 seconds at readyState4; after close there are zero dialogs/videos. Captured warning/error count is zero. Receipt verification-player.json and ignored work/profile-clips-live-repaired.jpg record this bounded result. Test tab closed/viewport reset. No real social action/account change submitted; normal view telemetry may occur.
 
 ### Next three tasks
-1. Publish this exact combined source, verify public/native delivery and repeat the real player geometry/navigation/playback checks.
-2. Continue CommunityCard keyboard entry, community search naming and synthetic member/channel journeys.
+1. Continue CommunityCard keyboard entry, community search naming and synthetic member/channel journeys.
+2. Retain the verified publication, live player and exact source receipts while checking subsequent updates.
 3. Continue remaining existing service, account cleanup, history/media, provider and physical-device journeys. The entire-app goal remains active.
 
 ## ACTIVE (2026-11-14) - Final profile toolbar verified; publication pending
