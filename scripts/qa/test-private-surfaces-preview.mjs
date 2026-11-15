@@ -17,7 +17,7 @@ const { initializeApp: initAdmin, deleteApp: deleteAdmin } = await import('fireb
 const { getFirestore: adminFirestore } = await import('firebase-admin/firestore');
 const admin = initAdmin({ projectId: 'demo-vybe-preview', storageBucket: 'demo-vybe-preview.appspot.com' }, `private-preview-${randomUUID()}`);
 const database = adminFirestore(admin), apps = [], checks = [], restores = [];
-const serverId = 'qM6QxaRo0F31GmBiAJNN', channelId = 'nlyiDqM2x7wdO1HErUQ0';
+let serverId, channelId;
 const owner = name => `preview-${name}`, profile = name => `preview-profile-${name}`;
 async function player(name) {
   assert.ok(['alice', 'bob'].includes(name));
@@ -39,6 +39,14 @@ async function preserve(path) {
 const denied = action => assert.rejects(action, error => /permission-denied|unauthorized|failed-precondition/.test(error.code || ''));
 try {
   const alice = await player('alice'), bob = await player('bob');
+  const created = await alice.call('communityCreate', {
+    expectedProfileId: profile('alice'), requestId: 'preview-private-surfaces-v1',
+    name: 'Local private attachment QA', description: 'Synthetic local accounts only.', isPublic: false,
+  });
+  serverId = created.server.id;
+  const channels = await alice.call('communityManage', { expectedProfileId: profile('alice'), action: 'listChannels', serverId });
+  channelId = channels.channels.find(channel => channel.type === 'text').id;
+  checks.push('private community and text channel are provisioned by actual authenticated community services');
   assert.equal((await database.doc(`servers/${serverId}`).get()).data()?.owner_id, profile('alice'));
   assert.equal((await database.doc(`channels/${channelId}`).get()).data()?.server_id, serverId);
   const grant = await preserve(`community_admissions/${owner('bob')}/grants/${serverId}`);

@@ -1,7 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import { readQueryArray, safeDmMembers } from '@/lib/persistedCollections';
-import { activeDmListKeys, isDmConversationForViewer, viewerDmMembership } from '@/lib/dmAccountScope';
+import { activeDmListKeys, isDmConversationForViewer, ownedDmProfileId, viewerDmMembership } from '@/lib/dmAccountScope';
 import { reportAccountSnapshot, type ReportAccountSession } from '@/lib/reportModerationService';
 
 function patchList(
@@ -28,8 +28,9 @@ export function patchDmConversationInCache(
   patch: Partial<LoadedDMConversation>,
   session: ReportAccountSession = reportAccountSnapshot(),
 ): void {
+  const viewerProfileId = ownedDmProfileId(session.uid) ?? profileId;
   patchList(queryClient, profileId, (list) =>
-    list.map((conv) => (conv.id === conversationId && isDmConversationForViewer(conv, profileId, session.uid) ? { ...conv, ...patch } : conv)), session,
+    list.map((conv) => (conv.id === conversationId && isDmConversationForViewer(conv, viewerProfileId, session.uid) ? { ...conv, ...patch } : conv)), session,
   );
 }
 
@@ -47,7 +48,7 @@ export function patchDmMemberInCache(
   patchList(queryClient, profileId, (list) =>
     list.map((conv) => {
       if (conv.id !== conversationId) return conv;
-      const viewer = viewerDmMembership(conv, profileId, session.uid);
+      const viewer = viewerDmMembership(conv, ownedDmProfileId(session.uid) ?? profileId, session.uid);
       if (!viewer) return conv;
       const members = safeDmMembers(conv.members).map((member) => {
         if (member !== viewer) return member;

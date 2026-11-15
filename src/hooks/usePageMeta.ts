@@ -33,14 +33,20 @@ export function usePageMeta({ title, description, canonicalPath, ogType = 'websi
       const el = head.querySelector(selector) as HTMLMetaElement | HTMLLinkElement | null;
       const prev = el?.getAttribute(attr) ?? null;
       el?.setAttribute(attr, value);
-      return () => { if (el && prev !== null) el.setAttribute(attr, prev); };
+      return () => { if (el && prev !== null && el.getAttribute(attr) === value) el.setAttribute(attr, prev); };
     };
 
     const prevTitle = document.title;
+    const ownerPath = window.location.pathname;
     document.title = title;
 
     const restorers: Array<() => void> = [
-      () => { document.title = prevTitle; },
+      () => {
+        // A lazy outgoing page may unmount after the incoming route wrote its
+        // title. Never restore Home over Search, Clips or another new route.
+        const currentTitle = document.title.replace(/^(?:\(\d+\+?\)|💬)\s+/, '');
+        if (window.location.pathname === ownerPath && currentTitle === title) document.title = prevTitle;
+      },
       setAttr('meta[name="description"]', 'content', description),
       setAttr('link[rel="canonical"]', 'href', url),
       setAttr('meta[property="og:title"]', 'content', title),

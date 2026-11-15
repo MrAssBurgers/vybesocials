@@ -31,7 +31,7 @@ import { getDmConversationSortTime } from '@/lib/dmConversationSort';
 import { resolveOtherMemberFromConversation, isViewerMember } from '@/lib/dmMemberResolve';
 import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 import { reportAccountGuard, type ReportAccountSession } from '@/lib/reportModerationService';
-import { conversationDetailQueryKey, dmListQueryKey, ownedDmProfileId, isOwnedDmActor, isDmConversationForViewer, viewerDmMembership } from '@/lib/dmAccountScope';
+import { activeDmListKeys, conversationDetailQueryKey, dmListQueryKey, ownedDmProfileId, isOwnedDmActor, isDmConversationForViewer, viewerDmMembership } from '@/lib/dmAccountScope';
 
 type DMConversation = LoadedDMConversation;
 const EMPTY_CONVERSATIONS: DMConversation[] = [];
@@ -412,14 +412,15 @@ export function useMarkConversationRead() {
         if (!list.length) return list;
         return list.map((c) => {
           if (c.id === conversationId) {
-            clearedCount = c.unread_count ?? 0;
+            clearedCount = Math.max(clearedCount, c.unread_count ?? 0);
             return { ...c, unread_count: 0, _hasUnread: false };
           }
           return c;
         });
       };
-      queryClient.setQueryData(dmListQueryKey(operation.profileId, operation.session), patch);
-      queryClient.setQueryData(['conversations', operation.profileId, operation.session.uid, operation.session.epoch], patch);
+      for (const key of activeDmListKeys(operation.profileId, operation.session)) {
+        if (queryClient.getQueryData(key) !== undefined) queryClient.setQueryData(key, patch);
+      }
       queryClient.setQueryData<number>(['unread-messages-count', operation.profileId], (prev) =>
         typeof prev === 'number' ? Math.max(0, prev - clearedCount) : 0,
       );

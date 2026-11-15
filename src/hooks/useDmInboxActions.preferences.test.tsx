@@ -19,7 +19,9 @@ import { dmListQueryKey } from '@/lib/dmAccountScope';
 import { reportAccountSnapshot } from '@/lib/reportModerationService';
 import { setActiveAuthUserId, setCachedCurrentProfile } from '@/lib/profileCache';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
-const conversation = { id: 'chat', member_ids: ['profile-alice', 'profile-bob'], members: [{ conversation_id: 'chat', user_id: 'alice', is_pinned: false, is_muted: true }] } as LoadedDMConversation;
+const conversation = { id: 'chat', member_ids: ['profile-alice', 'profile-bob'], unread_count: 2,
+  last_message: { id: 'last', created_at: '2026-11-14T12:00:00Z' },
+  members: [{ conversation_id: 'chat', user_id: 'alice', is_pinned: false, is_muted: true }] } as LoadedDMConversation;
 function switchTo(uid: string) {
   state.uid = uid; setActiveAuthUserId(uid);
   setCachedCurrentProfile({ id: `profile-${uid}`, user_id: uid, username: uid, display_name: uid, avatar_url: null });
@@ -41,6 +43,29 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe('existing inbox pin and mute actions', () => {
+  it('keeps a late unread action bound to its original session after a hook rerender', async () => {
+    const { client, hook } = setup();
+    let resolve!: () => void;
+    state.write.mockImplementation(() => new Promise<void>(done => { resolve = done; }));
+    let pending!: Promise<void>;
+    act(() => { pending = hook.result.current.markUnread.mutateAsync().catch(() => {}); });
+    await waitFor(() => expect(state.write).toHaveBeenCalledTimes(1));
+    act(() => { switchTo('bob'); switchTo('alice'); });
+    hook.rerender();
+    const newKey = dmListQueryKey('profile-alice');
+    client.setQueryData(newKey, [{ ...conversation, unread_count: 9 }]);
+    await act(async () => { resolve(); await pending; });
+    expect(client.getQueryData<LoadedDMConversation[]>(newKey)?.[0].unread_count).toBe(9);
+    expect(state.success).not.toHaveBeenCalled(); expect(state.error).not.toHaveBeenCalled();
+    client.clear();
+  });
+  it('rejects an unread control retained from an earlier session before dispatch', async () => {
+    const { client, hook } = setup();
+    const retained = hook.result.current.markUnread.mutateAsync;
+    act(() => { switchTo('bob'); switchTo('alice'); });
+    await expect(retained()).rejects.toThrow('session changed');
+    expect(state.write).not.toHaveBeenCalled(); client.clear();
+  });
   it('reads legacy viewer flags and writes the matching existing membership', async () => {
     const { client, hook } = setup();
     expect(hook.result.current.isMuted).toBe(true);

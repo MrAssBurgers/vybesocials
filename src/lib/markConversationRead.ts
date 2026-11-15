@@ -23,7 +23,9 @@ export async function markConversationReadForViewer(
   conversationId: string,
   profileId: string,
   authUid?: string | null,
+  guard: () => void = () => {},
 ): Promise<void> {
+  guard();
   if (!conversationId || !profileId) return;
 
   const now = new Date().toISOString();
@@ -31,6 +33,7 @@ export async function markConversationReadForViewer(
 
   await Promise.all(
     userIds.map(async (uid) => {
+      guard();
       try {
         await updateDocument('conversation_members', `${conversationId}_${uid}`, {
           last_read_at: now,
@@ -42,8 +45,10 @@ export async function markConversationReadForViewer(
     }),
   );
 
+  guard();
   await Promise.all(
     userIds.map(async (uid) => {
+      guard();
       await db
         .from('conversation_members')
         .update({ last_read_at: now, updated_at: now })

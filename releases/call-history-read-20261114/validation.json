@@ -1,0 +1,137 @@
+{
+  "status": 200,
+  "issues": [
+    {
+      "sourcePosition": {
+        "fileName": "firestore.rules",
+        "line": 102,
+        "column": 73,
+        "currentOffset": 6153,
+        "endOffset": 6156
+      },
+      "description": "Invalid type. Received one of [null]. Expected one of [map].",
+      "severity": "WARNING"
+    },
+    {
+      "sourcePosition": {
+        "fileName": "firestore.rules",
+        "line": 108,
+        "column": 111,
+        "currentOffset": 6519,
+        "endOffset": 6522
+      },
+      "description": "Invalid type. Received one of [null]. Expected one of [map].",
+      "severity": "WARNING"
+    },
+    {
+      "sourcePosition": {
+        "fileName": "firestore.rules",
+        "line": 116,
+        "column": 14,
+        "currentOffset": 6953,
+        "endOffset": 6971
+      },
+      "description": "Unused function: isParticipantInPair.",
+      "severity": "WARNING"
+    },
+    {
+      "sourcePosition": {
+        "fileName": "firestore.rules",
+        "line": 585,
+        "column": 74,
+        "currentOffset": 26784,
+        "endOffset": 26787
+      },
+      "description": "Invalid type. Received one of [null]. Expected one of [map].",
+      "severity": "WARNING"
+    },
+    {
+      "sourcePosition": {
+        "fileName": "firestore.rules",
+        "line": 773,
+        "column": 14,
+        "currentOffset": 36350,
+        "endOffset": 36370
+      },
+      "description": "Unused function: isLocationShareMember.",
+      "severity": "WARNING"
+    },
+    {
+      "sourcePosition": {
+        "fileName": "firestore.rules",
+        "line": 775,
+        "column": 23,
+        "currentOffset": 36427,
+        "endOffset": 36434
+      },
+      "description": "Invalid variable name: resource.",
+      "severity": "WARNING"
+    },
+    {
+      "sourcePosition": {
+        "fileName": "firestore.rules",
+        "line": 776,
+        "column": 23,
+        "currentOffset": 36477,
+        "endOffset": 36484
+      },
+      "description": "Invalid variable name: resource.",
+      "severity": "WARNING"
+    },
+    {
+      "sourcePosition": {
+        "fileName": "firestore.rules",
+        "line": 779,
+        "column": 14,
+        "currentOffset": 36530,
+        "endOffset": 36555
+      },
+      "description": "Unused function: hasActiveLocationShareFrom.",
+      "severity": "WARNING"
+    },
+    {
+      "sourcePosition": {
+        "fileName": "firestore.rules",
+        "line": 782,
+        "column": 9,
+        "currentOffset": 36681,
+        "endOffset": 36686
+      },
+      "description": "Invalid function name: exists.",
+      "severity": "WARNING"
+    },
+    {
+      "sourcePosition": {
+        "fileName": "firestore.rules",
+        "line": 783,
+        "column": 9,
+        "currentOffset": 36759,
+        "endOffset": 36761
+      },
+      "description": "Invalid function name: get.",
+      "severity": "WARNING"
+    },
+    {
+      "sourcePosition": {
+        "fileName": "firestore.rules",
+        "line": 784,
+        "column": 9,
+        "currentOffset": 36854,
+        "endOffset": 36856
+      },
+      "description": "Invalid function name: get.",
+      "severity": "WARNING"
+    },
+    {
+      "sourcePosition": {
+        "fileName": "firestore.rules",
+        "line": 785,
+        "column": 9,
+        "currentOffset": 36963,
+        "endOffset": 36965
+      },
+      "description": "Invalid function name: get.",
+      "severity": "WARNING"
+    }
+  ]
+}

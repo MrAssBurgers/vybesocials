@@ -28,7 +28,7 @@ export function activeDmListKeys(profileId: string | null | undefined, session: 
   const current = reportAccountSnapshot();
   if (!session.uid || current.uid !== session.uid || current.epoch !== session.epoch
     || !isOwnedDmActor(profileId, session.uid)) return [];
-  return [...new Set([profileId, session.uid])].filter((id): id is string => !!id)
+  return [...new Set([profileId, session.uid, ownedDmProfileId(session.uid)])].filter((id): id is string => !!id)
     .flatMap(id => [dmListQueryKey(id, session), ['conversations', id, session.uid, session.epoch] as const]);
 }
 
