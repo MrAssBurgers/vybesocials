@@ -1,0 +1,184 @@
+{
+  "checkedAt": "2026-11-15T06:59:45.325Z",
+  "project": "vybe-daaab",
+  "listedServices": 239,
+  "nonActive": [],
+  "staticClientReferences": 237,
+  "syntacticMissingDeployed": [
+    {
+      "name": "approveGamePartnerLink",
+      "target": "approveGamePartnerLink"
+    },
+    {
+      "name": "award_badge",
+      "target": "awardBadge"
+    },
+    {
+      "name": "award_invite_badge",
+      "target": "awardInviteBadge"
+    },
+    {
+      "name": "check_and_grant_owner_badges",
+      "target": "checkAndGrantOwnerBadges"
+    },
+    {
+      "name": "clear-dna-adaptation-data",
+      "target": "clearDnaAdaptationData"
+    },
+    {
+      "name": "completeGameCapture",
+      "target": "completeGameCapture"
+    },
+    {
+      "name": "create-spotify-oauth-url",
+      "target": "createSpotifyOauthUrl"
+    },
+    {
+      "name": "createGameCapture",
+      "target": "createGameCapture"
+    },
+    {
+      "name": "denyGamePartnerLink",
+      "target": "denyGamePartnerLink"
+    },
+    {
+      "name": "discardGameCapture",
+      "target": "discardGameCapture"
+    },
+    {
+      "name": "finishGameCapture",
+      "target": "finishGameCapture"
+    },
+    {
+      "name": "getGameCapture",
+      "target": "getGameCapture"
+    },
+    {
+      "name": "getGamePartnerLink",
+      "target": "getGamePartnerLink"
+    },
+    {
+      "name": "get_winning_ad",
+      "target": "getWinningAd"
+    },
+    {
+      "name": "grant_post_xp",
+      "target": "grantPostXp"
+    },
+    {
+      "name": "is_stripe_enabled",
+      "target": "isStripeEnabled"
+    },
+    {
+      "name": "listGamePartnerConnections",
+      "target": "listGamePartnerConnections"
+    },
+    {
+      "name": "manageMapPin",
+      "target": "manageMapPin"
+    },
+    {
+      "name": "manageMapSquad",
+      "target": "manageMapSquad"
+    },
+    {
+      "name": "manageMapWave",
+      "target": "manageMapWave"
+    },
+    {
+      "name": "record_ad_impression",
+      "target": "recordAdImpression"
+    },
+    {
+      "name": "revokeGamePartnerConnection",
+      "target": "revokeGamePartnerConnection"
+    },
+    {
+      "name": "revoke_badge",
+      "target": "revokeBadge"
+    },
+    {
+      "name": "token-marketplace",
+      "target": "tokenMarketplace"
+    },
+    {
+      "name": "updateSafetySettings",
+      "target": "updateSafetySettings"
+    },
+    {
+      "name": "update_track_usage",
+      "target": "updateTrackUsage"
+    }
+  ],
+  "localMissing": [
+    {
+      "name": "get_winning_ad",
+      "exportedName": "getWinningAd",
+      "location": "src/hooks/useAdCampaigns.ts:141",
+      "transport": "rpc-fallback"
+    },
+    {
+      "name": "record_ad_impression",
+      "exportedName": "recordAdImpression",
+      "location": "src/hooks/useAdCampaigns.ts:157",
+      "transport": "rpc-fallback"
+    },
+    {
+      "name": "award_invite_badge",
+      "exportedName": "awardInviteBadge",
+      "location": "src/hooks/useInvites.ts:233",
+      "transport": "rpc-fallback"
+    },
+    {
+      "name": "check_and_grant_owner_badges",
+      "exportedName": "checkAndGrantOwnerBadges",
+      "location": "src/hooks/useRetroactiveSync.ts:36",
+      "transport": "rpc-fallback"
+    },
+    {
+      "name": "is_stripe_enabled",
+      "exportedName": "isStripeEnabled",
+      "location": "src/hooks/useStripeConfig.ts:35",
+      "transport": "rpc-fallback"
+    },
+    {
+      "name": "grant_post_xp",
+      "exportedName": "grantPostXp",
+      "location": "src/hooks/useVybePass.ts:374",
+      "transport": "rpc-fallback"
+    },
+    {
+      "name": "update_track_usage",
+      "exportedName": "updateTrackUsage",
+      "location": "src/lib/musicWriteResults.ts:30",
+      "transport": "rpc-fallback"
+    }
+  ],
+  "localStubs": [
+    "checkRunwayStatus",
+    "generateRunwayVideo",
+    "syncMusicProviders",
+    "testMusicProvider"
+  ],
+  "unresolvedDynamic": [
+    "sdk/game/firebase.ts:25",
+    "sdk/game/http.ts:447",
+    "sdk/game/index.ts:62",
+    "sdk/game/publicFeed.ts:17",
+    "src/components/debug/ProductionDebugPanel.tsx:297",
+    "src/lib/commentService.ts:28",
+    "src/lib/communityService.ts:67",
+    "src/lib/dnaAdaptationService.ts:112",
+    "src/lib/edgeFeature.ts:24",
+    "src/lib/firebase/dataClient.ts:1126",
+    "src/lib/firebase/functionsService.ts:139",
+    "src/lib/functionAuth.ts:88",
+    "src/lib/gameCaptureService.ts:28",
+    "src/lib/gamePartnerService.ts:46",
+    "src/lib/phoneVerificationService.ts:31",
+    "src/lib/premiumGiftService.ts:38",
+    "src/lib/securitySettingsService.ts:23",
+    "src/lib/themeAuthorityClient.ts:18"
+  ],
+  "scope": "Read-only administrative service/source inventory. Syntactic candidates require active-route/adapter tracing; this is not proof that every missing literal is a live bug or that listed services are functional."
+}

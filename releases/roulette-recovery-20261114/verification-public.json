@@ -1,0 +1,31 @@
+{
+  "checkedAt": "2026-11-15T06:59:57.968Z",
+  "commit": "171c34835c282950b6a2d868d898bd6eb77aad21",
+  "sourceSha256": "51cf385b9de88f1c7e7e25878e1792f6dbc2aa4e099cecff89c48e653a4b56bd",
+  "sourceFiles": 2689,
+  "entry": "/assets/app-Bg0b3v4q.js",
+  "entrySha256": "867599a76aff80cb7af6ce718f85a37cd68e3b19e4f67355d26d08785f0dfcb6",
+  "builtAt": "2026-11-15T06:59:09.935Z",
+  "routes": [
+    "/",
+    "/login",
+    "/signup",
+    "/home",
+    "/profile",
+    "/messages",
+    "/community",
+    "/map",
+    "/explore",
+    "/clips",
+    "/settings",
+    "/about",
+    "/contact",
+    "/faq",
+    "/delete-account",
+    "/roulette"
+  ],
+  "assets": 711,
+  "nativeDeployedAt": "1794725949153",
+  "failures": [],
+  "scope": "Exact public source/runtime/entry integrity, sixteen route shells and native manifest delivery. Not a certification of signed-in transactions, provider integrations, native adoption, GPS, calling or sustained media/animation performance."
+}

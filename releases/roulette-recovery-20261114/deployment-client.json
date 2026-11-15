@@ -1,0 +1,13 @@
+{
+  "submittedAt": "2026-11-15T06:58:51.466Z",
+  "status": "verified",
+  "deployment_id": "2a7707ce-1df2-4472-8ce7-19ffd1e384b2",
+  "publishedCommit": "171c34835c282950b6a2d868d898bd6eb77aad21",
+  "sourceSha256": "51cf385b9de88f1c7e7e25878e1792f6dbc2aa4e099cecff89c48e653a4b56bd",
+  "url": "https://vybesocials.lovable.app",
+  "verifiedAt": "2026-11-15T06:59:57.968Z",
+  "entry": "/assets/app-Bg0b3v4q.js",
+  "entrySha256": "867599a76aff80cb7af6ce718f85a37cd68e3b19e4f67355d26d08785f0dfcb6",
+  "nativeAssets": 711,
+  "nativeDeployedAt": "1794725949153"
+}
