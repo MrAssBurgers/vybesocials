@@ -72,6 +72,12 @@ describe('dmInboxCachePatch', () => {
     expect(qc.getQueryData(dmListQueryKey('alice'))).toBeUndefined();
   });
 
+  it('updates an owned profile list when a realtime writer starts with the auth UID', () => {
+    patchDmConversationInCache(qc, 'alice', convId, { unread_count: 0 });
+    expect(qc.getQueryData<LoadedDMConversation[]>(dmListQueryKey(profileId))?.[0].unread_count).toBe(0);
+    expect(qc.getQueryData(dmListQueryKey('alice'))).toBeUndefined();
+  });
+
   it('restores failed optimistic removal and leaves later deliveries intact', () => {
     const before = qc.getQueryData(dmListQueryKey(profileId));
     const rollback = snapshotDmInbox(qc, profileId, { uid: 'alice', epoch: 1 });

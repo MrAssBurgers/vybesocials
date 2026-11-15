@@ -51,18 +51,6 @@ import type { DMConversationPreview, DMInboxRow, DMStoryState, DmInboxFilterId, 
 const TAB_STORAGE_KEY = 'vybe-dm-inbox-tab';
 const EMPTY_CONVERSATIONS: LoadedDMConversation[] = [];
 
-function conversationContentRevision(conversation: LoadedDMConversation): string {
-  const lastMessage = conversation.last_message;
-  return [
-    conversation.id,
-    conversation.unread_count ?? 0,
-    conversation._hasUnread ? '1' : '0',
-    lastMessage?.id ?? '',
-    lastMessage?.created_at ?? '',
-    lastMessage?.message_type ?? '',
-    conversation.updated_at ?? '',
-  ].join('|');
-}
 const REDESIGN_TABS: DmInboxTabId[] = [
   'all',
   'unread',
@@ -267,7 +255,7 @@ export function useDMInbox() {
   const lastStableRowsRef = useRef<DMInboxRow[]>([]);
   const lastNonEmptyConversationsRef = useRef<LoadedDMConversation[]>([]);
   const corePreviewCacheRef = useRef(
-    new Map<string, { revision: string; preview: DMConversationPreview }>(),
+    new Map<string, { source: LoadedDMConversation; builder: (conversation: LoadedDMConversation) => DMConversationPreview; preview: DMConversationPreview }>(),
   );
 
   const allConversations = useMemo(() => {
@@ -725,13 +713,14 @@ export function useDMInbox() {
 
   const getCorePreview = useCallback(
     (conversation: LoadedDMConversation): DMConversationPreview => {
-      const revision = conversationContentRevision(conversation);
       const cached = corePreviewCacheRef.current.get(conversation.id);
-      if (cached && cached.revision === revision) {
+      // React Query shares unchanged objects. A timestamp-only revision misses
+      // membership preferences, edited message text and refreshed profiles.
+      if (cached && cached.source === conversation && cached.builder === toPreview) {
         return cached.preview;
       }
       const preview = toPreview(conversation);
-      corePreviewCacheRef.current.set(conversation.id, { revision, preview });
+      corePreviewCacheRef.current.set(conversation.id, { source: conversation, builder: toPreview, preview });
       return preview;
     },
     [toPreview],
@@ -760,20 +749,10 @@ export function useDMInbox() {
       if (
         prev &&
         prev.type === 'conversation' &&
-        prev.preview.conversationId === preview.conversationId &&
-        prev.preview.latestMessageAt === preview.latestMessageAt &&
-        prev.preview.unreadCount === preview.unreadCount &&
-        prev.preview.isUnread === preview.isUnread &&
-        prev.preview.isPinned === preview.isPinned &&
-        prev.preview.isMuted === preview.isMuted &&
-        prev.preview.isCategoryDimmed === preview.isCategoryDimmed &&
-        prev.preview.categoryMatch === preview.categoryMatch &&
-        prev.preview.previewText === preview.previewText &&
-        prev.preview.statusLine === preview.statusLine &&
-        prev.preview.relationshipEmoji === preview.relationshipEmoji &&
-        prev.preview.storyState === preview.storyState
+        Object.keys(prev.preview).length === Object.keys(preview).length &&
+        (Object.keys(preview) as (keyof DMConversationPreview)[]).every(key => Object.is(prev.preview[key], preview[key]))
       ) {
-        // Reuse prior row object when visible fields are unchanged.
+        // Reuse unchanged rows without discarding profile or action data.
         return prev;
       }
       return { type: 'conversation' as const, preview };

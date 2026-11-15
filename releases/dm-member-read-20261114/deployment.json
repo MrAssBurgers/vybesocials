@@ -1,0 +1,11 @@
+{
+  "project": "vybe-daaab",
+  "verifiedAt": "2026-11-15T00:13:20.216Z",
+  "priorRuleset": "projects/vybe-daaab/rulesets/a1e2c40a-f544-4155-8f7b-f6c7e5317923",
+  "priorSha256": "f7be92e5abb8fa5fb8c8a9fc263440a3478a0e9829b92c84d0085402df999f78",
+  "ruleset": "projects/vybe-daaab/rulesets/ac6a59b5-c4d3-4109-98f3-ad540f0da5f3",
+  "sha256": "e23e0c5464b4550110cd2558edb2685efc86e3c9bcf2f894fae26573ccb8710e",
+  "activationResponse": 503,
+  "activationVerifiedBy": "Authenticated release and source readback; no duplicate activation was submitted",
+  "scope": "Existing conversation-member read optimization only; unrelated live rules preserved"
+}

@@ -46,61 +46,41 @@ export function useTabNotificationBadge() {
       flashTimeoutRef.current = null;
     }
 
-    // usePageTitle/usePageMeta run in the route tree before this global mount.
-    // Capture their route-specific value each time navigation changes.
-    const currentBaseTitle = withoutUnreadPrefix(document.title);
-    if (currentBaseTitle !== FALLBACK_TITLE || !baseTitleRef.current) {
-      baseTitleRef.current = currentBaseTitle;
-    } else if (location.pathname === '/') {
-      baseTitleRef.current = currentBaseTitle;
-    }
-
-    // Public visitors have no unread state. Most importantly, do not overwrite
-    // the route title with a generic app name while signed out.
+    // A lazy page can set its metadata after the global badge effect. Observe
+    // that title instead of restoring the previous route's captured title.
     if (!profileId) {
       previousCountRef.current = 0;
       return;
     }
-
-    const baseTitle = baseTitleRef.current || currentBaseTitle || FALLBACK_TITLE;
-
-    if (totalUnread > 0) {
-      const displayCount = totalUnread > MAX_DISPLAY_COUNT
-        ? `${MAX_DISPLAY_COUNT}+`
-        : totalUnread.toString();
-
-      document.title = `(${displayCount}) ${baseTitle}`;
-
-      if (totalUnread > previousCountRef.current && previousCountRef.current > 0) {
-        let isFlashing = true;
-        flashIntervalRef.current = setInterval(() => {
-          document.title = isFlashing
-            ? `💬 ${baseTitle}`
-            : `(${displayCount}) ${baseTitle}`;
-          isFlashing = !isFlashing;
-        }, 500);
-
-        flashTimeoutRef.current = setTimeout(() => {
-          if (flashIntervalRef.current) {
-            clearInterval(flashIntervalRef.current);
-            flashIntervalRef.current = null;
-          }
-          flashTimeoutRef.current = null;
-          if (totalUnread > 0) {
-            const currentCount = totalUnread > MAX_DISPLAY_COUNT
-              ? `${MAX_DISPLAY_COUNT}+`
-              : totalUnread.toString();
-            document.title = `(${currentCount}) ${baseTitle}`;
-          }
-        }, 3000);
-      }
-    } else {
-      document.title = baseTitle;
+    const displayCount = totalUnread > MAX_DISPLAY_COUNT ? `${MAX_DISPLAY_COUNT}+` : String(totalUnread);
+    let lastWritten: string | undefined;
+    let flash = false;
+    const syncTitle = () => {
+      if (document.title !== lastWritten) baseTitleRef.current = withoutUnreadPrefix(document.title);
+      const base = baseTitleRef.current;
+      const next = totalUnread > 0 ? `${flash ? '💬' : `(${displayCount})`} ${base}` : base;
+      lastWritten = next;
+      if (document.title !== next) document.title = next;
+    };
+    const observer = new MutationObserver(syncTitle);
+    const head = document.head;
+    observer.observe(head, { childList: true, subtree: true, characterData: true });
+    syncTitle();
+    if (totalUnread > previousCountRef.current && previousCountRef.current > 0
+      && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      flashIntervalRef.current = setInterval(() => { flash = !flash; syncTitle(); }, 500);
+      flashTimeoutRef.current = setTimeout(() => {
+        if (flashIntervalRef.current) clearInterval(flashIntervalRef.current);
+        flashIntervalRef.current = null;
+        flashTimeoutRef.current = null;
+        flash = false;
+        syncTitle();
+      }, 3000);
     }
-
     previousCountRef.current = totalUnread;
 
     return () => {
+      observer.disconnect();
       if (flashIntervalRef.current) {
         clearInterval(flashIntervalRef.current);
         flashIntervalRef.current = null;

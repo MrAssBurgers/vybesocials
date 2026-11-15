@@ -1,3 +1,22 @@
+## ACTIVE (2026-11-14) - Whole-app audit: inbox, titles and live read failures repaired
+
+### What changed
+- Continued the user's complete existing-app QA request in an isolated checkout from current main. Reviewed/merged Lovable candidate6eb9a99a and preserved shared-preview recovery8d075b9 and current main253be60. No concurrent work was discarded.
+- Inbox mutations capture their initiating account/session; exact owned profile/UID/session cache writes and rollback cannot affect another account incarnation. Corrected derived inbox caching so pin/mute labels, edited text and refreshed profiles update immediately.
+- Corrected lazy-page title cleanup and unread tab title handling; Search and Clips retain their incoming titles and tab flashes respect reduced motion.
+- Two independently reproduced Firestore expression-budget failures blocked conversation-member and call-history reads. Activated only exact live-baseline optimizations after cloud/emulator validation. Current rulesetdbfd3859-7910-4f74-adf3-5ffe78800fd9 / SHA256705f82b84f2795bc29d883cce4b0b84f73621f25cf3719780671cd165ff6957f preserves unrelated live rules. Root rules were not deployed; no Functions/Auth/IAM/provider/real-user-data changes.
+
+### Verification
+- Full final test run:535files passed/one skipped,5188tests passed/six skipped,242.86s. Types, lint (zero warnings/errors), build, boot/native entry, CSS and bundle budget pass. Entryapp-DNofLTLy.js857.7KB raw261.6KB gzip. Generated backend/public artifacts restored after checks.
+-58actual demo Firebase SDK/HTTP checks pass against the final combined live-baseline rules candidate. The private-community test now provisions its fixture through actual community services instead of assuming a nonexistent hardcoded room.
+- Actual local browser: synthetic message delivery, immediate Unpin/Unmute labels, read/badge clearing, correct Search/Clips navigation titles, mobile action sheet. Fresh production Messages reload after both rules releases has no newly captured warning/error. No real conversation was messaged or called.
+- See [full QA record](releases/full-app-qa-20261114/README.md), [DM rules](releases/dm-member-read-20261114/README.md) and [call-history rules](releases/call-history-read-20261114/README.md). Client publication is the next step, not yet established by this checkpoint.
+
+### Next three tasks
+1. Push the verified finished client to main, publish through Lovable and verify exact public source/entry/native manifest delivery.
+2. Repair current premium403 and marketplace/stream404 service gaps, reviewing their matched authority/deployment prerequisites rather than broadly deploying pending Functions.
+3. Continue remaining signed-in/provider journeys and physical Android/iOS lifecycle/media/permission checks. Whole-app perfection and native adoption are not certified; goal remains active.
+
 ## ACTIVE (2026-11-14) - Inbox state updates and captured chat operations
 
 - Previous turn published the checked shared-preview repair at8d075b9/source86935881 and retained a separate terminal Lovable inbox candidate6eb9a99a on lovable-sync. Revalidated clean main253be60/current remote; saved candidate preserved. Reviewed its functional cache/read/trash changes rather than merging unrelated AGENTS/roadmap/backend/lint edits or trusting its reported test failure. Current scope remains complete existing-app readiness and Firebase restoration, no new features.

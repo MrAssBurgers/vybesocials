@@ -1,0 +1,5 @@
+{
+  "firestore": {
+    "rules": "security/dm-member-read-20261114.rules"
+  }
+}

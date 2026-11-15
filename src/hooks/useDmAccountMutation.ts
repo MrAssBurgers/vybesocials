@@ -68,6 +68,6 @@ export function useDmAccountMutation<TData, TVariables, TInput, TContext = unkno
         if (scope.ready && account.uid === scope.session.uid && account.epoch === scope.session.epoch) toast.error('Could not update this chat. Refresh Messages and try again.');
       }
     },
-    mutateAsync: (value: TVariables, call?: MutateOptions<TData, Error, TVariables, TContext>) => mutation.mutateAsync(start(value), callbacks(call)),
+    mutateAsync: async (value: TVariables, call?: MutateOptions<TData, Error, TVariables, TContext>) => mutation.mutateAsync(start(value), callbacks(call)),
   } as UseMutationResult<TData, Error, TVariables, TContext>;
 }

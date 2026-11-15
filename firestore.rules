@@ -164,10 +164,12 @@ service cloud.firestore {
       return signedIn() && (validFlatMember(cid, uid()) || validFlatMember(cid, profileId()));
     }
     function isMemberViaConversationDoc(cid) {
+      let actor = profileId();
+      let conversation = get(/databases/$(database)/documents/conversations/$(cid));
       return signedIn() &&
-        exists(/databases/$(database)/documents/conversations/$(cid)) && (
-          (profileId() != '' && profileId() in get(/databases/$(database)/documents/conversations/$(cid)).data.get('member_ids', [])) ||
-          uid() in get(/databases/$(database)/documents/conversations/$(cid)).data.get('member_ids', [])
+        conversation != null && (
+          (actor != '' && actor in conversation.data.get('member_ids', [])) ||
+          uid() in conversation.data.get('member_ids', [])
         );
     }
     function isMember(cid) {
@@ -1115,6 +1117,7 @@ service cloud.firestore {
     match /conversation_members/{docId} {
       allow read: if canReadMissingDoc(/databases/$(database)/documents/conversation_members/$(docId)) ||
         signedIn() && (
+          isMemberViaConversationDoc(resource.data.conversation_id) ||
           ownsProfileId(resource.data.user_id) ||
           isConversationParticipant(resource.data.conversation_id)
         );
