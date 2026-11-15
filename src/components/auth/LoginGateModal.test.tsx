@@ -17,9 +17,9 @@ vi.mock('@/components/ui/input-otp', () => ({
   InputOTP: ({ value, onChange, disabled }: { value: string; onChange: (value: string) => void; disabled: boolean }) => { mock.inputRenders++; return <input aria-label="Code" value={value} onChange={event => onChange(event.target.value)} disabled={disabled} />; },
   InputOTPGroup: () => null, InputOTPSlot: () => null,
 }));
-import { LoginGateModal, LOGIN_CODE_WAIT_MS } from './LoginGateModal';
+import { LoginGateModal, LOGIN_CODE_WAIT_MS, LOGIN_CODE_RECOVERY_WAIT_MS } from './LoginGateModal';
 const props = () => ({ open: true, mode: 'code' as const, email: 'a***@example.test', challengeId: 'challenge-one', expiresAt: new Date(Date.now() + 600_000).toISOString(), onSuccess: vi.fn(), onCancel: vi.fn() });
-beforeEach(() => { vi.clearAllMocks(); mock.inputRenders = 0; mock.invoke.mockResolvedValue({ data: { ok: true }, error: null }); });
+beforeEach(() => { vi.clearAllMocks(); mock.invoke.mockReset(); mock.inputRenders = 0; mock.invoke.mockResolvedValue({ data: { ok: true }, error: null }); });
 afterEach(cleanup);
 it('retries completion after an accepted code without verifying the one-use code again', async () => {
   mock.invoke.mockResolvedValue({ data: { ok: true, customToken: 'synthetic-token' }, error: null });
@@ -185,6 +185,40 @@ it('retries a lost code-check response with the same private attempt key without
   await waitFor(() => expect(p.onSuccess).toHaveBeenCalledOnce());
   expect(mock.invoke.mock.calls[1][1].body).toEqual(first);
   expect(localStorage.length).toBe(0); expect(sessionStorage.length).toBe(0);
+});
+it('releases a stalled email check for a same-attempt retry and ignores its late reply', async () => {
+  vi.useFakeTimers();
+  try {
+    let finish!: (value: unknown) => void;
+    mock.invoke.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }))
+      .mockResolvedValueOnce({ data: { ok: true, customToken: 'recovered-token' }, error: null });
+    const p = props(); render(<LoginGateModal {...p} />);
+    await act(async () => { fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } }); });
+    const original = mock.invoke.mock.calls[0][1].body;
+    await act(async () => { await vi.advanceTimersByTimeAsync(LOGIN_CODE_RECOVERY_WAIT_MS); });
+    expect(screen.getByRole('button', { name: 'Retry code check' })).toBeEnabled();
+    expect(screen.getByRole('alert')).toHaveTextContent('connection');
+    expect(document.querySelectorAll('.auth-wave-working')).toHaveLength(0);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Retry code check' })); });
+    expect(mock.invoke.mock.calls[1][1].body).toEqual(original);
+    expect(p.onSuccess).toHaveBeenCalledOnce();
+    await act(async () => finish({ data: { ok: true, customToken: 'late-original-token' }, error: null }));
+    expect(p.onSuccess).toHaveBeenCalledOnce();
+  } finally { vi.useRealTimers(); }
+});
+it('preserves a recoverable attempt when sending a replacement code fails', async () => {
+  mock.invoke.mockResolvedValueOnce({ data: null, error: { name: 'unavailable' } })
+    .mockResolvedValueOnce({ data: null, error: { name: 'unavailable' } })
+    .mockResolvedValueOnce({ data: { ok: true, customToken: 'original-receipt' }, error: null });
+  const p = props(); render(<LoginGateModal {...p} />);
+  fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } });
+  await screen.findByRole('button', { name: 'Retry code check' });
+  const original = mock.invoke.mock.calls[0][1].body;
+  fireEvent.click(screen.getByRole('button', { name: 'Resend code' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Retry code check' })).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', { name: 'Retry code check' }));
+  await waitFor(() => expect(p.onSuccess).toHaveBeenCalledOnce());
+  expect(mock.invoke.mock.calls[2][1].body).toEqual(original);
 });
 it('does not offer recovery for an incorrect code or carry its key into a replacement challenge', async () => {
   mock.invoke.mockResolvedValue({ data: null, error: { name: 'permission-denied' } });

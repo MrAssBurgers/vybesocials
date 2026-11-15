@@ -1,0 +1,31 @@
+{
+  "baselineArchiveSha256": "2b89cd8186ed828c6f87ccc39e7696289b073ef9c72a76a462ec599d5211c437",
+  "archiveSha256": "886e64da0b0c75c8aedbaac4a73b47169051983c0c788e7a6f69ae067e3ddd51",
+  "files": [
+    {
+      "path": "index.js",
+      "sha256": "97a9b63c0c2064b7106553de3d0076fa91c79bb4e65681445ea3652953f92928"
+    },
+    {
+      "path": "lib/_shared/admin.js",
+      "sha256": "fb1043730c28992de8109eb5e3f880d1e67a31a7c251a1cd049ede1eb85b2894"
+    },
+    {
+      "path": "lib/_shared/emailChallengeAuthority.js",
+      "sha256": "f045faa3139c4b775c70c20ead491390df1d59fa032f803c8cba74b23909ea26"
+    },
+    {
+      "path": "lib/_shared/emailChallengeAuthority.js.map",
+      "sha256": "4619dd3bc2e0e593c6f1fe4ae758721c4bfa683b42d1a90613b699efaec1ac28"
+    },
+    {
+      "path": "package.json",
+      "sha256": "f23b8b3ce753ae0f11e29326eb81c58572abf895e22a8fe648ebdc9cafe8031d"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "5594aa942e9ccc1a2250170595eac6c38d5734aa32db7329e78a7c12225588f8"
+    }
+  ],
+  "scope": "Only auth2faVerify; same verified live Node22 package, Admin initializer and handler; account lookup error classification only."
+}

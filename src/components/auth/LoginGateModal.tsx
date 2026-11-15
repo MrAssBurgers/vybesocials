@@ -15,6 +15,18 @@ import type { FunctionInvokeResult } from '@/lib/firebase/types';
 type Mode = 'code' | 'approval' | 'options' | 'sms';
 
 export const LOGIN_CODE_WAIT_MS = 15_000;
+export const LOGIN_CODE_RECOVERY_WAIT_MS = 30_000;
+async function recoverableCodeCheck<T>(request: PromiseLike<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    // Email checks have a server-attested same-attempt recovery key. Stop
+    // waiting on a stalled transport, but never retry the code automatically.
+    // Promise.race keeps a late rejection observed without completing twice.
+    return await Promise.race([request, new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Verification connection timed out')), LOGIN_CODE_RECOVERY_WAIT_MS);
+    })]);
+  } finally { clearTimeout(timer); }
+}
 async function waitForCodeCheck<T>(request: PromiseLike<T>, onDelayed: () => void): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -303,7 +315,7 @@ export function LoginGateModal({
       const pending = pendingVerificationRef.current;
       guard();
       if (pending.context !== captured) throw new Error('This sign-in view changed.');
-      const result = await waitForCodeCheck(pending.request, () => {
+      const result = await waitForCodeCheck(currentMode === 'code' ? recoverableCodeCheck(pending.request) : pending.request, () => {
         if (!current(captured)) return;
         setVerificationDelayed(true);
         setCode('');
@@ -388,8 +400,6 @@ export function LoginGateModal({
       await switchToSms();
       return;
     }
-    verificationAttemptRef.current = null;
-    setRetryVerification(false);
     try {
       setBusy(true);
       const { data, error } = await db.functions.invoke('auth-2fa-request', {
@@ -405,6 +415,10 @@ export function LoginGateModal({
         return;
       }
       const receipt = checkedEmailChallenge(data, activeChallengeId);
+      // A failed resend must not discard the key needed to recover a code
+      // already accepted by the server whose reply was lost.
+      verificationAttemptRef.current = null;
+      setRetryVerification(false);
       setActiveChallengeId(receipt.challengeId);
       setActiveExpiresAt(receipt.expiresAt);
       toast.success('New code sent');
