@@ -1,0 +1,55 @@
+{
+  "scope": "Normalized text source hashes and actual Node22 tested compiled module hashes; source preparation, no deployment",
+  "source": [
+    {
+      "path": "functions/src/_shared/tokenAccountAdmission.ts",
+      "sha256": "b20578e3106582c364b978a63437e045bbc5b408fde07e2a22a74caee41683d1"
+    },
+    {
+      "path": "functions/src/_shared/tokenMarketplaceAuthority.ts",
+      "sha256": "5d6fcaac9b4458882b19bdfd848df09f99c7656289f257c189d97cccb234f419"
+    },
+    {
+      "path": "functions/src/_shared/tokenCreditAuthority.ts",
+      "sha256": "6f14bc08fc7b390fbd986b61a709fa38fe17857fb108f21a1a6ce494c9a25eb4"
+    },
+    {
+      "path": "functions/src/tokenMarketplace.ts",
+      "sha256": "a9e1b077597dfd7474b2fa60f5fa2371e9a0b2bee706fc26aca4b9465f73e525"
+    },
+    {
+      "path": "scripts/qa/token-account-admission-server.mjs",
+      "sha256": "6b20512051a2bdd52be595b0ff8d26204a02150aa5c1848c3de71de016e15e1f"
+    },
+    {
+      "path": "scripts/qa/test-token-account-admission.mjs",
+      "sha256": "22d60cd78d4d191a12666e7a9cd71b80278a2d5520d62f6e022562c9037094fc"
+    },
+    {
+      "path": "src/lib/tokenAccountAdmission.backend.test.ts",
+      "sha256": "8fa483a45dd43e8828a7d58b54a7f2f4ffdeaac700c355eabdd90c2603fc639f"
+    },
+    {
+      "path": "src/lib/tokenMarketplace.callable.test.ts",
+      "sha256": "2a97a7ac07b611af414b3266ec6a0d01ea54f93117b60d24aa1d952b94317687"
+    }
+  ],
+  "compiled": [
+    {
+      "name": "tokenAccountAdmission.js",
+      "sha256": "76b3af5b8085de5fe14e6e8027b45eea94d42e3917123553b04cf0bd3cd94aef"
+    },
+    {
+      "name": "tokenCreditAuthority.js",
+      "sha256": "c35962ed0f2325a6a80d4c5d67b422460c6f98b453a976a41d1c8f01a27b6ac9"
+    },
+    {
+      "name": "tokenMarketplace.js",
+      "sha256": "6b29a73845f850fe02450245d5e8256784c6f6e586f138ef1745de6ea828a7e3"
+    },
+    {
+      "name": "tokenMarketplaceAuthority.js",
+      "sha256": "0c5a514036f2ac69b77be713ba6a18193b8ca9cc9fa2fdec85aef66c53266de2"
+    }
+  ]
+}

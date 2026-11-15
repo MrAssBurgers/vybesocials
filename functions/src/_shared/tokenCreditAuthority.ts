@@ -3,9 +3,10 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { createHash } from 'node:crypto';
 import { resolveIdentity } from './profileAudienceAuthority.js';
 import { validPostPublication } from './postPublicationProof.js';
+import { tokenAccountTransaction, type TokenAccountContext } from './tokenAccountAdmission.js';
 
 type Row = Record<string, unknown>;
-export type TokenActor = { authUid: string; profileId: string };
+export type TokenActor = { authUid: string; profileId: string; account?: TokenAccountContext };
 export const tokenAuthorityId = (parts: string[]) => createHash('sha256').update(JSON.stringify(parts)).digest('hex');
 const DAY = 86_400_000;
 const rates = {
@@ -126,7 +127,7 @@ export async function claimTokenCredit(db: Firestore, actor: TokenActor, input: 
   const walletRef = db.collection('token_wallets').doc(actor.authUid);
   const quotaRef = db.collection('_token_credit_day_limits').doc(actor.authUid);
   const eventRef = db.collection('token_events').doc(key);
-  return db.runTransaction(async tx => {
+  return tokenAccountTransaction(db, actor, async tx => {
     await assertTokenActor(tx, db, actor);
     const [receiptSnap, walletSnap, quotaSnap, boostSnap, eventSnap] = await Promise.all([
       tx.get(receiptRef), tx.get(walletRef), tx.get(quotaRef),

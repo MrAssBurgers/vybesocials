@@ -2,7 +2,11 @@
 
 This is a source migration, not a production deployment or a certification of old balances. No live wallet, purchase, payment, boost, or profile was inspected or changed during implementation.
 
-2026-11-14 prerequisite review: the shared token/challenge actor check now uses the complete canonical alias resolver. A UID colliding with another profile ID, a profile ID colliding with another UID, or an existing retired/mismatched binding cannot read, spend, equip or earn. A valid unbound legacy identity retains its existing compatibility path. These checks do not establish current Firebase Auth creation-time/revocation admission or bind old UID-only ledgers to an account incarnation; those remain coordinated-release requirements. See [the preparation record](../releases/marketplace-identity-20261114/README.md). The exact-baseline Rules candidate is compiled and SDK-tested but is not active. The real tokenMarketplace service remains absent at this checkpoint.
+2026-11-14 prerequisite review: the shared token/challenge actor check uses the complete canonical alias resolver. A UID colliding with another profile ID, a profile ID colliding with another UID, or an existing retired/mismatched binding cannot read, spend, equip or earn. See [the identity preparation record](../releases/marketplace-identity-20261114/README.md).
+
+The staged marketplace gateway additionally captures the current Auth account's precise creation timestamp and credential cutoff. State, spending, activation, equipment and earning recheck that same account before their transaction callback may commit/return, including replay returns. A disabled/deleted/replaced account or revoked credential fails without committing queued financial writes. Caller-supplied account objects never become this server-owned context. See [the admission preparation record](../releases/token-account-admission-20261114/README.md).
+
+**This is still not a coordinated release.** Unbound internal actors retain legacy compatibility; existing challenge/badge writers have not all cut over. Request-lifetime admission does not durably bind UID-only balances, entitlements, boosts, XP or replay receipts across later requests/account recreation. The durable ledger owner/provenance policy, matched writers, indexes and exact Rules cutover remain prerequisites. The compiled/SDK-tested Rules candidate is not active, and the real tokenMarketplace service remains absent at this checkpoint. No old balances were silently adopted or reset.
 
 ## Authority and historical data
 

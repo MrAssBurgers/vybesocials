@@ -1,0 +1,39 @@
+{
+  "checkedAt": "2026-11-15T04:10:06.155Z",
+  "runtime": "v22.23.5",
+  "results": [
+    {
+      "name": "guest has no account or ledger lookup",
+      "pass": true
+    },
+    {
+      "name": "real JWT and precise current Auth admit state and one daily credit",
+      "pass": true
+    },
+    {
+      "name": "disabled account cannot read token state",
+      "pass": true
+    },
+    {
+      "name": "deleted account cannot read token state",
+      "pass": true
+    },
+    {
+      "name": "disable-before-commit rolls back the actual earning transaction",
+      "pass": true
+    },
+    {
+      "name": "replace-before-commit rolls back the actual earning transaction",
+      "pass": true
+    },
+    {
+      "name": "fail-commit rolls back the actual earning transaction",
+      "pass": true
+    },
+    {
+      "name": "precise Auth lookup detects same-second replacement hidden by Admin metadata",
+      "pass": true
+    }
+  ],
+  "scope": "Actual callable, real demo JWT/Auth account lookup/Firestore. Proves request-lifetime account admission, not durable wallet incarnation/history reconciliation or production readiness."
+}
