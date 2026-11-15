@@ -1,3 +1,14 @@
+## ACTIVE (2026-11-14) - Final community keyboard release published and verified
+
+- Final source08eff89bc54ea293bbb2204bbe64ee09dcee3e78 published once through Lovableee535070-ce9a-46d7-9290-81eb49c725c9 after exact ready/finished GitSync. Observer94777exit0 at04:07:22.731Z proves source2517c6b4/2674files, all source/runtime parts, entry/assets/app-B6NKr-lN.js/digestcf6f9380, fifteen route shells and709native assets, deployed_at1794715606972. See releases/community-entry-20261114 final public/client receipts; earlier release receipts explicitly retained as initial. Five backend services stay at their verified source/runtime/configuration release; no redeploy or production domain-data action here.
+- Exact final native390px keyboard walkthrough passed before publication: card Enter and Join Space activate directly, with pending label and correct selected community/room. QA window9178600 closed and own preview36140 stopped; unrelated Chrome263582 preserved. Full combined5,308pass/six skip plus six separate browser Firebase persistence passes, types/lint/build/boot/native/CSS/budget and Functions compile remain valid. No runtime edits after final checks. Physical phone, actual live authenticated/provider behavior and whole-app readiness are still unproved.
+- Read-only wider keyboard candidate scan contains123potential sites, including legitimate backdrops and unused components. Verified ExploreClipsSection and VideoBubble have no actual rendering call sites; do not treat their unused definitions as current user-facing failures. AnnouncementModal is rendered in Home and will be checked next. The old backend-deep-scan still references obsolete Supabase; it was read only and not executed. Continue Firebase-only work.
+
+### Next three tasks
+1. Verify active Home announcement open/close/media/dismissal behavior and reproduce any defects before editing.
+2. Continue actual remaining existing-feature/interface/backend coverage without substituting unused code or unit counts for real journeys.
+3. Continue provider/history/account/marketplace and physical installed lifecycle/performance, retaining current releases and legitimate Firebase data. Optional device-target question is pending; no answer assumed.
+
 ## ACTIVE (2026-11-14) - Final community keyboard source combined with latest live auth repair
 
 - Main advanced during the first push; safe fast-forward push rejection preserved it. Fetched/reviewed main27ad0d3 and its exact email-confirmed authLoginNotify transaction optimization, already independently deployed and source-verified. Preserved its docs/source/QA scripts in merge806f51c. Only overlapping work-log sections needed reconciliation; both histories retained. No backend operation was dispatched here.

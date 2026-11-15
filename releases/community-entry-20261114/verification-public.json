@@ -1,0 +1,30 @@
+{
+  "checkedAt": "2026-11-15T04:07:22.731Z",
+  "commit": "08eff89bc54ea293bbb2204bbe64ee09dcee3e78",
+  "sourceSha256": "2517c6b4501e67053b2dee3a55c08b1cd8ac0c508dcb7332a1a9214482551676",
+  "sourceFiles": 2674,
+  "entry": "/assets/app-B6NKr-lN.js",
+  "entrySha256": "cf6f9380db2d57ebdfd209cd25ced4f88efaa7be45fb5a4c9b3e2fff9a73212a",
+  "builtAt": "2026-11-15T04:06:47.591Z",
+  "routes": [
+    "/",
+    "/login",
+    "/signup",
+    "/home",
+    "/profile",
+    "/messages",
+    "/community",
+    "/map",
+    "/explore",
+    "/clips",
+    "/settings",
+    "/about",
+    "/contact",
+    "/faq",
+    "/delete-account"
+  ],
+  "assets": 709,
+  "nativeDeployedAt": "1794715606972",
+  "failures": [],
+  "scope": "Exact public source/runtime/entry integrity, fifteen route shells and native manifest delivery. Not a certification of signed-in transactions, provider integrations, native adoption, GPS, calling or sustained media/animation performance."
+}
