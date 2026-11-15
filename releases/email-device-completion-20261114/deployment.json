@@ -1,0 +1,18 @@
+{
+  "verifiedAt": "2026-11-15T03:58:02.850Z",
+  "target": "authLoginNotify",
+  "operation": "projects/vybe-daaab/locations/us-central1/operations/operation-1794715031887-66048a7f2dd40-c9d3d1ab-3b6b1cca",
+  "state": "ACTIVE",
+  "runtime": "nodejs22",
+  "updateTime": "2026-11-15T03:57:58.357068623Z",
+  "archiveSha256": "eafde96c443bb726b17ddcea9c0c6e288f24c8401c9b6680b52c0f5c604ee98e",
+  "serviceConfigurationPreserved": true,
+  "iamBindingsPreserved": true,
+  "probe": {
+    "options": 204,
+    "origin": "https://vybehub.app",
+    "post": 401,
+    "code": "UNAUTHENTICATED"
+  },
+  "scope": "Email trust update and checked receipt committed together; unchanged account/device/email proof modules and dependency lock; no Rules, Auth/provider settings, secret bindings or other function update"
+}
