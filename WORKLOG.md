@@ -1,3 +1,14 @@
+## ACTIVE (2026-11-14) - Community backend verified; final matched client ready to publish
+
+- All five existing community service operations completed at03:43:30.730Z. Each is ACTIVE Node22 and downloaded deployed source exactly matches frozen34f2ad1b. Every service configuration field except revision identity is unchanged. All five browser OPTIONS204/correct origin and guest POST401/UNAUTHENTICATED pass. No operation resubmitted, production member action, Rules, Auth/provider config, IAM or secret change. Exact receipt releases/community-entry-20261114/deployment-backend.json.
+- Preserved accepted-code runtime3941e8c in merged5379f6 and its later publication receipts ce2eaae in a documentation-only merge. Reviewed changes keep owned profile/device receipts and account/challenge guards while observing slow accepted completion. Final combined55741 exits0:547files passed/one skipped,5,308tests passed/six skipped,119.67s. Types/lint/build32811 exit0; zero lint warnings/errors; boot/native entry/CSS/budget pass. Earlier Functions compile passes; community frozen code unchanged. Source936a2f8b/2672files independently matches dist; app-CXFE5ehE.js858.9KB raw/262.0KB gzip. No runtime edit after final checks; generated artifacts restored.
+- Native synthetic community UI and actual Node22 demo Auth/HTTP/SDK/private-surface evidence retain their bounded scope. User-created unrelated browser tab preserved and input stopped. Own QA servers are stopped; completed demo export retained locally. Real production authenticated combined flow, manual wide layout and physical phone remain unproved.
+
+### Next three tasks
+1. Push/publish the exact final matched community client through Lovable and verify source/runtime/entry/native asset delivery.
+2. Continue actual community/member/browser lifecycle and physical installed adoption without inferring success from synthetic checks.
+3. Continue the original entire-app service/history/provider/account/marketplace audit; this scoped release is progress, goal remains active.
+
 ## ACTIVE (2026-11-14) - Combined community release checked; five service updates pending
 
 - Preserved current main bf8414a and reviewed inherited loginGeo/auth, Profile Clips and prepared marketplace changes. Community runtime source did not change across merge. A local work-log merge retained conflict markers after an encoding failure; removed them immediately in documentation-only d09fe6c before any push. Both histories retained.
