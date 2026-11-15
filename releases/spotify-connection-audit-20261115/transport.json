@@ -1,0 +1,48 @@
+{
+  "checkedAt": "2026-11-15T07:03:03.044Z",
+  "rows": [
+    {
+      "target": "createSpotifyOauthUrl",
+      "method": "OPTIONS",
+      "status": 404,
+      "origin": null,
+      "code": null
+    },
+    {
+      "target": "createSpotifyOauthUrl",
+      "method": "POST",
+      "status": 404,
+      "origin": null,
+      "code": null
+    },
+    {
+      "target": "spotifyOauthStart",
+      "method": "GET",
+      "status": 400,
+      "origin": null,
+      "code": null
+    },
+    {
+      "target": "spotifyOauthCallback",
+      "method": "GET",
+      "status": 400,
+      "origin": null,
+      "code": null
+    },
+    {
+      "target": "spotifyNowPlaying",
+      "method": "OPTIONS",
+      "status": 204,
+      "origin": "https://vybehub.app",
+      "code": null
+    },
+    {
+      "target": "spotifyNowPlaying",
+      "method": "POST",
+      "status": 401,
+      "origin": "https://vybehub.app",
+      "code": "UNAUTHENTICATED"
+    }
+  ],
+  "scope": "Guest/no-code transport probes only; no OAuth provider request, token, account link or data change."
+}

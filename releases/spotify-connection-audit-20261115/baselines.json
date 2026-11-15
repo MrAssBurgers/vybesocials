@@ -1,0 +1,31 @@
+{
+  "checkedAt": "2026-11-15T07:06:02.833Z",
+  "rows": [
+    {
+      "target": "spotifyOauthStart",
+      "state": "ACTIVE",
+      "runtime": "nodejs20",
+      "updateTime": "2026-07-13T17:09:34.668229356Z",
+      "archiveSha256": "e887e1a45fdfe06142b49a495bcf8fcf266dd1f0f795992200d426534db0f376",
+      "bytes": 502653,
+      "secretNames": [
+        "SPOTIFY_CLIENT_ID",
+        "SPOTIFY_CLIENT_SECRET"
+      ],
+      "scope": "Read-only exact deployed source; no provider/auth/account change"
+    },
+    {
+      "target": "spotifyOauthCallback",
+      "state": "ACTIVE",
+      "runtime": "nodejs20",
+      "updateTime": "2026-07-13T17:11:33.142367457Z",
+      "archiveSha256": "e887e1a45fdfe06142b49a495bcf8fcf266dd1f0f795992200d426534db0f376",
+      "bytes": 502653,
+      "secretNames": [
+        "SPOTIFY_CLIENT_ID",
+        "SPOTIFY_CLIENT_SECRET"
+      ],
+      "scope": "Read-only exact deployed source; no provider/auth/account change"
+    }
+  ]
+}
