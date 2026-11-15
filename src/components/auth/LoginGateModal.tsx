@@ -86,6 +86,7 @@ export function LoginGateModal({
   const [approvalChallengeId, setApprovalChallengeId] = useState(challengeId);
   const [codeAccepted, setCodeAccepted] = useState(false);
   const [verificationDelayed, setVerificationDelayed] = useState(false);
+  const [completionDelayed, setCompletionDelayed] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   // A delayed one-use request stays observed, never submitted a second time.
   const pendingVerificationRef = useRef<{ context: object; request: PromiseLike<FunctionInvokeResult> } | null>(null);
@@ -126,6 +127,7 @@ export function LoginGateModal({
     acceptedRef.current = null;
     setCodeAccepted(false);
     setVerificationDelayed(false);
+    setCompletionDelayed(false);
     setFeedback(null);
     pendingVerificationRef.current = null;
   }, [open, challengeId, mode, email, expiresAt]);
@@ -253,6 +255,14 @@ export function LoginGateModal({
     verificationRunningRef.current = true;
     setBusy(true);
     setFeedback(null);
+    setCompletionDelayed(false);
+    const finish = (accepted: NonNullable<typeof acceptedRef.current>) => {
+      guard();
+      return waitForCodeCheck(
+        Promise.resolve(onSuccess(accepted.session, accepted.token, accepted.confirmation, guard)),
+        () => { if (current(captured)) setCompletionDelayed(true); },
+      );
+    };
     const fail = (message: string) => { setFeedback(message); toast.error(message); };
     try {
       const accepted = acceptedRef.current;
@@ -266,7 +276,7 @@ export function LoginGateModal({
           fail('This sign-in request expired. Please sign in again.');
           return;
         }
-        await onSuccess(accepted.session, accepted.token, accepted.confirmation, guard);
+        await finish(accepted);
         if (current(captured)) acceptedRef.current = null;
         return;
       }
@@ -308,11 +318,14 @@ export function LoginGateModal({
       if (customToken || (session?.access_token && session?.refresh_token)) {
         const confirmation = currentMode === 'code' ? { emailChallengeId: activeChallengeId } : undefined;
         const receiptSession = customToken ? null : session;
-        const expiry = activeExpiresAt ? new Date(activeExpiresAt).getTime() : Date.now() + 600_000;
-        acceptedRef.current = { context: captured, token: customToken, session: receiptSession, confirmation, expires: Math.min(expiry, Date.now() + 600_000) };
+        // Code expiry only gates server verification. A code consumed just
+        // before expiry still has its own bounded device-completion window.
+        // The server revalidates the consumed proof on every completion.
+        const accepted = { context: captured, token: customToken, session: receiptSession, confirmation, expires: Date.now() + 600_000 };
+        acceptedRef.current = accepted;
         setCodeAccepted(true);
         setCode('');
-        await onSuccess(receiptSession, customToken, confirmation, guard);
+        await finish(accepted);
         if (current(captured)) acceptedRef.current = null;
         return;
       }
@@ -332,7 +345,7 @@ export function LoginGateModal({
       setCode('');
       submittedRef.current = false;
     } finally {
-      if (current(captured)) { verificationRunningRef.current = false; setBusy(false); }
+      if (current(captured)) { verificationRunningRef.current = false; setBusy(false); setCompletionDelayed(false); }
     }
   }, [busy, activeChallengeId, activeExpiresAt, onSuccess, currentMode, context, current, optionBusy]);
 
@@ -489,7 +502,7 @@ export function LoginGateModal({
         onPointerDownOutside={(e) => { if (lockDismiss) e.preventDefault(); }}
         onInteractOutside={(e) => { if (lockDismiss) e.preventDefault(); }}
       >
-        <AuthWaveSurface busy={busy} className="auth-gate-wave">
+        <AuthWaveSurface busy={busy && !completionDelayed} className="auth-gate-wave">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {currentMode === 'code' && <Mail className="w-5 h-5 text-primary" />}
@@ -551,6 +564,7 @@ export function LoginGateModal({
             )}
 
             {feedback && <p role="alert" className="text-sm leading-relaxed text-muted-foreground">{feedback}</p>}
+            {completionDelayed && <p role="status" className="text-sm leading-relaxed text-muted-foreground">Your code was accepted. Your account is taking longer to open. We’ll continue automatically when the secure checks finish.</p>}
             {verificationDelayed && <p role="status" className="text-sm leading-relaxed text-muted-foreground">Your connection is taking longer. We’ll continue automatically when your code is checked. You can leave this screen to change accounts.</p>}
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
               {!codeAccepted && !verificationDelayed ? (

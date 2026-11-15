@@ -34,6 +34,22 @@ it('retries completion after an accepted code without verifying the one-use code
   expect(mock.invoke).toHaveBeenCalledTimes(1);
   expect(p.onSuccess.mock.calls[1][1]).toBe('synthetic-token');
 });
+it('keeps a just-accepted receipt retryable after the original code expires', async () => {
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now());
+  try {
+    const now = Date.now(), p = { ...props(), expiresAt: new Date(now + 1_000).toISOString() };
+    mock.invoke.mockResolvedValue({ data: { ok: true, customToken: 'accepted-near-expiry' }, error: null });
+    p.onSuccess.mockRejectedValueOnce(Error('Temporary connection failure')).mockResolvedValue(undefined);
+    render(<LoginGateModal {...p} />);
+    fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } });
+    const retry = await screen.findByRole('button', { name: 'Finish signing in' });
+    await waitFor(() => expect(retry).toBeEnabled());
+    clock.mockReturnValue(now + 2_000); fireEvent.click(retry);
+    await waitFor(() => expect(p.onSuccess).toHaveBeenCalledTimes(2));
+    expect(mock.invoke).toHaveBeenCalledOnce(); expect(mock.error).not.toHaveBeenCalledWith(expect.stringContaining('expired'));
+  } finally { clock.mockRestore(); }
+});
+
 it('drops an accepted receipt when the sign-in view changes', async () => {
   mock.invoke.mockResolvedValue({ data: { ok: true, customToken: 'synthetic-token' }, error: null });
   const p = props(); p.onSuccess.mockRejectedValue(new Error('Profile unavailable'));
@@ -44,6 +60,25 @@ it('drops an accepted receipt when the sign-in view changes', async () => {
   expect(screen.queryByRole('button', { name: 'Finish signing in' })).not.toBeInTheDocument();
   expect(screen.getByLabelText('Code')).toHaveValue('');
   expect(p.onSuccess).toHaveBeenCalledTimes(1);
+});
+
+it('automatically finishes delayed accepted-code completion without another verification or retry', async () => {
+  vi.useFakeTimers();
+  try {
+    let finish!: () => void;
+    mock.invoke.mockResolvedValue({ data: { ok: true, customToken: 'accepted-token' }, error: null });
+    const p = props(); p.onSuccess.mockReturnValue(new Promise<void>(resolve => { finish = resolve; }));
+    render(<LoginGateModal {...p} />);
+    await act(async () => { fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } }); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(LOGIN_CODE_WAIT_MS); });
+    expect(screen.getByRole('status')).toHaveTextContent('Your code was accepted');
+    expect(document.querySelectorAll('.auth-wave-working')).toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'Change account' })).toBeDisabled();
+    expect(mock.invoke).toHaveBeenCalledOnce(); expect(p.onSuccess).toHaveBeenCalledOnce();
+    await act(async () => finish());
+    expect(screen.queryByRole('status')).not.toBeInTheDocument(); expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(mock.invoke).toHaveBeenCalledOnce(); expect(p.onSuccess).toHaveBeenCalledOnce();
+  } finally { vi.useRealTimers(); }
 });
 it('does not reuse an expired accepted receipt', async () => {
   const now = Date.now(); const clock = vi.spyOn(Date, 'now').mockReturnValue(now);

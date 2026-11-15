@@ -205,6 +205,22 @@ describe('AuthProvider checked profile setup', () => {
     expect(state.ensure).toHaveBeenCalledOnce();
   });
 
+  it('finishes an accepted code when profile plus device checks exceed the initial sign-in deadline', async () => {
+    const binding = deferred<ReturnType<typeof profile>>(), registration = deferred<{ requiresApproval: false }>();
+    state.ensure.mockReturnValue(binding.promise); state.notify.mockReturnValue(registration.promise);
+    mount(); act(() => { state.account = { uid: 'alice', epoch: 1 }; state.subscribers.forEach(notify => notify()); });
+    vi.useFakeTimers();
+    let completion!: ReturnType<typeof current.applyOAuthSession>;
+    let failure: unknown;
+    act(() => { completion = current.applyOAuthSession(session('alice'), 'email_2fa', { emailChallengeId: 'email-challenge' }); void completion.catch(error => { failure = error; }); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(12_000); binding.resolve(profile('alice', 'alice')); await vi.advanceTimersByTimeAsync(0); });
+    expect(state.notify).toHaveBeenCalledOnce();
+    await act(async () => { await vi.advanceTimersByTimeAsync(12_000); });
+    expect(failure).toBeUndefined(); expect(state.signOut).not.toHaveBeenCalled(); expect(current.user).toBeNull();
+    await act(async () => { registration.resolve({ requiresApproval: false }); await completion; });
+    expect(current.profile?.user_id).toBe('alice'); expect(state.ensure).toHaveBeenCalledOnce(); expect(state.notify).toHaveBeenCalledOnce();
+  });
+
   it('keeps failed email-device completion signed out with no premature profile setup', async () => {
     state.notify.mockRejectedValue(Error('This device sign-in was not confirmed'));
     state.ensure.mockResolvedValue(profile('alice', 'alice'));
