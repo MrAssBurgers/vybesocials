@@ -1,0 +1,43 @@
+{
+  "checkedAt": "2026-11-15T05:09:42.221Z",
+  "sourceSha256": "9af79984cfeee3f60258776c0c227f456f0f8a44cedf564d82be9199e1797ff3",
+  "browser": "Installed Chrome, Windows native UI control",
+  "window": 18810432,
+  "components": "Actual imported AnnouncementModal and AnnouncementMediaPreview, actual app CSS, synthetic account/query/dismissal hooks and generated media only",
+  "viewportWidths": [
+    320,
+    390,
+    840
+  ],
+  "viewportHeight": 844,
+  "checks": [
+    "Named native opener and dialog exposed to accessibility",
+    "Tab directly reaches opener; Enter opens; Tab reaches Dismiss; Space activates",
+    "Escape closes and visible focus returns to opener; named Close also closes",
+    "Portaled dialog renders outside transformed parent on phone and wide layouts",
+    "Long 320px title wraps; long body scrolls while Close and Dismiss remain reachable",
+    "Synthetic pending acknowledgement keeps dialog open with disabled Dismissing label",
+    "Synthetic failed acknowledgement retains dialog and visible retry message",
+    "Actual image decodes at 192x192",
+    "Actual generated GIF decodes at320x180; distinct pink/left and orange/right frames observed",
+    "Actual generated WebM decodes; native playback reaches2.96 seconds readyState4/errornull",
+    "Native Play replays video and changes to Pause; visible time resets to0",
+    "Deliberately invalid image source shows named Retry; repeated Retry preserves recoverability",
+    "Replacing failed URL while dialog is open restores decoded image",
+    "Arrival of newer row while dialog is open preserves original selected title",
+    "Successful acknowledgement submits original news ID, closes and retains newer announcement",
+    "Failed read shows Retry announcements; Retry restores opener",
+    "Fixture account switch retires open prior-account dialog and mounts next account view"
+  ],
+  "cleanup": {
+    "qaWindowClosed": true,
+    "remainingUnrelatedChromeWindow": 263582,
+    "ownedViteStopped": true
+  },
+  "limitations": [
+    "Synthetic interface transport is separate from the actual28local FirebaseSDK checks; not a live combined authenticated flow.",
+    "No real production dismissal, announcement, notification, account, provider action or physical device test.",
+    "Native screenshot/accessibility updates sometimes lag one observation; final states were refreshed before claims."
+  ],
+  "scope": "Actual presentation/keyboard/media verification of the changed source. Not certification of full-app or physical native performance."
+}
