@@ -1,0 +1,11 @@
+{
+  "localSdkChecks": 15,
+  "localRuntime": "Node v22.23.5",
+  "rulesSha256": "705f82b84f2795bc29d883cce4b0b84f73621f25cf3719780671cd165ff6957f",
+  "archiveSha256": "6823755d56c7986b57e81f79bfd4fff9e6257f231c69e83d26f4677acfa0d9b2",
+  "fullTests": 5215,
+  "types": true,
+  "lint": true,
+  "build": true,
+  "checkedAt": "2026-11-15T01:11:09.388Z"
+}

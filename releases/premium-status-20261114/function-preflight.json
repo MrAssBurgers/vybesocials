@@ -1,0 +1,60 @@
+{
+  "checkedAt": "2026-11-15T01:16:05.950Z",
+  "scope": "Unauthenticated OPTIONS reachability/CORS only, not callable authorization or functionality",
+  "results": [
+    {
+      "name": "manageMapSocial",
+      "status": 204,
+      "origin": "https://vybehub.app",
+      "methods": "POST"
+    },
+    {
+      "name": "manageLocationSharing",
+      "status": 204,
+      "origin": "https://vybehub.app",
+      "methods": "POST"
+    },
+    {
+      "name": "readSocialFeed",
+      "status": 204,
+      "origin": "https://vybehub.app",
+      "methods": "POST"
+    },
+    {
+      "name": "readSocialPostList",
+      "status": 204,
+      "origin": "https://vybehub.app",
+      "methods": "POST"
+    },
+    {
+      "name": "readSocialPostPreviews",
+      "status": 204,
+      "origin": "https://vybehub.app",
+      "methods": "POST"
+    },
+    {
+      "name": "checkPremiumSubscription",
+      "status": 204,
+      "origin": "https://vybehub.app",
+      "methods": "POST"
+    },
+    {
+      "name": "tokenMarketplace",
+      "status": 404,
+      "origin": null,
+      "methods": null
+    },
+    {
+      "name": "tokenMarketplace2",
+      "status": 404,
+      "origin": null,
+      "methods": null
+    },
+    {
+      "name": "checkStreamSubscription",
+      "status": 404,
+      "origin": null,
+      "methods": null
+    }
+  ]
+}

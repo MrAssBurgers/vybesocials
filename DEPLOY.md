@@ -12,6 +12,12 @@ Production web hosting is **Lovable**, with custom domain **`vybehub.app`**. Lov
 | Firebase Hosting staging frontend | https://vybe-daaab.web.app — shares the production Firebase project; not an isolated data environment |
 | Isolated local QA | `demo-vybe-preview`; follow [LOCAL_PREVIEW_QA.md](docs/LOCAL_PREVIEW_QA.md). Never deploy its configuration or fixtures. |
 
+## Existing premium-status transport recovery (2026-11-14)
+
+Only `checkPremiumSubscription` was updated from its reviewed deployed baseline, using an isolated package of the actual status handler and its two shared modules. It now runs Node22; preserve that runtime on future updates even though the root Functions package still describes older pending targets. The existing service environment, service account, ingress, memory, fractional CPU, timeout, scaling and concurrency were retained. Browser transport invocation was added to this one service; verified Firebase authentication still authorizes every response. Production OPTIONS now returns204 with the correct origin and an unauthenticated POST returns401/UNAUTHENTICATED, replacing the platform403. See [the exact release record](releases/premium-status-20261114/README.md).
+
+No Firestore/Storage rules, other Functions, Firebase Auth/provider settings, secrets, real gifts, subscriptions, balances or native binaries changed. The exact existing live rules deny raw entitlement reads/listing/writes in all36 SDK checks. This read-only endpoint repair does not release `premiumGiftManage`, marketplace/stream services, subscription provisioning or payment webhooks. Retain the baseline/source receipts and use a matched, explicitly selected deployment; do not broadly deploy pending root Functions or Rules.
+
 ## Existing inbox read recovery (2026-11-14)
 
 Two exact live-baseline read optimizations are active: [conversation members](releases/dm-member-read-20261114/README.md) and [call history](releases/call-history-read-20261114/README.md). Current verified Firestore ruleset is `dbfd3859-7910-4f74-adf3-5ffe78800fd9`, SHA256 `705f82b84f2795bc29d883cce4b0b84f73621f25cf3719780671cd165ff6957f`. These preserve every unrelated prior live rule. The root rules still include unrelated pending work and were not deployed. Saved older baselines are rollback evidence; verify current release/source before any activation.
