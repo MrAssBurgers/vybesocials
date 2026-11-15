@@ -1480,6 +1480,31 @@ service cloud.firestore {
     }
     match /challenge_templates/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
     match /announcements/{id}     { allow read: if signedIn(); allow write: if isAdmin(); }
+    // Personal announcement preferences use the protected canonical profile.
+    // Older rows remain readable; their owner and announcement never change.
+    function validAnnouncementDismissal(row, id) {
+      return row.keys().hasAll(['user_id', 'announcement_id'])
+        && row.user_id is string && row.announcement_id is string
+        && row.announcement_id.matches('^[^/]+$')
+        && row.get('id', id) == id
+        && row.get('created_at', '') is string && row.get('updated_at', '') is string
+        && exists(/databases/$(database)/documents/announcements/$(row.announcement_id));
+    }
+    match /dismissed_announcements/{id} {
+      allow read: if signedIn() && resource.data.user_id is string
+        && privateBirthdayOwner(resource.data.user_id);
+      allow create: if signedIn() && validAnnouncementDismissal(request.resource.data, id)
+        && request.resource.data.keys().hasOnly(['id', 'user_id', 'announcement_id', 'created_at', 'updated_at'])
+        && privateBirthdayOwner(request.resource.data.user_id);
+      allow update: if signedIn() && resource.data.user_id is string
+        && privateBirthdayOwner(resource.data.user_id)
+        && validAnnouncementDismissal(request.resource.data, id)
+        && request.resource.data.user_id == resource.data.user_id
+        && request.resource.data.announcement_id == resource.data.announcement_id
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['id', 'created_at', 'updated_at']);
+      allow delete: if false;
+    }
+
     match /battle_pass_tiers/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
     match /algorithm_settings/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
     match /community_guidelines/{id} { allow read: if signedIn(); allow write: if isAdmin(); }

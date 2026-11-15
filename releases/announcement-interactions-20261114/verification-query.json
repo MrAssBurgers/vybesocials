@@ -1,0 +1,16 @@
+{
+  "checkedAt": "2026-11-15T04:58:25.246Z",
+  "rows": [
+    {
+      "label": "active announcements by newest",
+      "ok": true,
+      "documentsReturned": 1
+    },
+    {
+      "label": "bounded nonexistent dismissal owner and announcement",
+      "ok": true,
+      "documentsReturned": 0
+    }
+  ],
+  "scope": "Read-only administrative bounded production query/index compatibility. No document content saved/printed and no write. Not proof of live owner Rules admission or phone speed."
+}

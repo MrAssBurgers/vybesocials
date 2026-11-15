@@ -1,0 +1,6 @@
+{
+  "baselineSha256": "5e089eb26cc72314e1eff017a70166aa5040fb1f172e01125164b5050945e4e3",
+  "candidateSha256": "1aaf28af3e57a6a5ba445c9b35a739ed110b177465a5fb63dc7dfa9b1074c222",
+  "onlyAddedBlock": true,
+  "scope": "Add only canonical-owner dismissal reads/creates/compatible record-ID and timestamp updates. Ownership/announcement IDs stay immutable; no other owner, staff or guest access. Exact unrelated live source bytes preserved. Root Rules remain undeployed."
+}

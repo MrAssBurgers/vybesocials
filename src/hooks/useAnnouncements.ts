@@ -3,6 +3,8 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { isRetiredUpgradeNotice } from '@/lib/migrationNotice';
+import { useReportAccountSession } from './useReportAccountSession';
+import { reportAccountGuard, type ReportAccountGuard } from '@/lib/reportModerationService';
 
 export interface Announcement {
   id: string;
@@ -22,10 +24,13 @@ export interface Announcement {
 
 export function useAnnouncements() {
   const profileId = useAuthProfileId();
+  const session = useReportAccountSession();
+  const guard = reportAccountGuard(session.uid);
   
   return useQuery({
-    queryKey: ['announcements', profileId],
+    queryKey: ['announcements', profileId, session.uid, session.epoch],
     queryFn: async () => {
+      guard();
       const { data: announcements, error } = await db
         .from('announcements')
         .select(`
@@ -35,18 +40,23 @@ export function useAnnouncements() {
         .eq('is_active', true)
         .order('created_at', { ascending: false });
       
+      guard();
       if (error) throw error;
       
-      const { data: dismissed } = await db
+      const { data: dismissed, error: dismissedError } = await db
         .from('dismissed_announcements')
         .select('announcement_id')
         .eq('user_id', profileId || '');
+      guard();
+      if (dismissedError) throw dismissedError;
       
       const dismissedIds = new Set(dismissed?.map(d => d.announcement_id) || []);
       
       return (announcements || []).filter(a => !dismissedIds.has(a.id) && !isRetiredUpgradeNotice(a)) as Announcement[];
     },
-    enabled: !!profileId,
+    enabled: !!profileId && !!session.uid,
+    placeholderData: undefined,
+    initialData: undefined,
     select: (announcements) => announcements.filter(a => !isRetiredUpgradeNotice(a)),
     networkMode: 'always',
   });
@@ -54,22 +64,38 @@ export function useAnnouncements() {
 
 export function useDismissAnnouncement() {
   const queryClient = useQueryClient();
-  const { profile } = useAuth();
-  
-  return useMutation({
-    mutationFn: async (announcementId: string) => {
+  const profileId = useAuthProfileId();
+  const session = useReportAccountSession();
+  const guard = reportAccountGuard(session.uid);
+  type Operation = { announcementId: string; profileId: string | undefined; uid: string | undefined; epoch: number; guard: ReportAccountGuard };
+  const keyFor = (operation: Operation) => ['announcements', operation.profileId, operation.uid, operation.epoch];
+  const mutation = useMutation({
+    mutationFn: async (operation: Operation) => {
+      operation.guard();
+      if (!operation.profileId) throw new Error('Your profile is unavailable. Reopen this announcement.');
       const { error } = await db
         .from('dismissed_announcements')
         .upsert({
-          user_id: profile!.id,
-          announcement_id: announcementId,
+          user_id: operation.profileId,
+          announcement_id: operation.announcementId,
         }, { onConflict: 'user_id,announcement_id', ignoreDuplicates: true });
+      operation.guard();
       if (error && error.code !== '23505') throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['announcements'] });
+    onSuccess: (_data, operation) => {
+      operation.guard();
+      const queryKey = keyFor(operation);
+      queryClient.setQueryData<Announcement[]>(queryKey, rows => rows?.filter(row => row.id !== operation.announcementId));
+      void queryClient.invalidateQueries({ queryKey, exact: true });
     },
   });
+  const operation = (announcementId: string): Operation => ({ announcementId, profileId, uid: session.uid, epoch: session.epoch, guard });
+  // Retained handlers carry their own operation; React Query's latest options
+  // cannot retarget an old announcement action to the next account.
+  return { ...mutation, variables: mutation.variables?.announcementId,
+    mutate: (announcementId: string) => mutation.mutate(operation(announcementId)),
+    mutateAsync: (announcementId: string) => mutation.mutateAsync(operation(announcementId)),
+  };
 }
 
 export function useCreateAnnouncement() {

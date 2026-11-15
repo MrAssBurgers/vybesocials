@@ -1,0 +1,8 @@
+{
+  "checkedAt": "2026-11-15T04:49:51.548Z",
+  "project": "demo-vybe-announcement-qa",
+  "authUsers": 0,
+  "documents": 0,
+  "readOnlyAudit": true,
+  "scope": "Independent read-only audit after generated fixture cleanup; no project-wide delete/reset."
+}

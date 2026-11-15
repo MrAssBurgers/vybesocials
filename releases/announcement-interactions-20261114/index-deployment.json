@@ -1,0 +1,23 @@
+{
+  "checkedAt": "2026-11-15T04:48:06.868Z",
+  "operation": "projects/vybe-daaab/databases/(default)/operations/S2Nwd1ppTmdBQ0lDDCoDIDliOTUzNmQ3YTJkNC1hNWU5LWI1NTQtM2ZlMC03ODExNTcxNyQac2VuaWxlcGlwCQpBEg",
+  "indexName": "projects/vybe-daaab/databases/(default)/collectionGroups/announcements/indexes/CICAgNiZwpcK",
+  "state": "READY",
+  "fields": [
+    {
+      "fieldPath": "is_active",
+      "order": "ASCENDING"
+    },
+    {
+      "fieldPath": "created_at",
+      "order": "DESCENDING"
+    },
+    {
+      "fieldPath": "__name__",
+      "order": "DESCENDING"
+    }
+  ],
+  "queryVerified": true,
+  "documentsReturned": 1,
+  "scope": "One additive existing-query index only; exact newest-active announcement query succeeds. No existing index removed/changed, Rules activation, document write or provider/Auth change. Query is administrative and does not prove a live user journey."
+}
