@@ -12,6 +12,12 @@ Production web hosting is **Lovable**, with custom domain **`vybehub.app`**. Lov
 | Firebase Hosting staging frontend | https://vybe-daaab.web.app — shares the production Firebase project; not an isolated data environment |
 | Isolated local QA | `demo-vybe-preview`; follow [LOCAL_PREVIEW_QA.md](docs/LOCAL_PREVIEW_QA.md). Never deploy its configuration or fixtures. |
 
+## Community account binding release (2026-11-14)
+
+Only the five existing community callables were updated from their exact deployed sources: `communityCreate`, `communityJoin`, `communityInvite`, `communityManage` and `communitySendMessage`. All now run Node22; preserve that runtime on later scoped updates. The frozen minimal five-export archive SHA256 is `34f2ad1b42b075bf1727c0bcadb3bfbc890e03d17267a47153e93188ec209f5d`. Four transitive shared modules match both live baselines; only expected-account/profile validation changed. Existing service account, environment, ingress, memory, CPU, timeout, scaling and concurrency are independently unchanged. Browser OPTIONS204/correct origin and unauthenticated POST401 pass for all five. See [the exact release record](releases/community-entry-20261114/README.md).
+
+Actual Node22 demo Auth/HTTP/SDK journeys passed before release. No real production community, message or membership was submitted for testing. No Rules, indexes, IAM, Auth/provider configuration, secrets or other Functions changed. Client navigation/recovery publication is recorded separately in that release. Root Functions/Rules still contain unrelated pending work; do not deploy them wholesale.
+
 ## Existing gift workflow recovery (2026-11-14)
 
 `premiumGiftManage` is released on Node22 as the missing backend for the existing voluntary Settings gift review and staff controls. Its isolated package exports only this callable and uses the reviewed existing Firebase account/role policy. It returns only the public grant fields. Unauthenticated production calls return401; browser preflight returns204 with the correct origin. No real gift was created, accepted, revoked or reissued during release. The full actual UI lifecycle was tested against demo Firebase Auth/Firestore and the actual staged handler.

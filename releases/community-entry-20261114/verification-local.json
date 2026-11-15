@@ -1,6 +1,6 @@
 {
   "source_schema": "vybe-client-source-v2",
-  "source_sha256": "669f178b04519504093fddf71fff9801236cf6cc4982dca3b8bac8b3c22e5bc2",
+  "source_sha256": "936a2f8b4b4b825d79adfe7f98819d4d479fa799355a06aae7f78e6b5ff8987e",
   "source_files": 2672,
   "source_parts": {
     "config": {
@@ -16,7 +16,7 @@
       "files": 182
     },
     "src": {
-      "sha256": "de0a5ff1eed0d38dae4e462fbefa108fcfbfb9d71644f9c3edc0b9efdc29fbca",
+      "sha256": "84fd272bff9b78df8e1384d01ef893c247e8f70b0f89a8b8038c2b567c5c6399",
       "files": 2366
     }
   },
@@ -160,19 +160,19 @@
     "@capacitor/cli": "8.4.3"
   },
   "app_version": "0.0.0",
-  "commit": "d09fe6ca8f7591992915278b6b1e8afbebe643ea",
-  "commit_short": "d09fe6c",
-  "built_at": "2026-11-15T03:40:04.153Z",
-  "entry": "/assets/app-D5dCDkXi.js",
-  "entry_sha256": "2eb918f0010848990580a4b35752d0f8a5d4dae32fb71c9e80c4373b8daa2525",
-  "checkedAt": "2026-11-15T03:41:26.177Z",
+  "commit": "d5379f6b452567b63c5bab6f04d8001c18082dfd",
+  "commit_short": "d5379f6",
+  "built_at": "2026-11-15T03:44:05.153Z",
+  "entry": "/assets/app-CXFE5ehE.js",
+  "entry_sha256": "29735c4a0dde020e518aaa1c5a0b8157c295b846a966852e28a774d0d96e6c31",
+  "checkedAt": "2026-11-15T03:45:26.959Z",
   "combinedChecksPassed": true,
   "fullSuite": {
     "filesPassed": 547,
     "filesSkipped": 1,
-    "testsPassed": 5304,
+    "testsPassed": 5308,
     "testsSkipped": 6,
-    "durationSeconds": 120.95,
+    "durationSeconds": 119.67,
     "maxWorkers": 8,
     "exitCode": 0
   },
@@ -190,10 +190,10 @@
     "functionsBuild": true
   },
   "mainBundle": {
-    "entry": "app-D5dCDkXi.js",
-    "rawKB": 858.8,
+    "entry": "app-CXFE5ehE.js",
+    "rawKB": 858.9,
     "gzipKB": 262
   },
-  "preservedMain": "bf8414a",
+  "preservedMain": "3941e8c",
   "scope": "Final combined local source and executed checks. Not production delivery or installed-device proof."
 }

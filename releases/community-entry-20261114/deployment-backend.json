@@ -1,0 +1,72 @@
+{
+  "checkedAt": "2026-11-15T03:43:30.730Z",
+  "allDone": true,
+  "targets": [
+    {
+      "target": "communityCreate",
+      "done": true,
+      "operation": "projects/vybe-daaab/locations/us-central1/operations/operation-1794714118273-66048717e3913-67d03269-b543b227",
+      "state": "ACTIVE",
+      "runtime": "nodejs22",
+      "revision": "communitycreate-00002-gaf",
+      "archiveSha256": "34f2ad1b42b075bf1727c0bcadb3bfbc890e03d17267a47153e93188ec209f5d",
+      "serviceConfigUnchanged": true,
+      "options": 204,
+      "origin": "https://vybehub.app",
+      "unauthenticatedPost": 401
+    },
+    {
+      "target": "communityJoin",
+      "done": true,
+      "operation": "projects/vybe-daaab/locations/us-central1/operations/operation-1794714119172-66048718bf377-7bec568c-a038a687",
+      "state": "ACTIVE",
+      "runtime": "nodejs22",
+      "revision": "communityjoin-00002-tag",
+      "archiveSha256": "34f2ad1b42b075bf1727c0bcadb3bfbc890e03d17267a47153e93188ec209f5d",
+      "serviceConfigUnchanged": true,
+      "options": 204,
+      "origin": "https://vybehub.app",
+      "unauthenticatedPost": 401
+    },
+    {
+      "target": "communityInvite",
+      "done": true,
+      "operation": "projects/vybe-daaab/locations/us-central1/operations/operation-1794714120061-66048719982fb-13c129dc-f3c2ba2a",
+      "state": "ACTIVE",
+      "runtime": "nodejs22",
+      "revision": "communityinvite-00002-kup",
+      "archiveSha256": "34f2ad1b42b075bf1727c0bcadb3bfbc890e03d17267a47153e93188ec209f5d",
+      "serviceConfigUnchanged": true,
+      "options": 204,
+      "origin": "https://vybehub.app",
+      "unauthenticatedPost": 401
+    },
+    {
+      "target": "communityManage",
+      "done": true,
+      "operation": "projects/vybe-daaab/locations/us-central1/operations/operation-1794714121051-6604871a89cf2-19a2ecbc-b99a916d",
+      "state": "ACTIVE",
+      "runtime": "nodejs22",
+      "revision": "communitymanage-00003-jul",
+      "archiveSha256": "34f2ad1b42b075bf1727c0bcadb3bfbc890e03d17267a47153e93188ec209f5d",
+      "serviceConfigUnchanged": true,
+      "options": 204,
+      "origin": "https://vybehub.app",
+      "unauthenticatedPost": 401
+    },
+    {
+      "target": "communitySendMessage",
+      "done": true,
+      "operation": "projects/vybe-daaab/locations/us-central1/operations/operation-1794714121961-6604871b67e50-a479f200-22911358",
+      "state": "ACTIVE",
+      "runtime": "nodejs22",
+      "revision": "communitysendmessage-00002-doh",
+      "archiveSha256": "34f2ad1b42b075bf1727c0bcadb3bfbc890e03d17267a47153e93188ec209f5d",
+      "serviceConfigUnchanged": true,
+      "options": 204,
+      "origin": "https://vybehub.app",
+      "unauthenticatedPost": 401
+    }
+  ],
+  "scope": "Five exact source/runtime updates only. All existing service configuration preserved; no Rules, IAM, Auth/provider configuration or production domain-data write. Guest transport probes do not certify live member journeys."
+}
