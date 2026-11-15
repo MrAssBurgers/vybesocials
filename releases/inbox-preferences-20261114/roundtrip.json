@@ -1,0 +1,20 @@
+[
+  {
+    "checkedAt": "2026-11-15T01:18:14.869Z",
+    "project": "demo-vybe-preview",
+    "savedPin": false,
+    "savedMute": false,
+    "physicalMembershipConfirmed": true,
+    "actualServerRebuildConfirmed": true,
+    "otherAliasesAndPeerPreferencesPreserved": true
+  },
+  {
+    "checkedAt": "2026-11-15T01:20:24.004Z",
+    "project": "demo-vybe-preview",
+    "savedPin": true,
+    "savedMute": true,
+    "physicalMembershipConfirmed": true,
+    "actualServerRebuildConfirmed": true,
+    "otherAliasesAndPeerPreferencesPreserved": true
+  }
+]

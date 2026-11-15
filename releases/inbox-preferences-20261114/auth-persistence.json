@@ -1,0 +1,13 @@
+{
+  "checkedAt": "2026-11-15T01:41:47.270Z",
+  "file": "src/lib/firebase/authPersistence.emulator.test.ts",
+  "tests": 6,
+  "passed": 6,
+  "skipped": 0,
+  "project": "demo-vybe-persistence",
+  "authEmulator": "127.0.0.1:9296",
+  "firebaseAuthSdk": "Actual browser distribution",
+  "nativeVault": "Synthetic transport",
+  "scope": "SDK/emulator credential persistence only; no production Auth request or physical-phone certification",
+  "cleanup": "Owned Auth9296/hub4503/log4603 stopped; existing services preserved"
+}
