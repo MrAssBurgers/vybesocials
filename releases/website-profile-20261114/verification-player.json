@@ -1,0 +1,107 @@
+{
+  "checkedAt": "2026-11-15T02:31:40.040Z",
+  "commit": "16a2040d3b5363ed3c00d7656a628bd6dce94301",
+  "sourceSha256": "36a20f7c161e7a2685dff31a23a30ae15600ca9111505e82e88d5ec1166ad3ad",
+  "desktop": {
+    "controls": [
+      {
+        "height": 44,
+        "name": "Close clips",
+        "width": 44,
+        "x": 1220,
+        "y": 16
+      },
+      {
+        "height": 44,
+        "name": "Previous clip",
+        "width": 44,
+        "x": 16,
+        "y": 16
+      },
+      {
+        "height": 44,
+        "name": "Next clip",
+        "width": 44,
+        "x": 108,
+        "y": 16
+      }
+    ],
+    "focused": "Close clips",
+    "rect": {
+      "height": 900,
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    },
+    "videoCount": 1
+  },
+  "mobile": {
+    "controls": [
+      {
+        "height": 44,
+        "name": "Close clips",
+        "width": 44,
+        "x": 330,
+        "y": 20
+      },
+      {
+        "height": 44,
+        "name": "Previous clip",
+        "width": 44,
+        "x": 16,
+        "y": 20
+      },
+      {
+        "height": 44,
+        "name": "Next clip",
+        "width": 44,
+        "x": 108,
+        "y": 20
+      }
+    ],
+    "focused": "Close clips",
+    "rect": {
+      "height": 844,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    "videos": [
+      {
+        "currentTime": 0.007658,
+        "errorCode": null,
+        "height": 872,
+        "paused": false,
+        "readyState": 4,
+        "width": 480
+      }
+    ]
+  },
+  "playbackProgress": {
+    "focused": "Previous clip",
+    "videos": [
+      {
+        "currentTime": 6.587423,
+        "errorCode": null,
+        "paused": false,
+        "readyState": 4
+      }
+    ]
+  },
+  "closed": {
+    "dialogCount": 0,
+    "focused": "Play clip: Kobe Chill",
+    "videoCount": 0
+  },
+  "capturedWarningErrorCount": 0,
+  "verified": [
+    "Enter opens named clip",
+    "Desktop previous via Space changes 3/3 to 2/3",
+    "Next returns to 3/3",
+    "Escape closes and restores original thumbnail focus",
+    "Reverse Tab stays in player",
+    "Phone close button closes and restores focus",
+    "Top toolbar leaves caption unobscured"
+  ],
+  "scope": "Actual signed-in Chrome at desktop/phone viewport sizes. No real social action or settings mutation submitted. Normal view telemetry may occur. Not physical native lifecycle, two-device delivery, provider or whole-app certification."
+}
