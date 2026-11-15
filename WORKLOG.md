@@ -36,10 +36,12 @@ One new findRouletteMatch creation submitted06:49:43.522Z, exact operation proje
 -24focused UI cases pass; two new regressions reproduced before fix. Full34998exit0:551files passed/one skipped,5424tests passed/six skipped,109.50s. Types/lint/build74060and64342exit0,zero lint warnings/errors; Functions compile. Sourcee2c9930cefeea94c750343bf78f9771e62a12f31d8fb9560ecfa686dc78421f3/2683files independently matches dist. Actual Node22 demo SDK21cases pass; baseline outage reproduction returns incorrectfailed-precondition. Actual390px OTP controls recover stalled synthetic reply with two same-key requests, no reentry or duplicate completion. Both demo projects independently empty. No real email/account/physical-phone success claim. Records releases/login-code-stall-20261115.
 - Only auth2faVerify update submitted once: operation1794725313678-6604b0cca8cc0-f7622e1c-ad216f33, archive886e64da0b0c75c8aedbaac4a73b47169051983c0c788e7a6f69ae067e3ddd51. Observe existing operation; no redispatch. Final live readback and exact client publication remain next. No Auth/provider settings, Rules, IAM, secret or other service change.
 
+- Release complete for this scope: named auth2faVerify ACTIVE Node22/exact archive verified06:49:25.320Z, service configuration/IAM preserved, OPTIONS204/malformed400. One Lovable publication7ac58c10-4662-418c-a161-dc0af2ca26ee verified06:51:26.275Z: exact d4ac587/sourcee2c9930c/runtime, entryDWgvlg20/digestba3a00b2,15route shells/709native assets/deployed_at1794725433126. No real account/email/physical-device acceptance claim. Own window32050678closed, all owned services stopped/ports absent. Two preexisting staff-target preparation source edits remain preserved/uncommitted and were not deployed.
+
 ### Next three tasks
-1. Verify named backend update and publish exact checked client/source/native assets.
-2. Verify installed phone code entry, profile/posts startup and remaining lag; passwords/codes stay off chat.
-3. Resume existing-feature readiness and preserved staff target/history reconciliation. Full goal remains active; no new features or whole-app certification.
+1. Verify installed phone code entry, profile/posts startup and remaining lag against this published source; passwords/codes stay off chat.
+2. Resume preserved staff-target admission and non-destructive protected/legacy history reconciliation before shop cutover.
+3. Continue existing-feature public readiness, including native map/Clips and concurrent Roulette recovery; no new features or whole-app certification. Full goal remains active.
 
 ## ACTIVE (2026-11-15) - Private wallet/reward record scope prepared and actual shop walkthrough verified
 
