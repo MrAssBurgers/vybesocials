@@ -1,14 +1,12 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
-import { useAuth } from '@/lib/auth';
-import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { toast } from 'sonner';
 import { invalidateConversationCaches, patchConversationListCaches } from '@/lib/invalidateConversationCaches';
 import { normalizePersistedSet, safeDmMembers } from '@/lib/persistedCollections';
 import { fetchMemberProfiles } from '@/lib/dmMembershipRepair';
-import { activeDmListKeys } from '@/lib/dmAccountScope';
+import { activeDmListKeys, isDmConversationForViewer } from '@/lib/dmAccountScope';
 import { snapshotDmInbox } from '@/lib/dmInboxCachePatch';
-import { useReportAccountSession } from '@/hooks/useReportAccountSession';
+import { useDmAccountMutation, useDmActorScope, dmPrivateKey, type DmActor } from './useDmAccountMutation';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 
 export interface TrashedConversation {
@@ -35,20 +33,21 @@ export interface TrashedConversation {
 }
 
 async function enrichTrashedRows(
-  rows: TrashedConversation[],
+  rows: TrashedConversation[], guard: () => void,
 ): Promise<TrashedConversation[]> {
-  if (!rows.length) return rows;
+  guard(); if (!rows.length) return rows;
 
   const conversationIds = [...new Set(rows.map((row) => row.conversation_id).filter(Boolean))];
   const [conversationResults, membersResult] = await Promise.all([
     Promise.all(
       conversationIds.map(async (conversationId) => {
+        guard();
         const { data } = await db
           .from('conversations')
           .select('id, name, is_group, avatar_url')
           .eq('id', conversationId)
           .maybeSingle();
-        return data as TrashedConversation['conversation'] | null;
+        guard(); return data as TrashedConversation['conversation'] | null;
       }),
     ),
     conversationIds.length
@@ -59,6 +58,7 @@ async function enrichTrashedRows(
       : Promise.resolve({ data: [] as Array<{ conversation_id: string; user_id: string }> }),
   ]);
 
+  guard();
   const conversationById = new Map<string, NonNullable<TrashedConversation['conversation']>>();
   conversationResults.forEach((conv) => {
     if (conv?.id) conversationById.set(conv.id, conv);
@@ -79,8 +79,9 @@ async function enrichTrashedRows(
         .filter(Boolean),
     ),
   ] as string[];
-  const profiles = profileIds.length ? await fetchMemberProfiles(profileIds) : new Map();
+  const profiles = profileIds.length ? await fetchMemberProfiles(profileIds, guard) : new Map();
 
+  guard();
   return rows.map((row) => {
     const base = conversationById.get(row.conversation_id);
     if (!base) return row;
@@ -108,305 +109,95 @@ function sortTrashedRows(rows: TrashedConversation[]): TrashedConversation[] {
 }
 
 export function useTrashedConversations() {
-  const profileId = useAuthProfileId();
-
+  const scope = useDmActorScope();
   return useQuery({
-    queryKey: ['trashed-conversations', profileId],
-    queryFn: async () => {
-      if (!profileId) return [];
-
-      const { data, error } = await db
-        .from('trashed_conversations')
-        .select('*')
-        .eq('user_id', profileId);
-
-      if (error) throw error;
-
-      const rows = sortTrashedRows((data || []) as TrashedConversation[]);
-      return enrichTrashedRows(rows);
-    },
-    enabled: !!profileId,
-    staleTime: 5000,
+    queryKey: ['trashed-conversations', scope.profileId, scope.session.uid, scope.session.epoch], enabled: scope.ready,
+    queryFn: async ({ signal }) => {
+      const actor = scope.capture(); const guard = () => { actor.guard(); if (signal.aborted) throw new DOMException('Read interrupted', 'AbortError'); };
+      guard(); const { data, error } = await db.from('trashed_conversations').select('*').eq('user_id', actor.profileId);
+      guard(); if (error) throw error;
+      if (data?.some(row => row.user_id !== actor.profileId)) throw new Error('Trash access could not be confirmed.');
+      // A saved trash row is not permission to restore an old conversation
+      // snapshot. Only current parent reads may supply its display details.
+      const rows = (data || []).map(({ conversation: _legacy, ...row }) => row) as TrashedConversation[];
+      return enrichTrashedRows(sortTrashedRows(rows), guard);
+    }, staleTime: 5000,
   });
 }
 
-export function useTrashConversation() {
-  const { user } = useAuth();
-  const profileId = useAuthProfileId();
-  const queryClient = useQueryClient();
-  const session = useReportAccountSession();
-  const isCurrent = () => !!profileId && activeDmListKeys(profileId, session).length > 0;
-
-  return useMutation({
-    mutationFn: async (conversationId: string) => {
-      if (!profileId || !user?.id || !isCurrent()) throw new Error('Not authenticated');
-
-      await db
-        .from('hidden_conversations')
-        .delete()
-        .eq('user_id', profileId)
-        .eq('conversation_id', conversationId);
-
-      const { error } = await db
-        .from('trashed_conversations')
-        .upsert(
-          {
-            user_id: profileId,
-            conversation_id: conversationId,
-            trashed_at: new Date().toISOString(),
-            auto_delete_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          },
-          { onConflict: 'user_id,conversation_id' },
-        );
-
-      if (error) throw error;
+function useTrashAction(action: 'trash' | 'restore' | 'hide') {
+  const client = useQueryClient();
+  const refresh = (actor: DmActor) => {
+    invalidateConversationCaches(client, actor.profileId, actor.session);
+    for (const name of ['trashed-conversations', 'trashed-conversation-ids', 'hidden-conversations']) void client.invalidateQueries({ queryKey: dmPrivateKey(name, actor), exact: true });
+  };
+  return useDmAccountMutation({
+    capture: (conversationId: string) => conversationId,
+    mutationFn: async ({ value: conversationId, actor }) => {
+      actor.guard();
+      if (action === 'trash') {
+        const hidden = await db.from('hidden_conversations').delete().eq('user_id', actor.profileId).eq('conversation_id', conversationId);
+        actor.guard(); if (hidden.error) throw hidden.error;
+        const result = await db.from('trashed_conversations').upsert({ user_id: actor.profileId, conversation_id: conversationId,
+          trashed_at: new Date().toISOString(), auto_delete_at: new Date(Date.now() + 30 * 86400000).toISOString() }, { onConflict: 'user_id,conversation_id' });
+        actor.guard(); if (result.error) throw result.error;
+      } else {
+        const result = await db.from('trashed_conversations').delete().eq('user_id', actor.profileId).eq('conversation_id', conversationId);
+        actor.guard(); if (result.error) throw result.error;
+        if (action === 'hide') {
+          const hidden = await db.from('hidden_conversations').upsert({ user_id: actor.profileId, conversation_id: conversationId }, { onConflict: 'user_id,conversation_id' });
+          actor.guard(); if (hidden.error) throw hidden.error;
+        }
+      }
       return conversationId;
     },
-    onMutate: async (conversationId: string) => {
-      if (!profileId || !isCurrent()) return {};
-      await queryClient.cancelQueries({ queryKey: ['trashed-conversation-ids'] });
-      await queryClient.cancelQueries({ queryKey: ['trashed-conversations', profileId] });
-      for (const key of activeDmListKeys(profileId, session)) await queryClient.cancelQueries({ queryKey: key, exact: true });
-      if (!isCurrent()) return {};
-
-      const previousIds = queryClient.getQueryData<Set<string>>(['trashed-conversation-ids', profileId]);
-      const inboxSnapshot = snapshotDmInbox(queryClient, profileId, session);
-      const previousTrash = queryClient.getQueryData<TrashedConversation[]>([
-        'trashed-conversations',
-        profileId,
-      ]);
-
-      const cachedConv = readDmConversationFromCache(queryClient, profileId, conversationId, session);
-      const trashedAt = new Date().toISOString();
-      const optimisticRow: TrashedConversation = {
-        id: `${profileId}_${conversationId}`,
-        user_id: profileId,
-        conversation_id: conversationId,
-        trashed_at: trashedAt,
-        auto_delete_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        conversation: cachedConv
-          ? {
-              id: cachedConv.id,
-              name: cachedConv.name,
-              is_group: cachedConv.is_group,
-              avatar_url: cachedConv.avatar_url,
-              members: safeDmMembers(cachedConv.members).map((member) => ({
-                user_id: member.user_id,
-                profile: member.profile
-                  ? {
-                      id: member.profile.id,
-                      username: member.profile.username,
-                      avatar_url: member.profile.avatar_url,
-                      display_name: member.profile.display_name,
-                    }
-                  : null,
-              })),
-            }
-          : undefined,
-      };
-
-      queryClient.setQueryData<Set<string>>(['trashed-conversation-ids', profileId], (old) => {
-        const newSet = new Set(old || []);
-        newSet.add(conversationId);
-        return newSet;
+    onMutate: async ({ value: conversationId, actor }) => {
+      const idsKey = dmPrivateKey('trashed-conversation-ids', actor), trashKey = dmPrivateKey('trashed-conversations', actor);
+      for (const key of [idsKey, trashKey, ...activeDmListKeys(actor.profileId, actor.session)]) {
+        actor.guard(); await client.cancelQueries({ queryKey: key, exact: true }); actor.guard();
+      }
+      const inbox = snapshotDmInbox(client, actor.profileId, actor.session, conversationId);
+      const beforeIds = client.getQueryData(idsKey), beforeTrash = client.getQueryData(trashKey);
+      const cached = activeDmListKeys(actor.profileId, actor.session).flatMap(key => client.getQueryData<LoadedDMConversation[]>(key) || []).find(row => row.id === conversationId && isDmConversationForViewer(row, actor.profileId, actor.uid));
+      client.setQueryData<Set<string>>(idsKey, old => { const next = new Set(old || []); if (action === 'trash') next.add(conversationId); else next.delete(conversationId); return next; });
+      client.setQueryData<TrashedConversation[]>(trashKey, old => {
+        const next = (old || []).filter(row => row.conversation_id !== conversationId);
+        if (action !== 'trash') return next;
+        const row: TrashedConversation = { id: `${actor.profileId}_${conversationId}`, user_id: actor.profileId, conversation_id: conversationId,
+          trashed_at: new Date().toISOString(), auto_delete_at: new Date(Date.now() + 30 * 86400000).toISOString(),
+          conversation: cached ? { id: cached.id, name: cached.name, is_group: cached.is_group, avatar_url: cached.avatar_url,
+            members: safeDmMembers(cached.members).map(member => ({ user_id: member.user_id, profile: member.profile ? { id: member.profile.id,
+              username: member.profile.username, avatar_url: member.profile.avatar_url, display_name: member.profile.display_name } : null })) } : undefined };
+        return sortTrashedRows([row, ...next]);
       });
-
-      queryClient.setQueryData<TrashedConversation[]>(
-        ['trashed-conversations', profileId],
-        (old) => {
-          const list = (old || []).filter((row) => row.conversation_id !== conversationId);
-          return sortTrashedRows([optimisticRow, ...list]);
-        },
-      );
-
-      patchConversationListCaches(queryClient, profileId, (old) => {
-        if (!old) return old;
-        return old.filter((conv: { id: string }) => conv.id !== conversationId);
-      }, session);
-      inboxSnapshot.capture();
-
-      return { previousIds, inboxSnapshot, previousTrash };
+      if (action !== 'restore') patchConversationListCaches<LoadedDMConversation>(client, actor.profileId, old => old?.filter(row => row.id !== conversationId), actor.session);
+      inbox.capture(); const afterIds = client.getQueryData(idsKey), afterTrash = client.getQueryData(trashKey);
+      return { restore: () => {
+        inbox.restore();
+        for (const [key, before, after] of [[idsKey, beforeIds, afterIds], [trashKey, beforeTrash, afterTrash]] as const) {
+          if (client.getQueryData(key) !== after) continue;
+          if (before === undefined) client.removeQueries({ queryKey: key, exact: true }); else client.setQueryData(key, before);
+        }
+      } };
     },
-    onSuccess: () => {
-      if (!isCurrent()) return;
-      invalidateConversationCaches(queryClient, profileId, session);
-      queryClient.invalidateQueries({ queryKey: ['trashed-conversations'] });
-      queryClient.invalidateQueries({ queryKey: ['trashed-conversation-ids'] });
-      toast.success('Chat moved to trash');
-    },
-    onError: (error: any, _conversationId, context) => {
-      if (!isCurrent()) return;
-      if (profileId && context?.previousIds) {
-        queryClient.setQueryData(['trashed-conversation-ids', profileId], context.previousIds);
-      }
-      context?.inboxSnapshot?.restore();
-      if (profileId && context?.previousTrash) {
-        queryClient.setQueryData(['trashed-conversations', profileId], context.previousTrash);
-      }
-      console.error('Failed to trash conversation:', error);
-      toast.error('Failed to delete chat');
-    },
+    onSuccess: (_data, { actor }) => { refresh(actor); toast.success(action === 'trash' ? 'Chat moved to trash' : action === 'restore' ? 'Chat restored' : 'Chat permanently deleted'); },
+    onError: (_error, { actor }, restore) => { restore?.restore(); refresh(actor); toast.error(action === 'restore' ? 'Could not restore chat' : 'Could not remove chat'); },
   });
 }
-
-function readDmConversationFromCache(
-  queryClient: ReturnType<typeof useQueryClient>,
-  profileId: string,
-  conversationId: string,
-  session: Parameters<typeof activeDmListKeys>[1],
-): LoadedDMConversation | undefined {
-  const lists = activeDmListKeys(profileId, session).map(key => queryClient.getQueryData<LoadedDMConversation[]>(key));
-  for (const list of lists) {
-    const hit = list?.find((conv) => conv.id === conversationId);
-    if (hit) return hit;
-  }
-  return undefined;
-}
-
-export function useRestoreConversation() {
-  const profileId = useAuthProfileId();
-  const queryClient = useQueryClient();
-  const session = useReportAccountSession();
-  const isCurrent = () => !!profileId && activeDmListKeys(profileId, session).length > 0;
-
-  return useMutation({
-    mutationFn: async (conversationId: string) => {
-      if (!profileId || !isCurrent()) throw new Error('Not authenticated');
-
-      const { error } = await db
-        .from('trashed_conversations')
-        .delete()
-        .eq('user_id', profileId)
-        .eq('conversation_id', conversationId);
-
-      if (error) throw error;
-      return conversationId;
-    },
-    onMutate: async (conversationId: string) => {
-      if (!profileId || !isCurrent()) return {};
-      await queryClient.cancelQueries({ queryKey: ['trashed-conversation-ids'] });
-      await queryClient.cancelQueries({ queryKey: ['trashed-conversations', profileId] });
-
-      const previousIds = queryClient.getQueryData<Set<string>>(['trashed-conversation-ids', profileId]);
-      const previousTrash = queryClient.getQueryData<TrashedConversation[]>([
-        'trashed-conversations',
-        profileId,
-      ]);
-
-      queryClient.setQueryData<Set<string>>(['trashed-conversation-ids', profileId], (old) => {
-        const newSet = new Set(old || []);
-        newSet.delete(conversationId);
-        return newSet;
-      });
-
-      queryClient.setQueryData<TrashedConversation[]>(
-        ['trashed-conversations', profileId],
-        (old) => (old || []).filter((row) => row.conversation_id !== conversationId),
-      );
-
-      return { previousIds, previousTrash };
-    },
-    onSuccess: () => {
-      if (!isCurrent()) return;
-      invalidateConversationCaches(queryClient, profileId, session);
-      queryClient.invalidateQueries({ queryKey: ['trashed-conversations'] });
-      queryClient.invalidateQueries({ queryKey: ['trashed-conversation-ids'] });
-      toast.success('Chat restored');
-    },
-    onError: (error: any, _conversationId, context) => {
-      if (!isCurrent()) return;
-      if (profileId && context?.previousIds) {
-        queryClient.setQueryData(['trashed-conversation-ids', profileId], context.previousIds);
-      }
-      if (profileId && context?.previousTrash) {
-        queryClient.setQueryData(['trashed-conversations', profileId], context.previousTrash);
-      }
-      console.error('Failed to restore conversation:', error);
-      toast.error('Failed to restore chat');
-    },
-  });
-}
-
-export function usePermanentlyDeleteConversation() {
-  const { user } = useAuth();
-  const profileId = useAuthProfileId();
-  const queryClient = useQueryClient();
-  const session = useReportAccountSession();
-  const isCurrent = () => !!profileId && activeDmListKeys(profileId, session).length > 0;
-
-  return useMutation({
-    mutationFn: async (conversationId: string) => {
-      if (!profileId || !user?.id || !isCurrent()) throw new Error('Not authenticated');
-
-      const { error: trashError } = await db
-        .from('trashed_conversations')
-        .delete()
-        .eq('user_id', profileId)
-        .eq('conversation_id', conversationId);
-
-      if (trashError) throw trashError;
-
-      const { error: hideError } = await db
-        .from('hidden_conversations')
-        .upsert(
-          { user_id: profileId, conversation_id: conversationId },
-          { onConflict: 'user_id,conversation_id' },
-        );
-
-      if (hideError) throw hideError;
-    },
-    onMutate: async (conversationId: string) => {
-      if (!profileId || !isCurrent()) return {};
-      const previousTrash = queryClient.getQueryData<TrashedConversation[]>([
-        'trashed-conversations',
-        profileId,
-      ]);
-      queryClient.setQueryData<TrashedConversation[]>(
-        ['trashed-conversations', profileId],
-        (old) => (old || []).filter((row) => row.conversation_id !== conversationId),
-      );
-      return { previousTrash };
-    },
-    onSuccess: () => {
-      if (!isCurrent()) return;
-      invalidateConversationCaches(queryClient, profileId, session);
-      queryClient.invalidateQueries({ queryKey: ['trashed-conversations'] });
-      toast.success('Chat permanently deleted');
-    },
-    onError: (error: any, _conversationId, context) => {
-      if (!isCurrent()) return;
-      if (profileId && context?.previousTrash) {
-        queryClient.setQueryData(['trashed-conversations', profileId], context.previousTrash);
-      }
-      console.error('Failed to permanently delete conversation:', error);
-      toast.error('Failed to delete chat');
-    },
-  });
-}
+export const useTrashConversation = () => useTrashAction('trash');
+export const useRestoreConversation = () => useTrashAction('restore');
+export const usePermanentlyDeleteConversation = () => useTrashAction('hide');
 
 export function useTrashedConversationIds() {
-  const profileId = useAuthProfileId();
-
+  const scope = useDmActorScope();
   const query = useQuery({
-    queryKey: ['trashed-conversation-ids', profileId],
-    queryFn: async () => {
-      if (!profileId) return new Set<string>();
-
-      const { data, error } = await db
-        .from('trashed_conversations')
-        .select('conversation_id')
-        .eq('user_id', profileId);
-
-      if (error) throw error;
-      return new Set(data?.map(t => t.conversation_id) || []);
-    },
-    enabled: !!profileId,
-    staleTime: 30000,
-    select: normalizePersistedSet,
+    queryKey: ['trashed-conversation-ids', scope.profileId, scope.session.uid, scope.session.epoch], enabled: scope.ready,
+    queryFn: async ({ signal }) => {
+      const actor = scope.capture(); actor.guard(); if (signal.aborted) throw new DOMException('Read interrupted', 'AbortError');
+      const { data, error } = await db.from('trashed_conversations').select('conversation_id').eq('user_id', actor.profileId);
+      actor.guard(); if (signal.aborted) throw new DOMException('Read interrupted', 'AbortError'); if (error) throw error;
+      return new Set<string>(data?.map(row => row.conversation_id) || []);
+    }, staleTime: 30000, select: normalizePersistedSet,
   });
-
-  return {
-    ...query,
-    data: normalizePersistedSet(query.data),
-  };
+  return { ...query, data: normalizePersistedSet(query.data) };
 }

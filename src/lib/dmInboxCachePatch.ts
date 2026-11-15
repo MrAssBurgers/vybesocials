@@ -1,7 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import { readQueryArray, safeDmMembers } from '@/lib/persistedCollections';
-import { activeDmListKeys, isDmConversationForViewer, ownedDmProfileId, viewerDmMembership } from '@/lib/dmAccountScope';
+import { activeDmListKeys, dmPrivateKey, isDmConversationForViewer, ownedDmProfileId, viewerDmMembership } from '@/lib/dmAccountScope';
 import { reportAccountSnapshot, type ReportAccountSession } from '@/lib/reportModerationService';
 
 function patchList(
@@ -78,7 +78,7 @@ export function patchLockedChatsCache(
   session: ReportAccountSession = reportAccountSnapshot(),
 ): void {
   if (!activeDmListKeys(profileId, session).length) return;
-  queryClient.setQueryData<Set<string>>(['locked-chats', profileId], (old) => {
+  queryClient.setQueryData<Set<string>>(dmPrivateKey('locked-chats', { profileId, session }), (old) => {
     const next = new Set(old ?? []);
     if (locked) next.add(conversationId);
     else next.delete(conversationId);
@@ -87,14 +87,23 @@ export function patchLockedChatsCache(
 }
 
 /** Restore only arrays still bearing this operation's optimistic write. */
-export function snapshotDmInbox(client: QueryClient, profileId: string, session: ReportAccountSession) {
+export function snapshotDmInbox(client: QueryClient, profileId: string, session: ReportAccountSession, conversationId?: string) {
   const entries = activeDmListKeys(profileId, session).map(key => ({ key, before: client.getQueryData(key), after: undefined as unknown }));
   return {
     capture: () => entries.forEach(entry => { entry.after = client.getQueryData(entry.key); }),
     restore: () => {
       if (!activeDmListKeys(profileId, session).length) return;
       for (const entry of entries) {
-        if (entry.before !== undefined && client.getQueryData(entry.key) === entry.after) client.setQueryData(entry.key, entry.before);
+        const current = client.getQueryData(entry.key);
+        if (entry.before === undefined) continue;
+        if (current === entry.after) client.setQueryData(entry.key, entry.before);
+        else if (conversationId && Array.isArray(current) && Array.isArray(entry.before) && Array.isArray(entry.after)) {
+          const before = entry.before.find(row => row.id === conversationId);
+          const after = entry.after.find(row => row.id === conversationId);
+          // A delivery to another row must not prevent this row's rollback.
+          // A replacement of this row is newer authority and stays untouched.
+          if (before && after) client.setQueryData(entry.key, current.map(row => row.id === conversationId && row === after ? before : row));
+        }
       }
     },
   };

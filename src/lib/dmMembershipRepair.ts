@@ -578,7 +578,8 @@ export async function resolveDmActorIds(liveProfileId?: string | null): Promise<
 }
 
 /** Lookup profiles when member user_id may be profile id OR auth uid. */
-export async function fetchMemberProfiles(userIds: string[]) {
+export async function fetchMemberProfiles(userIds: string[], guard: () => void = () => {}) {
+  guard();
   const unique = [...new Set(userIds.filter(Boolean))];
   if (!unique.length) return new Map<string, Record<string, unknown>>();
 
@@ -587,6 +588,7 @@ export async function fetchMemberProfiles(userIds: string[]) {
     'id, user_id, username, avatar_url, display_name, equipped_profile_theme';
 
   const { data: byId } = await db.from('profiles').select(selectFields).in('id', unique);
+  guard();
   for (const row of byId || []) {
     profileByKey.set(String(row.id), row);
     if (row.user_id) profileByKey.set(String(row.user_id), row);
@@ -598,6 +600,7 @@ export async function fetchMemberProfiles(userIds: string[]) {
       .from('profiles')
       .select(selectFields)
       .in('user_id', missing);
+    guard();
     for (const row of byUserId || []) {
       profileByKey.set(String(row.id), row);
       if (row.user_id) profileByKey.set(String(row.user_id), row);
@@ -608,7 +611,9 @@ export async function fetchMemberProfiles(userIds: string[]) {
   if (missing.length) {
     await Promise.all(
       missing.map(async (id) => {
+        guard();
         const doc = await getDocument<Record<string, unknown>>('profiles', id);
+        guard();
         if (!doc?.id) return;
         profileByKey.set(String(doc.id), doc);
         if (doc.user_id) profileByKey.set(String(doc.user_id), doc);

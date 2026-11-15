@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { safeDmMembers } from '@/lib/persistedCollections';
-import { activeDmListKeys } from '@/lib/dmAccountScope';
+import { activeDmListKeys, ownedDmProfileId } from '@/lib/dmAccountScope';
 import { reportAccountSnapshot, type ReportAccountSession } from '@/lib/reportModerationService';
 
 /** Invalidate both legacy and DM list caches (mobile + desktop stay in sync). */
@@ -9,7 +9,7 @@ export function invalidateConversationCaches(
   profileId?: string | null,
   session: ReportAccountSession = reportAccountSnapshot(),
 ): void {
-  for (const key of activeDmListKeys(profileId || session.uid, session)) void queryClient.invalidateQueries({ queryKey: key, exact: true });
+  for (const key of activeDmListKeys(profileId || ownedDmProfileId(session.uid) || session.uid, session)) void queryClient.invalidateQueries({ queryKey: key, exact: true });
 }
 
 type EmbeddedProfile = {
@@ -52,7 +52,7 @@ export function patchEmbeddedProfileInCaches<T extends { members?: unknown }>(
   };
 
   const session = reportAccountSnapshot();
-  for (const key of activeDmListKeys(session.uid, session)) {
+  for (const key of activeDmListKeys(ownedDmProfileId(session.uid) || session.uid, session)) {
     if (queryClient.getQueryData(key) !== undefined) queryClient.setQueryData<T[]>(key, apply);
   }
 }

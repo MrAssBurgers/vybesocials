@@ -2,7 +2,7 @@ import type { PropsWithChildren } from 'react';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-const state = vi.hoisted(() => ({ uid: 'alice', listener: null as null | ((value: { uid: string }) => void), read: vi.fn(), write: vi.fn(), success: vi.fn(), error: vi.fn() }));
+const state = vi.hoisted(() => ({ uid: 'alice', listener: null as null | ((value: { uid: string }) => void), read: vi.fn(), write: vi.fn(), success: vi.fn(), error: vi.fn(), hide: vi.fn(), lock: vi.fn(), markRead: vi.fn() }));
 const auth = vi.hoisted(() => ({ get currentUser() { return { uid: state.uid }; }, onAuthStateChanged(listener: typeof state.listener) { state.listener = listener; return () => {}; } }));
 vi.mock('@/lib/firebase/authService', () => ({ getFirebaseAuth: () => auth }));
 vi.mock('@/lib/firebase/functionsService', () => ({ invokeFunction: vi.fn() }));
@@ -13,18 +13,17 @@ vi.mock('@/lib/firebase', () => ({ db: { from: (table: string) => ({
 }) } }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: state.uid }, profile: { id: `profile-${state.uid}`, user_id: state.uid }, authReady: true }) }));
 vi.mock('@/hooks/useAuthProfileId', () => ({ useAuthProfileId: () => `profile-${state.uid}` }));
-vi.mock('@/hooks/useHiddenConversations', () => ({ useHideConversation: () => ({ mutateAsync: vi.fn() }) }));
-vi.mock('@/hooks/useLockedChats', () => ({ useLockConversation: () => ({ mutateAsync: vi.fn() }), useUnlockConversation: () => ({ mutateAsync: vi.fn() }) }));
-vi.mock('@/hooks/useDMConversations', () => ({ useMarkConversationRead: () => ({ mutateAsync: vi.fn() }) }));
+vi.mock('@/hooks/useHiddenConversations', () => ({ useHideConversation: () => ({ mutateAsync: state.hide }) }));
+vi.mock('@/hooks/useLockedChats', () => ({ useLockConversation: () => ({ mutateAsync: state.lock }), useUnlockConversation: () => ({ mutateAsync: state.lock }) }));
+vi.mock('@/hooks/useDMConversations', () => ({ useMarkConversationRead: () => ({ mutateAsync: state.markRead }) }));
 vi.mock('sonner', () => ({ toast: { success: state.success, error: state.error } }));
 import { useDmInboxActions } from './useDmInboxActions';
-import { dmListQueryKey } from '@/lib/dmAccountScope';
+import { dmListQueryKey, dmPrivateKey } from '@/lib/dmAccountScope';
 import { reportAccountSnapshot } from '@/lib/reportModerationService';
 import { setActiveAuthUserId, setCachedCurrentProfile } from '@/lib/profileCache';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
-const conversation = { id: 'chat', member_ids: ['profile-alice', 'profile-bob'], unread_count: 2,
-  last_message: { id: 'last', created_at: '2026-11-14T12:00:00Z' },
-  members: [{ conversation_id: 'chat', user_id: 'alice', is_pinned: false, is_muted: true }] } as LoadedDMConversation;
+const conversation = { id: 'chat', unread_count: 2, _hasUnread: true, last_message: { created_at: '2026-11-14T12:00:00.000Z' }, member_ids: ['profile-alice', 'profile-bob'], members: [{ conversation_id: 'chat', user_id: 'alice', is_pinned: false, is_muted: true }] } as LoadedDMConversation;
+const hiddenKey = () => dmPrivateKey('hidden-conversations', { profileId: 'profile-alice', session: reportAccountSnapshot() });
 function switchTo(uid: string) {
   state.uid = uid; setActiveAuthUserId(uid);
   setCachedCurrentProfile({ id: `profile-${uid}`, user_id: uid, username: uid, display_name: uid, avatar_url: null });
@@ -41,6 +40,7 @@ function setup() {
 }
 beforeEach(() => {
   switchTo('alice'); reportAccountSnapshot();
+  state.hide.mockReset().mockResolvedValue(undefined); state.lock.mockReset().mockResolvedValue(undefined); state.markRead.mockReset().mockResolvedValue(undefined);
   state.read.mockReset().mockResolvedValue({ conversation_id: 'chat', user_id: 'alice' });
   state.write.mockReset().mockResolvedValue(undefined); state.success.mockReset(); state.error.mockReset();
 });
@@ -48,19 +48,19 @@ afterEach(cleanup);
 describe('existing inbox pin and mute actions', () => {
   it('optimistically excludes an archived chat from projection and legacy lists', async () => {
     const { client, key, hook } = setup();
-    client.setQueryData(['hidden-conversations', 'profile-alice'], new Set(['other']));
+    client.setQueryData(hiddenKey(), new Set(['other']));
     await act(async () => { await hook.result.current.archive.mutateAsync(); });
-    expect([...client.getQueryData<Set<string>>(['hidden-conversations', 'profile-alice'])!]).toEqual(['other', 'chat']);
+    expect([...client.getQueryData<Set<string>>(hiddenKey())!]).toEqual(['other', 'chat']);
     expect(client.getQueryData(key)).toEqual([]);
-    expect(state.write).toHaveBeenCalledWith('hidden_conversations', '', { user_id: 'profile-alice', conversation_id: 'chat' });
+    expect(state.hide).toHaveBeenCalledWith('chat');
     client.clear();
   });
   it('restores the prior hidden IDs and row when archiving fails', async () => {
     const { client, key, hook } = setup();
-    client.setQueryData(['hidden-conversations', 'profile-alice'], new Set(['other']));
-    state.write.mockRejectedValueOnce(new Error('offline'));
+    client.setQueryData(hiddenKey(), new Set(['other']));
+    state.hide.mockRejectedValueOnce(new Error('offline'));
     await act(async () => { await hook.result.current.archive.mutateAsync().catch(() => {}); });
-    expect([...client.getQueryData<Set<string>>(['hidden-conversations', 'profile-alice'])!]).toEqual(['other']);
+    expect([...client.getQueryData<Set<string>>(hiddenKey())!]).toEqual(['other']);
     expect(client.getQueryData(key)).toEqual([conversation]);
     client.clear();
   });
@@ -189,5 +189,48 @@ describe('existing inbox pin and mute actions', () => {
     const { client, hook, member } = setup(); state.read.mockResolvedValue(row);
     await act(async () => { await hook.result.current.togglePin.mutateAsync(true).catch(() => {}); });
     expect(state.write).not.toHaveBeenCalled(); expect(member().is_pinned).toBe(false); expect(state.success).not.toHaveBeenCalled(); client.clear();
+  });
+});
+
+describe('existing inbox read, archive and lock actions', () => {
+  it('marks the existing legacy membership unread and acknowledges only its write', async () => {
+    const { client, hook } = setup();
+    await act(async () => { await hook.result.current.markUnread.mutateAsync(); });
+    expect(state.read).toHaveBeenCalledWith('conversation_members', 'chat_alice');
+    expect(state.write).toHaveBeenCalledWith('conversation_members', 'chat_alice', { last_read_at: '2026-11-14T11:59:59.000Z' });
+    expect(state.success).toHaveBeenCalledWith('Marked unread'); client.clear();
+  });
+  it('restores a rejected unread change without undoing a delivery to another row', async () => {
+    const { client, key, hook } = setup();
+    client.setQueryData(key, [{ ...conversation, unread_count: 0, _hasUnread: false }, { ...conversation, id: 'other', unread_count: 0 }]);
+    let reject!: (error: Error) => void; state.write.mockImplementation(() => new Promise((_done, fail) => { reject = fail; }));
+    act(() => hook.result.current.markUnread.mutate()); await waitFor(() => expect(state.write).toHaveBeenCalledOnce());
+    act(() => client.setQueryData<LoadedDMConversation[]>(key, rows => rows!.map(row => row.id === 'other' ? { ...row, unread_count: 7 } : row)));
+    act(() => reject(new Error('Rejected'))); await waitFor(() => expect(hook.result.current.markUnread.isError).toBe(true));
+    const rows = client.getQueryData<LoadedDMConversation[]>(key)!;
+    expect(rows[0].unread_count).toBe(0); expect(rows[1].unread_count).toBe(7); expect(state.success).not.toHaveBeenCalled(); client.clear();
+  });
+  it('rolls back a failed archive in the visible scoped inbox', async () => {
+    const { client, key, hook } = setup(); let reject!: (error: Error) => void;
+    state.hide.mockImplementation(() => new Promise((_done, fail) => { reject = fail; }));
+    act(() => hook.result.current.archive.mutate()); await waitFor(() => expect(state.hide).toHaveBeenCalledOnce());
+    expect(client.getQueryData(key)).toEqual([]); act(() => reject(new Error('Offline')));
+    await waitFor(() => expect(hook.result.current.archive.isError).toBe(true));
+    expect(client.getQueryData<LoadedDMConversation[]>(key)?.[0].id).toBe('chat'); expect(state.success).not.toHaveBeenCalled(); client.clear();
+  });
+  it('restores the locked set and inbox after a rejected lock', async () => {
+    const { client, key, hook } = setup(), session = reportAccountSnapshot();
+    const lockedKey = ['locked-chats', 'profile-alice', session.uid, session.epoch]; client.setQueryData(lockedKey, new Set());
+    state.lock.mockRejectedValue(new Error('Rejected'));
+    await act(async () => { await hook.result.current.toggleLock.mutateAsync(true).catch(() => {}); });
+    expect(client.getQueryData<Set<string>>(lockedKey)?.has('chat')).toBe(false); expect(client.getQueryData<LoadedDMConversation[]>(key)?.[0].id).toBe('chat'); client.clear();
+  });
+  it('does not write unread state or report completion after account retirement during member lookup', async () => {
+    const { client, hook } = setup(); let finish!: (value: unknown) => void;
+    state.read.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    act(() => hook.result.current.markUnread.mutate()); await waitFor(() => expect(state.read).toHaveBeenCalledOnce());
+    act(() => { switchTo('bob'); switchTo('alice'); }); hook.rerender();
+    await act(async () => finish({ conversation_id: 'chat', user_id: 'alice' }));
+    expect(state.write).not.toHaveBeenCalled(); expect(state.success).not.toHaveBeenCalled(); expect(state.error).not.toHaveBeenCalled(); client.clear();
   });
 });

@@ -104,9 +104,9 @@ describe('dmInboxCachePatch', () => {
 
   it('updates locked chat set' , () => {
     patchLockedChatsCache(qc, profileId, convId, true);
-    const locked = qc.getQueryData<Set<string>>(['locked-chats', profileId]);
+    const locked = qc.getQueryData<Set<string>>(['locked-chats', profileId, 'alice', 1]);
     expect(locked?.has(convId)).toBe(true);
     patchLockedChatsCache(qc, profileId, convId, false);
-    expect(qc.getQueryData<Set<string>>(['locked-chats', profileId])?.has(convId)).toBe(false);
+    expect(qc.getQueryData<Set<string>>(['locked-chats', profileId, 'alice', 1])?.has(convId)).toBe(false);
   });
 });

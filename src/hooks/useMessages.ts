@@ -32,6 +32,7 @@ import { insertDmMessage } from '@/lib/dmSendCore';
 import { haptics } from '@/lib/haptics';
 import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 import { reportAccountGuard } from '@/lib/reportModerationService';
+import { useDmAccountMutation } from './useDmAccountMutation';
 import { isMessageSessionCurrent } from '@/lib/messagesQueryKey';
 import { ownedDmProfileId } from '@/lib/dmAccountScope';
 
@@ -1083,67 +1084,36 @@ export function useAddReaction() {
 
 // Mark all messages in a conversation as read
 export function useMarkConversationRead() {
-  const { profile } = useAuth();
   const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (conversationId: string) => {
-      if (!profile?.id) throw new Error('Not authenticated');
-      const authUid = await getSessionAuthUid();
-      await markConversationReadForViewer(conversationId, profile.id, authUid);
+  return useDmAccountMutation({
+    capture: (conversationId: string) => conversationId,
+    mutationFn: async ({ value: conversationId, actor }) => {
+      await markConversationReadForViewer(conversationId, actor.profileId, actor.uid, actor.guard); actor.guard();
     },
-    onSuccess: () => {
-      invalidateConversationCaches(queryClient);
-      queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
+    onSuccess: (_data, { actor }) => {
+      invalidateConversationCaches(queryClient, actor.profileId, actor.session);
+      void queryClient.invalidateQueries({ queryKey: ['unread-messages-count', actor.profileId], exact: true });
     },
   });
 }
 
-// Find conversation with a specific user and mark it as read
 export function useMarkConversationReadByUser() {
-  const { profile } = useAuth();
   const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (targetUserId: string) => {
-      if (!profile?.id || profile.id === targetUserId) return;
-
-      // Find the 1:1 conversation with this user
-      const { data: myMemberships } = await db
-        .from('conversation_members')
-        .select('conversation_id')
-        .eq('user_id', profile.id);
-
-      if (!myMemberships?.length) return;
-
-      const conversationIds = myMemberships.map(m => m.conversation_id);
-
-      // Find conversations where the target user is also a member AND it's a 1:1 (not group)
-      const { data: targetMemberships } = await db
-        .from('conversation_members')
-        .select(`
-          conversation_id,
-          conversations!inner(id, is_group)
-        `)
-        .eq('user_id', targetUserId)
-        .in('conversation_id', conversationIds);
-
-      // Filter to only 1:1 conversations
-      const dmConversations = targetMemberships?.filter(
-        m => (m.conversations as any)?.is_group === false
-      ) || [];
-
-      if (dmConversations.length === 0) return;
-
-      // Mark the first (most recent) DM conversation as read
-      const conversationId = dmConversations[0].conversation_id;
-
-      const authUid = await getSessionAuthUid();
-      await markConversationReadForViewer(conversationId, profile.id, authUid);
+  return useDmAccountMutation({
+    capture: (targetUserId: string) => targetUserId,
+    mutationFn: async ({ value: targetUserId, actor }) => {
+      if (actor.profileId === targetUserId) return;
+      const my = await db.from('conversation_members').select('conversation_id').eq('user_id', actor.profileId);
+      actor.guard(); if (my.error) throw my.error; if (!my.data?.length) return;
+      const targets = await db.from('conversation_members').select('conversation_id, conversations!inner(id, is_group)')
+        .eq('user_id', targetUserId).in('conversation_id', my.data.map(member => member.conversation_id));
+      actor.guard(); if (targets.error) throw targets.error;
+      const row = targets.data?.find(member => (member.conversations as { is_group?: boolean })?.is_group === false);
+      if (row) { actor.guard(); await markConversationReadForViewer(row.conversation_id, actor.profileId, actor.uid, actor.guard); actor.guard(); }
     },
-    onSuccess: () => {
-      invalidateConversationCaches(queryClient);
-      queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
+    onSuccess: (_data, { actor }) => {
+      invalidateConversationCaches(queryClient, actor.profileId, actor.session);
+      void queryClient.invalidateQueries({ queryKey: ['unread-messages-count', actor.profileId], exact: true });
     },
   });
 }

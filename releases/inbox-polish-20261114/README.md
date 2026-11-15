@@ -6,11 +6,13 @@ Archiving the final synthetic conversation showed a success toast but left the r
 
 Retained/deferred inbox rows are bound to user/profile/session epoch. Projection responses are scoped during render and callbacks, reject foreign viewer rows, accept confirmed empty snapshots, and cannot overwrite a fresh subscription with a late initial fetch. This covers consumers such as Search that do not remount with the main inbox account boundary.
 
+Concurrent main `3dab96c` was merged before publication. Its delayed-code login recovery, lighter mobile authentication rendering, acknowledged membership writes, private cache keys and captured mutation wrapper are preserved. Archive optimism now uses that wrapper's exact user/profile/session hidden key and the existing guarded hide service. Both sets of regression tests pass together; the merged client is revalidated below.
+
 ## Verification
 
 - Two prefix regressions failed before repair; raw literal text already passed. Four empty/account-retention regressions also failed before their repair.
-- Full final suite: 537 files passed, one skipped; 5,204 tests passed, six skipped; 212.08 seconds with four workers.
-- Typecheck, lint, production build, boot/native entry, CSS and bundle budget pass. Entry app-Bm1quQse.js: 857.8 KB raw / 261.6 KB gzip.
+- Full final merged suite: 540 files passed, one skipped; 5,229 tests passed, six skipped; 212.05 seconds with four workers.
+- Typecheck, lint (zero warnings/errors), production build, boot/native entry, CSS and bundle budget pass. Entry app-Cl8cSmra.js: 858.6 KB raw / 262.0 KB gzip.
 - Actual demo Firebase Auth/sendDmMessage and the actual server rebuildConversationInbox generated the preview. Browser Search displayed exactly “You: Preview prefix repair”. Archive with projection enabled removed the final row and then displayed “No chats yet”.
 - Synthetic archive markers were removed after the walkthrough. Demo rollout configuration is restored after visual evidence is saved. No production content, settings or preferences were changed.
 - Read-only production browser: two consecutive clips played with readyState4 while off-screen videos paused; 390px document width had no horizontal overflow. This is a bounded browser observation, not a sustained performance or physical-device certification.

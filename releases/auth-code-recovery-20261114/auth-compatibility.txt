@@ -1,0 +1,9 @@
+PASS auth2faRequest: HTTP 401 UNAUTHENTICATED
+PASS auth2faVerify: HTTP 400 INVALID_ARGUMENT
+PASS authLoginNotify: HTTP 401 UNAUTHENTICATED
+PASS authLoginApproval: HTTP 400 INVALID_ARGUMENT
+PASS ensureAccountProfile: HTTP 401 UNAUTHENTICATED
+PASS claimProfileByEmail: HTTP 401 UNAUTHENTICATED
+PASS manageSignInPreferences: HTTP 401 UNAUTHENTICATED
+PASS authSessionRevoke: HTTP 401 UNAUTHENTICATED
+Passing proves only route reachability and basic input rejection. It does not prove authenticated receipt compatibility, provider delivery, Rules, indexes or phone persistence.

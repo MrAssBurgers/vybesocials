@@ -17,6 +17,9 @@ import {
 import { refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { shouldRetryQuery } from '@/lib/logOnce';
 import { markConversationReadForViewer, getSessionAuthUid } from '@/lib/markConversationRead';
+import { useDmAccountMutation } from './useDmAccountMutation';
+import { activeDmListKeys } from '@/lib/dmAccountScope';
+import { patchDmConversationInCache } from '@/lib/dmInboxCachePatch';
 import { ensureArray, normalizeDmConversation, normalizeDmConversationList, safeDmMembers, readQueryArray } from '@/lib/persistedCollections';
 import { readMessagesCache } from '@/lib/messagesQueryKey';
 import {
@@ -31,7 +34,7 @@ import { getDmConversationSortTime } from '@/lib/dmConversationSort';
 import { resolveOtherMemberFromConversation, isViewerMember } from '@/lib/dmMemberResolve';
 import { useReportAccountSession } from '@/hooks/useReportAccountSession';
 import { reportAccountGuard, type ReportAccountSession } from '@/lib/reportModerationService';
-import { activeDmListKeys, conversationDetailQueryKey, dmListQueryKey, ownedDmProfileId, isOwnedDmActor, isDmConversationForViewer, viewerDmMembership } from '@/lib/dmAccountScope';
+import { conversationDetailQueryKey, dmListQueryKey, ownedDmProfileId, isOwnedDmActor, isDmConversationForViewer, viewerDmMembership } from '@/lib/dmAccountScope';
 
 type DMConversation = LoadedDMConversation;
 const EMPTY_CONVERSATIONS: DMConversation[] = [];
@@ -388,42 +391,17 @@ export function useConversationDetail(conversationId: string | undefined) {
  * Hook to mark a conversation as read
  */
 export function useMarkConversationRead() {
-  const { profile, user } = useAuth();
-  const session = useReportAccountSession();
-  const profileId = ownedDmProfileId(user?.id, profile);
-  const guard = useMemo(() => reportAccountGuard(user?.id || ''), [user?.id, session.epoch]);
   const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (conversationId: string) => {
-      guard();
-      if (!profileId) throw new Error('Your profile is still loading.');
-      const authUid = await getSessionAuthUid();
-      guard();
-      await markConversationReadForViewer(conversationId, profileId, authUid);
-      guard();
-      return { guard, session, profileId };
+  return useDmAccountMutation({
+    capture: (conversationId: string) => conversationId,
+    mutationFn: async ({ value: conversationId, actor }) => {
+      await markConversationReadForViewer(conversationId, actor.profileId, actor.uid, actor.guard); actor.guard();
     },
-    onSuccess: (operation, conversationId) => {
-      try { operation.guard(); } catch { return; }
-      let clearedCount = 0;
-      const patch = (old: unknown) => {
-        const list = readQueryArray<DMConversation>(old);
-        if (!list.length) return list;
-        return list.map((c) => {
-          if (c.id === conversationId) {
-            clearedCount = Math.max(clearedCount, c.unread_count ?? 0);
-            return { ...c, unread_count: 0, _hasUnread: false };
-          }
-          return c;
-        });
-      };
-      for (const key of activeDmListKeys(operation.profileId, operation.session)) {
-        if (queryClient.getQueryData(key) !== undefined) queryClient.setQueryData(key, patch);
-      }
-      queryClient.setQueryData<number>(['unread-messages-count', operation.profileId], (prev) =>
-        typeof prev === 'number' ? Math.max(0, prev - clearedCount) : 0,
-      );
+    onSuccess: (_data, { value: conversationId, actor }) => {
+      const clearedCount = Math.max(0, ...activeDmListKeys(actor.profileId, actor.session).map(key => readQueryArray<DMConversation>(queryClient.getQueryData(key)).find(row => row.id === conversationId)?.unread_count || 0));
+      patchDmConversationInCache(queryClient, actor.profileId, conversationId, { unread_count: 0, _hasUnread: false }, actor.session);
+      queryClient.setQueryData<number>(['unread-messages-count', actor.profileId], prev => typeof prev === 'number' ? Math.max(0, prev - clearedCount) : prev);
+      void queryClient.invalidateQueries({ queryKey: ['unread-messages-count', actor.profileId], exact: true });
     },
   });
 }

@@ -17,7 +17,7 @@ vi.mock('@/components/ui/input-otp', () => ({
   InputOTP: ({ value, onChange, disabled }: { value: string; onChange: (value: string) => void; disabled: boolean }) => <input aria-label="Code" value={value} onChange={event => onChange(event.target.value)} disabled={disabled} />,
   InputOTPGroup: () => null, InputOTPSlot: () => null,
 }));
-import { LoginGateModal } from './LoginGateModal';
+import { LoginGateModal, LOGIN_CODE_WAIT_MS } from './LoginGateModal';
 const props = () => ({ open: true, mode: 'code' as const, email: 'a***@example.test', challengeId: 'challenge-one', expiresAt: new Date(Date.now() + 600_000).toISOString(), onSuccess: vi.fn(), onCancel: vi.fn() });
 beforeEach(() => { vi.clearAllMocks(); mock.invoke.mockResolvedValue({ data: { ok: true }, error: null }); });
 afterEach(cleanup);
@@ -27,7 +27,7 @@ it('retries completion after an accepted code without verifying the one-use code
   render(<LoginGateModal {...p} />);
   fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } });
   await waitFor(() => expect(screen.getByRole('button', { name: 'Finish signing in' })).toBeEnabled());
-  expect(screen.getByText(/Code accepted/)).toBeInTheDocument();
+  expect(screen.getByRole('alert')).toHaveTextContent('Code accepted');
   expect(p.onSuccess).toHaveBeenCalledTimes(1);
   fireEvent.click(screen.getByRole('button', { name: 'Finish signing in' }));
   await waitFor(() => expect(p.onSuccess).toHaveBeenCalledTimes(2));
@@ -94,7 +94,7 @@ it('keeps controls busy through checked device registration and retires its call
   const p = props(); p.onSuccess.mockReturnValue(completion); const ui = render(<LoginGateModal {...p} />);
   fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } });
   await waitFor(() => expect(p.onSuccess).toHaveBeenCalledOnce());
-  expect(screen.getByRole('button', { name: 'Use a different account' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Change account' })).toBeDisabled();
   const guard = p.onSuccess.mock.calls[0][3]; expect(guard).not.toThrow();
   ui.rerender(<LoginGateModal {...p} open={false} />); expect(guard).toThrow('view changed');
   await act(async () => finish()); expect(mock.error).not.toHaveBeenCalled();
@@ -144,4 +144,59 @@ it('a failed deny does not dismiss the gate or report success', async () => {
   fireEvent.click(screen.getByRole('button', { name: /wasn't me/i }));
   await waitFor(() => expect(mock.error).toHaveBeenCalledWith(expect.stringContaining('could not be denied')));
   expect(p.onCancel).not.toHaveBeenCalled(); expect(mock.success).not.toHaveBeenCalled();
+});
+
+it('resumes a delayed one-use check without submitting the code again', async () => {
+  vi.useFakeTimers();
+  try {
+    let finish!: (value: unknown) => void;
+    mock.invoke.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    const p = props(); render(<LoginGateModal {...p} />);
+    await act(async () => { fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } }); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(LOGIN_CODE_WAIT_MS); });
+    expect(screen.getByRole('alert')).toHaveTextContent('still being checked');
+    expect(screen.getByRole('button', { name: 'Continue verification' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Change account' })).toBeEnabled();
+    expect(p.onSuccess).not.toHaveBeenCalled(); expect(mock.invoke).toHaveBeenCalledOnce();
+    // The server response can arrive while the user is deciding to continue.
+    await act(async () => finish({ data: { ok: true, customToken: 'synthetic-delayed-token' }, error: null }));
+    expect(p.onSuccess).not.toHaveBeenCalled();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Continue verification' })); });
+    expect(mock.invoke).toHaveBeenCalledOnce();
+    expect(p.onSuccess).toHaveBeenCalledWith(null, 'synthetic-delayed-token', { emailChallengeId: p.challengeId }, expect.any(Function));
+  } finally { vi.useRealTimers(); }
+});
+
+it('does not let a delayed verification complete a replacement challenge', async () => {
+  vi.useFakeTimers();
+  try {
+    let finish!: (value: unknown) => void;
+    mock.invoke.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    const p = props(), ui = render(<LoginGateModal {...p} />);
+    await act(async () => { fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } }); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(LOGIN_CODE_WAIT_MS); });
+    ui.rerender(<LoginGateModal {...p} challengeId="replacement-challenge" />);
+    await act(async () => finish({ data: { ok: true, customToken: 'retired-token' }, error: null }));
+    expect(screen.queryByRole('button', { name: 'Continue verification' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Code')).toHaveValue(''); expect(p.onSuccess).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  } finally { vi.useRealTimers(); }
+});
+
+it('shows the original delayed rejection inline and allows a corrected code', async () => {
+  vi.useFakeTimers();
+  try {
+    let finish!: (value: unknown) => void;
+    mock.invoke.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    const p = props(); render(<LoginGateModal {...p} />);
+    await act(async () => { fireEvent.change(screen.getByLabelText('Code'), { target: { value: '123456' } }); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(LOGIN_CODE_WAIT_MS); });
+    await act(async () => finish({ data: null, error: { name: 'permission-denied' } }));
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Continue verification' })); });
+    expect(screen.getByRole('alert')).toHaveTextContent('Incorrect code');
+    expect(screen.getByLabelText('Code')).toHaveValue(''); expect(mock.invoke).toHaveBeenCalledOnce();
+    mock.invoke.mockResolvedValue({ data: { ok: true, customToken: 'corrected-token' }, error: null });
+    await act(async () => { fireEvent.change(screen.getByLabelText('Code'), { target: { value: '654321' } }); });
+    expect(mock.invoke).toHaveBeenCalledTimes(2); expect(p.onSuccess).toHaveBeenCalledOnce();
+  } finally { vi.useRealTimers(); }
 });

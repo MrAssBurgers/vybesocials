@@ -1,80 +1,43 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
-import { useAuthProfileId } from '@/hooks/useAuthProfileId';
-import { toast } from 'sonner';
+import { dmPrivateKey, useDmAccountMutation, useDmActorScope } from './useDmAccountMutation';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
-import { normalizePersistedSet } from '@/lib/persistedCollections';
+import { toast } from 'sonner';
 
 export function useHiddenConversations() {
-  const profileId = useAuthProfileId();
-
+  const scope = useDmActorScope();
   return useQuery({
-    queryKey: ['hidden-conversations', profileId],
-    queryFn: async () => {
-      if (!profileId) return new Set<string>();
-
-      const { data, error } = await db
-        .from('hidden_conversations')
-        .select('conversation_id')
-        .eq('user_id', profileId);
-
+    queryKey: ['hidden-conversations', scope.profileId, scope.session.uid, scope.session.epoch],
+    enabled: scope.ready,
+    queryFn: async ({ signal }) => {
+      const actor = scope.capture(); actor.guard();
+      if (signal.aborted) throw new DOMException('Read interrupted', 'AbortError');
+      const { data, error } = await db.from('hidden_conversations').select('conversation_id').eq('user_id', actor.profileId);
+      actor.guard(); if (signal.aborted) throw new DOMException('Read interrupted', 'AbortError');
       if (error) throw error;
-      return new Set(data?.map(h => h.conversation_id) || []);
-    },
-    enabled: !!profileId,
-    staleTime: 30000,
-    select: normalizePersistedSet,
-  });
-}
-
-export function useHideConversation() {
-  const profileId = useAuthProfileId();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (conversationId: string) => {
-      if (!profileId) throw new Error('Not authenticated');
-
-      const { error } = await db
-        .from('hidden_conversations')
-        .insert({
-          user_id: profileId,
-          conversation_id: conversationId,
-        });
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      invalidateConversationCaches(queryClient, profileId);
-      queryClient.invalidateQueries({ queryKey: ['hidden-conversations'] });
-      toast.success('Chat deleted');
-    },
-    onError: (error: any) => {
-      console.error('Failed to hide conversation:', error);
-      toast.error('Failed to delete chat');
+      return new Set<string>(data?.map(row => row.conversation_id) || []);
     },
   });
 }
 
-export function useUnhideConversation() {
-  const profileId = useAuthProfileId();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (conversationId: string) => {
-      if (!profileId) throw new Error('Not authenticated');
-
-      const { error } = await db
-        .from('hidden_conversations')
-        .delete()
-        .eq('user_id', profileId)
-        .eq('conversation_id', conversationId);
-
-      if (error) throw error;
+function useHiddenAction(hide: boolean, quiet = false) {
+  const client = useQueryClient();
+  return useDmAccountMutation({
+    capture: (conversationId: string) => conversationId,
+    mutationFn: async ({ value: conversationId, actor }) => {
+      actor.guard();
+      const result = hide
+        ? await db.from('hidden_conversations').upsert({ user_id: actor.profileId, conversation_id: conversationId }, { onConflict: 'user_id,conversation_id' })
+        : await db.from('hidden_conversations').delete().eq('user_id', actor.profileId).eq('conversation_id', conversationId);
+      actor.guard(); if (result.error) throw result.error;
     },
-    onSuccess: () => {
-      invalidateConversationCaches(queryClient, profileId);
-      queryClient.invalidateQueries({ queryKey: ['hidden-conversations'] });
+    onSuccess: (_data, { actor }) => {
+      invalidateConversationCaches(client, actor.profileId, actor.session);
+      void client.invalidateQueries({ queryKey: dmPrivateKey('hidden-conversations', actor), exact: true });
+      if (hide && !quiet) toast.success('Chat removed from inbox');
     },
+    onError: () => { if (hide && !quiet) toast.error('Could not remove this chat'); },
   });
 }
+export const useHideConversation = (options?: { quiet?: boolean }) => useHiddenAction(true, options?.quiet);
+export const useUnhideConversation = () => useHiddenAction(false);

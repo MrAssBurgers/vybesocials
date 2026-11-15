@@ -32,6 +32,10 @@ export function activeDmListKeys(profileId: string | null | undefined, session: 
     .flatMap(id => [dmListQueryKey(id, session), ['conversations', id, session.uid, session.epoch] as const]);
 }
 
+export function dmPrivateKey(name: string, actor: { profileId: string; session: ReportAccountSession }) {
+  return [name, actor.profileId, actor.session.uid, actor.session.epoch] as const;
+}
+
 export function conversationDetailQueryKey(conversationId: string | undefined, session: ReportAccountSession = reportAccountSnapshot()) {
   return ['conversation-detail', conversationId, session.uid, session.epoch] as const;
 }
