@@ -1633,6 +1633,7 @@ service cloud.firestore {
     }
 
     // Checked marketplace/reward authority; no browser role may edit private proof.
+    match /_token_account_authority/{id} { allow read, write: if false; }
     match /token_wallets/{id} { allow read, write: if false; }
     match /token_entitlements/{id} { allow read, write: if false; }
     match /token_boosts/{id} { allow read, write: if false; }

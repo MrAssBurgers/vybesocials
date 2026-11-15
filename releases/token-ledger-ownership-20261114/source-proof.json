@@ -1,0 +1,67 @@
+{
+  "scope": "Normalized prepared source and actual tested compiled module hashes; no Function/Rules deployment",
+  "source": [
+    {
+      "path": "functions/src/_shared/tokenLedgerOwnership.ts",
+      "sha256": "c51fac352da9b5be77bcf94af0b8024ee8e977b3e4e1b556b3e9f11902aa9a1b"
+    },
+    {
+      "path": "functions/src/_shared/tokenAccountAdmission.ts",
+      "sha256": "9c824106c5a093cc9efeb992158b0f3fcad4a37e7b9728afc2cced7ddd763311"
+    },
+    {
+      "path": "functions/src/_shared/tokenMarketplaceAuthority.ts",
+      "sha256": "cdb1ff4d9abfe3644986fc770e5fcf1bd02bf0ec88e6463bfe0a19da72a01a5b"
+    },
+    {
+      "path": "functions/src/_shared/tokenCreditAuthority.ts",
+      "sha256": "d08547936cf70e43812320c776769fe85c2e70997565ea5548736c1b06cb8915"
+    },
+    {
+      "path": "functions/src/_shared/challengeRewardAuthority.ts",
+      "sha256": "2a777d0d6cfaebf7a9564288532cad2602d00a4efd9299f827bdcbb30c34f05f"
+    },
+    {
+      "path": "functions/src/challengeProgress.ts",
+      "sha256": "2c55cbcecb43790f418fc01855af4921d97e5e0b51d792038fe4f05beb9dd79d"
+    },
+    {
+      "path": "functions/src/badgeAuthority.ts",
+      "sha256": "2bc2d604b789df75cd8adc67626f5bc139a69904d8cbded2dfbd8197d32a9fb8"
+    },
+    {
+      "path": "security/marketplace-candidate-20261114.rules",
+      "sha256": "d8d5afdfd24f91da6c25fed993ae05a66adcf8a3dfb2d2f6b4301a596273788a"
+    }
+  ],
+  "compiled": [
+    {
+      "name": "badgeAuthority.js",
+      "sha256": "5d2c0da11e3ddeba0ce7d9e0ca904d680ba58235db6dc69e07b31eae7832710f"
+    },
+    {
+      "name": "challengeProgress.js",
+      "sha256": "75354546eb1627ed9f9ea966cd515fa9d89524fe001af1e213a7ff8863227da3"
+    },
+    {
+      "name": "challengeRewardAuthority.js",
+      "sha256": "2424f04d8b80eeacbe2a829e576da094bb03983c358fe5e33f7b33a5f0cf44a6"
+    },
+    {
+      "name": "tokenAccountAdmission.js",
+      "sha256": "91da10b9475c6da59633a9a6aeb989f20a874655f485706316406dcdd6e18009"
+    },
+    {
+      "name": "tokenCreditAuthority.js",
+      "sha256": "6377afde5276e83e983fe76bd7e4101d8db19d449d2d0282d953184d40caa4ca"
+    },
+    {
+      "name": "tokenLedgerOwnership.js",
+      "sha256": "7206ff2e131836f38666944ddca98d0f39011e7b1e7d6c6d080f0fc18465feaa"
+    },
+    {
+      "name": "tokenMarketplaceAuthority.js",
+      "sha256": "acf49d50c49cd8a0bb4518bed89c32d4f8c16d451d1ed040ae3466be7d83baf3"
+    }
+  ]
+}

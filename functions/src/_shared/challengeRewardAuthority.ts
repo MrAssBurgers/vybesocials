@@ -4,9 +4,10 @@ import { createHash } from 'node:crypto';
 import { assertTokenActor, tokenAuthorityId, validatedTokenBoostMultiplier } from './tokenCreditAuthority.js';
 import { resolveIdentity } from './profileAudienceAuthority.js';
 import { validPostPublication } from './postPublicationProof.js';
+import { tokenAccountTransaction, type TokenAccountContext } from './tokenAccountAdmission.js';
 
 type Row = Record<string, unknown>;
-export type ChallengeActor = { authUid: string; profileId: string };
+export type ChallengeActor = { authUid: string; profileId: string; account?: TokenAccountContext };
 const MAX_ACTIVITY = 200;
 const MAX_REWARD_XP = 100_000;
 const AUTHORITY = '_challenge_reward_authority';
@@ -153,7 +154,7 @@ async function activityCount(tx: Transaction, db: Firestore, actor: ChallengeAct
     const row = doc.data();
     const ownerField = kind === 'invite' ? 'redeemer_id' : source![1];
     if (kind !== 'invite' && !ownerIds.includes(String(row[ownerField]))) continue;
-    if (!createdInWindow(doc, challenge.start, challenge.end, now)) continue;
+    if (!createdInWindow(doc, Math.max(challenge.start, actor.account?.createdAtMs ?? 0), challenge.end, now)) continue;
     if (row.deleted_at || row.is_deleted === true || row.status === 'draft') continue;
     if (kind === 'post' || kind === 'clip' || kind === 'music_share') {
       const proof = (await tx.get(db.collection('_post_publications').doc(doc.id))).data();
@@ -220,7 +221,7 @@ export async function reconcileChallenge(db: Firestore, actor: ChallengeActor, c
   const grantRef = db.collection(AUTHORITY).doc(rewardAuthorityId(actor.authUid, challengeId));
   const progressRef = db.collection('challenge_progress').doc(`${actor.profileId}_${challengeId}`);
   const rewardRef = db.collection('challenge_rewards').doc(id);
-  return db.runTransaction(async tx => {
+  return tokenAccountTransaction(db, actor, async tx => {
     await assertTokenActor(tx, db, actor);
     const [grantSnap, progressSnap, challengeSnap, rewardSnap] = await Promise.all([
       tx.get(grantRef), tx.get(progressRef), tx.get(db.collection('challenges').doc(challengeId)), tx.get(rewardRef),
@@ -284,12 +285,18 @@ export async function consumeChallengeReward(db: Firestore, actor: ChallengeActo
   // A legacy consumed receipt must not be revived, including when its old
   // challenge has already been deleted. No new credit is authorized here.
   if (requested.is_claimed === true && !(await grantRef.get()).exists) {
-    return { success: true, challenge_id: challengeId, xp_gained: 0, already_claimed: true };
+    return tokenAccountTransaction(db, actor, async tx => {
+      await assertTokenActor(tx, db, actor);
+      const [currentReceipt, currentGrant] = await Promise.all([tx.get(rewardRef), tx.get(grantRef)]);
+      const row = currentReceipt.data();
+      if (!row || !aliases(actor).includes(String(row.user_id)) || row.challenge_id !== challengeId || row.is_claimed !== true || currentGrant.exists) throw new HttpsError('aborted', 'Reward changed. Please retry.');
+      return { success: true, challenge_id: challengeId, xp_gained: 0, already_claimed: true };
+    });
   }
   await reconcileChallenge(db, actor, challengeId, nowMs);
   const now = new Date(nowMs).toISOString();
   const verifiedRef = db.collection('_verified_xp_authority').doc(actor.authUid);
-  return db.runTransaction(async tx => {
+  return tokenAccountTransaction(db, actor, async tx => {
     await assertTokenActor(tx, db, actor);
     const [grantSnap, receiptSnap, levels, tiers, boostSnap, verifiedSnap] = await Promise.all([
       tx.get(grantRef), tx.get(rewardRef),

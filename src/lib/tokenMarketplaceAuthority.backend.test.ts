@@ -3,6 +3,8 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../functions/src/_shared/admin', () => ({ db: {}, requireAdmin: vi.fn(), requireAuth: vi.fn() }));
 import { tokenMarketplaceState, purchaseTokenItem, activateTokenBoost, equipTokenItem, resolveTokenActor, tokenTupleId } from '../../functions/src/_shared/tokenMarketplaceAuthority';
+import { captureTokenAccount } from '../../functions/src/_shared/tokenAccountAdmission';
+import { claimTokenCredit } from '../../functions/src/_shared/tokenCreditAuthority';
 type Row = Record<string, unknown>;
 const now = Date.parse('2026-10-03T12:00:00Z');
 const actor = { authUid: 'auth-player', profileId: 'legacy-player' };
@@ -101,6 +103,70 @@ beforeEach(() => {
   rows.clear(); created.clear(); beforeCommit = null; failCommit = false; attempts = 0;
   rows.set(`profiles/${actor.profileId}`, { user_id: actor.authUid });
   rows.set(`user_auth_index/${actor.authUid}`, { profile_id: actor.profileId });
+});
+
+const ownerPath = `_token_account_authority/${actor.authUid}`;
+const creation = now - 60_000 + 123;
+async function scopedActor(stamp = creation) {
+  rows.set(`_account_profile_bindings/${actor.authUid}`, { version: 1, status: 'active', owner_uid: actor.authUid, profile_id: actor.profileId,
+    auth_created_at_ms: Math.floor(stamp / 1000) * 1000, revision: 'a'.repeat(48) });
+  const context = await captureTokenAccount(actor.authUid, { auth_time: Math.floor(now / 1000) }, async () => ({ uid: actor.authUid, createdAtMs: stamp, validSince: 0, disabled: false }), () => now);
+  return resolveTokenActor(database, actor.authUid, context);
+}
+
+describe('durable financial account ownership', () => {
+  it('pins an empty ledger to exact Auth creation, canonical profile and binding revision', async () => {
+    await scopedActor();
+    expect(rows.get(ownerPath)).toMatchObject({ schema_version: 1, owner_uid: actor.authUid, profile_id: actor.profileId,
+      auth_created_at_ms: creation, binding_revision: 'a'.repeat(48) });
+    expect(rows.has(walletPath)).toBe(false);
+  });
+  it.each(['token_wallets', 'token_entitlements', 'token_boosts', 'token_events', '_token_purchase_requests', '_token_credit_receipts', '_token_credit_day_limits', '_verified_xp_authority', '_badge_grant_authority', '_challenge_reward_authority'])('preserves unbound private %s and requires review instead of adopting it', async table => {
+    const path = `${table}/historical`, data = table === '_challenge_reward_authority' ? { auth_uid: actor.authUid, historical: true } : { user_id: actor.authUid, historical: true };
+    rows.set(path, data);
+    await expect(scopedActor()).rejects.toMatchObject({ code: 'failed-precondition', details: { reason: 'token-ownership-review' } });
+    expect(rows.get(path)).toEqual(data); expect(rows.has(ownerPath)).toBe(false);
+  });
+  it('does not skip a malformed wallet at the canonical key with a foreign owner field', async () => {
+    rows.set(walletPath, { user_id: 'foreign', balance: 100 });
+    await expect(scopedActor()).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(rows.get(walletPath)).toEqual({ user_id: 'foreign', balance: 100 });
+  });
+  it('never rebinds a retained ledger to a same-second recreated account', async () => {
+    await scopedActor(); wallet(500);
+    const oldOwner = structuredClone(rows.get(ownerPath));
+    await expect(scopedActor(creation + 1)).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(rows.get(ownerPath)).toEqual(oldOwner); expect(rows.get(walletPath)?.balance).toBe(500);
+  });
+  it('an old unbound writer cannot read, spend, earn, equip or activate an anchored ledger', async () => {
+    await scopedActor(); wallet(500);
+    await expect(resolveTokenActor(database, actor.authUid)).rejects.toMatchObject({ code: 'failed-precondition' });
+    for (const run of [state, buy, () => equip('effect', null), () => activateTokenBoost(database, actor, { itemId: 'xp_boost_2x', requestId: 'old' }, now), () => claimTokenCredit(database, actor, { type: 'daily_login' }, now)]) await expect(run()).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(rows.get(walletPath)?.balance).toBe(500); expect(rows.has(requestPath('buy'))).toBe(false);
+  });
+  it('checks immutable ownership before returning an old purchase replay', async () => {
+    const scoped = await scopedActor(); wallet(500);
+    await purchaseTokenItem(database, scoped, { itemId: 'xp_boost_2x', requestId: 'retained', expectedCost: 75 }, now);
+    const context = await captureTokenAccount(actor.authUid, { auth_time: Math.floor(now / 1000) }, async () => ({ uid: actor.authUid, createdAtMs: creation + 1, validSince: 0, disabled: false }), () => now);
+    await expect(purchaseTokenItem(database, { ...scoped, account: context }, { itemId: 'xp_boost_2x', requestId: 'retained', expectedCost: 75 }, now)).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(rows.get(walletPath)?.balance).toBe(425); expect(rows.get(inventoryPath('xp_boost_2x'))?.quantity).toBe(1);
+  });
+  it('binding replacement cannot silently transfer a token ledger', async () => {
+    const scoped = await scopedActor(); wallet(500);
+    rows.set(`_account_profile_bindings/${actor.authUid}`, { ...rows.get(`_account_profile_bindings/${actor.authUid}`), revision: 'b'.repeat(48) });
+    await expect(tokenMarketplaceState(database, scoped, now)).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(rows.get(walletPath)?.balance).toBe(500);
+  });
+  it('rechecks changed ownership on transaction retry before committing a purchase', async () => {
+    const scoped = await scopedActor(); wallet(500);
+    beforeCommit = () => rows.set(ownerPath, { ...rows.get(ownerPath), auth_created_at_ms: creation + 1 });
+    await expect(purchaseTokenItem(database, scoped, { itemId: 'xp_boost_2x', requestId: 'contention', expectedCost: 75 }, now)).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(rows.get(walletPath)?.balance).toBe(500); expect(rows.has(requestPath('contention'))).toBe(false);
+  });
+  it('failed owner initialization does not leave a partial ownership record', async () => {
+    failCommit = true;
+    await expect(scopedActor()).rejects.toThrow('Fixture atomic commit failure'); expect(rows.has(ownerPath)).toBe(false);
+  });
 });
 
 describe('marketplace identity and authority state', () => {

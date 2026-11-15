@@ -1,0 +1,19 @@
+{
+  "checkedAt": "2026-11-15T04:45:05.206Z",
+  "remainingAuthUsers": 0,
+  "results": [
+    {
+      "project": "demo-vybe-token-admission",
+      "remainingDocuments": 0
+    },
+    {
+      "project": "demo-vybe-token-ledger-rules",
+      "remainingDocuments": 0
+    },
+    {
+      "project": "demo-vybe-token-legacy-qa",
+      "remainingDocuments": 0
+    }
+  ],
+  "scope": "Only the three exclusive owned demo projects; no production action"
+}

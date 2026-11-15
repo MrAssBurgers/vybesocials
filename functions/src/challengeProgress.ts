@@ -1,8 +1,10 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
-import { resolveProfileId } from './_shared/friendship.js';
 import { isoDateOnly, weekStartIso, rotateChallengesCore } from './challenges.js';
-import { consumeChallengeReward, reconcileChallenge, rewardDocumentId, type ProgressChange } from './_shared/challengeRewardAuthority.js';
+import { consumeChallengeReward, reconcileChallenge, rewardDocumentId, type ProgressChange, type ChallengeActor } from './_shared/challengeRewardAuthority.js';
+import { currentTokenAccount, tokenAccountTransaction, type TokenAccountContext } from './_shared/tokenAccountAdmission.js';
+import { resolveTokenActor } from './_shared/tokenMarketplaceAuthority.js';
+import { assertTokenActor } from './_shared/tokenCreditAuthority.js';
 
 const SYNC_COOLDOWN_MS = 60_000;
 
@@ -17,14 +19,13 @@ async function loadActiveChallenges(today: string, weekStart: string) {
   return snapshots.flatMap(snapshot => snapshot.docs.map(doc => doc.id));
 }
 
-async function syncChallenges(authUid: string) {
-  const profileId = await resolveProfileId(authUid);
+async function syncChallenges(actor: ChallengeActor) {
   const active = await loadActiveChallenges(isoDateOnly(), weekStartIso());
   const changes: ProgressChange[] = [];
   const pendingReconciliation: string[] = [];
   for (const challengeId of active) {
     try {
-      changes.push(await reconcileChallenge(db, { authUid, profileId }, challengeId));
+      changes.push(await reconcileChallenge(db, actor, challengeId));
     } catch (error) {
       if (!(error instanceof HttpsError) || error.code !== 'failed-precondition') throw error;
       pendingReconciliation.push(challengeId);
@@ -36,8 +37,8 @@ async function syncChallenges(authUid: string) {
 }
 
 /** Kept for internal callers: increments never establish reward eligibility. */
-export async function incrementOneChallenge(profileId: string, authUid: string, challenge: Record<string, unknown>, _increment: number) {
-  const change = await reconcileChallenge(db, { authUid, profileId }, rewardDocumentId(challenge.id));
+export async function incrementOneChallenge(profileId: string, authUid: string, challenge: Record<string, unknown>, _increment: number, account?: TokenAccountContext) {
+  const change = await reconcileChallenge(db, { authUid, profileId, ...(account ? { account } : {}) }, rewardDocumentId(challenge.id));
   return { is_completed: change.is_completed, new_count: change.current_count, was_already_completed: !change.newly_completed };
 }
 
@@ -45,24 +46,30 @@ export const incrementChallengeProgress = onCall({ region: 'us-central1' }, asyn
   const authUid = requireAuth(request);
   enforceRateLimit(await rateLimit(`challenge-sync:${authUid}`, 6, 60));
   // No client user/challenge/increment/counter can grant progress or rewards.
-  const result = await syncChallenges(authUid);
+  const actor = await resolveTokenActor(db, authUid, await currentTokenAccount(authUid, request.auth!.token));
+  const result = await syncChallenges(actor);
   return { ok: true, matched: result.changes.length, ...result };
 });
 
 export const syncMyChallengeProgress = onCall({ region: 'us-central1' }, async request => {
   const authUid = requireAuth(request);
   enforceRateLimit(await rateLimit(`challenge-sync:${authUid}`, 6, 60));
+  const actor = await resolveTokenActor(db, authUid, await currentTokenAccount(authUid, request.auth!.token));
   const force = (request.data as Record<string, unknown> | undefined)?.force === true;
   const syncedAt = new Date().toISOString();
   const metaRef = db.collection('_challenge_sync_meta').doc(authUid);
-  const lastSyncAt = (await metaRef.get()).data()?.last_sync_at;
+  const meta = (await metaRef.get()).data();
+  const lastSyncAt = meta?.auth_created_at_ms === actor.account?.createdAtMs ? meta?.last_sync_at : null;
   if (!force && typeof lastSyncAt === 'string' && Date.now() - Date.parse(lastSyncAt) < SYNC_COOLDOWN_MS) {
     return { ok: true, skipped_cooldown: true, synced: 0, synced_at: syncedAt, last_sync_at: lastSyncAt,
       changes: [], newly_completed: [], pending_reconciliation: [] };
   }
   await rotateChallengesCore();
-  const result = await syncChallenges(authUid);
-  await metaRef.set({ user_id: authUid, last_sync_at: syncedAt, updated_at: syncedAt }, { merge: true });
+  const result = await syncChallenges(actor);
+  await tokenAccountTransaction(db, actor, async tx => {
+    await assertTokenActor(tx, db, actor);
+    tx.set(metaRef, { user_id: authUid, auth_created_at_ms: actor.account!.createdAtMs, last_sync_at: syncedAt, updated_at: syncedAt }, { merge: true });
+  });
   return { ok: true, skipped_cooldown: false, synced_at: syncedAt, ...result };
 });
 
@@ -72,8 +79,8 @@ export const claimChallengeReward = onCall(
     const authUid = requireAuth(request);
     enforceRateLimit(await rateLimit(`challenge-claim:${authUid}`, 30, 60));
     const rewardId = rewardDocumentId((request.data as Record<string, unknown> | undefined)?.p_reward_id);
-    const profileId = await resolveProfileId(authUid);
-    const result = await consumeChallengeReward(db, { authUid, profileId }, rewardId);
+    const actor = await resolveTokenActor(db, authUid, await currentTokenAccount(authUid, request.auth!.token));
+    const result = await consumeChallengeReward(db, actor, rewardId);
     // Only the transaction winner runs this best-effort legacy score hook.
     // It is not the authority for XP, badges, or claiming the reward again.
     if (!result.already_claimed) {

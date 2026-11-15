@@ -2,8 +2,9 @@ import { createHash } from 'node:crypto';
 import type { Firestore, Transaction, DocumentSnapshot } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { isActivePremiumGrant, unexpired } from './premiumAuthority.js';
-import { resolveTokenActorIdentity } from './tokenCreditAuthority.js';
+import { resolveTokenActorIdentity, assertTokenActor } from './tokenCreditAuthority.js';
 import { tokenAccountTransaction, type TokenAccountContext } from './tokenAccountAdmission.js';
+import { initializeTokenLedgerOwner } from './tokenLedgerOwnership.js';
 
 type Row = Record<string, unknown>;
 export type TokenActor = { authUid: string; profileId: string; account?: TokenAccountContext };
@@ -42,12 +43,14 @@ export function tokenRequestId(value: unknown): string {
 export async function resolveTokenActor(database: Firestore, uid: string, account?: TokenAccountContext): Promise<TokenActor> {
   return tokenAccountTransaction(database, { authUid: uid, account }, async tx => {
     const identity = await resolveTokenActorIdentity(tx, database, uid);
-    return Object.freeze({ authUid: uid, profileId: identity.profileId, ...(account ? { account } : {}) });
+    const actor = Object.freeze({ authUid: uid, profileId: identity.profileId, ...(account ? { account } : {}) });
+    await initializeTokenLedgerOwner(tx, database, actor);
+    return actor;
   });
 }
 
 async function readActor(tx: Transaction, database: Firestore, actor: TokenActor) {
-  await resolveTokenActorIdentity(tx, database, actor.authUid, actor.profileId);
+  await assertTokenActor(tx, database, actor);
   return tx.get(database.collection('profiles').doc(actor.profileId));
 }
 

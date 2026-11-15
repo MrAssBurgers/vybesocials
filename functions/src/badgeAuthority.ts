@@ -3,6 +3,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { createHash } from 'node:crypto';
 import { db, requireAdmin, enforceRateLimit, rateLimit } from './_shared/admin.js';
 import { rewardDocumentId } from './_shared/challengeRewardAuthority.js';
+import { assertTokenActor } from './_shared/tokenCreditAuthority.js';
 
 const review = () => new HttpsError('failed-precondition', 'This badge or account needs reconciliation. Please contact support.');
 export const badgeAuthorityId = (uid: string, badgeId: string) => createHash('sha256').update(JSON.stringify([uid, badgeId])).digest('hex');
@@ -53,6 +54,9 @@ export async function changeBadgeGrant(database: Firestore, staffUid: string, in
       if (profile.data()?.equipped_badge_id === badgeId) tx.update(profile.ref, { equipped_badge_id: null });
       return { success: true, removed: grants.size };
     }
+    // Old unbound award writers cannot mint proof inside an anchored ledger.
+    // Negative revocation remains available for disabled/retired accounts.
+    await assertTokenActor(tx, database, { authUid: uid, profileId: profile.id });
     if (!definition.exists) throw new HttpsError('not-found', 'Badge not found');
     if (grants.size > 1) throw review();
     if (grants.size) {

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { consumeChallengeReward, reconcileChallenge, rewardAuthorityId } from '../../functions/src/_shared/challengeRewardAuthority';
 import { tokenAuthorityId } from '../../functions/src/_shared/tokenCreditAuthority';
 import { postSourceFingerprint } from '../../functions/src/_shared/postPublicationProof';
+import { captureTokenAccount } from '../../functions/src/_shared/tokenAccountAdmission';
 
 type Row = Record<string, unknown>;
 const now = Date.parse('2026-10-03T12:00:00Z');
@@ -118,6 +119,26 @@ beforeEach(() => {
   rows.set('profiles/other-profile', { user_id: 'other-auth' });
   rows.set('posts/same-target', { author_id: 'other-profile' });
   publication('same-target', 'other-auth', 'other-profile');
+});
+
+describe('challenge account lifetime', () => {
+  it('does not verify activity from before the anchored Auth account was created', async () => {
+    const creation = now - 10_000 + 123, revision = 'a'.repeat(48);
+    const account = await captureTokenAccount(actor.authUid, { auth_time: Math.floor(now / 1000) }, async () => ({ uid: actor.authUid, createdAtMs: creation, validSince: 0, disabled: false }), () => now);
+    const scoped = { ...actor, account };
+    rows.set(`_account_profile_bindings/${actor.authUid}`, { version: 1, status: 'active', owner_uid: actor.authUid, profile_id: actor.profileId, auth_created_at_ms: Math.floor(creation / 1000) * 1000, revision });
+    rows.set(`_token_account_authority/${actor.authUid}`, { schema_version: 1, owner_uid: actor.authUid, profile_id: actor.profileId, auth_created_at_ms: creation, binding_revision: revision, created_at: new Date(now).toISOString() });
+    activity('posts/old', {}, creation - 1);
+    expect((await reconcileChallenge(database, scoped, 'daily-post', now)).is_completed).toBe(false); expect(rows.has(proofPath)).toBe(false);
+    activity('posts/current');
+    expect((await reconcileChallenge(database, scoped, 'daily-post', now)).is_completed).toBe(true);
+  });
+  it('an old writer cannot return a claimed legacy receipt inside an anchored ledger', async () => {
+    rows.set(`_token_account_authority/${actor.authUid}`, { marker: 'retained owner' });
+    rows.set(publicPath, reward({ is_claimed: true }));
+    await expect(claim()).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(rows.has(levelPath)).toBe(false); expect(rows.has(proofPath)).toBe(false);
+  });
 });
 
 describe('post publication challenge provenance', () => {

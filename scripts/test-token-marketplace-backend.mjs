@@ -43,10 +43,11 @@ try {
     assert.equal((await inventoryRef(player, 'theme_neon').get()).exists, false);
     assert.equal((await db.collection('token_events').where('user_id', '==', player.authUid).get()).empty, true);
   });
-  await check('callable rejects guests and ignores caller-supplied wallet owner', async () => {
+  await check('callable rejects guests and incomplete synthetic Auth receipts', async () => {
     await assert.rejects(call(null, { action: 'state' }), { code: 'unauthenticated' });
     await wallet(bob, 999);
-    const state = await call(alice.authUid, { action: 'state', user_id: bob.authUid, profileId: bob.profileId });
+    await assert.rejects(call(alice.authUid, { action: 'state', user_id: bob.authUid, profileId: bob.profileId }), { code: 'unauthenticated' });
+    const state = await tokenMarketplaceState(db, alice);
     assert.equal(state.wallet.user_id, alice.authUid); assert.equal(state.wallet.balance, 0);
   });
   await check('historical balance, forged purchases and boosts are retained but not trusted', async () => {

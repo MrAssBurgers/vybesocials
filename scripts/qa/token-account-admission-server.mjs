@@ -14,6 +14,7 @@ globalThis.fetch = async (input, init) => {
   const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url), scope = context.getStore();
   if (scope && url.href === 'http://127.0.0.1:9200/identitytoolkit.googleapis.com/v1/projects/demo-vybe-token-admission/accounts:lookup') {
     scope.lookups++;
+    if (scope.lookups === 2 && scope.scenario === 'disable-before-owner-commit') await auth.updateUser(scope.uid, { disabled: true });
     if (scope.lookups === 3) {
       if (scope.scenario === 'disable-before-commit') await auth.updateUser(scope.uid, { disabled: true });
       if (scope.scenario === 'replace-before-commit') {
@@ -34,12 +35,13 @@ db.runTransaction = async (run, ...args) => {
   return transaction(run, ...args);
 };
 const { tokenMarketplace } = await import('../../functions/lib/tokenMarketplace.js');
+const { syncMyChallengeProgress, claimChallengeReward } = await import('../../functions/lib/challengeProgress.js');
 const app = express(); app.use(express.json());
-app.post('/tokenMarketplace', (req, res) => {
+for (const [name, handler] of [['tokenMarketplace', tokenMarketplace], ['syncMyChallengeProgress', syncMyChallengeProgress], ['claimChallengeReward', claimChallengeReward]]) app.post('/' + name, (req, res) => {
   const uid = req.headers['x-qa-uid'];
   if (uid !== undefined) assert.match(uid, /^token-admission-[0-9a-f-]{36}$/);
   const scope = { uid, scenario: req.headers['x-qa-scenario'], lookups: 0, transactions: 0, createdAtMs: 0 };
   const json = res.json.bind(res); res.json = body => { res.setHeader('x-qa-lookups', scope.lookups); return json(body); };
-  return context.run(scope, () => tokenMarketplace(req, res));
+  return context.run(scope, () => handler(req, res));
 });
 app.listen(8358, '127.0.0.1', () => console.log('Actual tokenMarketplace callable8358; exclusive demo Firebase Auth/Firestore; no production access'));

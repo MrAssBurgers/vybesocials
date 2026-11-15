@@ -77,13 +77,17 @@ export async function assertTokenAccountCurrent(context: TokenAccountContext): P
   await guard();
 }
 
+export function assertTokenAccountContext(context: TokenAccountContext, uid: string): void {
+  if (context.uid !== uid || !guards.has(context)) throw signedOut();
+}
+
 /** Fresh account admission is rechecked before the transaction callback may
  * commit, including replay and read-only returns. A failure rolls back writes.
  * Unbound internal actors remain for staged legacy writers; they cannot supply
  * a fabricated context. The full ledger-incarnation cutover is separate. */
 export async function tokenAccountTransaction<T>(db: Firestore, actor: { authUid: string; account?: TokenAccountContext }, run: (tx: Transaction) => Promise<T>): Promise<T> {
   const account = actor.account;
-  if (account && (account.uid !== actor.authUid || !guards.has(account))) throw signedOut();
+  if (account) assertTokenAccountContext(account, actor.authUid);
   return db.runTransaction(async tx => {
     const result = await run(tx);
     if (account) {

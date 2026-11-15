@@ -1,0 +1,48 @@
+{
+  "checkedAt": "2026-11-15T04:47:45.791Z",
+  "results": [
+    {
+      "collection": "token_events",
+      "operation": "projects/vybe-daaab/databases/(default)/operations/S2twLW1qSmdBQ0lDDCoDIDgxZTUyY2IyYzE5MC1lZTZhLWI4ZDQtODZlOS1lZmY4MzE5YiQac2VuaWxlcGlwCQpBEg",
+      "index": "projects/vybe-daaab/databases/(default)/collectionGroups/token_events/indexes/CICAgJjm-pkK",
+      "state": "READY",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "user_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "created_at",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collection": "_challenge_reward_authority",
+      "operation": "projects/vybe-daaab/databases/(default)/operations/S1k0aTZpTmdBQ0lDDCoDIGEwYjdkNzFlYjkwOS1lYmVhLWRiNDQtODJjNi01YjQxNGUxNyQac2VuaWxlcGlwCQpBEg",
+      "index": "projects/vybe-daaab/databases/(default)/collectionGroups/_challenge_reward_authority/indexes/CICAgNi6i4YK",
+      "state": "READY",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "auth_uid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "badge_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "scope": "Only the two already-declared composite indexes created and read back READY. No document, Rules, Auth/provider, IAM or service change."
+}
