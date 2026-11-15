@@ -1,0 +1,42 @@
+{
+  "sourceSha256": "46f23c1089d44997c07938a28f4393e9ad1c13885244f62675268b22a9710776",
+  "clientCommit": "3941e8c745899e78adaa2062ce185579e74b1b43",
+  "focused": {
+    "files": 3,
+    "passed": 102,
+    "log": "work/auth-completion-focused.log"
+  },
+  "full": {
+    "filesPassed": 544,
+    "filesSkipped": 1,
+    "testsPassed": 5282,
+    "testsSkipped": 6,
+    "durationSeconds": 117.68,
+    "session": 12372
+  },
+  "typecheckLintBuild": {
+    "passed": true,
+    "session": 65177
+  },
+  "preflight": {
+    "passed": 8,
+    "scope": "Unauthenticated route reachability and validation only"
+  },
+  "manual": {
+    "browser": "Native Chrome private window8391302",
+    "viewport": "390px iframe",
+    "transport": "Synthetic local only",
+    "completionDelaySeconds": 24,
+    "verificationRequests": 1,
+    "completionCalls": 1,
+    "result": "Opened automatically without another tap",
+    "screenshot": "work/auth-accepted-completion-result.png",
+    "testTabClosed": true,
+    "helperPort8357Stopped": true
+  },
+  "limits": [
+    "No fresh real-account code verification this turn",
+    "No physical Play Store adoption or speed measurement",
+    "No backend, Rules or Auth/provider configuration change"
+  ]
+}
