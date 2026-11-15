@@ -1,0 +1,10 @@
+{
+  "checkedAt": "2026-11-15T06:53:17.337Z",
+  "operation": "projects/vybe-daaab/locations/us-central1/operations/operation-1794725313678-6604b0cca8cc0-f7622e1c-ad216f33",
+  "done": true,
+  "target": "auth2faVerify",
+  "state": "ACTIVE",
+  "runtime": "nodejs22",
+  "archiveSha256": "886e64da0b0c75c8aedbaac4a73b47169051983c0c788e7a6f69ae067e3ddd51",
+  "scope": "Independent read-only confirmation that the newer main login-stall client is paired with its completed exact backend from the concurrent repair. No deployment or account action by this verifier."
+}

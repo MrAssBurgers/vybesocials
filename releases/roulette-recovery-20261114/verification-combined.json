@@ -1,7 +1,7 @@
 {
-  "checkedAt": "2026-11-15T06:49:32.454Z",
+  "checkedAt": "2026-11-15T06:56:23.848Z",
   "source_schema": "vybe-client-source-v2",
-  "source_sha256": "95f277685a0d1c18d854ba15d8535635404881f7c1c81ec25cea8e94ae92b36f",
+  "source_sha256": "51cf385b9de88f1c7e7e25878e1792f6dbc2aa4e099cecff89c48e653a4b56bd",
   "source_files": 2689,
   "source_parts": {
     "config": {
@@ -13,11 +13,11 @@
       "files": 113
     },
     "scripts": {
-      "sha256": "f195f57228fb0a1bee679cddb725b0fdda5a267da31dd61a30a9b120ab6a8e51",
+      "sha256": "5c3a529a8d9384521b74582267ab77e212bd50beaeabd70d98c98fa3951466ab",
       "files": 191
     },
     "src": {
-      "sha256": "db35fa0da13828c442378bc438bc8ae747a75d902f3b2f6f0e0e9e0fefa70ef5",
+      "sha256": "358a823eb106f65e803e54135f74ac15b69fa740d34d41b598de03a1ba0b6f37",
       "files": 2374
     }
   },
@@ -149,8 +149,8 @@
     "splash/splash-828x1792.png": "a75283ac5a7f05ed38b5fe9043380331b1590eaac0f19fd297874fad40e89619",
     "sw.js": "e21e4f11ecaeaabdb64bb847332778bc1b9c4e73ae3bd0f4d71202defb252d30"
   },
-  "entry": "/assets/app-BQRyreNk.js",
-  "entrySha256": "aa9362df340f007b1fb2bc9772b8905e58e15a06be86e8367d2e6c9c9c5955cd",
+  "entry": "/assets/app-DANJLbnz.js",
+  "entrySha256": "76402518703493a833d72e334b28de3283cc234b49c72ac349eb2ef75ff8cc34",
   "runtime_dependencies": {
     "@tanstack/react-query": "5.101.0",
     "@tanstack/query-core": "5.101.0",
@@ -178,18 +178,18 @@
     "gzipKB": 262.1
   },
   "fullSuite": {
-    "passed": 5449,
+    "passed": 5451,
     "failed": 0,
     "skipped": 6,
     "filesPassed": 554,
     "filesSkipped": 1,
-    "durationSeconds": 91.32,
+    "durationSeconds": 90.86,
     "maxWorkers": 12
   },
   "initialCombined": {
     "passed": 5448,
     "failed": 1,
-    "case": "authService.localPreview native resume wait; isolated11 passed unchanged and whole rerun5449 passed"
+    "case": "Earlier main73e64c4 native resume wait; isolated11 and earlier complete5449 rerun passed unchanged; final d4ac587 combined5451 pass"
   },
   "sdkFrozen": {
     "passed": 20
