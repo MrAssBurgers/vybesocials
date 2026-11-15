@@ -159,8 +159,8 @@ export function ClipsGrid({ clips }: ClipsGridProps) {
               <ShortCard key={selectedClip.id} post={selectedClip} isActive={true} />
             </div>
 
-            {/* Clip counter - minimal, non-intrusive */}
-            <div className="absolute left-4 z-10 flex items-center gap-1 rounded-full bg-black/70 p-1 text-white text-xs" style={{ bottom: 'max(1rem, var(--sab, env(safe-area-inset-bottom, 0px)))' }}>
+            {/* Keep navigation above the media metadata and caption controls. */}
+            <div className="absolute left-4 z-10 flex items-center gap-1 rounded-full bg-black/70 text-white text-xs" style={{ top: 'max(1rem, var(--sat, env(safe-area-inset-top, 0px)))' }}>
               <Button variant="ghost" size="icon-round" aria-label="Previous clip" disabled={selectedIndex === 0} onClick={handlePrev}><ChevronUp /></Button>
               <span role="status" aria-live="polite" className="min-w-10 text-center">{selectedIndex + 1} / {clips.length}</span>
               <Button variant="ghost" size="icon-round" aria-label="Next clip" disabled={selectedIndex === clips.length - 1} onClick={handleNext}><ChevronDown /></Button>
