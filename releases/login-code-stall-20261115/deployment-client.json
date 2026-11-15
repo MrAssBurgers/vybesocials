@@ -1,0 +1,11 @@
+{
+  "status": "verified",
+  "deployment_id": "7ac58c10-4662-418c-a161-dc0af2ca26ee",
+  "verifiedAt": "2026-11-15T06:51:26.275Z",
+  "publishedCommit": "d4ac5870ceec6b52eebd1d6c9fd201f7707fa100",
+  "sourceSha256": "e2c9930cefeea94c750343bf78f9771e62a12f31d8fb9560ecfa686dc78421f3",
+  "entry": "/assets/app-DWgvlg20.js",
+  "entrySha256": "ba3a00b2eac1b32b767535bfb524b32a3b7a07b8cfd1c1c7e15838abd3281f41",
+  "nativeAssets": 709,
+  "nativeDeployedAt": "1794725433126"
+}
