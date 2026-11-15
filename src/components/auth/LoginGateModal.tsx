@@ -10,9 +10,22 @@ import { db } from '@/lib/firebase';
 import { motion } from 'framer-motion';
 import { gateVerifyErrorMessage, parseEdgeInvokeResult } from '@/lib/edgeFunctionResponse';
 import { checkedEmailChallenge } from '@/lib/emailConfirmation';
+import type { FunctionInvokeResult } from '@/lib/firebase/types';
 
 type Mode = 'code' | 'approval' | 'options' | 'sms';
 
+export const LOGIN_CODE_WAIT_MS = 15_000;
+async function waitForCodeCheck<T>(request: PromiseLike<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve(request),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(Object.assign(
+        new Error('Code check is still pending'), { code: 'auth/code-check-pending' },
+      )), LOGIN_CODE_WAIT_MS); }),
+    ]);
+  } finally { clearTimeout(timer); }
+}
 
 interface SessionTokens { access_token: string; refresh_token: string }
 
@@ -59,6 +72,10 @@ export function LoginGateModal({
   const [optionBusy, setOptionBusy] = useState<null | 'email' | 'sms'>(null);
   const [approvalChallengeId, setApprovalChallengeId] = useState(challengeId);
   const [codeAccepted, setCodeAccepted] = useState(false);
+  const [verificationDelayed, setVerificationDelayed] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  // A delayed one-use request is resumed, never submitted a second time.
+  const pendingVerificationRef = useRef<{ context: object; request: PromiseLike<FunctionInvokeResult> } | null>(null);
   // Keep the accepted receipt only in this mounted challenge, never in storage.
   const acceptedRef = useRef<{ context: object; token: string | null; session: SessionTokens | null; confirmation?: { emailChallengeId: string }; expires: number } | null>(null);
 
@@ -74,6 +91,7 @@ export function LoginGateModal({
     return () => {
       if (contextRef.current === context) contextRef.current = null;
       if (acceptedRef.current?.context === context) acceptedRef.current = null;
+      if (pendingVerificationRef.current?.context === context) pendingVerificationRef.current = null;
     };
   }, [context]);
   const current = useCallback((captured: object) => open && contextRef.current === captured, [open]);
@@ -94,6 +112,9 @@ export function LoginGateModal({
     verificationRunningRef.current = false;
     acceptedRef.current = null;
     setCodeAccepted(false);
+    setVerificationDelayed(false);
+    setFeedback(null);
+    pendingVerificationRef.current = null;
   }, [open, challengeId, mode, email, expiresAt]);
 
 
@@ -223,12 +244,14 @@ export function LoginGateModal({
   // ── Verify code (email or sms) ───────────────────────────
   const verifyCode = useCallback(async (codeStr: string) => {
     if (busy || optionBusy || verificationRunningRef.current || (submittedRef.current && !acceptedRef.current)) return;
-    if (!acceptedRef.current && !/^\d{6}$/.test(codeStr)) return;
+    if (!acceptedRef.current && !pendingVerificationRef.current && !/^\d{6}$/.test(codeStr)) return;
     const captured = context;
     const guard = () => { if (!current(captured)) throw new Error('This sign-in view changed.'); };
     submittedRef.current = true;
     verificationRunningRef.current = true;
     setBusy(true);
+    setFeedback(null);
+    const fail = (message: string) => { setFeedback(message); toast.error(message); };
     try {
       const accepted = acceptedRef.current;
       if (accepted) {
@@ -238,7 +261,7 @@ export function LoginGateModal({
           setCodeAccepted(false);
           setCode('');
           submittedRef.current = false;
-          toast.error('This sign-in request expired. Please sign in again.');
+          fail('This sign-in request expired. Please sign in again.');
           return;
         }
         await onSuccess(accepted.session, accepted.token, accepted.confirmation, guard);
@@ -246,15 +269,22 @@ export function LoginGateModal({
         return;
       }
       const fn = currentMode === 'sms' ? 'auth-2fa-verify-phone' : 'auth-2fa-verify';
-      const result = await db.functions.invoke(fn, {
-        body: { challengeId: activeChallengeId, code: codeStr },
-      });
+      if (!pendingVerificationRef.current) pendingVerificationRef.current = {
+        context: captured,
+        request: db.functions.invoke(fn, { body: { challengeId: activeChallengeId, code: codeStr } }),
+      };
+      const pending = pendingVerificationRef.current;
+      guard();
+      if (pending.context !== captured) throw new Error('This sign-in view changed.');
+      const result = await waitForCodeCheck(pending.request);
       const { payload, errorCode } = await parseEdgeInvokeResult(result);
       if (!current(captured)) return;
+      pendingVerificationRef.current = null;
+      setVerificationDelayed(false);
 
       if (result.error || errorCode || payload?.ok !== true) {
         const transportCode = String(result.error?.code || result.error?.name || '').replace(/^functions\//, '');
-        toast.error(gateVerifyErrorMessage(errorCode || transportCode));
+        fail(gateVerifyErrorMessage(errorCode || transportCode));
         setCode('');
         submittedRef.current = false;
         return;
@@ -277,16 +307,25 @@ export function LoginGateModal({
         return;
       }
 
-      toast.error('No sign-in receipt was returned. Please sign in again.');
+      fail('No sign-in receipt was returned. Please sign in again.');
       setCode('');
       submittedRef.current = false;
-    } catch {
+    } catch (error) {
       if (!current(captured)) return;
-      if (acceptedRef.current?.context === captured) {
-        toast.error('Code accepted, but sign-in could not finish. Check your connection and tap Finish signing in.');
+      if ((error as { code?: string })?.code === 'auth/code-check-pending') {
+        setVerificationDelayed(true);
+        setCode('');
+        submittedRef.current = false;
+        fail('Your code is still being checked. Tap Continue verification to resume without entering it again.');
         return;
       }
-      toast.error('Verification failed — check your connection and try again.');
+      if (acceptedRef.current?.context === captured) {
+        fail('Code accepted, but sign-in could not finish. Check your connection and tap Finish signing in.');
+        return;
+      }
+      pendingVerificationRef.current = null;
+      setVerificationDelayed(false);
+      fail('Verification failed — check your connection and try again.');
       setCode('');
       submittedRef.current = false;
     } finally {
@@ -302,7 +341,7 @@ export function LoginGateModal({
   }, [code, currentMode, verifyCode]);
 
   const resendCode = async () => {
-    if (resendCooldown > 0 || busy) return;
+    if (resendCooldown > 0 || busy || verificationDelayed) return;
     const captured = context;
     if (currentMode === 'sms') {
       await switchToSms();
@@ -449,7 +488,8 @@ export function LoginGateModal({
       onOpenChange={(v) => { if (!v && !lockDismiss) onCancel(); }}
     >
       <DialogContent
-        className="sm:max-w-md"
+        className="auth-gate-panel sm:max-w-md"
+        overlayClassName="auth-gate-overlay"
         onEscapeKeyDown={(e) => { if (lockDismiss) e.preventDefault(); }}
         onPointerDownOutside={(e) => { if (lockDismiss) e.preventDefault(); }}
         onInteractOutside={(e) => { if (lockDismiss) e.preventDefault(); }}
@@ -461,8 +501,8 @@ export function LoginGateModal({
             {currentMode === 'sms' && <Smartphone className="w-5 h-5 text-primary" />}
             {currentMode === 'approval' && <Smartphone className="w-5 h-5 text-primary" />}
             {currentMode === 'options' && <ShieldCheck className="w-5 h-5 text-primary" />}
-            {currentMode === 'code' && (codeAccepted ? 'Finish signing in' : 'Enter your code')}
-            {currentMode === 'sms' && (codeAccepted ? 'Finish signing in' : 'Enter the SMS code')}
+            {currentMode === 'code' && (codeAccepted ? 'Finish signing in' : verificationDelayed ? 'Checking your code' : 'Enter your code')}
+            {currentMode === 'sms' && (codeAccepted ? 'Finish signing in' : verificationDelayed ? 'Checking your code' : 'Enter the SMS code')}
             {currentMode === 'approval' && 'Waiting for confirmation'}
             {currentMode === 'options' && 'More sign-in options'}
           </DialogTitle>
@@ -485,7 +525,7 @@ export function LoginGateModal({
 
         {(currentMode === 'code' || currentMode === 'sms') ? (
           <div className="space-y-4">
-            {!codeAccepted && <div className="flex justify-center pt-2">
+            {!codeAccepted && !verificationDelayed && <div className="flex justify-center pt-2">
               <InputOTP
                 maxLength={6}
                 pattern={REGEXP_ONLY_DIGITS}
@@ -493,13 +533,15 @@ export function LoginGateModal({
                 onChange={setCode}
                 disabled={busy || optionBusy !== null}
                 autoFocus
+                aria-label="Verification code"
+                inputMode="numeric"
               >
-                <InputOTPGroup className="gap-2">
+                <InputOTPGroup className="gap-1.5 sm:gap-2">
                   {[0, 1, 2, 3, 4, 5].map((i) => (
                     <InputOTPSlot
                       key={i}
                       index={i}
-                      className="w-11 h-14 text-xl font-semibold rounded-xl bg-muted border-border"
+                      className="w-[clamp(1.75rem,8vw,2.75rem)] h-12 sm:h-14 text-xl font-semibold rounded-xl bg-muted border-border"
                     />
                   ))}
                 </InputOTPGroup>
@@ -513,8 +555,9 @@ export function LoginGateModal({
               </motion.div>
             )}
 
-            <div className="flex items-center justify-between gap-2 pt-1">
-              {!codeAccepted ? (
+            {feedback && <p role="alert" className="text-sm leading-relaxed text-muted-foreground">{feedback}</p>}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+              {!codeAccepted && !verificationDelayed ? (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -524,17 +567,17 @@ export function LoginGateModal({
                   {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
                 </Button>
               ) : <span />}
-              <div className="flex gap-2">
+              <div className="flex flex-wrap justify-end gap-2 ml-auto">
                 <Button variant="ghost" disabled={busy} onClick={onCancel}>
-                  Use a different account
+                  Change account
                 </Button>
                 <Button
-                  disabled={busy || optionBusy !== null || (!codeAccepted && code.length !== 6)}
+                  disabled={busy || optionBusy !== null || (!codeAccepted && !verificationDelayed && code.length !== 6)}
                   onClick={() => verifyCode(code)}
                 >
                   {busy
                     ? <Loader2 className="w-4 h-4 animate-spin" />
-                    : <><ShieldCheck className="w-4 h-4 mr-1.5" /> {codeAccepted ? 'Finish signing in' : 'Verify'}</>}
+                    : <><ShieldCheck className="w-4 h-4 mr-1.5" /> {codeAccepted ? 'Finish signing in' : verificationDelayed ? 'Continue verification' : 'Verify'}</>}
                 </Button>
               </div>
             </div>

@@ -66,6 +66,13 @@
 
 /* Keep the phone's typing and authentication work ahead of decorative paint. */
 @media (pointer: coarse) {
+  .auth-gate-overlay, .auth-gate-panel {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  [data-auth-shell] .auth-light { animation: none; }
+  [data-auth-shell] .vybe-liquid-text__stream,
+  [data-auth-shell] .vybe-liquid-text__shimmer { animation: none !important; }
   [data-auth-shell] .liquid-glass-card {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
@@ -78,9 +85,17 @@
 }
 /* Native shells can report a fine pointer when a mouse is attached. */
 .platform-android [data-auth-shell] .liquid-glass-card,
-.platform-ios [data-auth-shell] .liquid-glass-card {
+.platform-ios [data-auth-shell] .liquid-glass-card,
+.platform-android .auth-gate-overlay, .platform-android .auth-gate-panel,
+.platform-ios .auth-gate-overlay, .platform-ios .auth-gate-panel {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
 .platform-android [data-auth-shell] .liquid-glass-card::after,
 .platform-ios [data-auth-shell] .liquid-glass-card::after { display: none; }
+.platform-android [data-auth-shell] .auth-light,
+.platform-ios [data-auth-shell] .auth-light,
+.platform-android [data-auth-shell] .vybe-liquid-text__stream,
+.platform-android [data-auth-shell] .vybe-liquid-text__shimmer,
+.platform-ios [data-auth-shell] .vybe-liquid-text__stream,
+.platform-ios [data-auth-shell] .vybe-liquid-text__shimmer { animation: none !important; }
