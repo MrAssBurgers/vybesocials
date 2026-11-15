@@ -1,3 +1,4 @@
+import { clientIpFromRequest, createLoginGeoResolver } from './_shared/loginGeo.js';
 import { TWILIO_SECRETS, getTwilioConfig, twilioVerifyStart, twilioVerifyCheck } from './_shared/twilioVerify.js';
 import { verifiedAuthPhone } from './_shared/phoneVerificationAuthority.js';
 import { randomBytes } from 'crypto';
@@ -474,61 +475,7 @@ export const authLoginApproval = onCall(
   throw new HttpsError('invalid-argument', `Unknown action: ${action}`);
 });
 
-function clientIpFromRequest(request: { rawRequest?: { ip?: string; headers?: Record<string, unknown> } }): string | null {
-  const headers = request.rawRequest?.headers || {};
-  const xf = headers['x-forwarded-for'];
-  if (typeof xf === 'string' && xf.trim()) return xf.split(',')[0].trim();
-  if (Array.isArray(xf) && typeof xf[0] === 'string') return xf[0].split(',')[0].trim();
-  const appEngine = headers['x-appengine-user-ip'];
-  if (typeof appEngine === 'string' && appEngine.trim()) return appEngine.trim();
-  return request.rawRequest?.ip || null;
-}
-
-async function resolveLoginGeo(
-  request: { rawRequest?: { ip?: string; headers?: Record<string, unknown> } },
-): Promise<{ ip: string | null; city?: string; region?: string; country?: string; latitude?: number; longitude?: number }> {
-  const headers = request.rawRequest?.headers || {};
-  const ip = clientIpFromRequest(request);
-  const countryHeader =
-    (typeof headers['x-appengine-country'] === 'string' && headers['x-appengine-country']) ||
-    (typeof headers['cf-ipcountry'] === 'string' && headers['cf-ipcountry']) ||
-    null;
-  const base: { ip: string | null; city?: string; region?: string; country?: string; latitude?: number; longitude?: number } = {
-    ip,
-    country: countryHeader && countryHeader !== 'ZZ' ? countryHeader : undefined,
-  };
-  if (!ip || ip === '127.0.0.1' || ip.startsWith('::')) return base;
-  try {
-    const res = await fetch(`https://ipapi.co/${encodeURIComponent(ip)}/json/`, {
-      signal: AbortSignal.timeout(2500),
-    });
-    if (!res.ok) return base;
-    const j = (await res.json()) as {
-      city?: string;
-      region?: string;
-      country_name?: string;
-      country?: string;
-      latitude?: number;
-      longitude?: number;
-      lat?: number;
-      lon?: number;
-      error?: boolean;
-    };
-    if (j?.error) return base;
-    return {
-      ip,
-      city: j.city || undefined,
-      region: j.region || undefined,
-      country: j.country_name || j.country || base.country,
-      latitude:
-        typeof j.latitude === 'number' ? j.latitude : typeof j.lat === 'number' ? j.lat : undefined,
-      longitude:
-        typeof j.longitude === 'number' ? j.longitude : typeof j.lon === 'number' ? j.lon : undefined,
-    };
-  } catch {
-    return base;
-  }
-}
+const resolveLoginGeo = createLoginGeoResolver();
 
 /**
  * auth-login-notify — register this session; alert OTHER devices only when a new
