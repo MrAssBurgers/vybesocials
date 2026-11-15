@@ -29,7 +29,7 @@ const faqs = [
   },
   {
     q: 'Can I delete my account?',
-    a: 'Yes. You can delete your account instantly from Settings → Account, or from our public web form at /delete-account. Deletion removes your profile, posts, messages, and personal data within 30 days. A small set of records (e.g. transactions) is retained as required by tax and safety law.',
+    a: 'Sign in to manage a deletion request in Settings or on the Account deletion request page. Requests have a 30-day grace period before review. Permanent cleanup is not automatic yet. Contact vybesocial.info@gmail.com for deletion follow-up.',
   },
   {
     q: 'How does the Friend Map work? Can I hide?',
@@ -57,7 +57,7 @@ const faqs = [
   },
   {
     q: 'Is VYBE on iOS and Android?',
-    a: 'VYBE is a Progressive Web App today, installable from any modern mobile browser. Native iOS and Android builds are in active development.',
+    a: 'You can use VYBE in a browser at vybehub.app on a phone, tablet, or computer. Supported mobile browsers also offer Add to Home Screen or Install. Device permissions and browser support affect features such as the camera and notifications.',
   },
   {
     q: 'How do I contact support?',
@@ -116,6 +116,7 @@ export default function FAQPage() {
         <div className="mt-6 flex flex-wrap justify-center gap-4">
           <Link to="/mini-apps" className="inline-flex min-h-11 items-center text-primary hover:underline">Open Mini App Studio</Link>
           <Link to="/developers" className="inline-flex min-h-11 items-center text-primary hover:underline">Read the developer guide</Link>
+          <Link to="/delete-account" className="inline-flex min-h-11 items-center text-primary hover:underline">Account deletion request</Link>
         </div>
 
         <p className="text-sm text-muted-foreground mt-6 text-center">

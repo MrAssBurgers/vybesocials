@@ -70,13 +70,13 @@ export default function About() {
         style={{ paddingTop: 'var(--sat, 0px)' }}
       >
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
+          <Link to="/" className="flex min-h-11 items-center gap-2">
             <VYBELogo size="sm" />
           </Link>
-          <nav className="flex items-center gap-4 text-sm text-muted-foreground">
-            <Link to="/about" className="text-foreground font-medium">About</Link>
-            <Link to="/contact" className="hover:text-foreground transition-colors">Contact</Link>
-            <Link to="/" className="text-primary font-medium hover:underline">Sign In</Link>
+          <nav aria-label="Public navigation" className="flex items-center gap-1 sm:gap-2 text-sm text-muted-foreground">
+            <Link to="/about" aria-current="page" className="inline-flex min-h-11 items-center rounded-lg px-2 text-foreground font-medium">About</Link>
+            <Link to="/contact" className="inline-flex min-h-11 items-center rounded-lg px-2 hover:text-foreground transition-colors">Contact</Link>
+            <Link to="/login" className="inline-flex min-h-11 items-center rounded-lg px-2 text-primary font-medium hover:underline">Sign In</Link>
           </nav>
         </div>
       </header>

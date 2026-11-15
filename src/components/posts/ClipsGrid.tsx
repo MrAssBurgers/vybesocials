@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Eye } from 'lucide-react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
+import { motion } from 'framer-motion';
+import * as Dialog from '@radix-ui/react-dialog';
+import { X, Eye, ChevronUp, ChevronDown } from 'lucide-react';
 import { ShortCard } from './ShortCard';
 import { Button } from '@/components/ui/button';
 import { VideoThumbnail } from '@/components/ui/VideoThumbnail';
@@ -29,7 +30,7 @@ interface ClipsGridProps {
   clips: ClipPost[];
 }
 
-function ClipThumbnail({ clip, onClick }: { clip: ClipPost; onClick: () => void }) {
+function ClipThumbnail({ clip, index, onClick }: { clip: ClipPost; index: number; onClick: (event: MouseEvent<HTMLButtonElement>) => void }) {
   const formatViewCount = (count: number) => {
     if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
     if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
@@ -37,10 +38,12 @@ function ClipThumbnail({ clip, onClick }: { clip: ClipPost; onClick: () => void 
   };
 
   return (
-    <motion.div
+    <motion.button
+      type="button"
+      aria-label={clip.caption.trim() ? `Play clip: ${clip.caption.trim()}` : `Play clip ${index + 1} by @${clip.author.username}`}
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
-      className="aspect-[9/16] relative group cursor-pointer overflow-hidden rounded-lg bg-muted"
+      className="aspect-[9/16] relative group cursor-pointer overflow-hidden rounded-lg bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       onClick={onClick}
     >
       {/* Real poster frame — never a white play box */}
@@ -60,33 +63,34 @@ function ClipThumbnail({ clip, onClick }: { clip: ClipPost; onClick: () => void 
         <Eye className="h-3.5 w-3.5" />
         <span>{formatViewCount(clip.view_count || 0)}</span>
       </div>
-    </motion.div>
+    </motion.button>
   );
 }
 
 export function ClipsGrid({ clips }: ClipsGridProps) {
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const openerRef = useRef<HTMLButtonElement | null>(null);
+  const touchStartY = useRef<number | null>(null);
+  const selectedIndex = clips.findIndex(clip => clip.id === selectedId);
+  const selectedClip = clips[selectedIndex];
 
-  const handleOpen = (index: number) => {
-    setSelectedIndex(index);
-    document.body.style.overflow = 'hidden';
+  const handleOpen = (id: string, opener: HTMLButtonElement) => {
+    openerRef.current = opener;
+    setSelectedId(id);
   };
 
-  const handleClose = () => {
-    setSelectedIndex(null);
-    document.body.style.overflow = '';
-  };
+  // A refetch can reorder or remove clips while the viewer is open. Never
+  // silently switch to a different post, or reopen an item that disappeared.
+  useEffect(() => {
+    if (selectedId && !selectedClip) setSelectedId(null);
+  }, [selectedId, selectedClip]);
 
   const handlePrev = () => {
-    if (selectedIndex !== null && selectedIndex > 0) {
-      setSelectedIndex(selectedIndex - 1);
-    }
+    if (selectedIndex > 0) setSelectedId(clips[selectedIndex - 1].id);
   };
 
   const handleNext = () => {
-    if (selectedIndex !== null && selectedIndex < clips.length - 1) {
-      setSelectedIndex(selectedIndex + 1);
-    }
+    if (selectedClip && selectedIndex < clips.length - 1) setSelectedId(clips[selectedIndex + 1].id);
   };
 
   if (clips.length === 0) {
@@ -106,75 +110,65 @@ export function ClipsGrid({ clips }: ClipsGridProps) {
           <ClipThumbnail
             key={clip.id}
             clip={clip}
-            onClick={() => handleOpen(index)}
+            index={index}
+            onClick={event => handleOpen(clip.id, event.currentTarget)}
           />
         ))}
       </div>
 
-      {/* Full-screen modal viewer - swipe/scroll navigation, no arrows */}
-      <AnimatePresence>
-        {selectedIndex !== null && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black flex items-center justify-center"
-            onTouchStart={(e) => {
-              const touch = e.touches[0];
-              (e.currentTarget as any)._touchStartY = touch.clientY;
+      {/* Portal outside transformed profile scrollers; the dialog owns focus,
+          Escape and scroll-lock cleanup, including route unmounts. */}
+      <Dialog.Root open={!!selectedClip} onOpenChange={open => { if (!open) setSelectedId(null); }}>
+        {selectedClip && <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-[159] bg-black" />
+          <Dialog.Content
+            aria-describedby={undefined}
+            onCloseAutoFocus={event => {
+              event.preventDefault();
+              if (openerRef.current?.isConnected) openerRef.current.focus();
             }}
+            className="fixed inset-0 z-[160] h-[100dvh] bg-black flex items-center justify-center outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 motion-reduce:animate-none"
+            onTouchStart={(e) => {
+              touchStartY.current = e.touches.length === 1 ? e.touches[0].clientY : null;
+            }}
+            onTouchCancel={() => { touchStartY.current = null; }}
             onTouchEnd={(e) => {
-              const startY = (e.currentTarget as any)._touchStartY;
-              const endY = e.changedTouches[0].clientY;
-              const diff = startY - endY;
+              const startY = touchStartY.current;
+              touchStartY.current = null;
+              if (startY === null || !e.changedTouches[0]) return;
+              const diff = startY - e.changedTouches[0].clientY;
               if (Math.abs(diff) > 50) {
-                if (diff > 0 && selectedIndex < clips.length - 1) {
-                  setSelectedIndex(selectedIndex + 1);
-                } else if (diff < 0 && selectedIndex > 0) {
-                  setSelectedIndex(selectedIndex - 1);
-                }
+                if (diff > 0) handleNext();
+                else handlePrev();
               }
             }}
           >
-            {/* Close button */}
-            <Button
+            <Dialog.Title className="sr-only">Profile clips</Dialog.Title>
+            <Dialog.Close asChild><Button
+              aria-label="Close clips"
               variant="ghost"
               size="icon-round"
-              className="absolute top-4 right-4 z-10 text-white bg-black/50 hover:bg-black/70 backdrop-blur-sm"
-              onClick={handleClose}
+              className="absolute right-4 z-10 text-white bg-black/70 hover:bg-black/90"
+              style={{ top: 'max(1rem, var(--sat, env(safe-area-inset-top, 0px)))' }}
             >
               <X className="h-6 w-6" strokeWidth={2.5} />
-            </Button>
+            </Button></Dialog.Close>
 
             {/* Clip content */}
             <div className="w-full h-full max-w-md mx-auto">
-              <ShortCard post={clips[selectedIndex]} isActive={true} />
+              <ShortCard key={selectedClip.id} post={selectedClip} isActive={true} />
             </div>
 
             {/* Clip counter - minimal, non-intrusive */}
-            <div className="absolute bottom-4 right-4 text-white/50 text-xs">
-              {selectedIndex + 1} / {clips.length}
+            <div className="absolute left-4 z-10 flex items-center gap-1 rounded-full bg-black/70 p-1 text-white text-xs" style={{ bottom: 'max(1rem, var(--sab, env(safe-area-inset-bottom, 0px)))' }}>
+              <Button variant="ghost" size="icon-round" aria-label="Previous clip" disabled={selectedIndex === 0} onClick={handlePrev}><ChevronUp /></Button>
+              <span role="status" aria-live="polite" className="min-w-10 text-center">{selectedIndex + 1} / {clips.length}</span>
+              <Button variant="ghost" size="icon-round" aria-label="Next clip" disabled={selectedIndex === clips.length - 1} onClick={handleNext}><ChevronDown /></Button>
             </div>
 
-            {/* Swipe hint on first clip */}
-            {selectedIndex === 0 && (
-              <motion.div
-                className="absolute bottom-20 left-1/2 -translate-x-1/2 pointer-events-none"
-                initial={{ opacity: 1 }}
-                animate={{ opacity: 0 }}
-                transition={{ delay: 2, duration: 1 }}
-              >
-                <div className="text-white/60 text-xs flex flex-col items-center gap-1">
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                  </svg>
-                  <span>Swipe</span>
-                </div>
-              </motion.div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </Dialog.Content>
+        </Dialog.Portal>}
+      </Dialog.Root>
     </>
   );
 }

@@ -6,6 +6,7 @@ import VybeHome from './VybeHome';
 import Features from './Features';
 import FAQ from './FAQ';
 import About from './About';
+import Contact from './Contact';
 import Safety from './Safety';
 import BlogPost from './BlogPost';
 
@@ -95,6 +96,34 @@ describe('public product claims and creator entry points', () => {
     expect(screen.getByRole('link', { name: 'Game SDK developer preview' })).toHaveAttribute('href', '/developers');
     expect(container.textContent).not.toMatch(/monetize|encrypted direct messages|AR filters coming soon/i);
     expect(document.querySelector('meta[name="description"]')?.getAttribute('content')).not.toContain('encrypted DMs');
+  });
+
+  it.each([['About', About], ['Contact', Contact]] as const)('takes visitors from %s directly to sign-in', (_name, Page) => {
+    mount(<Page />);
+    expect(screen.getByRole('link', { name: 'Sign In', exact: true })).toHaveAttribute('href', '/login');
+  });
+
+  it('keeps support answers consistent with the available product and privacy limits', () => {
+    const { container } = mount(<Contact />);
+    expect(container.textContent).toContain('Paid subscriptions are not currently available');
+    expect(container.textContent).toContain('Cash tips and creator payouts are not currently available');
+    expect(container.textContent).toContain('VYBE DMs are not end-to-end encrypted');
+    expect(container.textContent).toContain('Report response times are not guaranteed');
+    expect(screen.getByRole('link', { name: 'Account deletion request' })).toHaveAttribute('href', '/delete-account');
+    expect(screen.getByRole('link', { name: 'Features & availability' })).toHaveAttribute('href', '/features');
+    expect(container.textContent).not.toMatch(/subscribe through|priority support|within 24 hours|process it within 30 days|monetize their content/);
+  });
+
+  it('explains deletion request review consistently in the FAQ and its search metadata', () => {
+    mount(<FAQ />);
+    fireEvent.click(screen.getByRole('button', { name: 'Can I delete my account?' }));
+    const schema = JSON.parse(document.querySelector('script[data-page-meta]')!.textContent!);
+    const answer = schema.mainEntity.find((item: { name: string }) => item.name === 'Can I delete my account?').acceptedAnswer.text;
+    expect(screen.getByText(answer)).toBeInTheDocument();
+    expect(answer).toContain('30-day grace period before review');
+    expect(answer).toContain('Permanent cleanup is not automatic yet');
+    expect(answer).not.toMatch(/instantly|removes your profile|within 30 days/);
+    expect(screen.getByRole('link', { name: 'Account deletion request' })).toHaveAttribute('href', '/delete-account');
   });
 
   it('explains the actual safety controls and their limits without operational guarantees', () => {
