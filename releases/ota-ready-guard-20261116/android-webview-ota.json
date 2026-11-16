@@ -1,0 +1,71 @@
+{
+  "scope": "Previously executed Android WebView runs of the exact generated OTA script. Surrounding test Activity, readiness markers, remote-manifest response and textarea are synthetic. Two selected web scenarios only; not a full product, physical-phone, provider, native-binary or security certification.",
+  "platform": {
+    "at": "2026-11-16T06:51:17.485Z",
+    "androidApi": 36,
+    "provider": "Current WebView package (name, version): (com.google.android.webview, 133.0.6943.137)",
+    "webViewDebuggingEnabledByFixture": false,
+    "physicalDeviceTouched": false
+  },
+  "reports": [
+    {
+      "variant": "baseline",
+      "observedAt": "2026-11-16T06:49:24.960Z",
+      "stamperLfSha256": "a46cd6a8a4009b3310ff2f61c1ae46a749d65dc61824b3786ced12dd11b89bdb",
+      "results": [
+        {
+          "scenario": "ota-healthy",
+          "androidApi": 36,
+          "mainDocumentStarts": 2,
+          "reportedLoads": 2,
+          "draftRetained": false,
+          "aliasErrors": 0,
+          "readyAtAliasError": false,
+          "started": "2026-11-16T06:49:03.959Z",
+          "pass": false
+        },
+        {
+          "scenario": "ota-late-error",
+          "androidApi": 36,
+          "mainDocumentStarts": 2,
+          "reportedLoads": 2,
+          "draftRetained": false,
+          "aliasErrors": 1,
+          "readyAtAliasError": true,
+          "started": "2026-11-16T06:49:13.575Z",
+          "pass": false
+        }
+      ]
+    },
+    {
+      "variant": "candidate",
+      "observedAt": "2026-11-16T06:50:19.906Z",
+      "stamperLfSha256": "968653aa68a4fc1f6a9aa81d5e3c76381fd4ea69b95153c098d3bbe5267282c3",
+      "results": [
+        {
+          "scenario": "ota-healthy",
+          "androidApi": 36,
+          "mainDocumentStarts": 1,
+          "reportedLoads": 1,
+          "draftRetained": true,
+          "aliasErrors": 0,
+          "readyAtAliasError": false,
+          "started": "2026-11-16T06:50:04.861Z",
+          "pass": true
+        },
+        {
+          "scenario": "ota-late-error",
+          "androidApi": 36,
+          "mainDocumentStarts": 1,
+          "reportedLoads": 1,
+          "draftRetained": true,
+          "aliasErrors": 1,
+          "readyAtAliasError": true,
+          "started": "2026-11-16T06:50:12.432Z",
+          "pass": true
+        }
+      ]
+    }
+  ],
+  "interpretation": "Original reloads a usable page and loses its draft in both scenarios. The candidate retains one document and its draft. Late-alias case observes an actual script error after primary readiness."
+}

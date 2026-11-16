@@ -97,7 +97,8 @@ const escapeScript = `
       }, 2000);
     };
     s.onerror = function () {
-      hardReloadOnce(reason + '_inject_error');
+      // The primary module can finish while this fallback request is in flight.
+      if (!isAppReady()) hardReloadOnce(reason + '_inject_error');
     };
     document.head.appendChild(s);
   }
@@ -168,7 +169,8 @@ const escapeScript = `
       if (!remoteNewer) return;
       setTimeout(function () {
         if (isAppReady()) {
-          hardReloadOnce('ota_remote_newer_' + remote.slice(-6));
+          // Despia owns pack hydration and applies it on a later cold launch.
+          // Never restart a usable page or discard an in-progress sign-in/draft.
           return;
         }
         // Brick: pack never evaluated — reload once, then prod escape on next pass.
