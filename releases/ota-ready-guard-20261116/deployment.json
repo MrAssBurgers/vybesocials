@@ -1,0 +1,16 @@
+{
+  "projectId": "416714c8-d013-4aff-984d-522418a9bbc7",
+  "selectedCommit": "3d3ee5e320877886edc84538fa9eec4c5634ee76",
+  "prePublish": {
+    "latestCommitMatched": true,
+    "projectStatus": "ready",
+    "agentFinished": true,
+    "owningAccountVerified": true
+  },
+  "requestsSent": 1,
+  "initialStatus": "pending",
+  "deploymentId": "48a532a1-8ec7-456d-a2c9-b91679dd477b",
+  "intendedCanonicalOrigin": "https://vybehub.app",
+  "acceptanceEvidence": "verification-public.json",
+  "note": "Pending provider response alone is not delivery success. The independent exact-commit source/runtime/script/route/manifest verifier establishes public delivery. No native binary or Firebase backend deployment is included."
+}
