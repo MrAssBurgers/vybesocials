@@ -9600,7 +9600,7 @@ html.instagram-ready .native-scroll-shell {
 
 /* VYBE clips feed — TikTok-style flow, brand chrome */
 html.vybe-clips-page {
-  --clips-bottom-ui: calc(env(safe-area-inset-bottom, 0px) + 78px);
+  --clips-bottom-ui: calc(var(--sab, env(safe-area-inset-bottom, 0px)) + 78px);
 }
 
 html.vybe-clips-page .vybe-clips-feed {

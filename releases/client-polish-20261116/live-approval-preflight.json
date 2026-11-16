@@ -1,0 +1,25 @@
+{
+  "at": "2026-11-16T04:32:38.540Z",
+  "credentialsUsed": false,
+  "realChallengeOrAccountUsed": false,
+  "nonexistentChallengeReadOnly": true,
+  "productionConfigurationChanged": false,
+  "rows": [
+    {
+      "method": "OPTIONS",
+      "status": 204,
+      "allowOrigin": "https://vybehub.app",
+      "result": null
+    },
+    {
+      "method": "POST",
+      "status": 200,
+      "allowOrigin": "https://vybehub.app",
+      "result": {
+        "result": {
+          "status": "not_found"
+        }
+      }
+    }
+  ]
+}

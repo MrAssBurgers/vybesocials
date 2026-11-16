@@ -227,7 +227,7 @@ const SettingsPage = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'
               >
                 {/* Big clean title */}
                 <div className="mb-5 px-1">
-                  <h1 className="text-[28px] font-bold gradient-text tracking-tight leading-tight">{t('settings.title')}</h1>
+                  <h1 className="text-[28px] font-bold text-foreground tracking-tight leading-tight">{t('settings.title')}</h1>
                   <p className="text-sm text-muted-foreground">{t('settingsNav.manageAccount')}</p>
                 </div>
 

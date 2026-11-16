@@ -4,6 +4,9 @@ const state = vi.hoisted(() => ({ read: vi.fn(), mutate: vi.fn(), guard: vi.fn()
 vi.mock('@/hooks/usePostMutations', () => ({ usePostMutations: () => ({ ...state, isPending: false }) }));
 vi.mock('sonner', () => ({ toast: { success: state.success } }));
 import { EditPostDialog } from './EditPostDialog';
+// The real read hook loads this module before the current caption becomes
+// editable. Preserve that preload when substituting the hook in this fixture.
+import '@/lib/postMutationService';
 const row = { id: 'post', authorId: 'alice', type: 'post', caption: 'Current caption', tags: ['tag'], createdAt: '2026-10-04T00:00:00.000Z', isPinned: false, aiOverride: null, mediaUrl: null, mediaUrls: [], thumbnailUrl: null, ageRating: 'unrated', visibility: 'public' };
 const current = { status: 'published', revision: 'a'.repeat(48), post: row, needsOwnerConfirmation: false };
 const close = vi.fn();

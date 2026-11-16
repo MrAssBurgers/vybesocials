@@ -59,7 +59,7 @@ export const ClipsLongVideosPanel = memo(function ClipsLongVideosPanel() {
       style={{
         height: '100dvh',
         paddingTop: `calc(${CLIPS_TOP_UI_OFFSET} + 8px)`,
-        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 88px)',
+        paddingBottom: 'calc(var(--sab, env(safe-area-inset-bottom, 0px)) + 88px)',
       }}
     >
       <div className="px-4 pb-2">

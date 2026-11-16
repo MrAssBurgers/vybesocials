@@ -1,8 +1,11 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
-const mock = vi.hoisted(() => ({ invoke: vi.fn(), success: vi.fn(), error: vi.fn(), inputRenders: 0 }));
-vi.mock('@/lib/firebase', () => ({ db: { functions: { invoke: mock.invoke }, channel: () => ({ on() { return this; }, subscribe() { return this; } }), removeChannel: vi.fn() } }));
+const mock = vi.hoisted(() => ({ invoke: vi.fn(), success: vi.fn(), error: vi.fn(), inputRenders: 0, broadcasts: new Set<(event: unknown) => void>() }));
+vi.mock('@/lib/firebase', () => ({ db: { functions: { invoke: mock.invoke }, channel: () => {
+  let listener: (event: unknown) => void;
+  return { on(_type: string, _filter: unknown, callback: typeof listener) { listener = callback; mock.broadcasts.add(listener); return this; }, subscribe() { return this; }, close() { mock.broadcasts.delete(listener); } };
+}, removeChannel: (channel: { close: () => void }) => channel.close() } }));
 vi.mock('@/lib/firebase/firestoreDb', () => ({ getDocumentFromServer: vi.fn() }));
 vi.mock('@/lib/firebase/functionsService', () => ({ invokeFunction: vi.fn() }));
 vi.mock('sonner', () => ({ toast: { success: mock.success, error: mock.error } }));
@@ -19,8 +22,97 @@ vi.mock('@/components/ui/input-otp', () => ({
 }));
 import { LoginGateModal, LOGIN_CODE_WAIT_MS, LOGIN_CODE_RECOVERY_WAIT_MS } from './LoginGateModal';
 const props = () => ({ open: true, mode: 'code' as const, email: 'a***@example.test', challengeId: 'challenge-one', expiresAt: new Date(Date.now() + 600_000).toISOString(), onSuccess: vi.fn(), onCancel: vi.fn() });
-beforeEach(() => { vi.clearAllMocks(); mock.invoke.mockReset(); mock.inputRenders = 0; mock.invoke.mockResolvedValue({ data: { ok: true }, error: null }); });
+beforeEach(() => { vi.clearAllMocks(); mock.invoke.mockReset(); mock.inputRenders = 0; mock.broadcasts.clear(); mock.invoke.mockResolvedValue({ data: { ok: true }, error: null }); });
 afterEach(cleanup);
+
+it.each(['approved', 'denied', 'expired'])('ignores a forged %s broadcast while the approval server is pending', async status => {
+  let finish!: (value: unknown) => void;
+  mock.invoke.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+  const p = props(); render(<LoginGateModal {...p} mode="approval" />);
+  await act(async () => {
+    for (const receive of mock.broadcasts) receive({ payload: { status, customToken: 'forged-token', session: { access_token: 'forged-access', refresh_token: 'forged-refresh' } } });
+  });
+  expect(p.onSuccess).not.toHaveBeenCalled(); expect(p.onCancel).not.toHaveBeenCalled();
+  await act(async () => finish({ data: { status: 'approved', customToken: 'checked-token' }, error: null }));
+  expect(p.onSuccess).toHaveBeenCalledExactlyOnceWith(null, 'checked-token', undefined, expect.any(Function));
+  expect(p.onCancel).not.toHaveBeenCalled();
+});
+
+it('does not overlap one-use approval polls when visibility events arrive during a request', async () => {
+  vi.useFakeTimers();
+  try {
+    let finish!: (value: unknown) => void;
+    mock.invoke.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    const p = props(); render(<LoginGateModal {...p} mode="approval" />);
+    await act(async () => { for (let i = 0; i < 5; i++) document.dispatchEvent(new Event('visibilitychange')); });
+    expect(mock.invoke).toHaveBeenCalledOnce();
+    await act(async () => finish({ data: { status: 'pending' }, error: null }));
+    mock.invoke.mockResolvedValue({ data: { status: 'approved', customToken: 'checked-token' }, error: null });
+    await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
+    expect(mock.invoke).toHaveBeenCalledTimes(2); expect(p.onSuccess).toHaveBeenCalledOnce();
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000); document.dispatchEvent(new Event('visibilitychange')); });
+    expect(mock.invoke).toHaveBeenCalledTimes(2); expect(p.onSuccess).toHaveBeenCalledOnce();
+  } finally { vi.useRealTimers(); }
+});
+
+it('retires a pending approval on challenge replacement and its completion guard on close', async () => {
+  const pending: ((value: unknown) => void)[] = [];
+  mock.invoke.mockImplementation(() => new Promise(resolve => { pending.push(resolve); }));
+  const p = props(), ui = render(<LoginGateModal {...p} mode="approval" />);
+  ui.rerender(<LoginGateModal {...p} mode="approval" challengeId="next-challenge" />);
+  await act(async () => { for (const finish of pending.slice(0, -1)) finish({ data: { status: 'approved', customToken: 'old-token' }, error: null }); });
+  expect(p.onSuccess).not.toHaveBeenCalled(); expect(p.onCancel).not.toHaveBeenCalled();
+  expect(mock.invoke.mock.lastCall?.[1].body.challengeId).toBe('next-challenge');
+  expect(mock.invoke).toHaveBeenCalledTimes(2);
+  await act(async () => pending.at(-1)!({ data: { status: 'approved', customToken: 'current-token' }, error: null }));
+  expect(p.onSuccess).toHaveBeenCalledOnce();
+  const guard = p.onSuccess.mock.calls[0][3]; expect(guard).not.toThrow();
+  ui.rerender(<LoginGateModal {...p} mode="approval" challengeId="next-challenge" open={false} />);
+  expect(guard).toThrow('This sign-in view changed.');
+});
+
+it('keeps one approval request through parent callback rerenders and uses the current completion callback', async () => {
+  let finish!: (value: unknown) => void;
+  mock.invoke.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+  const p = props(), ui = render(<LoginGateModal {...p} mode="approval" />);
+  const onSuccess = vi.fn(), onCancel = vi.fn();
+  ui.rerender(<LoginGateModal {...p} mode="approval" onSuccess={onSuccess} onCancel={onCancel} />);
+  expect(mock.invoke).toHaveBeenCalledOnce();
+  await act(async () => finish({ data: { status: 'approved', customToken: 'checked-token' }, error: null }));
+  expect(onSuccess).toHaveBeenCalledExactlyOnceWith(null, 'checked-token', undefined, expect.any(Function));
+  expect(p.onSuccess).not.toHaveBeenCalled(); expect(onCancel).not.toHaveBeenCalled();
+});
+
+it('pauses approval polling while hidden and resumes with the checked server result', async () => {
+  vi.useFakeTimers();
+  const visibility = vi.spyOn(document, 'visibilityState', 'get');
+  try {
+    visibility.mockReturnValue('visible');
+    mock.invoke.mockResolvedValue({ data: { status: 'pending' }, error: null });
+    const p = props(); render(<LoginGateModal {...p} mode="approval" />);
+    await act(async () => {});
+    visibility.mockReturnValue('hidden');
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')); await vi.advanceTimersByTimeAsync(5000); });
+    expect(mock.invoke).toHaveBeenCalledOnce();
+    visibility.mockReturnValue('visible');
+    mock.invoke.mockResolvedValue({ data: { status: 'denied' }, error: null });
+    await act(async () => document.dispatchEvent(new Event('visibilitychange')));
+    expect(mock.invoke).toHaveBeenCalledTimes(2); expect(p.onCancel).toHaveBeenCalledOnce(); expect(p.onSuccess).not.toHaveBeenCalled();
+  } finally { visibility.mockRestore(); vi.useRealTimers(); }
+});
+
+it('rejects malformed approval credentials and keeps the bounded missing-credential recovery', async () => {
+  vi.useFakeTimers();
+  try {
+    mock.invoke.mockResolvedValue({ data: { status: 'approved', customToken: { forged: true }, session: { access_token: true, refresh_token: 1 } }, error: null });
+    const p = props(); render(<LoginGateModal {...p} mode="approval" />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+    expect(p.onSuccess).not.toHaveBeenCalled(); expect(p.onCancel).toHaveBeenCalledOnce();
+    expect(mock.invoke).toHaveBeenCalledTimes(5);
+    expect(mock.error).toHaveBeenCalledWith(expect.stringContaining('could not be completed'));
+  } finally { vi.useRealTimers(); }
+});
+
 it('retries completion after an accepted code without verifying the one-use code again', async () => {
   mock.invoke.mockResolvedValue({ data: { ok: true, customToken: 'synthetic-token' }, error: null });
   const p = props(); p.onSuccess.mockRejectedValueOnce(new Error('Profile unavailable')).mockResolvedValue(undefined);

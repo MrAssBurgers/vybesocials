@@ -112,6 +112,10 @@ export function LoginGateModal({
   const submittedRef = useRef(false);
   const verificationRunningRef = useRef(false);
   const context = useMemo(() => ({}), [open, challengeId, mode, email, expiresAt]);
+  // Landing supplies inline callbacks. A normal parent redraw must not retire
+  // an in-flight one-use poll or start another redemption of the same token.
+  const approvalCallbacksRef = useRef({ onSuccess, onCancel });
+  approvalCallbacksRef.current = { onSuccess, onCancel };
   const contextRef = useRef<object | null>(context);
   contextRef.current = context;
   useEffect(() => {
@@ -157,51 +161,62 @@ export function LoginGateModal({
     return () => window.clearTimeout(t);
   }, [resendCooldown]);
 
-  // ── Approval realtime + polling fallback ─────────────────
+  // Approval credentials and resolution come only from the checked callable.
+  // The legacy broadcast channel is writable by other signed-in accounts.
   useEffect(() => {
-    if (!open || currentMode !== 'approval') return;
+    if (!open || currentMode !== 'approval' || activeChallengeId !== challengeId) return;
     cancelledRef.current = false;
 
     const pollChallengeId = activeChallengeId;
     let retired = false;
+    let inFlight = false;
 
-    const finalize = (status: string, session?: any, customToken?: string | null) => {
-      if (retired || cancelledRef.current) return;
+    const finalize = (status: string, session?: SessionTokens | null, customToken?: string | null) => {
+      if (retired || cancelledRef.current || !current(context)) return;
       cancelledRef.current = true;
       if (status === 'approved') {
         const guard = () => { if (!current(context)) throw new Error('This sign-in view changed.'); };
         setBusy(true);
-        void Promise.resolve().then(() => { guard(); return onSuccess(session ?? null, customToken ?? null, undefined, guard); })
+        void Promise.resolve().then(() => { guard(); return approvalCallbacksRef.current.onSuccess(session ?? null, customToken ?? null, undefined, guard); })
           .catch(() => { if (current(context)) toast.error('Could not finish signing in. Please try again.'); })
           .finally(() => { if (current(context)) setBusy(false); });
       } else if (status === 'denied') {
         toast.error('Sign-in was declined on your other device');
-        onCancel();
+        approvalCallbacksRef.current.onCancel();
       } else if (status === 'expired' || status === 'not_found') {
         toast.error('Login request expired — try signing in again');
-        onCancel();
+        approvalCallbacksRef.current.onCancel();
       }
     };
 
     let sessionRetryCount = 0;
 
     const poll = async () => {
-      if (retired || cancelledRef.current) return;
+      if (retired || cancelledRef.current || !current(context) || inFlight || document.visibilityState !== 'visible') return;
+      // Poll redeems a one-use credential: visibility events must not dispatch
+      // another request while the current response is still being observed.
+      inFlight = true;
+      if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
       try {
         const { data, error } = await db.functions.invoke('auth-login-approval', {
           body: { action: 'poll', challengeId: pollChallengeId },
         });
-        if (retired || cancelledRef.current) return;
+        if (retired || cancelledRef.current || !current(context)) return;
         if (!error) {
           const status = (data as any)?.status;
           if (status === 'approved') {
-            const customToken = (data as any)?.customToken ?? null;
-            const session = (data as any)?.session ?? null;
-            if (customToken || (session?.access_token && session?.refresh_token)) {
+            const rawToken = (data as any)?.customToken;
+            const rawSession = (data as any)?.session;
+            const customToken = typeof rawToken === 'string' && rawToken.trim() ? rawToken : null;
+            const session: SessionTokens | null = typeof rawSession?.access_token === 'string' && rawSession.access_token.trim()
+              && typeof rawSession?.refresh_token === 'string' && rawSession.refresh_token.trim()
+              ? { access_token: rawSession.access_token, refresh_token: rawSession.refresh_token } : null;
+            if (customToken || session) {
               finalize('approved', session, customToken);
               return;
             }
-            // Broadcast may have scrubbed metadata before poll — retry briefly.
+            // Keep the existing bounded recovery for an incomplete receipt.
             if (sessionRetryCount < 4) {
               sessionRetryCount += 1;
               pollTimerRef.current = window.setTimeout(poll, 400);
@@ -209,7 +224,7 @@ export function LoginGateModal({
             }
             toast.error('This sign-in could not be completed. Please sign in again.');
             cancelledRef.current = true;
-            onCancel();
+            approvalCallbacksRef.current.onCancel();
             return;
           }
           if (status === 'denied' || status === 'expired' || status === 'not_found') {
@@ -217,37 +232,17 @@ export function LoginGateModal({
             return;
           }
         }
-      } catch {}
+      } catch {} finally { inFlight = false; }
       if (!retired && document.visibilityState === 'visible' && !cancelledRef.current) {
         pollTimerRef.current = window.setTimeout(poll, 1500);
       }
     };
 
-    // Instant resolution via broadcast from auth-login-approval `respond`.
-    const bc = db
-      .channel(`login-approval:${pollChallengeId}`)
-      .on('broadcast', { event: 'resolved' }, (payload: any) => {
-        const status = payload?.payload?.status;
-        const session = payload?.payload?.session;
-        const customToken = payload?.payload?.customToken;
-        if (status === 'approved') {
-          if (customToken || (session?.access_token && session?.refresh_token)) {
-            finalize('approved', session, customToken);
-          } else {
-            // Fall back to poll — edge may still be handing back the session row.
-            if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
-            poll();
-          }
-        } else if (status) {
-          finalize(status);
-        }
-      })
-      .subscribe();
-
     const onVisible = () => {
+      if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
       if (document.visibilityState === 'visible') {
-        if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
-        poll();
+        void poll();
       }
     };
 
@@ -258,9 +253,8 @@ export function LoginGateModal({
       cancelledRef.current = true;
       if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
       document.removeEventListener('visibilitychange', onVisible);
-      db.removeChannel(bc);
     };
-  }, [open, currentMode, activeChallengeId, onSuccess, onCancel, context, current]);
+  }, [open, currentMode, activeChallengeId, challengeId, context, current]);
 
   // ── Verify code (email or sms) ───────────────────────────
   const verifyCode = useCallback(async (codeStr: string) => {

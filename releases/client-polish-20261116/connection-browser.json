@@ -1,0 +1,77 @@
+{
+  "at": "2026-11-16T04:35:12.425Z",
+  "passed": true,
+  "actualComponentAndManager": true,
+  "simulatedNetworkAndNativeLifecycle": true,
+  "onePublicAssetRead": true,
+  "realAccountOrFirebaseUsed": false,
+  "installedAppUpdated": false,
+  "rows": [
+    {
+      "name": "coalesced foreground events",
+      "passed": true,
+      "observed": 1
+    },
+    {
+      "name": "retired native pause request",
+      "passed": true,
+      "observed": true
+    },
+    {
+      "name": "late old failure ignored",
+      "passed": true,
+      "observed": ""
+    },
+    {
+      "name": "confirmed failure shown",
+      "passed": true,
+      "observed": "Offline — changes will sync when you reconnect"
+    },
+    {
+      "name": "one recovery announcement",
+      "passed": true,
+      "observed": "Back online"
+    },
+    {
+      "name": "latest recovery timer retained",
+      "passed": true,
+      "observed": "Back online"
+    },
+    {
+      "name": "recovery animation dismissed",
+      "passed": true,
+      "observed": ""
+    },
+    {
+      "name": "stopped owner remains retired",
+      "passed": true,
+      "observed": {
+        "probes": 8,
+        "stoppedAt": 8,
+        "label": ""
+      }
+    },
+    {
+      "name": "actual public HTTPS probe from Android Chrome",
+      "passed": true,
+      "observed": {
+        "url": "https://vybehub.app/favicon.ico?_probe=1794803712276",
+        "mode": "no-cors",
+        "credentials": "omit",
+        "type": "opaque",
+        "status": 0
+      }
+    },
+    {
+      "name": "no contradictory animated announcements",
+      "passed": true,
+      "observed": 1
+    }
+  ],
+  "refreshes": 2,
+  "mutations": 2,
+  "viewport": {
+    "width": 475,
+    "height": 637
+  }
+}

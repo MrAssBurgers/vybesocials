@@ -1,6 +1,6 @@
-/** Space reserved above bottom nav + safe area for clips action rail & captions. */
+/** Use the same measured inset as BottomNav; native WebViews may report env()=0. */
 export const CLIPS_BOTTOM_UI_OFFSET =
-  'calc(env(safe-area-inset-bottom, 0px) + 78px)';
+  'calc(var(--sab, env(safe-area-inset-bottom, 0px)) + 78px)';
 
 /** Top chrome (Following / For You tabs + safe area). Uses the JS-measured
  * --app-header-safe var because raw env() reports 0 in some WebViews. */

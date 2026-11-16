@@ -1,0 +1,71 @@
+{
+  "at": "2026-11-16T04:36:47.675Z",
+  "passed": true,
+  "fixtureOnly": true,
+  "actualAppStyles": true,
+  "simulatedMeasuredInsets": true,
+  "installedClientChanged": false,
+  "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Mobile Safari/537.36",
+  "rows": [
+    {
+      "inset": 0,
+      "corrected": false,
+      "captionBottom": 559.3333435058594,
+      "navTop": 561.8095092773438,
+      "gap": 2.476165771484375,
+      "viewportWidth": 475,
+      "documentWidth": 475,
+      "viewportHeight": 637
+    },
+    {
+      "inset": 0,
+      "corrected": true,
+      "captionBottom": 559.3333435058594,
+      "navTop": 561.8095092773438,
+      "gap": 2.476165771484375,
+      "viewportWidth": 475,
+      "documentWidth": 475,
+      "viewportHeight": 637
+    },
+    {
+      "inset": 20,
+      "corrected": false,
+      "captionBottom": 559.3333435058594,
+      "navTop": 541.8095092773438,
+      "gap": -17.523834228515625,
+      "viewportWidth": 475,
+      "documentWidth": 475,
+      "viewportHeight": 637
+    },
+    {
+      "inset": 20,
+      "corrected": true,
+      "captionBottom": 539.3333435058594,
+      "navTop": 541.8095092773438,
+      "gap": 2.476165771484375,
+      "viewportWidth": 475,
+      "documentWidth": 475,
+      "viewportHeight": 637
+    },
+    {
+      "inset": 34,
+      "corrected": false,
+      "captionBottom": 559.3333435058594,
+      "navTop": 527.8095092773438,
+      "gap": -31.523834228515625,
+      "viewportWidth": 475,
+      "documentWidth": 475,
+      "viewportHeight": 637
+    },
+    {
+      "inset": 34,
+      "corrected": true,
+      "captionBottom": 525.3333435058594,
+      "navTop": 527.8095092773438,
+      "gap": 2.476165771484375,
+      "viewportWidth": 475,
+      "documentWidth": 475,
+      "viewportHeight": 637
+    }
+  ]
+}

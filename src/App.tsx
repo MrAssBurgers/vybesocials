@@ -473,9 +473,10 @@ function AppWithPreloader() {
   // marketing and signup pages do not need a 60s favicon poll or an empty flush.
   useEffect(() => {
     if (!authReady || !user?.id) return;
-    startReconnectManager(queryClient);
+    const stopReconnect = startReconnectManager(queryClient);
     startOutbox();
-  }, [authReady, user?.id]);
+    return stopReconnect;
+  }, [authReady, user?.id, queryClient]);
 
   // bfcache restore (iOS Safari / some WebViews) — re-show splash if shell is empty.
   useEffect(() => {

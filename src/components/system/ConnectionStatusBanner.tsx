@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Wifi, WifiOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getConnectionOnline } from '@/lib/reconnectManager';
 
 type Status = 'online' | 'offline' | 'reconnecting' | 'restored';
 
@@ -25,21 +26,26 @@ function readQueueCount(): number {
  * - Flashes "Back online" for 2s after recovery, then hides.
  */
 export function ConnectionStatusBanner() {
-  const [status, setStatus] = useState<Status>('online');
+  const [status, setStatus] = useState<Status>(() => getConnectionOnline() ? 'online' : 'offline');
   const [queueCount, setQueueCount] = useState<number>(() => readQueueCount());
 
   useEffect(() => {
+    let restoredTimer: number | null = null;
+    const clearRestored = () => { if (restoredTimer !== null) window.clearTimeout(restoredTimer); restoredTimer = null; };
     const refreshQueue = () => setQueueCount(readQueueCount());
     refreshQueue();
 
     const handleOffline = () => {
+      clearRestored();
       setStatus('offline');
       refreshQueue();
     };
     const handleOnline = () => {
+      clearRestored();
       setStatus((prev) => (prev === 'online' ? 'online' : 'restored'));
       refreshQueue();
-      window.setTimeout(() => {
+      restoredTimer = window.setTimeout(() => {
+        restoredTimer = null;
         setStatus((s) => (s === 'restored' ? 'online' : s));
       }, 2000);
     };
@@ -51,11 +57,14 @@ export function ConnectionStatusBanner() {
     window.addEventListener('vybe:online', handleOnline);
     window.addEventListener('vybe:reconnecting', handleReconnecting);
     window.addEventListener('storage', refreshQueue);
+    // Catch a probe that settled between this render and listener attachment.
+    setStatus(getConnectionOnline() ? 'online' : 'offline');
 
     // Poll queue lightly so local mutations on this tab reflect too
     const t = window.setInterval(refreshQueue, 4000);
 
     return () => {
+      clearRestored();
       window.removeEventListener('vybe:offline', handleOffline);
       window.removeEventListener('vybe:online', handleOnline);
       window.removeEventListener('vybe:reconnecting', handleReconnecting);
@@ -92,7 +101,7 @@ export function ConnectionStatusBanner() {
     <AnimatePresence>
       {visible && (
         <motion.div
-          key={status}
+          key="connection-status"
           initial={{ y: -40, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: -40, opacity: 0 }}
