@@ -1,0 +1,59 @@
+{
+  "scope": "Sanitized actual installed Google Play startup observations; not native acceptance or a measured time to interactive",
+  "package": "com.despia.vybe",
+  "taskControlledColdLaunchAt": "2026-11-16T05:02:29.498Z",
+  "appDataCleared": false,
+  "binaryReplaced": false,
+  "webViewDebuggingEnabledByTask": false,
+  "visibleLogoObservations": [
+    "2026-11-16T05:02:47.366Z",
+    "2026-11-16T05:06:33.356Z",
+    "2026-11-16T05:12:37.596Z",
+    "2026-11-16T05:23:05.837Z"
+  ],
+  "homeConfirmedAfterRelease": false,
+  "userCorrectedInitialHomeReplyToLogo": true,
+  "sameProcessAcrossAllObservationsEstablished": false,
+  "laterAccessibilityObservation": {
+    "nativeSplashContainerPresent": true,
+    "webRootPresent": true,
+    "signInControlsRecognizedUnderOverlay": true,
+    "credentialValuesReadOrEntered": false
+  },
+  "retainedErrorLogTimeline": {
+    "readCompletedWithoutBufferError": true,
+    "deviceLocalDownloadStart": "11-15 23:02:29.602",
+    "deviceLocalDownloadCompletionAndHandler": "11-15 23:02:40.608",
+    "rootCauseEstablished": false
+  },
+  "staticServerObservation": {
+    "checkedAt": "2026-11-16T05:21:01.261Z",
+    "taskOwnedTemporaryForwardRemoved": true,
+    "portListening": true,
+    "httpStatus": 200,
+    "contentType": "text/html; charset=utf-8",
+    "contentLengthHeader": 70674,
+    "transferEncodingHeader": "chunked",
+    "wireBodyBytes": 70719,
+    "entryReferencedByCachedHtml": "/assets/app-DjYQ6ATj.js",
+    "deployedAtReferencedByCachedHtml": "1794804675667",
+    "standardReaderErrors": [
+      "HPE_INVALID_TRANSFER_ENCODING",
+      "UND_ERR_RES_CONTENT_LENGTH_MISMATCH"
+    ],
+    "fileTruncationEstablished": false,
+    "evaluatedEntryEstablished": false
+  },
+  "backNavigation": {
+    "at": "2026-11-16T05:23:05.003Z",
+    "logoRemainedVisible": true
+  },
+  "remaining": [
+    "Native opening-screen recovery and cause reproduction",
+    "Actual entry evaluation and signed-in restoration",
+    "Installed Settings title, Clips layout and reconnect lifecycle acceptance",
+    "Purchase provider configuration and real provider checks",
+    "Whole-app security, backend rollout, media, calling and load acceptance"
+  ],
+  "privateEvidenceIncluded": false
+}

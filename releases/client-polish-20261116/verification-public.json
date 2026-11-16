@@ -1,0 +1,31 @@
+{
+  "checkedAt": "2026-11-16T04:55:41.244Z",
+  "commit": "063b3ca4bc4cee68cf448b4d5e86b29330105701",
+  "sourceSha256": "92ee535bf2adaa15e386cf4a19104878325cb3dbd8984c3a0872d7dfbb7aa4eb",
+  "sourceFiles": 2692,
+  "entry": "/assets/app-DjYQ6ATj.js",
+  "entrySha256": "2bbd50a4766822630b8ca7a8f9abf30bda8a06da0b25e4dea5eac5edc38dc877",
+  "builtAt": "2026-11-16T04:51:16.205Z",
+  "routes": [
+    "/",
+    "/login",
+    "/signup",
+    "/home",
+    "/profile",
+    "/messages",
+    "/community",
+    "/map",
+    "/explore",
+    "/clips",
+    "/settings",
+    "/about",
+    "/contact",
+    "/faq",
+    "/delete-account",
+    "/roulette"
+  ],
+  "assets": 711,
+  "nativeDeployedAt": "1794804675667",
+  "failures": [],
+  "scope": "Exact public source/runtime/entry integrity, sixteen route shells and native manifest delivery. Not a certification of signed-in transactions, provider integrations, native adoption, GPS, calling or sustained media/animation performance."
+}
