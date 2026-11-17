@@ -1,10 +1,9 @@
-import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AtSign, Check, X, Loader2 } from 'lucide-react';
-import { checkUsernameAvailable } from '@/lib/usernameAvailability';
+import { useOnboardingUsernameCheck } from './useOnboardingUsernameCheck';
 
 interface UsernameSetupProps {
   username: string;
@@ -14,54 +13,7 @@ interface UsernameSetupProps {
 
 export function UsernameSetup({ username, onChange, onValidChange }: UsernameSetupProps) {
   const { t } = useTranslation();
-  const [checking, setChecking] = useState(false);
-  const [error, setError] = useState('');
-  const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
-
-  const validateUsername = async (value: string) => {
-    setError('');
-    setIsAvailable(null);
-    onValidChange(false);
-
-    if (value.length < 3) {
-      setError('Username must be at least 3 characters');
-      return;
-    }
-
-    if (!/^[a-zA-Z0-9_]+$/.test(value)) {
-      setError('Only letters, numbers, and underscores allowed');
-      return;
-    }
-
-    setChecking(true);
-    try {
-      const result = await checkUsernameAvailable(value);
-
-      if (result.error) {
-        setError(result.error);
-        onValidChange(false);
-        return;
-      }
-
-      if (!result.available) {
-        setError('Username is already taken');
-        setIsAvailable(false);
-        onValidChange(false);
-        return;
-      }
-
-      setIsAvailable(true);
-      onValidChange(true);
-      if (!result.rpcChecked) {
-        setError('');
-      }
-    } catch {
-      setError('Error checking username');
-      onValidChange(false);
-    } finally {
-      setChecking(false);
-    }
-  };
+  const { changeUsername, checking, error, available: isAvailable } = useOnboardingUsernameCheck(onChange, onValidChange);
 
   return (
     <div className="space-y-6">
@@ -85,16 +37,7 @@ export function UsernameSetup({ username, onChange, onValidChange }: UsernameSet
               id="username"
               placeholder="your_username"
               value={username}
-              onChange={(e) => {
-                const value = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
-                onChange(value);
-                if (value.length >= 3) {
-                  validateUsername(value);
-                } else {
-                  setIsAvailable(null);
-                  onValidChange(false);
-                }
-              }}
+              onChange={event => void changeUsername(event.target.value)}
               className="bg-card border-border pr-10"
               maxLength={20}
             />

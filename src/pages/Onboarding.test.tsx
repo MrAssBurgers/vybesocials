@@ -5,11 +5,15 @@ import Onboarding from './Onboarding';
 
 const state = vi.hoisted(() => ({
   uid: 'alice', epoch: 1,
+  usernameMetadata: '',
+  realProfileSetup: false,
+  checkUsername: vi.fn(),
   profile: { id: 'profile-alice', user_id: 'alice', username: 'alice', first_name: 'Test', last_name: 'Person', display_name: 'Test Person', onboarding_completed: false },
   ensure: vi.fn(), update: vi.fn(), legal: vi.fn(), birthday: vi.fn(), upload: vi.fn(), url: vi.fn(), refresh: vi.fn(),
   error: vi.fn(), success: vi.fn(), clearUsername: vi.fn(), clearApple: vi.fn(), order: [] as string[],
 }));
-vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: state.uid, user_metadata: {} }, profile: state.profile, refreshProfile: state.refresh, profileSetupError: null }) }));
+vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: state.uid, user_metadata: { username: state.usernameMetadata } }, profile: state.profile, refreshProfile: state.refresh, profileSetupError: null }) }));
+vi.mock('@/lib/usernameAvailability', () => ({ checkUsernameAvailable: (...args: unknown[]) => state.checkUsername(...args) }));
 vi.mock('@/hooks/useReportAccountSession', () => ({ useReportAccountSession: () => ({ uid: state.uid, epoch: state.epoch }) }));
 vi.mock('@/lib/profileAccountGuard', () => ({ profileAccountGuard: (uid: string, extra?: () => void) => {
   const epoch = state.epoch;
@@ -31,17 +35,21 @@ vi.mock('sonner', () => ({ toast: { error: state.error, success: state.success, 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: () => 'Skip for now' }) }));
 vi.mock('@/components/ui/VYBELogo', () => ({ VYBELogo: () => <span>VYBE</span> }));
 vi.mock('@/components/ui/VybeMiniIcon', () => ({ VybeMiniIcon: () => null }));
-vi.mock('@/components/onboarding/UsernameSetup', () => ({ UsernameSetup: () => <p>Choose username</p> }));
 vi.mock('@/components/onboarding/AgeSetup', () => ({ AgeSetup: ({ onChange, onAgeCalculated }: { onChange: (date: Date) => void; onAgeCalculated: (age: number) => void }) => <div>
   <button onClick={() => { onChange(new Date('2000-01-02T00:00:00Z')); onAgeCalculated(26); }}>Set test birthday</button>
   <button onClick={() => { onChange(new Date('2018-01-02T00:00:00Z')); onAgeCalculated(8); }}>Set underage birthday</button>
 </div> }));
 vi.mock('@/components/onboarding/InterestPicker', () => ({ InterestPicker: ({ onChange }: { onChange: (values: string[]) => void }) => <button onClick={() => onChange(['art', 'games', 'music'])}>Choose interests</button> }));
 vi.mock('@/components/onboarding/CreatorSuggestions', () => ({ CreatorSuggestions: () => null }));
-vi.mock('@/components/onboarding/ProfileSetup', () => ({ ProfileSetup: ({ data, onChange }: { data: { bio: string }; onChange: (value: unknown) => void }) => <div>
-  <input aria-label="Biography" value={data.bio} onChange={event => onChange({ ...data, bio: event.target.value })} />
-  <button onClick={() => onChange({ ...data, avatarFile: new File(['photo'], 'avatar.png', { type: 'image/png' }) })}>Choose test photo</button>
-</div> }));
+vi.mock('@/components/onboarding/ProfileSetup', async (importOriginal) => {
+  const { ProfileSetup } = await importOriginal<typeof import('@/components/onboarding/ProfileSetup')>();
+  return { ProfileSetup: (props: React.ComponentProps<typeof ProfileSetup>) => state.realProfileSetup
+    ? <ProfileSetup {...props} />
+    : <div>
+      <input aria-label="Biography" value={props.data.bio} onChange={event => props.onChange({ ...props.data, bio: event.target.value })} />
+      <button onClick={() => props.onChange({ ...props.data, avatarFile: new File(['photo'], 'avatar.png', { type: 'image/png' }) })}>Choose test photo</button>
+    </div> };
+});
 vi.mock('@/components/onboarding/LegalAcceptance', () => ({ LegalAcceptance: ({ accepted, onChange }: { accepted: boolean; onChange: (value: boolean) => void }) => <label>Accept test terms<input type="checkbox" checked={accepted} onChange={event => onChange(event.target.checked)} /></label> }));
 vi.mock('@/components/onboarding/AIVybeDesigner', () => ({ AIVybeDesigner: ({ onComplete }: { onComplete: () => void }) => <button onClick={onComplete}>Finish designer</button> }));
 
@@ -60,6 +68,9 @@ async function completeSteps(photo = false) {
 
 beforeEach(() => {
   vi.clearAllMocks(); state.uid = 'alice'; state.epoch = 1; state.order = [];
+  state.usernameMetadata = '';
+  state.realProfileSetup = false;
+  state.checkUsername.mockResolvedValue({ available: true, rpcChecked: true });
   state.profile = { id: 'profile-alice', user_id: 'alice', username: 'alice', first_name: 'Test', last_name: 'Person', display_name: 'Test Person', onboarding_completed: false };
   state.refresh.mockImplementation(async () => state.profile);
   state.ensure.mockImplementation(async () => state.profile);
@@ -69,6 +80,53 @@ beforeEach(() => {
   state.upload.mockResolvedValue({ error: null }); state.url.mockResolvedValue('https://example.test/avatar.png');
 });
 afterEach(cleanup);
+
+describe('onboarding username editing', () => {
+  it('keeps a cleared signup suggestion blank and lets the user choose a replacement', async () => {
+    state.profile.username = 'user_a1b2c3d4';
+    state.usernameMetadata = 'suggested_name';
+    const view = show();
+    const input = screen.getByPlaceholderText('your_username');
+    expect(input).toHaveValue('suggested_name');
+    fireEvent.change(input, { target: { value: '' } });
+    expect(input).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    state.usernameMetadata = 'updated_suggestion';
+    view.rerender(<MemoryRouter><Routes><Route path="/home" element={<p>Home destination</p>} /><Route path="*" element={<Onboarding />} /></Routes></MemoryRouter>);
+    expect(input).toHaveValue('');
+    fireEvent.change(input, { target: { value: 'replacement' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled());
+    expect(input).toHaveValue('replacement');
+  });
+
+  it('ignores an availability reply that arrives after the draft was cleared', async () => {
+    state.profile.username = 'user_a1b2c3d4';
+    const request = deferred<{ available: boolean; rpcChecked: boolean }>();
+    state.checkUsername.mockReturnValueOnce(request.promise);
+    show();
+    const input = screen.getByPlaceholderText('your_username');
+    fireEvent.change(input, { target: { value: 'first_name' } });
+    fireEvent.change(input, { target: { value: '' } });
+    await act(async () => request.resolve({ available: true, rpcChecked: true }));
+    expect(input).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    expect(screen.queryByText('Username is available!')).not.toBeInTheDocument();
+  });
+
+  it('keeps the profile username empty while the user edits an existing handle', () => {
+    state.realProfileSetup = true;
+    show();
+    fireEvent.click(screen.getByRole('button', { name: 'Set test birthday' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Choose interests' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    const input = screen.getByRole('textbox', { name: /username/i });
+    expect(input).toHaveValue('alice');
+    fireEvent.change(input, { target: { value: '' } });
+    expect(input).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+  });
+});
 
 describe('account-bound onboarding persistence', () => {
   it('returns a confirmed existing account to Home without another bootstrap read', () => {

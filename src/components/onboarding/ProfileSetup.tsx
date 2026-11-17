@@ -5,8 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Camera, Link, AtSign, Check, X, Loader2 } from 'lucide-react';
-import { useRef, useState } from 'react';
-import { checkUsernameAvailable } from '@/lib/usernameAvailability';
+import { useRef } from 'react';
+import { useOnboardingUsernameCheck } from './useOnboardingUsernameCheck';
 
 interface ProfileData {
   firstName: string;
@@ -40,9 +40,12 @@ export function ProfileSetup({
 }: ProfileSetupProps) {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [checkingUsername, setCheckingUsername] = useState(false);
-  const [usernameError, setUsernameError] = useState('');
-  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
+  const {
+    changeUsername,
+    checking: checkingUsername,
+    error: usernameError,
+    available: usernameAvailable,
+  } = useOnboardingUsernameCheck(onUsernameChange, onUsernameValidChange, authUserId);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -56,48 +59,6 @@ export function ProfileSetup({
         });
       };
       reader.readAsDataURL(file);
-    }
-  };
-
-  const validateUsername = async (value: string) => {
-    setUsernameError('');
-    setUsernameAvailable(null);
-    onUsernameValidChange(false);
-
-    if (value.length < 3) {
-      setUsernameError('Username must be at least 3 characters');
-      return;
-    }
-
-    if (!/^[a-zA-Z0-9_]+$/.test(value)) {
-      setUsernameError('Only letters, numbers, and underscores allowed');
-      return;
-    }
-
-    setCheckingUsername(true);
-    try {
-      const result = await checkUsernameAvailable(value, authUserId);
-
-      if (result.error) {
-        setUsernameError(result.error);
-        onUsernameValidChange(false);
-        return;
-      }
-
-      if (!result.available) {
-        setUsernameError('Username is already taken');
-        setUsernameAvailable(false);
-        onUsernameValidChange(false);
-        return;
-      }
-
-      setUsernameAvailable(true);
-      onUsernameValidChange(true);
-    } catch {
-      setUsernameError('Error checking username');
-      onUsernameValidChange(false);
-    } finally {
-      setCheckingUsername(false);
     }
   };
 
@@ -162,17 +123,7 @@ export function ProfileSetup({
               id="profileUsername"
               placeholder="your_username"
               value={username}
-              onChange={(e) => {
-                const value = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
-                onUsernameChange(value);
-                if (value.length >= 3) {
-                  void validateUsername(value);
-                } else {
-                  setUsernameAvailable(null);
-                  setUsernameError(value.length > 0 ? 'Username must be at least 3 characters' : '');
-                  onUsernameValidChange(false);
-                }
-              }}
+              onChange={event => void changeUsername(event.target.value)}
               className="bg-card border-border pr-10"
               maxLength={20}
               autoComplete="username"

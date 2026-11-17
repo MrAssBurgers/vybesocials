@@ -189,12 +189,19 @@ function OnboardingFlow({ onInviteNavigate, isInviteMode = false }: OnboardingPr
   const captureGuard = () => profileAccountGuard(user?.id || '', () => {
     if (!activeRef.current) throw new Error('Profile setup closed.');
   });
-  const [usernameValid, setUsernameValid] = useState(false);
+  const [checkedUsernameValid, setUsernameValid] = useState(false);
   const [showAIDesigner, setShowAIDesigner] = useState(false);
   const [showCreators, setShowCreators] = useState(false);
 
   // State for each step
-  const [username, setUsername] = useState('');
+  // An empty edit is a draft, so later metadata or profile refreshes cannot replace it.
+  const [usernameDraft, setUsername] = useState<string | null>(null);
+  const suggestedUsername = normalizeUsername(needsUsername ? signupUsername : profile?.username || signupUsername);
+  const usableSuggestion = !isGeneratedUsername(suggestedUsername) && isValidUsernameFormat(suggestedUsername)
+    ? suggestedUsername
+    : '';
+  const username = usernameDraft ?? usableSuggestion;
+  const usernameValid = usernameDraft === null ? !!usableSuggestion : checkedUsernameValid;
   const [interests, setInterests] = useState<string[]>([]);
   const [following, setFollowing] = useState<string[]>([]);
   const [profileData, setProfileData] = useState({
@@ -222,13 +229,6 @@ function OnboardingFlow({ onInviteNavigate, isInviteMode = false }: OnboardingPr
     } catch { /* The account gate owns replacement sessions. */ }
   }, [user?.id, profile?.user_id, profile?.onboarding_completed, navigate, showAIDesigner]);
 
-  // Pre-fill username from signup metadata when profile got a generated placeholder.
-  useEffect(() => {
-    if (!signupUsername || username) return;
-    setUsername(signupUsername);
-    setUsernameValid(true);
-  }, [signupUsername, username]);
-
   // Seed display name from existing profile only — never copy @username into display name.
   const seededDisplayNameRef = useRef(false);
   useEffect(() => {
@@ -254,16 +254,6 @@ function OnboardingFlow({ onInviteNavigate, isInviteMode = false }: OnboardingPr
   }, [profile?.display_name, profile, user?.user_metadata?.full_name, user?.user_metadata?.name]);
 
   const appleUser = isAppleAuthUser(user);
-
-  // Mark username valid when user already has a real handle (non-OAuth placeholder).
-  useEffect(() => {
-    if (needsUsername) return;
-    const existing = normalizeUsername(profile?.username || signupUsername || '');
-    if (existing && !isGeneratedUsername(existing) && isValidUsernameFormat(existing)) {
-      setUsername(existing);
-      setUsernameValid(true);
-    }
-  }, [needsUsername, profile?.username, signupUsername]);
 
   // Step mapping (actual content step)
   const getActualStep = () => needsUsername ? step : step + 1;
@@ -327,15 +317,9 @@ function OnboardingFlow({ onInviteNavigate, isInviteMode = false }: OnboardingPr
     setSaveError('');
     haptics.impact();
     try {
-      const chosenUsername = normalizeUsername(
-        usernameValid && username
-          ? username
-          : needsUsername
-            ? normalizeUsername(username)
-            : normalizeUsername(profile?.username || signupUsername),
-      );
+      const chosenUsername = normalizeUsername(username);
 
-      if (!chosenUsername || isGeneratedUsername(chosenUsername) || !isValidUsernameFormat(chosenUsername)) {
+      if (!usernameValid || isGeneratedUsername(chosenUsername) || !isValidUsernameFormat(chosenUsername)) {
         throw new Error('Please choose a valid username before continuing.');
       }
 
@@ -579,7 +563,7 @@ function OnboardingFlow({ onInviteNavigate, isInviteMode = false }: OnboardingPr
           <ProfileSetup
             data={profileData}
             onChange={setProfileData}
-            username={needsUsername ? username : (username || profile?.username || signupUsername || '')}
+            username={username}
             onUsernameChange={setUsername}
             onUsernameValidChange={setUsernameValid}
             authUserId={user?.id}
